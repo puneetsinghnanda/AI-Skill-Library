@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Insights — Engineering monitoring</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="brand.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#00707B}a:hover{color:#0B2A4A}</style>
+</helmet>
+<main style="font-family: var(--tm-font); color: var(--tm-text); background: var(--tm-page); padding-bottom: 56px">
+<section style="background: var(--tm-surface); border-bottom: 1px solid var(--tm-border)">
+<div class="tm-wrap" style="padding-top: 32px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px">
+<div><p class="tm-eyebrow">Insights · Engineering</p><h1 style="margin: 4px 0 0; font-size: 32px">Monitoring</h1><p class="tm-sub">Runs, quality and health from run events, Claude Code telemetry and GitHub. Metadata only.</p></div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px">
+<label style="display: flex; align-items: center; gap: 6px; font-size: 14px">Project<select style="font-family: inherit; font-size: 14px; min-height: 40px; border: 1px solid var(--tm-border); border-radius: 8px; padding: 0 10px; background: #fff"><option>PRJ-07</option><option>All my projects</option></select></label>
+<label style="display: flex; align-items: center; gap: 6px; font-size: 14px">System<select style="font-family: inherit; font-size: 14px; min-height: 40px; border: 1px solid var(--tm-border); border-radius: 8px; padding: 0 10px; background: #fff"><option>All systems</option><option>SYS-ORD</option><option>SYS-GW</option></select></label>
+<label style="display: flex; align-items: center; gap: 6px; font-size: 14px">Period<select style="font-family: inherit; font-size: 14px; min-height: 40px; border: 1px solid var(--tm-border); border-radius: 8px; padding: 0 10px; background: #fff"><option>Last 30 days</option><option>Last 90 days</option></select></label>
+</div>
+</div>
+<div role="tablist" aria-label="Monitoring views" style="display: flex; flex-wrap: wrap; gap: 4px">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="4"><button role="tab" aria-selected="{{t.sel}}" onClick="{{t.pick}}" style="{{t.style}}">{{t.label}}</button></sc-for>
+</div>
+</div>
+</section>
+
+<section class="tm-wrap" style="padding-top: 24px">
+<div style="display: flex; justify-content: flex-end; margin-bottom: 12px"><span class="tm-badge b-demo">Illustrative data</span></div>
+
+<sc-if value="{{tabRuns}}" hint-placeholder-val="{{ true }}">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px">
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">Running</p><p style="margin: 6px 0 0; font-size: 28px; font-weight: 700">12</p></div>
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">Paused for input</p><p style="margin: 6px 0 0; font-size: 28px; font-weight: 700; color: var(--tm-input)">5</p><p style="margin: 2px 0 0; font-size: 12px; color: var(--tm-text-2)">oldest waiting 2 days</p></div>
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">Waiting for approval</p><p style="margin: 6px 0 0; font-size: 28px; font-weight: 700; color: var(--tm-escalate)">3</p></div>
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">Completed</p><p style="margin: 6px 0 0; font-size: 28px; font-weight: 700">58</p></div>
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">Aborted</p><p style="margin: 6px 0 0; font-size: 28px; font-weight: 700; color: var(--tm-abort)">2</p><p style="margin: 2px 0 0; font-size: 12px; color: var(--tm-text-2)">1 secret found · 1 blocked write</p></div>
+</div>
+<div class="tm-card" style="margin-top: 16px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px"><h2 style="margin: 0; font-size: 16px">Step outcomes</h2><span style="font-size: 13px; color: var(--tm-text-2)">412 harness decisions</span></div>
+<div role="img" aria-label="Outcomes: pass 58 percent, pass with findings 20, retry 12, needs input 6, escalate 3, abort 1" style="display: flex; height: 20px; border-radius: 6px; overflow: hidden">
+<span style="width: 58%; background: var(--tm-pass)"></span><span style="width: 20%; background: var(--tm-findings)"></span><span style="width: 12%; background: var(--tm-retry)"></span><span style="width: 6%; background: var(--tm-input)"></span><span style="width: 3%; background: var(--tm-escalate)"></span><span style="width: 1%; background: var(--tm-abort)"></span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px"><span class="tm-badge b-pass">Pass 58%</span><span class="tm-badge b-find">With findings 20%</span><span class="tm-badge b-retry">Retry 12%</span><span class="tm-badge b-input">Needs input 6%</span><span class="tm-badge b-esc">Escalate 3%</span><span class="tm-badge b-abort">Abort 1%</span></div>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px"><h2 style="margin: 0; font-size: 18px">Runs</h2><span style="font-size: 13px; color: var(--tm-text-2)">Click a run for its steps and records</span></div>
+<div class="tm-scroll" style="margin-top: 12px">
+<table class="tm-table" style="min-width: 980px">
+<thead><tr><th scope="col">Run</th><th scope="col">System</th><th scope="col">Ticket</th><th scope="col">Workflow</th><th scope="col">Step</th><th scope="col">Status</th><th scope="col">Lowest band</th><th scope="col">Engineer</th><th scope="col">Updated</th></tr></thead>
+<tbody>
+<sc-for list="{{runs}}" as="r" hint-placeholder-count="7">
+<tr><td><button class="tm-link" onClick="{{r.open}}" style="font-family: var(--tm-mono); font-size: 13px">{{r.id}}</button></td><td style="font-family: var(--tm-mono)">{{r.sys}}</td><td>{{r.t}}</td><td style="font-family: var(--tm-mono); font-size: 13px">{{r.wf}}</td><td>{{r.step}}</td><td><span class="{{r.sc}}">{{r.st}}</span></td><td>{{r.band}}</td><td style="font-family: var(--tm-mono); font-size: 13px">{{r.eng}}</td><td>{{r.upd}}</td></tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+</sc-if>
+
+<sc-if value="{{tabSkills}}" hint-placeholder-val="{{ false }}">
+<div class="tm-scroll">
+<table class="tm-table" style="min-width: 980px">
+<thead><tr><th scope="col">Skill</th><th scope="col">Version</th><th scope="col">Runs</th><th scope="col">First-try pass</th><th scope="col">Bands High / Medium / Low</th><th scope="col">Retries per step</th><th scope="col">Human overrides</th><th scope="col">Top failure cause</th></tr></thead>
+<tbody>
+<sc-for list="{{skills}}" as="s" hint-placeholder-count="6">
+<tr><td style="font-weight: 600">{{s.n}}</td><td style="font-family: var(--tm-mono); font-size: 13px">{{s.v}}</td><td>{{s.runs}}</td><td><span class="{{s.pc}}">{{s.pass}}</span></td><td><div style="display: flex; height: 10px; width: 160px; border-radius: 4px; overflow: hidden"><span style="{{s.hs}}"></span><span style="{{s.ms}}"></span><span style="{{s.ls}}"></span></div></td><td>{{s.retry}}</td><td>{{s.ovr}}</td><td style="font-size: 13px">{{s.cause}}</td></tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+<p style="margin: 10px 0 0; font-size: 12px; color: var(--tm-text-2)">Bar: dark green High, blue Medium, orange Low. Skills under 80% first-try go to the owner's improvement report.</p>
+</sc-if>
+
+<sc-if value="{{tabUsage}}" hint-placeholder-val="{{ false }}">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px">
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">Active engineers</p><p style="margin: 6px 0 0; font-size: 28px; font-weight: 700">31</p></div>
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">Runs started</p><p style="margin: 6px 0 0; font-size: 28px; font-weight: 700">80</p></div>
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">PR merge rate</p><p style="margin: 6px 0 0; font-size: 28px; font-weight: 700">91%</p></div>
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">PRs without a run record</p><p style="margin: 6px 0 0; font-size: 28px; font-weight: 700; color: var(--tm-input)">4</p><p style="margin: 2px 0 0; font-size: 12px; color: var(--tm-text-2)">code changed outside the plugin</p></div>
+</div>
+<div class="tm-card" style="margin-top: 16px; display: flex; flex-direction: column; gap: 12px"><h2 style="margin: 0; font-size: 16px">Runs by workflow</h2>
+<div style="display: grid; grid-template-columns: 200px 1fr 40px; gap: 10px 14px; align-items: center; font-size: 14px">
+<span style="font-family: var(--tm-mono); font-size: 13px">brownfield-change</span><div class="tm-bar"><span style="width: 100%; background: var(--tm-primary)"></span></div><span>44</span>
+<span style="font-family: var(--tm-mono); font-size: 13px">defect-fix</span><div class="tm-bar"><span style="width: 45%; background: var(--tm-primary)"></span></div><span>20</span>
+<span style="font-family: var(--tm-mono); font-size: 13px">greenfield-feature</span><div class="tm-bar"><span style="width: 23%; background: var(--tm-primary)"></span></div><span>10</span>
+<span style="font-family: var(--tm-mono); font-size: 13px">ux-review</span><div class="tm-bar"><span style="width: 9%; background: var(--tm-primary)"></span></div><span>4</span>
+<span style="font-family: var(--tm-mono); font-size: 13px">estimate</span><div class="tm-bar"><span style="width: 5%; background: var(--tm-primary)"></span></div><span>2</span>
+</div>
+<p style="margin: 0; font-size: 12px; color: var(--tm-text-2)">Engineers are shown by pseudonym (eng-4f2a). Names are visible only to the team's engineering lead.</p></div>
+</sc-if>
+
+<sc-if value="{{tabHealth}}" hint-placeholder-val="{{ false }}">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px">
+<div class="tm-card" style="display: flex; flex-direction: column; gap: 10px"><h2 style="margin: 0; font-size: 16px">Context packs</h2>
+<div style="display: flex; justify-content: space-between; align-items: center"><span style="font-family: var(--tm-mono)">SYS-ORD</span><span class="tm-badge b-pass">Fresh · signed 5 days ago</span></div>
+<div style="display: flex; justify-content: space-between; align-items: center"><span style="font-family: var(--tm-mono)">SYS-GW</span><span class="tm-badge b-input">Stale · 41 days, 63 files drift</span></div>
+<div style="display: flex; justify-content: space-between; align-items: center"><span style="font-family: var(--tm-mono)">SYS-FW</span><span class="tm-badge b-pass">Fresh · signed 12 days ago</span></div></div>
+<div class="tm-card" style="display: flex; flex-direction: column; gap: 10px"><h2 style="margin: 0; font-size: 16px">CI verification</h2>
+<div style="display: flex; justify-content: space-between"><span>PRs verified</span><strong>62</strong></div>
+<div style="display: flex; justify-content: space-between"><span>Missing records (E-CI-01)</span><strong style="color: var(--tm-input)">4</strong></div>
+<div style="display: flex; justify-content: space-between"><span>Signature problems (E-CI-02)</span><strong>0</strong></div>
+<div style="display: flex; justify-content: space-between"><span>Re-check mismatch (E-CI-03)</span><strong style="color: var(--tm-abort)">1</strong></div></div>
+<div class="tm-card" style="display: flex; flex-direction: column; gap: 10px"><h2 style="margin: 0; font-size: 16px">Telemetry and plugin</h2>
+<div style="display: flex; justify-content: space-between"><span>Events received today</span><strong>3,214</strong></div>
+<div style="display: flex; justify-content: space-between"><span>Devices with queued events</span><strong>2</strong></div>
+<div style="display: flex; justify-content: space-between"><span>Engineers on plugin 1.6.0</span><strong>27 of 31</strong></div>
+<div style="display: flex; justify-content: space-between"><span>Policy blocks by hooks</span><strong>9</strong></div></div>
+</div>
+</sc-if>
+</section>
+</main>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"go":{"editor":null},"$preview":{"width":1440,"height":2100}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { tab: 'runs' }; }
+  renderVals() {
+    const go = this.props.go || (() => {});
+    const tab = this.state.tab;
+    const base = 'background: none; border: 0; font-family: inherit; font-size: 14px; padding: 0 14px; min-height: 44px; cursor: pointer;';
+    const tabs = [['runs','Runs'],['skills','Skill performance'],['usage','Usage'],['health','Health']].map(([id, label]) => ({ label: label, sel: tab === id ? 'true' : 'false', pick: () => this.setState({ tab: id }),
+      style: base + (tab === id ? 'font-weight: 600; color: var(--tm-text); border-bottom: 2px solid var(--tm-accent-ink);' : 'font-weight: 500; color: var(--tm-text-2); border-bottom: 2px solid transparent;') }));
+    const badge = { 'Needs input': 'b-input', 'Running': 'b-find', 'Completed': 'b-pass', 'Needs approval': 'b-esc', 'Aborted': 'b-abort' };
+    const R = [
+      ['run_01J9..K2','SYS-ORD','ABC-142','brownfield-change','design','Needs input','—','eng-4f2a','2 days ago'],
+      ['run_01J9..M7','SYS-ORD','ABC-150','defect-fix','unit-test','Running','High','eng-4f2a','5 min ago'],
+      ['run_01J9..P3','SYS-ORD','ABC-149','brownfield-change','implement','Running','Medium','eng-91c0','12 min ago'],
+      ['run_01J8..A4','SYS-GW','GW-91','greenfield-feature','implement','Needs approval','Low','eng-77de','3 h ago'],
+      ['run_01J8..Q1','SYS-ORD','ABC-131','brownfield-change','PR','Completed','Medium','eng-4f2a','1 day ago'],
+      ['run_01J8..X5','SYS-FW','FW-12','defect-fix','implement','Aborted','—','eng-0b3e','2 days ago'],
+      ['run_01J8..Z9','SYS-GW','GW-88','brownfield-change','PR','Completed','High','eng-77de','3 days ago']
+    ];
+    const SK = [
+      ['requirement-review','1.2.0',86,'90%',70,24,6,'0.2','4%','H2 missing Unknown section'],
+      ['design','1.4.0',61,'79%',52,33,15,'0.5','9%','Reviewer: retention rule'],
+      ['implement','1.0.0',58,'91%',74,21,5,'0.3','5%','H3 test failure'],
+      ['unit-test','1.0.0',55,'88%',69,25,6,'0.4','3%','Coverage dropped'],
+      ['threat-model','1.0.0',40,'83%',71,22,7,'0.3','6%','S1 evidence below 0.90'],
+      ['test-automation','0.9.0',19,'76%',48,34,18,'0.7','12%','H6 stale input']
+    ];
+    return {
+      tabs: tabs, tabRuns: tab === 'runs', tabSkills: tab === 'skills', tabUsage: tab === 'usage', tabHealth: tab === 'health',
+      runs: R.map(r => ({ id: r[0], sys: r[1], t: r[2], wf: r[3], step: r[4], st: r[5], sc: 'tm-badge ' + badge[r[5]], band: r[6], eng: r[7], upd: r[8], open: () => go('run') })),
+      skills: SK.map(s => ({ n: s[0], v: s[1], runs: String(s[2]), pass: s[3], pc: 'tm-badge ' + (parseInt(s[3], 10) >= 80 ? 'b-pass' : 'b-input'),
+        hs: 'width: ' + s[4] + '%; background: var(--tm-pass)', ms: 'width: ' + s[5] + '%; background: var(--tm-findings)', ls: 'width: ' + s[6] + '%; background: var(--tm-escalate)', retry: s[7], ovr: s[8], cause: s[9] }))
+    };
+  }
+}
+</script>
+</body>
+</html>

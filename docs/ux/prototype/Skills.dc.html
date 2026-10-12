@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Skill catalogue</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="brand.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#00707B}a:hover{color:#0B2A4A}</style>
+</helmet>
+<main style="font-family: var(--tm-font); color: var(--tm-text); background: var(--tm-page); padding-bottom: 56px">
+<section style="background: var(--tm-surface); border-bottom: 1px solid var(--tm-border)">
+<div class="tm-wrap" style="padding-top: 40px; padding-bottom: 28px; display: flex; flex-direction: column; gap: 18px">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px">
+<div><p class="tm-eyebrow">Catalogue</p><h1 style="margin: 4px 0 0; font-size: 34px">Skills</h1><p class="tm-sub">{{subLine}}</p></div>
+<sc-if value="{{isEng}}" hint-placeholder-val="{{ false }}"><a class="tm-btn btn-ghost" href="https://github.com/[TRUMINDS-ORG]/truminds-skill-library">View source on GitHub</a></sc-if>
+</div>
+<label style="display: flex; align-items: center; gap: 10px; background: var(--tm-page); border: 1px solid var(--tm-border); border-radius: 10px; padding: 0 16px; min-height: 52px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4F5E72" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+<span style="position: absolute; left: -9999px">Search skills</span>
+<input type="search" value="{{q}}" onChange="{{setQ}}" placeholder="Search by task, role, phase or output, e.g. &quot;threat&quot;, &quot;test&quot;, &quot;estimate&quot;" style="border: 0; font-family: inherit; font-size: 15px; width: 100%; background: transparent">
+</label>
+<div role="group" aria-label="Filter by role" style="display: flex; flex-wrap: wrap; gap: 8px">
+<sc-for list="{{roleChips}}" as="c" hint-placeholder-count="9">
+<button onClick="{{c.pick}}" aria-pressed="{{c.pressed}}" style="{{c.style}}">{{c.label}}</button>
+</sc-for>
+</div>
+</div>
+</section>
+
+<section class="tm-wrap" style="padding-top: 24px">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px">
+<p style="margin: 0; font-size: 14px; color: var(--tm-text-2)"><strong style="color: var(--tm-text)">{{count}}</strong> skills · production and pilot</p>
+<span class="tm-badge b-demo">Illustrative data</span>
+</div>
+<sc-if value="{{empty}}" hint-placeholder-val="{{ false }}">
+<div class="tm-card" style="text-align: center; padding: 40px"><p style="margin: 0; font-size: 16px; font-weight: 600">No skills match</p><p style="margin: 6px 0 0; font-size: 14px; color: var(--tm-text-2)">Try another word, or clear the role filter.</p></div>
+</sc-if>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px">
+<sc-for list="{{list}}" as="s" hint-placeholder-count="9">
+<button onClick="{{s.open}}" class="tm-card" style="text-align: left; cursor: pointer; font-family: inherit; display: flex; flex-direction: column; gap: 10px; min-height: 190px">
+<span style="display: flex; justify-content: space-between; gap: 8px; align-items: center; width: 100%"><span style="font-size: 12px; font-weight: 600; color: var(--tm-text-2); text-transform: uppercase; letter-spacing: 0.05em">{{s.role}}</span><span class="{{s.statusClass}}">{{s.status}}</span></span>
+<span style="font-size: 17px; font-weight: 600; color: var(--tm-text)">{{s.title}}</span>
+<span style="font-size: 14px; line-height: 1.5; color: var(--tm-text-2)">{{s.what}}</span>
+<span style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto"><span class="tm-badge b-navy">{{s.phase}}</span>
+<sc-if value="{{isEng}}" hint-placeholder-val="{{ false }}"><span class="tm-badge b-teal" style="font-family: var(--tm-mono)">{{s.id}} {{s.ver}}</span><span class="tm-badge b-pass">{{s.pass}} first-try</span></sc-if>
+<sc-if value="{{isBiz}}" hint-placeholder-val="{{ true }}"><span class="tm-badge b-teal">Output: {{s.out}}</span></sc-if>
+</span>
+</button>
+</sc-for>
+</div>
+</section>
+</main>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"persona":{"editor":"enum","options":["Business","Engineer"],"default":"Business"},"go":{"editor":null},"$preview":{"width":1440,"height":1700}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { q: '', role: 'All roles' }; }
+  renderVals() {
+    const go = this.props.go || (() => {});
+    const eng = this.props.persona === 'Engineer';
+    const S = [
+      ['requirement-review','Requirement review','Business Analyst','Requirements','Finds gaps, conflicts and missing conditions in a ticket before design starts.','intent.v1','v1.2','90%','Production'],
+      ['story-split','Story split','Business Analyst','Requirements','Turns reviewed requirements into small, testable user stories.','stories.v1','v1.0','86%','Production'],
+      ['impact-analysis','Impact analysis','Solution Architect','Design','Shows which modules, APIs and data a change touches, with evidence.','impact.v1','v1.1','84%','Production'],
+      ['design','Solution design','Solution Architect','Design','Designs the change to fit the existing architecture and rules.','design.v1','v1.4','79%','Production'],
+      ['implement','Implement','Developer','Build','Writes the code change from an approved design, within change limits.','code + change.v1','v1.0','91%','Production'],
+      ['unit-test','Unit tests','Developer','Build','Adds and runs unit tests; coverage must not drop.','tests + ut-result.v1','v1.0','88%','Production'],
+      ['defect-triage','Defect triage','Developer','Operate','Ranks likely root causes of a defect with cited evidence.','triage.v1','v1.1','84%','Production'],
+      ['test-plan','Test plan','QA Engineer','Test','Makes sure every acceptance criterion has at least one test.','test-plan.v1','v1.0','87%','Production'],
+      ['test-automation','Test automation','QA Engineer','Test','Writes and runs automated tests linked to acceptance criteria.','tests + test-result.v1','v0.9','76%','Pilot'],
+      ['pipeline-review','Pipeline review','DevOps','Operate','Reviews CI/CD pipelines for gaps and risky steps.','pipeline-review.v1','v0.9','81%','Pilot'],
+      ['deployment-failure-analysis','Deployment failure analysis','DevOps','Operate','Explains a failed deployment from its logs, with cited lines.','deploy-failure.v1','v0.8','74%','Pilot'],
+      ['threat-model','Threat model','Security','Design','Builds a STRIDE threat model from the approved design.','threat-model.v1','v1.0','83%','Production'],
+      ['secure-code-review','Secure code review','Security','Build','Reviews a code change for security issues with scan results attached.','secure-review.v1','v1.0','85%','Production'],
+      ['ux-flow-review','UX flow review','UX Designer','Design','Finds dead ends and missing states in a Figma flow (read-only).','ux-flow.v1','v0.9','80%','Pilot'],
+      ['accessibility-review','Accessibility review','UX Designer','Design','Maps design issues to WCAG 2.1 AA criteria.','a11y.v1','v0.9','82%','Pilot'],
+      ['estimate-review','Estimate review','Delivery Manager','Requirements','Sizes work items with evidence; unsized items are flagged, not guessed.','estimate.v1','v1.0','80%','Production'],
+      ['status-report','Status report','Delivery Manager','Operate','Summarises run status, waiting questions and escalations for a project.','status.v1','v1.0','95%','Production']
+    ];
+    const roles = ['All roles','Business Analyst','Solution Architect','Developer','QA Engineer','DevOps','Security','UX Designer','Delivery Manager'];
+    const q = (this.state.q || '').toLowerCase().trim();
+    const list = S.filter(s => (this.state.role === 'All roles' || s[2] === this.state.role) && (!q || (s.join(' ').toLowerCase().indexOf(q) >= 0))).map(s => ({
+      id: s[0], title: s[1], role: s[2], phase: s[3], what: s[4], out: s[5], ver: s[6], pass: s[7], status: s[8],
+      statusClass: 'tm-badge ' + (s[8] === 'Production' ? 'b-pass' : 'b-input'),
+      open: () => go('skill')
+    }));
+    const chip = 'font-family: inherit; font-size: 13px; font-weight: 600; padding: 0 14px; min-height: 36px; border-radius: 999px; cursor: pointer; border: 1px solid ';
+    return {
+      isEng: eng, isBiz: !eng,
+      subLine: eng ? 'Every skill your workflows can call, with version, quality and install details.' : 'What each AI skill delivers, by role and SDLC phase. Production skills can be offered to clients.',
+      q: this.state.q,
+      setQ: (e) => this.setState({ q: e && e.target ? e.target.value : '' }),
+      roleChips: roles.map(r => ({ label: r, pressed: this.state.role === r ? 'true' : 'false', pick: () => this.setState({ role: r }),
+        style: chip + (this.state.role === r ? 'var(--tm-primary); background: var(--tm-primary); color: #fff;' : 'var(--tm-border); background: #fff; color: var(--tm-text);') })),
+      list: list, count: String(list.length), empty: list.length === 0
+    };
+  }
+}
+</script>
+</body>
+</html>

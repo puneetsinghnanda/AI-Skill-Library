@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home — Engineer view</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="brand.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#00707B}a:hover{color:#0B2A4A}</style>
+</helmet>
+<main style="font-family: var(--tm-font); color: var(--tm-text); background: var(--tm-page); padding-bottom: 48px">
+
+<section style="background: var(--tm-primary); color: #fff">
+<div class="tm-wrap" style="padding-top: 40px; padding-bottom: 40px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 24px">
+<div style="flex: 1 1 520px; min-width: 0">
+<h1 style="margin: 0; font-size: 32px; font-weight: 700">Welcome back</h1>
+<p style="margin: 10px 0 0; font-size: 15px; line-height: 1.55; color: rgba(255,255,255,0.86); max-width: 620px">Your runs, the questions waiting for you and the skills for your role. Runs execute in Claude Code on your laptop; this page only shows their status.</p>
+</div>
+<div style="display: flex; flex-direction: column; align-items: flex-end; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; gap: 10px">
+<button class="tm-btn btn-accent" onClick="{{toStart}}">Install the plugin</button>
+<a class="tm-btn btn-light" href="https://github.com/[TRUMINDS-ORG]/truminds-skill-library">Open GitHub repo</a>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><span style="font-size: 13px; color: rgba(255,255,255,0.86)">Start a run in Claude Code:</span><code class="tm-code" style="background: rgba(255,255,255,0.12)">/truminds:run brownfield-change ABC-142</code></div>
+</div>
+</div>
+</section>
+
+<div class="tm-wrap" style="padding-top: 32px; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+<div style="flex: 999 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px">
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">My active runs</p><p style="margin: 6px 0 0; font-size: 30px; font-weight: 700">3</p></div>
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">Waiting on me</p><p style="margin: 6px 0 0; font-size: 30px; font-weight: 700; color: var(--tm-input)">2</p><p style="margin: 2px 0 0; font-size: 12px; color: var(--tm-text-2)">1 question · 1 approval</p></div>
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">First-try pass</p><p style="margin: 6px 0 0; font-size: 30px; font-weight: 700; color: var(--tm-pass)">78%</p><p style="margin: 2px 0 0; font-size: 12px; color: var(--tm-text-2)">my last 30 steps</p></div>
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">PRs this month</p><p style="margin: 6px 0 0; font-size: 30px; font-weight: 700">5</p></div>
+</div>
+
+<div style="display: flex; justify-content: space-between; align-items: center"><h2 style="margin: 0; font-size: 20px">My runs</h2><button class="tm-link" onClick="{{toInsights}}">All runs →</button></div>
+<div class="tm-scroll">
+<table class="tm-table" style="min-width: 760px">
+<thead><tr><th scope="col">Run</th><th scope="col">Ticket</th><th scope="col">Workflow · step</th><th scope="col">Status</th><th scope="col">Next action</th></tr></thead>
+<tbody>
+<tr><td><button class="tm-link" onClick="{{toRun}}" style="font-family: var(--tm-mono); font-size: 13px">run_01J9..K2</button></td><td>ABC-142</td><td>brownfield-change · design</td><td><span class="tm-badge b-input">Needs input</span></td><td>Answer open-questions.md</td></tr>
+<tr><td><button class="tm-link" onClick="{{toRun}}" style="font-family: var(--tm-mono); font-size: 13px">run_01J9..M7</button></td><td>ABC-150</td><td>defect-fix · unit-test</td><td><span class="tm-badge b-find">Running</span></td><td>None, Claude is working</td></tr>
+<tr><td><button class="tm-link" onClick="{{toRun}}" style="font-family: var(--tm-mono); font-size: 13px">run_01J8..Q1</button></td><td>ABC-131</td><td>brownfield-change · PR</td><td><span class="tm-badge b-pass">Completed</span></td><td>PR #482 in review</td></tr>
+<tr><td><button class="tm-link" onClick="{{toRun}}" style="font-family: var(--tm-mono); font-size: 13px">run_01J8..A4</button></td><td>ABC-127</td><td>greenfield-feature · implement</td><td><span class="tm-badge b-esc">Needs approval</span></td><td>Tech lead approves design</td></tr>
+</tbody>
+</table>
+</div>
+
+<div style="display: flex; justify-content: space-between; align-items: center"><h2 style="margin: 0; font-size: 20px">Skills for your role · Developer</h2><button class="tm-link" onClick="{{toSkills}}">All skills →</button></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px">
+<button class="tm-card" onClick="{{toSkill}}" style="text-align: left; cursor: pointer; font-family: inherit; display: flex; flex-direction: column; gap: 8px"><span style="display: flex; gap: 8px; align-items: center"><span style="font-size: 16px; font-weight: 600; color: var(--tm-text)">implement</span><span class="tm-badge b-navy">v1.0</span></span><span style="font-size: 13px; line-height: 1.5; color: var(--tm-text-2)">Writes the code change from an approved design, inside change limits.</span><span class="tm-badge b-pass">91% first-try</span></button>
+<button class="tm-card" onClick="{{toSkill}}" style="text-align: left; cursor: pointer; font-family: inherit; display: flex; flex-direction: column; gap: 8px"><span style="display: flex; gap: 8px; align-items: center"><span style="font-size: 16px; font-weight: 600; color: var(--tm-text)">unit-test</span><span class="tm-badge b-navy">v1.0</span></span><span style="font-size: 13px; line-height: 1.5; color: var(--tm-text-2)">Adds and runs unit tests; coverage must not drop.</span><span class="tm-badge b-pass">88% first-try</span></button>
+<button class="tm-card" onClick="{{toSkill}}" style="text-align: left; cursor: pointer; font-family: inherit; display: flex; flex-direction: column; gap: 8px"><span style="display: flex; gap: 8px; align-items: center"><span style="font-size: 16px; font-weight: 600; color: var(--tm-text)">defect-triage</span><span class="tm-badge b-navy">v1.1</span></span><span style="font-size: 13px; line-height: 1.5; color: var(--tm-text-2)">Ranks likely root causes for a defect, with cited evidence.</span><span class="tm-badge b-pass">84% first-try</span></button>
+</div>
+</div>
+
+<aside style="flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+<div class="tm-card" style="display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 18px">Waiting on me</h2>
+<div style="display: flex; gap: 12px; background: var(--tm-page); border-radius: 8px; padding: 12px"><span class="tm-badge b-input" style="height: 22px">Question</span><div><p style="margin: 0; font-size: 14px; font-weight: 600">Q-01 · ABC-142</p><p style="margin: 2px 0 0; font-size: 12px; color: var(--tm-text-2)">Keep history 24 hours or 30 days? Product owner decides.</p></div></div>
+<div style="display: flex; gap: 12px; background: var(--tm-page); border-radius: 8px; padding: 12px"><span class="tm-badge b-esc" style="height: 22px">Approval</span><div><p style="margin: 0; font-size: 14px; font-weight: 600">Design gate · ABC-127</p><p style="margin: 2px 0 0; font-size: 12px; color: var(--tm-text-2)">Low confidence: change size over the limit.</p></div></div>
+</div>
+<div class="tm-card" style="display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 18px">What's new</h2>
+<div><p style="margin: 0; font-size: 14px; font-weight: 600">design v1.4</p><p style="margin: 2px 0 0; font-size: 12px; color: var(--tm-text-2)">Checks data-retention rules from the context pack.</p></div>
+<div><p style="margin: 0; font-size: 14px; font-weight: 600">threat-model v1.0</p><p style="margin: 2px 0 0; font-size: 12px; color: var(--tm-text-2)">New: STRIDE threat model from the approved design.</p></div>
+<div><p style="margin: 0; font-size: 14px; font-weight: 600">Plugin 1.6.0</p><p style="margin: 2px 0 0; font-size: 12px; color: var(--tm-text-2)">Faster checks; events wait offline and send later.</p></div>
+</div>
+<div class="tm-card" style="display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; font-size: 18px">My systems</h2>
+<div style="display: flex; align-items: center; gap: 8px"><span style="font-size: 14px; font-weight: 600; font-family: var(--tm-mono)">SYS-ORD</span><span class="tm-badge b-pass">Context pack fresh</span></div>
+<div style="display: flex; align-items: center; gap: 8px"><span style="font-size: 14px; font-weight: 600; font-family: var(--tm-mono)">SYS-GW</span><span class="tm-badge b-input">Stale · 41 days</span></div>
+<p style="margin: 0; font-size: 12px; line-height: 1.5; color: var(--tm-text-2)">A stale pack caps confidence at Medium. Ask the tech lead to run <code style="font-family: var(--tm-mono)">tsl context-refresh</code>.</p>
+</div>
+<span class="tm-badge b-demo" style="align-self: flex-start">Illustrative data · runs and tickets are examples</span>
+</aside>
+</div>
+</main>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"go":{"editor":null},"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const go = this.props.go || (() => {});
+    return {
+      toStart: () => go('start'),
+      toInsights: () => go('insights'),
+      toRun: () => go('run'),
+      toSkills: () => go('skills'),
+      toSkill: () => go('skill')
+    };
+  }
+}
+</script>
+</body>
+</html>

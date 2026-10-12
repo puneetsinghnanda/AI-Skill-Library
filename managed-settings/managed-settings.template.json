@@ -1,0 +1,31 @@
+{
+  "extraKnownMarketplaces": {
+    "truminds-skill-library": {
+      "source": { "source": "github", "repo": "puneetsinghnanda/AI-Skill-Library" }
+    }
+  },
+  "enabledPlugins": { "truminds@truminds-skill-library": true },
+  "strictKnownMarketplaces": [
+    { "source": "github", "repo": "puneetsinghnanda/AI-Skill-Library" }
+  ],
+  "disableSideloadFlags": true,
+  "allowManagedHooksOnly": true,
+  "permissions": {
+    "disableBypassPermissionsMode": "disable",
+    "deny": [
+      "Read(**/.env)", "Read(**/.env.*)", "Read(**/*.pem)", "Read(**/*.key)",
+      "Read(**/id_rsa*)", "Read(**/secrets/**)",
+      "Edit(**/.env)", "Edit(**/*.pem)", "Edit(**/*.key)",
+      "Bash(curl *)", "Bash(wget *)", "Bash(ssh *)", "Bash(scp *)",
+      "Bash(git push --force*)", "Bash(gh pr merge*)"
+    ]
+  },
+  "env": {
+    "CLAUDE_CODE_ENABLE_TELEMETRY": "1",
+    "OTEL_METRICS_EXPORTER": "otlp",
+    "OTEL_LOGS_EXPORTER": "otlp",
+    "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+    "OTEL_EXPORTER_OTLP_ENDPOINT": "https://<insights-host>/otel",
+    "OTEL_EXPORTER_OTLP_HEADERS": "Authorization=Bearer <collector-token>"
+  }
+}

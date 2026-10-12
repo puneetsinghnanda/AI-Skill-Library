@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Insights — Business impact</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="brand.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#00707B}a:hover{color:#0B2A4A}</style>
+</helmet>
+<main style="font-family: var(--tm-font); color: var(--tm-text); background: var(--tm-page); padding-bottom: 56px">
+<section style="background: var(--tm-surface); border-bottom: 1px solid var(--tm-border)">
+<div class="tm-wrap" style="padding-top: 36px; padding-bottom: 24px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px">
+<div><p class="tm-eyebrow">Insights · Business</p><h1 style="margin: 4px 0 0; font-size: 32px">Impact and capability</h1><p class="tm-sub">Sales-safe numbers: aggregates only, no client names, tickets or repositories.</p></div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center">
+<label style="display: flex; align-items: center; gap: 8px; font-size: 14px">Period
+<select style="font-family: inherit; font-size: 14px; min-height: 40px; border: 1px solid var(--tm-border); border-radius: 8px; padding: 0 10px; background: #fff"><option>Last 90 days</option><option>Last 12 months</option><option>All time</option></select></label>
+<a class="tm-btn btn-primary" href="#share">Share capability map</a>
+</div>
+</div>
+</section>
+
+<section class="tm-wrap" style="padding-top: 24px">
+<div style="display: flex; justify-content: flex-end; margin-bottom: 12px"><span class="tm-badge b-demo">Illustrative data</span></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px">
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">Pull requests delivered</p><p style="margin: 6px 0 0; font-size: 32px; font-weight: 700">126</p><p style="margin: 2px 0 0; font-size: 12px; color: var(--tm-pass); font-weight: 600">+38 vs previous period</p></div>
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">First-try pass rate</p><p style="margin: 6px 0 0; font-size: 32px; font-weight: 700; color: var(--tm-pass)">82%</p><p style="margin: 2px 0 0; font-size: 12px; color: var(--tm-text-2)">all steps, all skills</p></div>
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">Client systems served</p><p style="margin: 6px 0 0; font-size: 32px; font-weight: 700">7</p><p style="margin: 2px 0 0; font-size: 12px; color: var(--tm-text-2)">across 4 domains</p></div>
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">Engineers using the library</p><p style="margin: 6px 0 0; font-size: 32px; font-weight: 700">48</p><p style="margin: 2px 0 0; font-size: 12px; color: var(--tm-text-2)">ran at least one workflow</p></div>
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">Active pods</p><p style="margin: 6px 0 0; font-size: 32px; font-weight: 700">9</p><p style="margin: 2px 0 0; font-size: 12px; color: var(--tm-text-2)">on live engagements</p></div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; margin-top: 20px">
+<div class="tm-card" style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 14px">
+<div><h2 style="margin: 0; font-size: 18px">Pull requests delivered per month</h2><p style="margin: 4px 0 0; font-size: 13px; color: var(--tm-text-2)">Merged by people after passing every check</p></div>
+<div role="img" aria-label="Pull requests per month: April 9, May 14, June 18, July 27, August 33, September 41" style="display: flex; align-items: flex-end; gap: 18px; height: 220px; border-bottom: 1px solid var(--tm-border); padding: 0 8px">
+<sc-for list="{{bars}}" as="b" hint-placeholder-count="6">
+<div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; height: 100%"><span style="font-size: 12px; font-weight: 600">{{b.v}}</span><div style="{{b.style}}"></div></div>
+</sc-for>
+</div>
+<div style="display: flex; gap: 18px; padding: 0 8px"><sc-for list="{{bars}}" as="b" hint-placeholder-count="6"><span style="flex: 1; text-align: center; font-size: 12px; color: var(--tm-text-2)">{{b.m}}</span></sc-for></div>
+</div>
+<div class="tm-card" style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 18px">Most-used pods</h2>
+<sc-for list="{{pods}}" as="p" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between; font-size: 14px"><span>{{p.n}}</span><strong>{{p.v}}</strong></div><div class="tm-bar"><span style="{{p.style}}"></span></div></div>
+</sc-for>
+</div>
+</div>
+</section>
+
+<section class="tm-wrap" style="padding-top: 32px">
+<h2 class="tm-h2">Capability map</h2><p class="tm-sub">Production skills by role and SDLC phase. Safe to show clients.</p>
+<div class="tm-scroll" style="margin-top: 16px">
+<table class="tm-table" style="min-width: 900px">
+<thead><tr><th scope="col">Role</th><th scope="col">Requirements</th><th scope="col">Design</th><th scope="col">Build</th><th scope="col">Test</th><th scope="col">Operate</th></tr></thead>
+<tbody>
+<tr><th scope="row" style="text-align: left; font-weight: 600; padding: 12px 14px; border-top: 1px solid var(--tm-border)">Business Analyst</th><td><span class="tm-badge b-teal">Requirement review</span> <span class="tm-badge b-teal">Story split</span></td><td></td><td></td><td></td><td></td></tr>
+<tr><th scope="row" style="text-align: left; font-weight: 600; padding: 12px 14px; border-top: 1px solid var(--tm-border)">Solution Architect</th><td></td><td><span class="tm-badge b-teal">Impact analysis</span> <span class="tm-badge b-teal">Solution design</span></td><td></td><td></td><td></td></tr>
+<tr><th scope="row" style="text-align: left; font-weight: 600; padding: 12px 14px; border-top: 1px solid var(--tm-border)">Developer</th><td></td><td></td><td><span class="tm-badge b-teal">Implement</span> <span class="tm-badge b-teal">Unit tests</span></td><td></td><td><span class="tm-badge b-teal">Defect triage</span></td></tr>
+<tr><th scope="row" style="text-align: left; font-weight: 600; padding: 12px 14px; border-top: 1px solid var(--tm-border)">QA Engineer</th><td></td><td></td><td></td><td><span class="tm-badge b-teal">Test plan</span> <span class="tm-badge b-input">Test automation · pilot</span></td><td></td></tr>
+<tr><th scope="row" style="text-align: left; font-weight: 600; padding: 12px 14px; border-top: 1px solid var(--tm-border)">Security</th><td></td><td><span class="tm-badge b-teal">Threat model</span></td><td><span class="tm-badge b-teal">Secure code review</span></td><td></td><td></td></tr>
+<tr><th scope="row" style="text-align: left; font-weight: 600; padding: 12px 14px; border-top: 1px solid var(--tm-border)">DevOps</th><td></td><td></td><td></td><td></td><td><span class="tm-badge b-input">Pipeline review · pilot</span> <span class="tm-badge b-input">Deploy failure analysis · pilot</span></td></tr>
+<tr><th scope="row" style="text-align: left; font-weight: 600; padding: 12px 14px; border-top: 1px solid var(--tm-border)">UX Designer</th><td></td><td><span class="tm-badge b-input">UX flow review · pilot</span> <span class="tm-badge b-input">Accessibility review · pilot</span></td><td></td><td></td><td></td></tr>
+<tr><th scope="row" style="text-align: left; font-weight: 600; padding: 12px 14px; border-top: 1px solid var(--tm-border)">Delivery Manager</th><td><span class="tm-badge b-teal">Estimate review</span></td><td></td><td></td><td></td><td><span class="tm-badge b-teal">Status report</span></td></tr>
+</tbody>
+</table>
+</div>
+<p style="margin: 10px 0 0; font-size: 12px; color: var(--tm-text-2)">Pilot skills are shown to internal viewers only; the shared map hides them.</p>
+</section>
+</main>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"go":{"editor":null},"$preview":{"width":1440,"height":1900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const data = [['Apr',9],['May',14],['Jun',18],['Jul',27],['Aug',33],['Sep',41]];
+    const max = 41;
+    const pods = [['Brownfield Change',5],['Greenfield Feature',2],['Quality and Security',1],['UX Review',1]];
+    return {
+      bars: data.map(([m, v]) => ({ m: m, v: String(v), style: 'width: 100%; max-width: 56px; border-radius: 6px 6px 0 0; background: var(--tm-primary); height: ' + Math.round(v / max * 170) + 'px' })),
+      pods: pods.map(([n, v]) => ({ n: n, v: String(v), style: 'width: ' + Math.round(v / 5 * 100) + '%; background: var(--tm-accent-ink)' }))
+    };
+  }
+}
+</script>
+</body>
+</html>

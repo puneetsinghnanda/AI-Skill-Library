@@ -1,0 +1,9 @@
+{
+  "name": "truminds",
+  "version": "0.1.0",
+  "description": "Truminds AI Skill Library: SDLC skills, workflows and quality harness",
+  "author": { "name": "Truminds" },
+  "repository": "https://github.com/puneetsinghnanda/AI-Skill-Library",
+  "license": "UNLICENSED",
+  "keywords": ["sdlc", "harness", "truminds"]
+}

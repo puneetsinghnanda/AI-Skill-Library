@@ -1,0 +1,11 @@
+{
+  "name": "truminds-skill-library",
+  "owner": { "name": "Truminds AI Practice" },
+  "plugins": [
+    {
+      "name": "truminds",
+      "source": "./plugins/truminds",
+      "description": "SDLC skills, workflows and quality harness"
+    }
+  ]
+}

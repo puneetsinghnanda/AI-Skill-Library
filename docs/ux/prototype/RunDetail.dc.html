@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Run detail</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="brand.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#00707B}a:hover{color:#0B2A4A}</style>
+</helmet>
+<main style="font-family: var(--tm-font); color: var(--tm-text); background: var(--tm-page); padding-bottom: 56px">
+<section style="background: var(--tm-surface); border-bottom: 1px solid var(--tm-border)">
+<div class="tm-wrap" style="padding-top: 28px; padding-bottom: 24px; display: flex; flex-direction: column; gap: 12px">
+<button class="tm-link" onClick="{{back}}" style="align-self: flex-start">← Monitoring</button>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 16px">
+<div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px"><h1 style="margin: 0; font-size: 26px; font-family: var(--tm-mono)">run_01J9ZK2M4Q8X7T3B5N6R0VWYCD</h1><span class="tm-badge b-input">Paused · needs input</span></div>
+<p style="margin: 8px 0 0; font-size: 14px; color: var(--tm-text-2)">ABC-142 · brownfield-change 1.3.0 · system SYS-ORD · engineer eng-4f2a · context pack fresh (signed by tl-7a1c)</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 10px"><a class="tm-btn btn-ghost" href="https://github.com/[ORG]/sys-ord-companion/tree/main/runs/run_01J9ZK2M4Q8X7T3B5N6R0VWYCD">Companion repo</a></div>
+</div>
+</div>
+</section>
+
+<div class="tm-wrap" style="padding-top: 24px; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+<div style="flex: 999 1 620px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+<div class="tm-card" style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; background: #FBF0D9; border-color: #E8D3A6">
+<div><p style="margin: 0; font-size: 15px; font-weight: 600; color: #6B4600">Next action</p><p style="margin: 4px 0 0; font-size: 14px">Answer <code style="font-family: var(--tm-mono)">runs/run_01J9…/open-questions.md</code>, then resume in Claude Code.</p></div>
+<code class="tm-code">/truminds:resume run_01J9ZK2M</code>
+</div>
+<div class="tm-scroll">
+<table class="tm-table" style="min-width: 760px">
+<thead><tr><th scope="col">#</th><th scope="col">Step</th><th scope="col">Skill</th><th scope="col">Outcome</th><th scope="col">Confidence</th><th scope="col">Attempts</th><th scope="col">Record</th></tr></thead>
+<tbody>
+<sc-for list="{{steps}}" as="s" hint-placeholder-count="11">
+<tr><td>{{s.n}}</td><td style="font-weight: 600">{{s.step}}</td><td style="font-family: var(--tm-mono); font-size: 13px">{{s.skill}}</td><td><span class="{{s.oc}}">{{s.out}}</span></td><td>{{s.band}}</td><td>{{s.att}}</td><td><sc-if value="{{s.hasRec}}" hint-placeholder-val="{{ true }}"><button class="tm-link" onClick="{{s.pick}}">View</button></sc-if></td></tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+</div>
+<aside style="flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<div class="tm-card" style="display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; font-size: 16px">Check record · {{sel.step}}</h2>
+<p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">Decided by tsl 1.6.0 · signed key_01J9… · {{sel.out}}</p>
+<div style="display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; font-size: 14px">
+<span>S1 Evidence coverage</span><strong>{{sel.s1}}</strong>
+<span>S2 Soft checks</span><strong>{{sel.s2}}</strong>
+<span>S3 Reviewer score</span><strong>{{sel.s3}}</strong>
+<span>S4 Open blockers</span><strong>{{sel.s4}}</strong>
+<span>S5 Context</span><strong>fresh</strong>
+<span>S6 Change risk</span><strong>{{sel.s6}}</strong>
+</div>
+<p style="margin: 0; font-size: 12px; color: var(--tm-text-2)">Hard gates H1–H7 passed. Findings dropped by code (no valid citation): {{sel.dropped}}</p>
+</div>
+<div class="tm-card" style="display: flex; flex-direction: column; gap: 8px">
+<h2 style="margin: 0; font-size: 16px">Open question</h2>
+<span class="tm-badge b-input" style="align-self: flex-start">Q-01 · blocking · product owner</span>
+<p style="margin: 0; font-size: 14px; line-height: 1.5">Order history must cover 30 days, but the data model keeps it 24 hours. Which is correct for this change?</p>
+<p style="margin: 0; font-size: 12px; color: var(--tm-text-2)">Evidence: context/system-baseline.md#data-retention</p>
+</div>
+<span class="tm-badge b-demo" style="align-self: flex-start">Illustrative data</span>
+</aside>
+</div>
+</main>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"go":{"editor":null},"$preview":{"width":1440,"height":1700}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { sel: 3 }; }
+  renderVals() {
+    const go = this.props.go || (() => {});
+    const cls = { 'Pass': 'b-pass', 'Pass with findings': 'b-find', 'Retry → Pass': 'b-retry', 'Needs input': 'b-input', 'Not started': 'b-retry' };
+    const S = [
+      ['Requirement review','requirement-review','Pass','High','1','0.96','1.0','4.4','0','—','none'],
+      ['Story split','story-split','Pass with findings','Medium','1','0.88','0.9','3.8','0','—','F-2'],
+      ['Impact analysis','impact-analysis','Retry → Pass','High','2','0.93','1.0','4.2','0','—','none'],
+      ['Design','design','Needs input','—','1','0.91','1.0','4.0','1','—','F-3'],
+      ['Design approval','human gate','Not started','—','—','','','','','',''],
+      ['Threat model','threat-model','Not started','—','—','','','','','',''],
+      ['Implement','implement','Not started','—','—','','','','','',''],
+      ['Unit tests','unit-test','Not started','—','—','','','','','',''],
+      ['Secure review','secure-code-review','Not started','—','—','','','','','',''],
+      ['Test plan','test-plan','Not started','—','—','','','','','',''],
+      ['Pull request','tsl pr','Not started','—','—','','','','','','']
+    ];
+    const i = this.state.sel;
+    const r = S[i];
+    return {
+      back: () => go('insights'),
+      steps: S.map((s, k) => ({ n: String(k + 1), step: s[0], skill: s[1], out: s[2], oc: 'tm-badge ' + cls[s[2]], band: s[3], att: s[4], hasRec: s[5] !== '', pick: () => this.setState({ sel: k }) })),
+      sel: { step: r[0], out: r[2], s1: r[5], s2: r[6], s3: r[7], s4: r[8], s6: r[9] === '—' ? 'no code change' : r[9], dropped: r[10] }
+    };
+  }
+}
+</script>
+</body>
+</html>

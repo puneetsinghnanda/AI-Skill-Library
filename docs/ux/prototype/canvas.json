@@ -1,0 +1,32 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-10-06T08:02:38Z"},
+  "title": "Truminds AI Skill Library — Web UI",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1440, "h": 1900, "title": "Interactive prototype — press Play, switch Business / Engineer in the top bar", "expand": "fill", "is_interactive": true},
+    "PersonaMap.dc.html": {"x": 1520, "y": 0, "w": 1440, "h": 1500, "title": "Persona map — who sees what", "expand": "fill"},
+    "Nav.dc.html": {"x": 3040, "y": 0, "w": 1440, "h": 72, "title": "Top bar (shared component)", "is_interactive": true},
+    "HomeBusiness.dc.html": {"x": 0, "y": 2243, "w": 1440, "h": 2300, "title": "Home — Business view", "expand": "fill"},
+    "HomeEngineer.dc.html": {"x": 1520, "y": 2243, "w": 1440, "h": 1500, "title": "Home — Engineer view", "expand": "fill"},
+    "HowItWorks.dc.html": {"x": 3040, "y": 2243, "w": 1440, "h": 2200, "title": "How it works", "expand": "fill"},
+    "Skills.dc.html": {"x": 4560, "y": 2243, "w": 1440, "h": 1700, "title": "Skill catalogue — search and filter by role", "expand": "fill"},
+    "SkillDetail.dc.html": {"x": 6080, "y": 2243, "w": 1440, "h": 1700, "title": "Skill detail", "expand": "fill"},
+    "GetStarted.dc.html": {"x": 7600, "y": 2243, "w": 1440, "h": 1600, "title": "Get started — GitHub and plugin install", "expand": "fill"},
+    "Pods.dc.html": {"x": 0, "y": 4886, "w": 1440, "h": 1700, "title": "Pod catalogue", "expand": "fill"},
+    "PodDetail.dc.html": {"x": 1520, "y": 4886, "w": 1440, "h": 1900, "title": "Pod detail (Business and Engineer views)", "expand": "fill"},
+    "PodBuilder.dc.html": {"x": 3040, "y": 4886, "w": 1440, "h": 1300, "title": "Pod builder — Phase 3 preview", "expand": "fill"},
+    "InsightsBusiness.dc.html": {"x": 0, "y": 7129, "w": 1440, "h": 1900, "title": "Insights — Business impact", "expand": "fill"},
+    "InsightsEngineer.dc.html": {"x": 1520, "y": 7129, "w": 1440, "h": 2100, "title": "Insights — Engineering monitoring", "expand": "fill"},
+    "RunDetail.dc.html": {"x": 3040, "y": 7129, "w": 1440, "h": 1700, "title": "Run detail", "expand": "fill"}
+  },
+  "order": ["Main.dc.html", "PersonaMap.dc.html", "Nav.dc.html", "HomeBusiness.dc.html", "HomeEngineer.dc.html", "HowItWorks.dc.html", "Skills.dc.html", "SkillDetail.dc.html", "GetStarted.dc.html", "Pods.dc.html", "PodDetail.dc.html", "PodBuilder.dc.html", "InsightsBusiness.dc.html", "InsightsEngineer.dc.html", "RunDetail.dc.html"],
+  "notes": {
+    "t-proto": {"x": 0, "y": -300, "text": "Truminds AI Skill Library — intranet web UI", "kind": "title1", "maxW": 4480},
+    "t-shared": {"x": 0, "y": 1943, "text": "Shared screens (both personas)", "kind": "title1", "maxW": 9040},
+    "t-pods": {"x": 0, "y": 4586, "text": "Pods", "kind": "title1", "maxW": 4480},
+    "t-mon": {"x": 0, "y": 6829, "text": "Monitoring and insights", "kind": "title1", "maxW": 4480}
+  },
+  "designSystems": []
+}

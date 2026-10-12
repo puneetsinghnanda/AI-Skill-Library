@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pod catalogue</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="brand.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#00707B}a:hover{color:#0B2A4A}</style>
+</helmet>
+<main style="font-family: var(--tm-font); color: var(--tm-text); background: var(--tm-page); padding-bottom: 56px">
+<section style="background: var(--tm-surface); border-bottom: 1px solid var(--tm-border)">
+<div class="tm-wrap" style="padding-top: 40px; padding-bottom: 32px">
+<p class="tm-eyebrow">Pods</p>
+<h1 style="margin: 4px 0 0; font-size: 34px">AI-augmented pods</h1>
+<p class="tm-sub">A pod is a ready-made delivery team: AI agents for each role, the workflows they run, and the people who stay accountable. {{subLine}}</p>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 24px">
+<div style="background: var(--tm-primary-soft); border-radius: 12px; padding: 16px"><p style="margin: 0; font-size: 13px; font-weight: 600; color: var(--tm-primary)">Business unit and sales</p><p style="margin: 6px 0 0; font-size: 14px; line-height: 1.5">Choose and propose a pod, show its outcomes, request a pilot.</p></div>
+<div style="background: var(--tm-primary-soft); border-radius: 12px; padding: 16px"><p style="margin: 0; font-size: 13px; font-weight: 600; color: var(--tm-primary)">Engineers and tech leads</p><p style="margin: 6px 0 0; font-size: 14px; line-height: 1.5">Run the pod's workflows in Claude Code; approve its gates.</p></div>
+<div style="background: var(--tm-primary-soft); border-radius: 12px; padding: 16px"><p style="margin: 0; font-size: 13px; font-weight: 600; color: var(--tm-primary)">Delivery managers and program owners</p><p style="margin: 6px 0 0; font-size: 14px; line-height: 1.5">Track the pod's runs, waiting decisions and quality.</p></div>
+</div>
+</div>
+</section>
+
+<section class="tm-wrap" style="padding-top: 28px">
+<div style="display: flex; justify-content: flex-end; margin-bottom: 14px"><span class="tm-badge b-demo">Illustrative data</span></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 20px">
+<sc-for list="{{pods}}" as="p" hint-placeholder-count="4">
+<article class="tm-card" style="display: flex; flex-direction: column; gap: 14px; padding: 24px">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 10px"><h2 style="margin: 0; font-size: 20px">{{p.title}}</h2><span class="{{p.statusClass}}">{{p.status}}</span></div>
+<p style="margin: 0; font-size: 14px; line-height: 1.55; color: var(--tm-text-2)">{{p.desc}}</p>
+<div><p style="margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--tm-text-2)">AI AGENTS IN THE POD</p><div style="display: flex; flex-wrap: wrap; gap: 6px"><sc-for list="{{p.agents}}" as="a" hint-placeholder-count="3"><span class="tm-badge b-navy">{{a}}</span></sc-for></div></div>
+<sc-if value="{{isBiz}}" hint-placeholder-val="{{ true }}">
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px"><div style="background: var(--tm-page); border-radius: 8px; padding: 10px 12px"><p style="margin: 0; font-size: 12px; color: var(--tm-text-2)">Best for</p><p style="margin: 2px 0 0; font-size: 14px; font-weight: 500">{{p.bestFor}}</p></div><div style="background: var(--tm-page); border-radius: 8px; padding: 10px 12px"><p style="margin: 0; font-size: 12px; color: var(--tm-text-2)">First-try pass</p><p style="margin: 2px 0 0; font-size: 14px; font-weight: 500">{{p.pass}}</p></div></div>
+</sc-if>
+<sc-if value="{{isEng}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-wrap: wrap; gap: 6px"><sc-for list="{{p.workflows}}" as="w" hint-placeholder-count="2"><span class="tm-badge b-teal" style="font-family: var(--tm-mono)">{{w}}</span></sc-for><span class="tm-badge b-retry">{{p.skills}}</span></div>
+</sc-if>
+<p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">People accountable: {{p.humans}}</p>
+<button class="tm-btn btn-ghost" style="align-self: flex-start" onClick="{{p.open}}">View pod</button>
+</article>
+</sc-for>
+</div>
+
+<div class="tm-card" style="margin-top: 28px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; border-style: dashed">
+<div><div style="display: flex; gap: 8px; align-items: center"><h2 style="margin: 0; font-size: 18px">Build your own pod</h2><span class="tm-badge b-input">Phase 3</span></div><p style="margin: 6px 0 0; font-size: 14px; color: var(--tm-text-2)">Assemble agents and workflows into a custom pod for a client. Coming after Release 1 usage data.</p></div>
+<button class="tm-btn btn-ghost" onClick="{{toBuilder}}">Preview the builder</button>
+</div>
+</section>
+</main>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"persona":{"editor":"enum","options":["Business","Engineer"],"default":"Business"},"go":{"editor":null},"$preview":{"width":1440,"height":1700}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const go = this.props.go || (() => {});
+    const eng = this.props.persona === 'Engineer';
+    const P = [
+      ['Brownfield Change Pod','Available','Change requests on an existing client system, from ticket to a reviewed pull request.',['Solution Architect','Full-stack Developer','QA Engineer'],'Ongoing maintenance and change work','84%',['brownfield-change','defect-fix'],'9 skills','Tech lead, product owner, reviewer'],
+      ['Greenfield Feature Pod','Available','New features or products designed from the client\'s goals and constraints.',['Business Analyst','Solution Architect','Developer ×2','QA Engineer'],'New product builds and big features','79%',['greenfield-feature'],'10 skills','Tech lead, product owner, architect'],
+      ['Quality and Security Pod','Pilot','Test plans, test automation, threat models and secure code review on any codebase.',['QA Engineer','Security','DevOps'],'Audits and quality uplift','81%',['test-plan run','threat-model run'],'6 skills','QA lead, security lead'],
+      ['UX Review Pod','Pilot','Flow and accessibility reviews of Figma designs before build, read-only.',['UX Designer'],'Design reviews and WCAG checks','80%',['ux-review'],'2 skills','UX lead, product owner']
+    ];
+    return {
+      isEng: eng, isBiz: !eng,
+      subLine: eng ? 'Engineers see the workflows and skills inside each pod.' : 'Sales sees what each pod delivers and where it fits.',
+      pods: P.map(p => ({ title: p[0], status: p[1], statusClass: 'tm-badge ' + (p[1] === 'Available' ? 'b-pass' : 'b-input'), desc: p[2], agents: p[3], bestFor: p[4], pass: p[5], workflows: p[6], skills: p[7], humans: p[8], open: () => go('pod') })),
+      toBuilder: () => go('builder')
+    };
+  }
+}
+</script>
+</body>
+</html>

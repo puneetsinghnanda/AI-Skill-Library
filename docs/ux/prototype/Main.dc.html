@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Truminds AI Skill Library — prototype</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="brand.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#00707B}a:hover{color:#0B2A4A}
+</style>
+</helmet>
+<div style="min-height: 100vh; background: var(--tm-page); font-family: var(--tm-font); color: var(--tm-text)">
+<dc-import name="Nav" active="{{screen}}" persona="{{persona}}" go="{{go}}" set-persona="{{setPersona}}" hint-size="100%,72px"></dc-import>
+<sc-if value="{{showHomeBiz}}" hint-placeholder-val="{{ true }}"><dc-import name="HomeBusiness" go="{{go}}" hint-size="100%,2300px"></dc-import></sc-if>
+<sc-if value="{{showHomeEng}}" hint-placeholder-val="{{ false }}"><dc-import name="HomeEngineer" go="{{go}}" hint-size="100%,1500px"></dc-import></sc-if>
+<sc-if value="{{showHow}}" hint-placeholder-val="{{ false }}"><dc-import name="HowItWorks" go="{{go}}" persona="{{persona}}" hint-size="100%,2200px"></dc-import></sc-if>
+<sc-if value="{{showSkills}}" hint-placeholder-val="{{ false }}"><dc-import name="Skills" go="{{go}}" persona="{{persona}}" hint-size="100%,1700px"></dc-import></sc-if>
+<sc-if value="{{showSkill}}" hint-placeholder-val="{{ false }}"><dc-import name="SkillDetail" go="{{go}}" persona="{{persona}}" hint-size="100%,1700px"></dc-import></sc-if>
+<sc-if value="{{showStart}}" hint-placeholder-val="{{ false }}"><dc-import name="GetStarted" go="{{go}}" persona="{{persona}}" hint-size="100%,1600px"></dc-import></sc-if>
+<sc-if value="{{showPods}}" hint-placeholder-val="{{ false }}"><dc-import name="Pods" go="{{go}}" persona="{{persona}}" hint-size="100%,1700px"></dc-import></sc-if>
+<sc-if value="{{showPod}}" hint-placeholder-val="{{ false }}"><dc-import name="PodDetail" go="{{go}}" persona="{{persona}}" hint-size="100%,1900px"></dc-import></sc-if>
+<sc-if value="{{showBuilder}}" hint-placeholder-val="{{ false }}"><dc-import name="PodBuilder" go="{{go}}" hint-size="100%,1300px"></dc-import></sc-if>
+<sc-if value="{{showInsBiz}}" hint-placeholder-val="{{ false }}"><dc-import name="InsightsBusiness" go="{{go}}" hint-size="100%,1900px"></dc-import></sc-if>
+<sc-if value="{{showInsEng}}" hint-placeholder-val="{{ false }}"><dc-import name="InsightsEngineer" go="{{go}}" hint-size="100%,2100px"></dc-import></sc-if>
+<sc-if value="{{showRun}}" hint-placeholder-val="{{ false }}"><dc-import name="RunDetail" go="{{go}}" hint-size="100%,1700px"></dc-import></sc-if>
+<sc-if value="{{showMap}}" hint-placeholder-val="{{ false }}"><dc-import name="PersonaMap" go="{{go}}" hint-size="100%,1500px"></dc-import></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"startPersona":{"editor":"enum","options":["Business","Engineer"],"default":"Business"},"$preview":{"width":1440,"height":1900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { persona: null, screen: 'home' };
+  }
+  renderVals() {
+    const persona = this.state.persona || this.props.startPersona || 'Business';
+    const eng = persona === 'Engineer';
+    let screen = this.state.screen;
+    if (!eng && screen === 'run') screen = 'insights';
+    return {
+      persona: persona,
+      screen: screen,
+      go: (s) => { this.setState({ screen: s }); if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0, 0); },
+      setPersona: (p) => this.setState({ persona: p }),
+      showHomeBiz: screen === 'home' && !eng,
+      showHomeEng: screen === 'home' && eng,
+      showHow: screen === 'how',
+      showSkills: screen === 'skills',
+      showSkill: screen === 'skill',
+      showStart: screen === 'start',
+      showPods: screen === 'pods',
+      showPod: screen === 'pod',
+      showBuilder: screen === 'builder',
+      showInsBiz: screen === 'insights' && !eng,
+      showInsEng: screen === 'insights' && eng,
+      showRun: screen === 'run',
+      showMap: screen === 'map'
+    };
+  }
+}
+</script>
+</body>
+</html>

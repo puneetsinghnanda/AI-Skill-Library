@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Top bar</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="brand.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<header style="background: var(--tm-primary); color: #fff; font-family: var(--tm-font)">
+<div style="max-width: 1440px; margin: 0 auto; padding: 12px 32px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; min-height: 72px">
+<button onClick="{{goHome}}" aria-label="Truminds AI Skill Library home" style="display: flex; align-items: center; gap: 12px; background: none; border: 0; padding: 0; cursor: pointer; color: #fff; min-height: 44px">
+<span style="background: var(--tm-accent); color: #fff; font-weight: 700; font-size: 13px; letter-spacing: 0.08em; padding: 7px 10px; border-radius: 6px">TRUMINDS</span>
+<span style="font-size: 17px; font-weight: 600">AI Skill Library</span>
+</button>
+<nav aria-label="Main" style="display: flex; flex-wrap: wrap; gap: 4px; flex: 1 1 auto">
+<sc-for list="{{items}}" as="item" hint-placeholder-count="6">
+<button onClick="{{item.pick}}" style="{{item.style}}">{{item.label}}</button>
+</sc-for>
+</nav>
+<div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
+<label style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.10); border-radius: 8px; padding: 0 12px; min-height: 40px; width: 220px; box-sizing: border-box">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+<span style="position: absolute; left: -9999px">Search</span>
+<input type="search" placeholder="Search skills, roles, pods" style="background: transparent; border: 0; color: #fff; font-family: inherit; font-size: 13px; width: 100%; outline-offset: 2px">
+</label>
+<div role="group" aria-label="View as" style="display: flex; background: rgba(255,255,255,0.10); border-radius: 999px; padding: 3px">
+<button onClick="{{toBiz}}" aria-pressed="{{bizOn}}" style="{{bizStyle}}">Business</button>
+<button onClick="{{toEng}}" aria-pressed="{{engOn}}" style="{{engStyle}}">Engineer</button>
+</div>
+<div style="display: flex; align-items: center; gap: 8px">
+<span style="width: 32px; height: 32px; border-radius: 50%; background: var(--tm-accent); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700">{{initials}}</span>
+<span style="font-size: 13px; opacity: 0.9">{{who}}</span>
+</div>
+</div>
+</div>
+</header>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"persona":{"editor":"enum","options":["Business","Engineer"],"default":"Business"},"active":{"editor":"enum","options":["home","how","skills","pods","insights","start"],"default":"home"},"go":{"editor":null},"setPersona":{"editor":null},"$preview":{"width":1440,"height":72}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const go = this.props.go || (() => {});
+    const setP = this.props.setPersona || (() => {});
+    const persona = this.props.persona || 'Business';
+    const eng = persona === 'Engineer';
+    const map = { skill: 'skills', pod: 'pods', builder: 'pods', run: 'insights', map: 'home' };
+    const active = map[this.props.active] || this.props.active || 'home';
+    const base = 'background: none; border: 0; color: #fff; font-family: inherit; font-size: 14px; padding: 0 12px; min-height: 44px; border-radius: 8px; cursor: pointer;';
+    const items = [
+      ['home', 'Home'], ['how', 'How it works'], ['skills', 'Skills'], ['pods', 'Pods'], ['insights', 'Insights'], ['start', 'Get started']
+    ].map(([id, label]) => ({
+      label: label,
+      pick: () => go(id),
+      style: base + (active === id ? 'font-weight: 600; background: rgba(255,255,255,0.12); box-shadow: inset 0 -2px 0 #5FD3DE;' : 'font-weight: 500; opacity: 0.88;')
+    }));
+    const seg = 'border: 0; font-family: inherit; font-size: 13px; font-weight: 600; padding: 0 14px; min-height: 36px; border-radius: 999px; cursor: pointer;';
+    return {
+      items: items,
+      goHome: () => go('home'),
+      toBiz: () => setP('Business'),
+      toEng: () => setP('Engineer'),
+      bizOn: eng ? 'false' : 'true',
+      engOn: eng ? 'true' : 'false',
+      bizStyle: seg + (eng ? 'background: transparent; color: #fff;' : 'background: #fff; color: #0B2A4A;'),
+      engStyle: seg + (eng ? 'background: #fff; color: #0B2A4A;' : 'background: transparent; color: #fff;'),
+      initials: eng ? 'EN' : 'RS',
+      who: eng ? 'Engineer · Tech lead' : 'Raj · Sales'
+    };
+  }
+}
+</script>
+</body>
+</html>

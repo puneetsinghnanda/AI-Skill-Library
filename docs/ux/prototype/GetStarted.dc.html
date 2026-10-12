@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Get started</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="brand.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#00707B}a:hover{color:#0B2A4A}</style>
+</helmet>
+<main style="font-family: var(--tm-font); color: var(--tm-text); background: var(--tm-page); padding-bottom: 56px">
+<section style="background: var(--tm-primary); color: #fff">
+<div class="tm-wrap" style="padding-top: 48px; padding-bottom: 48px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 24px">
+<div style="flex: 1 1 560px; min-width: 0">
+<p class="tm-eyebrow" style="color: #7FDDE6">Get started</p>
+<h1 style="margin: 6px 0 0; font-size: 38px">{{title}}</h1>
+<p style="margin: 10px 0 0; font-size: 16px; line-height: 1.55; color: rgba(255,255,255,0.86); max-width: 720px">{{lead}}</p>
+</div>
+<div class="tm-card" style="flex: 0 1 420px; color: var(--tm-text); display: flex; flex-direction: column; gap: 10px">
+<p style="margin: 0; font-size: 13px; font-weight: 600; color: var(--tm-text-2)">Skill Library repository</p>
+<p style="margin: 0; font-size: 15px; font-weight: 600; font-family: var(--tm-mono); word-break: break-all">github.com/[TRUMINDS-ORG]/truminds-skill-library</p>
+<p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">Skills, workflows, pods, the plugin and the tsl tool. Company GitHub sign-in required.</p>
+<a class="tm-btn btn-primary" href="https://github.com/[TRUMINDS-ORG]/truminds-skill-library" style="align-self: flex-start">Open on GitHub</a>
+</div>
+</div>
+</section>
+
+<sc-if value="{{isEng}}" hint-placeholder-val="{{ false }}">
+<section class="tm-wrap" style="padding-top: 40px; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+<ol style="flex: 999 1 640px; min-width: 0; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px">
+<sc-for list="{{steps}}" as="s" hint-placeholder-count="5">
+<li class="tm-card" style="display: flex; gap: 18px; align-items: flex-start">
+<span style="flex: none; width: 36px; height: 36px; border-radius: 50%; background: var(--tm-primary); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 700">{{s.n}}</span>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+<h2 style="margin: 0; font-size: 17px">{{s.title}}</h2>
+<p style="margin: 0; font-size: 14px; line-height: 1.5; color: var(--tm-text-2)">{{s.desc}}</p>
+<code class="tm-code" style="align-self: flex-start; white-space: normal; word-break: break-all">{{s.cmd}}</code>
+</div>
+</li>
+</sc-for>
+</ol>
+<aside style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<div class="tm-card" style="display: flex; flex-direction: column; gap: 8px"><h2 style="margin: 0; font-size: 17px">Before you start</h2>
+<ul style="margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.7; color: var(--tm-text-2)"><li>Company Claude seat (never a personal account)</li><li>Claude Code desktop app</li><li>Company SSO and GitHub access</li><li>Docker, for build and test checks</li><li>Client consent recorded by an admin</li></ul></div>
+<div class="tm-card" style="display: flex; flex-direction: column; gap: 8px"><h2 style="margin: 0; font-size: 17px">Need help?</h2><p style="margin: 0; font-size: 14px; line-height: 1.5; color: var(--tm-text-2)">Ask in the AI practice channel, or read the troubleshooting guide in the repository README.</p></div>
+</aside>
+</section>
+</sc-if>
+
+<sc-if value="{{isBiz}}" hint-placeholder-val="{{ true }}">
+<section class="tm-wrap" style="padding-top: 40px">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px">
+<div class="tm-card" style="display: flex; flex-direction: column; gap: 10px"><span class="tm-badge b-teal" style="align-self: flex-start">Step 1</span><h2 style="margin: 0; font-size: 18px">Share what we can do</h2><p style="margin: 0; font-size: 14px; line-height: 1.5; color: var(--tm-text-2)">Open the capability map and the pod catalogue in a client meeting. Everything shown is client-safe.</p><button class="tm-link" style="align-self: flex-start" onClick="{{toInsights}}">Capability map →</button></div>
+<div class="tm-card" style="display: flex; flex-direction: column; gap: 10px"><span class="tm-badge b-teal" style="align-self: flex-start">Step 2</span><h2 style="margin: 0; font-size: 18px">Propose a pod</h2><p style="margin: 0; font-size: 14px; line-height: 1.5; color: var(--tm-text-2)">Pick the pod that matches the engagement and download its one-pager for the proposal.</p><button class="tm-link" style="align-self: flex-start" onClick="{{toPods}}">Pods →</button></div>
+<div class="tm-card" style="display: flex; flex-direction: column; gap: 10px"><span class="tm-badge b-teal" style="align-self: flex-start">Step 3</span><h2 style="margin: 0; font-size: 18px">Get written consent</h2><p style="margin: 0; font-size: 14px; line-height: 1.5; color: var(--tm-text-2)">The client agrees in writing before any of their code is processed. The admin records it.</p></div>
+<div class="tm-card" style="display: flex; flex-direction: column; gap: 10px"><span class="tm-badge b-teal" style="align-self: flex-start">Step 4</span><h2 style="margin: 0; font-size: 18px">Hand over to delivery</h2><p style="margin: 0; font-size: 14px; line-height: 1.5; color: var(--tm-text-2)">The delivery manager and tech lead onboard the client system and start the pod.</p></div>
+</div>
+</section>
+</sc-if>
+</main>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"persona":{"editor":"enum","options":["Business","Engineer"],"default":"Engineer"},"go":{"editor":null},"$preview":{"width":1440,"height":1600}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const go = this.props.go || (() => {});
+    const eng = (this.props.persona || 'Engineer') === 'Engineer';
+    const steps = [
+      ['Add the Truminds marketplace','In Claude Code, add the Skill Library repository as a plugin marketplace. Admins can make it required for everyone.','/plugin marketplace add [TRUMINDS-ORG]/truminds-skill-library'],
+      ['Install the plugin','Installs the skills, workflows, hooks and the /truminds commands.','/plugin install truminds@truminds-skill-library'],
+      ['Sign in and register your key','Signs you in with company SSO and registers the key that signs your check records.','tsl login'],
+      ['Open the client system\'s companion repo','Clone the companion repo your tech lead set up; it holds the context pack and run records.','git clone git@github.com:[ORG]/[SYSTEM]-companion.git'],
+      ['Start your first run','Pick a workflow and a ticket. Answer questions when the run pauses, then resume.','/truminds:run brownfield-change ABC-142']
+    ];
+    return {
+      isEng: eng, isBiz: !eng,
+      title: eng ? 'Install the plugin and start your first run' : 'Use the library in your next engagement',
+      lead: eng ? 'Five steps, about ten minutes, on your company Claude seat.' : 'How sales and business units take AI-augmented delivery to clients.',
+      steps: steps.map((s, i) => ({ n: String(i + 1), title: s[0], desc: s[1], cmd: s[2] })),
+      toInsights: () => go('insights'), toPods: () => go('pods')
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pod builder — Phase 3 preview</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="brand.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#00707B}a:hover{color:#0B2A4A}</style>
+</helmet>
+<main style="font-family: var(--tm-font); color: var(--tm-text); background: var(--tm-page); padding-bottom: 56px">
+<div style="background: #FBF0D9; color: #6B4600; border-bottom: 1px solid #E8D3A6">
+<div class="tm-wrap" style="padding-top: 12px; padding-bottom: 12px; font-size: 14px"><strong>Phase 3 preview.</strong> The pod builder is not part of Release 1. This screen shows the intended experience for review.</div>
+</div>
+<section class="tm-wrap" style="padding-top: 32px">
+<button class="tm-link" onClick="{{back}}">← All pods</button>
+<h1 style="margin: 10px 0 0; font-size: 32px">Build a pod</h1>
+<p class="tm-sub">Pick the AI agents a client engagement needs. The builder shows the workflows, skills and human roles that come with them.</p>
+</section>
+<section class="tm-wrap" style="padding-top: 24px; display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+<div class="tm-card" style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+<h2 style="margin: 0; font-size: 16px">Agents</h2>
+<sc-for list="{{palette}}" as="a" hint-placeholder-count="8">
+<button onClick="{{a.toggle}}" aria-pressed="{{a.on}}" style="{{a.style}}"><span>{{a.role}}</span><span style="font-size: 12px; font-weight: 500">{{a.action}}</span></button>
+</sc-for>
+</div>
+<div class="tm-card" style="flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 14px; min-height: 360px">
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 10px"><h2 style="margin: 0; font-size: 16px">Your pod</h2><span class="tm-badge b-navy">{{count}} agents</span></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px">
+<sc-for list="{{chosen}}" as="c" hint-placeholder-count="3">
+<div style="border: 1px solid var(--tm-border); border-radius: 10px; padding: 14px; background: var(--tm-page)"><p style="margin: 0; font-size: 15px; font-weight: 600">{{c.role}}</p><p style="margin: 4px 0 0; font-size: 12px; color: var(--tm-text-2)">{{c.skills}}</p></div>
+</sc-for>
+</div>
+<sc-if value="{{none}}" hint-placeholder-val="{{ false }}"><p style="margin: 0; font-size: 14px; color: var(--tm-text-2)">Add agents from the list on the left.</p></sc-if>
+</div>
+<div class="tm-card" style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+<h2 style="margin: 0; font-size: 16px">What comes with it</h2>
+<div><p style="margin: 0; font-size: 12px; font-weight: 600; color: var(--tm-text-2)">SKILLS</p><p style="margin: 4px 0 0; font-size: 24px; font-weight: 700">{{skillCount}}</p></div>
+<div><p style="margin: 0; font-size: 12px; font-weight: 600; color: var(--tm-text-2)">SUGGESTED WORKFLOW</p><p style="margin: 4px 0 0; font-size: 14px; font-family: var(--tm-mono)">{{workflow}}</p></div>
+<div><p style="margin: 0; font-size: 12px; font-weight: 600; color: var(--tm-text-2)">PEOPLE ACCOUNTABLE</p><p style="margin: 4px 0 0; font-size: 14px">Tech lead, product owner, reviewer</p></div>
+<button class="tm-btn btn-primary" disabled style="opacity: 0.55; cursor: not-allowed">Save pod (Phase 3)</button>
+</div>
+</section>
+</main>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"go":{"editor":null},"$preview":{"width":1440,"height":1300}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { picked: ['Solution Architect', 'Full-stack', 'QA'] }; }
+  renderVals() {
+    const go = this.props.go || (() => {});
+    const A = { 'Business Analyst': 2, 'Solution Architect': 3, 'Full-stack': 3, 'QA': 2, 'DevOps': 2, 'Security': 2, 'UX Designer': 2, 'Delivery Manager': 2 };
+    const picked = this.state.picked;
+    const btn = 'display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 14px; border-radius: 8px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; border: 1px solid ';
+    const toggle = (r) => this.setState({ picked: picked.indexOf(r) >= 0 ? picked.filter(x => x !== r) : picked.concat([r]) });
+    const skills = picked.reduce((n, r) => n + (A[r] || 0), 0);
+    return {
+      palette: Object.keys(A).map(r => { const on = picked.indexOf(r) >= 0; return { role: r, on: on ? 'true' : 'false', action: on ? 'Remove' : 'Add', toggle: () => toggle(r), style: btn + (on ? 'var(--tm-primary); background: var(--tm-primary-soft); color: var(--tm-primary);' : 'var(--tm-border); background: #fff; color: var(--tm-text);') }; }),
+      chosen: picked.map(r => ({ role: r + ' agent', skills: A[r] + ' skills' })),
+      count: String(picked.length), none: picked.length === 0,
+      skillCount: String(skills),
+      workflow: picked.indexOf('Business Analyst') >= 0 ? 'greenfield-feature' : 'brownfield-change',
+      back: () => go('pods')
+    };
+  }
+}
+</script>
+</body>
+</html>

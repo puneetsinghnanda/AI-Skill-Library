@@ -1,0 +1,20 @@
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/tsl-hook\" session-start", "timeout": 15 } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Write|Edit|NotebookEdit|Bash",
+        "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/tsl-hook\" pre-tool", "timeout": 10 } ] },
+      { "matcher": "mcp__.*",
+        "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/tsl-hook\" pre-mcp", "timeout": 10 } ] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/tsl-hook\" post-write", "timeout": 90 } ] }
+    ],
+    "SessionEnd": [
+      { "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/tsl-hook\" session-end", "timeout": 15 } ] }
+    ]
+  }
+}

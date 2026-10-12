@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Skill detail — threat-model</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="brand.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#00707B}a:hover{color:#0B2A4A}</style>
+</helmet>
+<main style="font-family: var(--tm-font); color: var(--tm-text); background: var(--tm-page); padding-bottom: 56px">
+<section style="background: var(--tm-surface); border-bottom: 1px solid var(--tm-border)">
+<div class="tm-wrap" style="padding-top: 28px; padding-bottom: 28px; display: flex; flex-direction: column; gap: 14px">
+<button class="tm-link" onClick="{{back}}" style="align-self: flex-start">← All skills</button>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 20px">
+<div style="flex: 1 1 560px; min-width: 0">
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><span class="tm-badge b-navy">Security</span><span class="tm-badge b-navy">Design phase</span><span class="tm-badge b-pass">Production</span></div>
+<h1 style="margin: 10px 0 0; font-size: 34px">Threat model</h1>
+<p style="margin: 8px 0 0; font-size: 16px; line-height: 1.55; color: var(--tm-text-2); max-width: 760px">Builds a STRIDE threat model from the approved design: every component gets its threats, likely impact and a mitigation, each tied to evidence in the design or the context pack.</p>
+</div>
+<sc-if value="{{isEng}}" hint-placeholder-val="{{ false }}">
+<div class="tm-card" style="flex: 0 1 380px; display: flex; flex-direction: column; gap: 10px">
+<p style="margin: 0; font-size: 13px; font-weight: 600; color: var(--tm-text-2)">Use it in Claude Code</p>
+<code class="tm-code">/truminds:run threat-model ABC-142</code>
+<p style="margin: 0; font-size: 12px; color: var(--tm-text-2)">Also runs inside brownfield-change and greenfield-feature after the design gate.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 8px"><a class="tm-btn btn-ghost" href="https://github.com/[TRUMINDS-ORG]/truminds-skill-library/tree/main/skills/threat-model">SKILL.md on GitHub</a><button class="tm-btn btn-primary" onClick="{{toStart}}">Install plugin</button></div>
+</div>
+</sc-if>
+<sc-if value="{{isBiz}}" hint-placeholder-val="{{ true }}">
+<div class="tm-card" style="flex: 0 1 380px; display: flex; flex-direction: column; gap: 10px">
+<p style="margin: 0; font-size: 13px; font-weight: 600; color: var(--tm-text-2)">Offer it to a client</p>
+<p style="margin: 0; font-size: 14px; line-height: 1.5">Included in the <strong>Quality and Security Pod</strong> and the <strong>Brownfield Change Pod</strong>.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 8px"><button class="tm-btn btn-primary" onClick="{{toPod}}">See the pod</button><a class="tm-btn btn-ghost" href="#one-pager">Download one-pager</a></div>
+</div>
+</sc-if>
+</div>
+</div>
+</section>
+
+<div class="tm-wrap" style="padding-top: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px">
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">Runs, last 90 days</p><p style="margin: 6px 0 0; font-size: 28px; font-weight: 700">64</p></div>
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">First-try pass</p><p style="margin: 6px 0 0; font-size: 28px; font-weight: 700; color: var(--tm-pass)">83%</p></div>
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">High confidence</p><p style="margin: 6px 0 0; font-size: 28px; font-weight: 700">71%</p></div>
+<div class="tm-card"><p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">Signed eval pass rate</p><p style="margin: 6px 0 0; font-size: 28px; font-weight: 700">94%</p><p style="margin: 2px 0 0; font-size: 12px; color: var(--tm-text-2)">v1.0 · 18 cases</p></div>
+</div>
+
+<sc-if value="{{isBiz}}" hint-placeholder-val="{{ true }}">
+<section class="tm-wrap" style="padding-top: 32px; display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px">
+<div class="tm-card" style="display: flex; flex-direction: column; gap: 10px"><h2 style="margin: 0; font-size: 20px">Why clients care</h2>
+<ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.7; color: var(--tm-text-2)"><li>Security risks are found at design time, when they are cheapest to fix.</li><li>Every threat links to evidence, so reviewers can trust it.</li><li>The output is ready for the client's security review board.</li></ul></div>
+<div class="tm-card" style="display: flex; flex-direction: column; gap: 10px"><h2 style="margin: 0; font-size: 20px">What the client receives</h2>
+<ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.7; color: var(--tm-text-2)"><li>Threat table: component, STRIDE category, impact, mitigation.</li><li>Open questions for the client where facts are missing.</li><li>A signed check record showing it passed quality checks.</li></ul></div>
+</section>
+</sc-if>
+
+<sc-if value="{{isEng}}" hint-placeholder-val="{{ false }}">
+<section class="tm-wrap" style="padding-top: 32px">
+<div role="tablist" aria-label="Skill details" style="display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--tm-border)">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="4"><button role="tab" aria-selected="{{t.sel}}" onClick="{{t.pick}}" style="{{t.style}}">{{t.label}}</button></sc-for>
+</div>
+<sc-if value="{{tabIO}}" hint-placeholder-val="{{ true }}">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; padding-top: 20px">
+<div class="tm-card" style="display: flex; flex-direction: column; gap: 8px"><h3 style="margin: 0; font-size: 16px">Inputs</h3>
+<p style="margin: 0; font-size: 14px"><code style="font-family: var(--tm-mono)">design.v1</code> · required · must be PASS or PASS-WITH-FINDINGS</p>
+<p style="margin: 0; font-size: 14px"><code style="font-family: var(--tm-mono)">context pack</code> · system-baseline#architecture, generated/api-inventory.json</p>
+<p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">Size budget: 60k tokens · allowed tools: Read, Grep, Glob, Write</p></div>
+<div class="tm-card" style="display: flex; flex-direction: column; gap: 8px"><h3 style="margin: 0; font-size: 16px">Output</h3>
+<p style="margin: 0; font-size: 14px"><code style="font-family: var(--tm-mono)">threat-model.v1</code> with Known / Assumed / Unknown sections</p>
+<p style="margin: 0; font-size: 14px">Code check: every component in the design has at least one STRIDE row.</p>
+<p style="margin: 0; font-size: 13px; color: var(--tm-text-2)">Records: .checks.json · .review.json · .verification.json (signed)</p></div>
+</div>
+</sc-if>
+<sc-if value="{{tabQuality}}" hint-placeholder-val="{{ false }}">
+<div class="tm-card" style="margin-top: 20px; display: flex; flex-direction: column; gap: 14px"><h3 style="margin: 0; font-size: 16px">Top reasons a step did not pass first time</h3>
+<div style="display: grid; grid-template-columns: 220px 1fr 40px; gap: 10px 14px; align-items: center; font-size: 14px">
+<span>Evidence below 0.90 (S1)</span><div class="tm-bar"><span style="width: 62%; background: var(--tm-findings)"></span></div><span>9</span>
+<span>Stale design input (H6)</span><div class="tm-bar"><span style="width: 34%; background: var(--tm-input)"></span></div><span>5</span>
+<span>Missing trace link (H5)</span><div class="tm-bar"><span style="width: 20%; background: var(--tm-retry)"></span></div><span>3</span>
+</div>
+<p style="margin: 0; font-size: 12px; color: var(--tm-text-2)">From verification records (metadata only). Owner: skill-owner-9c.</p></div>
+</sc-if>
+<sc-if value="{{tabVersions}}" hint-placeholder-val="{{ false }}">
+<div class="tm-scroll" style="margin-top: 20px"><table class="tm-table"><thead><tr><th scope="col">Version</th><th scope="col">Status</th><th scope="col">Eval pass</th><th scope="col">Change</th></tr></thead><tbody>
+<tr><td style="font-family: var(--tm-mono)">1.0.0</td><td><span class="tm-badge b-pass">Production</span></td><td>94%</td><td>First production release</td></tr>
+<tr><td style="font-family: var(--tm-mono)">0.9.0</td><td><span class="tm-badge b-retry">Deprecated</span></td><td>88%</td><td>Pilot on two Truminds sample systems</td></tr>
+</tbody></table></div>
+</sc-if>
+<sc-if value="{{tabWorkflows}}" hint-placeholder-val="{{ false }}">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; padding-top: 20px">
+<div class="tm-card"><h3 style="margin: 0; font-size: 16px; font-family: var(--tm-mono)">brownfield-change</h3><p style="margin: 6px 0 0; font-size: 13px; color: var(--tm-text-2)">Step 6 of 11, after the design gate.</p></div>
+<div class="tm-card"><h3 style="margin: 0; font-size: 16px; font-family: var(--tm-mono)">greenfield-feature</h3><p style="margin: 6px 0 0; font-size: 13px; color: var(--tm-text-2)">Step 5 of 10, after the design gate.</p></div>
+</div>
+</sc-if>
+</section>
+</sc-if>
+<div class="tm-wrap" style="padding-top: 20px"><span class="tm-badge b-demo">Illustrative data</span></div>
+</main>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"persona":{"editor":"enum","options":["Business","Engineer"],"default":"Engineer"},"go":{"editor":null},"$preview":{"width":1440,"height":1700}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { tab: 'io' }; }
+  renderVals() {
+    const go = this.props.go || (() => {});
+    const eng = (this.props.persona || 'Engineer') === 'Engineer';
+    const tab = this.state.tab;
+    const base = 'background: none; border: 0; font-family: inherit; font-size: 14px; padding: 0 14px; min-height: 44px; cursor: pointer; margin-bottom: -1px;';
+    const tabs = [['io','Inputs and outputs'],['quality','Quality'],['versions','Versions'],['workflows','Used in workflows']].map(([id, label]) => ({
+      label: label, sel: tab === id ? 'true' : 'false', pick: () => this.setState({ tab: id }),
+      style: base + (tab === id ? 'font-weight: 600; color: var(--tm-text); border-bottom: 2px solid var(--tm-accent-ink);' : 'font-weight: 500; color: var(--tm-text-2); border-bottom: 2px solid transparent;')
+    }));
+    return {
+      isEng: eng, isBiz: !eng, tabs: tabs,
+      tabIO: tab === 'io', tabQuality: tab === 'quality', tabVersions: tab === 'versions', tabWorkflows: tab === 'workflows',
+      back: () => go('skills'), toStart: () => go('start'), toPod: () => go('pod')
+    };
+  }
+}
+</script>
+</body>
+</html>
