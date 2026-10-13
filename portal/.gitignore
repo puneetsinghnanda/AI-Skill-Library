@@ -1,0 +1,16 @@
+# Dependencies and build output
+node_modules/
+dist/
+dist-demo/
+
+# Test output
+test-results/
+playwright-report/
+blob-report/
+coverage/
+
+# Local environment (dev Entra IDs are kept out of git per environment, DEV-01 §3)
+.env
+.env.*
+!.env.example
+*.local

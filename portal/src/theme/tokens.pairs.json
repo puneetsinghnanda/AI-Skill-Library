@@ -1,0 +1,39 @@
+{
+  "$comment": "Text/background pairs checked by `npm run check:tokens` (SDD-09 §9). min 4.5 for text, 3 for large text and UI parts.",
+  "pairs": [
+    { "fg": "--tm-text", "bg": "--tm-page", "min": 4.5 },
+    { "fg": "--tm-text", "bg": "--tm-surface", "min": 4.5 },
+    { "fg": "--tm-text-2", "bg": "--tm-page", "min": 4.5 },
+    { "fg": "--tm-text-2", "bg": "--tm-surface", "min": 4.5 },
+    { "fg": "--tm-accent-ink", "bg": "--tm-surface", "min": 4.5 },
+    { "fg": "--tm-accent-ink", "bg": "--tm-page", "min": 4.5 },
+    { "fg": "--tm-accent-ink", "bg": "--tm-accent-soft", "min": 4.5 },
+    { "fg": "--tm-text-inverse", "bg": "--tm-primary", "min": 4.5 },
+    { "fg": "--tm-text-inverse", "bg": "--tm-accent-ink", "min": 4.5 },
+    { "fg": "--tm-accent-on-primary", "bg": "--tm-primary", "min": 4.5 },
+    { "fg": "--tm-primary", "bg": "--tm-primary-soft", "min": 4.5 },
+    { "fg": "--tm-primary", "bg": "--tm-surface", "min": 4.5 },
+    { "fg": "--tm-pass", "bg": "--tm-pass-soft", "min": 4.5 },
+    { "fg": "--tm-pass", "bg": "--tm-surface", "min": 4.5 },
+    { "fg": "--tm-findings", "bg": "--tm-findings-soft", "min": 4.5 },
+    { "fg": "--tm-input", "bg": "--tm-input-soft", "min": 4.5 },
+    { "fg": "--tm-input", "bg": "--tm-surface", "min": 4.5 },
+    { "fg": "--tm-input-ink", "bg": "--tm-input-soft", "min": 4.5 },
+    { "fg": "--tm-escalate", "bg": "--tm-escalate-soft", "min": 4.5 },
+    { "fg": "--tm-escalate", "bg": "--tm-surface", "min": 4.5 },
+    { "fg": "--tm-abort", "bg": "--tm-abort-soft", "min": 4.5 },
+    { "fg": "--tm-abort", "bg": "--tm-surface", "min": 4.5 },
+    { "fg": "--tm-retry", "bg": "--tm-retry-soft", "min": 4.5 },
+    { "fg": "--tm-highlight", "bg": "--tm-demo-soft", "min": 4.5 },
+    { "fg": "--tm-focus", "bg": "--tm-page", "min": 3 },
+    { "fg": "--tm-focus", "bg": "--tm-surface", "min": 3 },
+    {
+      "fg": "--tm-border",
+      "bg": "--tm-surface",
+      "min": 1,
+      "note": "decorative divider, not a UI part"
+    },
+    { "fg": "--tm-pass", "bg": "--tm-border", "min": 3, "note": "bar fill on track" },
+    { "fg": "--tm-primary", "bg": "--tm-border", "min": 3, "note": "bar fill on track" }
+  ]
+}

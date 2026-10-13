@@ -1,0 +1,197 @@
+/**
+ * Fetch wrapper for the read API (SDD-09 §3.5, §5.1): bearer token, X-Request-ID, problem+json to
+ * ApiError, one silent token refresh on 401 then sign-in. Paths and query parameters are typed
+ * from the generated OpenAPI (schema.d.ts); response bodies from types.ts.
+ */
+import type { AuthPort } from '../auth/port';
+import type { paths } from './schema';
+import type { Problem, ResponseMap } from './types';
+
+/* ------------------------------------------------------------------ typing from the OpenAPI */
+type GetOp<P extends keyof paths> = NonNullable<paths[P]['get']>;
+
+/** Every path in the OpenAPI that has a GET operation. */
+export type GetPath = {
+  [P in keyof paths]-?: [GetOp<P>] extends [never] ? never : P;
+}[keyof paths];
+
+/** Compile-time guard: every route in ResponseMap must be a GET route of the committed OpenAPI. */
+type AssertSubset<A, B> = [A] extends [B] ? true : never;
+const _routesExist: AssertSubset<keyof ResponseMap, GetPath> = true;
+void _routesExist;
+
+export type ApiPath = keyof ResponseMap & GetPath;
+
+export type QueryOf<P extends ApiPath> =
+  GetOp<P> extends { parameters: { query?: infer Q } } ? NonNullable<Q> : never;
+
+type PathParamsOf<P extends ApiPath> =
+  GetOp<P> extends { parameters: { path: infer X } } ? X : never;
+
+export type RequestOptions<P extends ApiPath> = ([PathParamsOf<P>] extends [never]
+  ? { path?: undefined }
+  : { path: PathParamsOf<P> }) & { query?: QueryOf<P> };
+
+/* ------------------------------------------------------------------ errors */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly detail: string;
+  readonly requestId: string;
+  readonly retryAfterS: number | null;
+
+  constructor(init: {
+    status: number;
+    code: string;
+    detail: string;
+    requestId: string;
+    retryAfterS?: number | null;
+  }) {
+    super(`${init.code}: ${init.detail}`);
+    this.name = 'ApiError';
+    this.status = init.status;
+    this.code = init.code;
+    this.detail = init.detail;
+    this.requestId = init.requestId;
+    this.retryAfterS = init.retryAfterS ?? null;
+  }
+
+  get isForbidden(): boolean {
+    return this.status === 403;
+  }
+
+  get isNotFound(): boolean {
+    return this.status === 404;
+  }
+}
+
+export function requestId(): string {
+  const c = globalThis.crypto;
+  if (c && typeof c.randomUUID === 'function') return c.randomUUID();
+  const b = new Uint8Array(16);
+  c.getRandomValues(b);
+  b[6] = ((b[6] ?? 0) & 0x0f) | 0x40;
+  b[8] = ((b[8] ?? 0) & 0x3f) | 0x80;
+  const h = [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+/* ------------------------------------------------------------------ client */
+export interface ApiClientOptions {
+  baseUrl: string;
+  auth: Pick<AuthPort, 'getToken' | 'signIn'>;
+  fetchImpl?: typeof fetch;
+}
+
+export function buildUrl(
+  base: string,
+  template: string,
+  path?: Record<string, string> | undefined,
+  query?: Record<string, unknown> | undefined,
+): string {
+  let p = template;
+  for (const [k, v] of Object.entries(path ?? {})) {
+    p = p.replace(`{${k}}`, encodeURIComponent(v));
+  }
+  if (/\{[^}]+\}/.test(p)) throw new Error(`Missing path parameter in ${template}`);
+  const origin =
+    base || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
+  const url = new URL(p, origin.endsWith('/') ? origin : `${origin}/`);
+  for (const [k, v] of Object.entries(query ?? {})) {
+    if (v === undefined || v === null || v === '') continue;
+    url.searchParams.set(k, String(v));
+  }
+  return url.toString();
+}
+
+export class ApiClient {
+  private readonly baseUrl: string;
+  private readonly auth: Pick<AuthPort, 'getToken' | 'signIn'>;
+  private readonly fetchImpl: typeof fetch;
+
+  constructor(opts: ApiClientOptions) {
+    this.baseUrl = opts.baseUrl;
+    this.auth = opts.auth;
+    this.fetchImpl = opts.fetchImpl ?? ((...args) => globalThis.fetch(...args));
+  }
+
+  async get<P extends ApiPath>(
+    path: P,
+    options?: RequestOptions<P>,
+    signal?: AbortSignal,
+  ): Promise<ResponseMap[P]> {
+    const url = buildUrl(
+      this.baseUrl,
+      path,
+      options?.path as Record<string, string> | undefined,
+      options?.query as Record<string, unknown> | undefined,
+    );
+    return (await this.send(url, signal, false)) as ResponseMap[P];
+  }
+
+  private async send(
+    url: string,
+    signal: AbortSignal | undefined,
+    refreshed: boolean,
+  ): Promise<unknown> {
+    const rid = requestId();
+    let token: string;
+    try {
+      token = await this.auth.getToken(refreshed ? { forceRefresh: true } : undefined);
+    } catch (e) {
+      throw new ApiError({
+        status: 401,
+        code: 'E-API-02',
+        detail: e instanceof Error ? e.message : 'Sign-in is needed.',
+        requestId: rid,
+      });
+    }
+    let res: Response;
+    try {
+      res = await this.fetchImpl(url, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+          'X-Request-ID': rid,
+        },
+        credentials: 'omit',
+        signal,
+      });
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') throw e;
+      throw new ApiError({
+        status: 0,
+        code: 'NETWORK',
+        detail: 'The insights service could not be reached.',
+        requestId: rid,
+      });
+    }
+    if (res.ok) return res.json();
+
+    if (res.status === 401 && !refreshed) return this.send(url, signal, true);
+    const err = await toApiError(res, rid);
+    if (res.status === 401) void this.auth.signIn();
+    throw err;
+  }
+}
+
+async function toApiError(res: Response, rid: string): Promise<ApiError> {
+  let problem: Partial<Problem> = {};
+  const type = res.headers.get('content-type') ?? '';
+  if (type.includes('json')) {
+    try {
+      problem = (await res.json()) as Partial<Problem>;
+    } catch {
+      problem = {};
+    }
+  }
+  const retry = Number(res.headers.get('retry-after'));
+  return new ApiError({
+    status: res.status,
+    code: problem.code ?? `HTTP-${res.status}`,
+    detail: problem.detail ?? problem.title ?? res.statusText ?? 'Request failed',
+    requestId: problem.request_id ?? res.headers.get('x-request-id') ?? rid,
+    retryAfterS: Number.isFinite(retry) && retry > 0 ? retry : null,
+  });
+}

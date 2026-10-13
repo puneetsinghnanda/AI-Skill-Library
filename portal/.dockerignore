@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-demo
+test-results
+playwright-report
+coverage
+e2e
+.env
+.env.*
+!.env.example

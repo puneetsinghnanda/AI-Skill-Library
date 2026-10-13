@@ -1,0 +1,53 @@
+/* Print view: skill and pod one-pagers, shared capability map (SDD-09 §4.7, §4.10, §6). */
+@media print {
+  .topbar,
+  .site-footer,
+  .status-banner,
+  .skip-link,
+  .no-print,
+  .demo-banner {
+    display: none;
+  }
+
+  .print-only {
+    display: block;
+  }
+
+  body {
+    background: var(--tm-surface);
+    font-size: 12pt;
+  }
+
+  .band-primary,
+  .band-surface,
+  .band-soft {
+    background: var(--tm-surface);
+    color: var(--tm-text);
+    border: 0;
+  }
+
+  .band-primary .muted-inverse,
+  .band-primary .hero-lead,
+  .band-primary .tm-eyebrow {
+    color: var(--tm-text-2);
+  }
+
+  .tm-card {
+    break-inside: avoid;
+  }
+
+  .tm-scroll {
+    overflow: visible;
+    border: 0;
+  }
+
+  .tm-wrap {
+    max-width: none;
+    padding: 0;
+  }
+
+  a {
+    color: var(--tm-text);
+    text-decoration: none;
+  }
+}

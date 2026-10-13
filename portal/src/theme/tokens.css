@@ -1,0 +1,52 @@
+/*
+ * Truminds brand tokens: the ONE brand file (SDD-09 §9).
+ *
+ * Names match the prototype docs/ux/prototype/brand.css. Values are placeholders until the official
+ * Truminds colours, logo and fonts arrive (OQ-13). To swap the brand: change values here and the two
+ * SVGs in public/brand/, then run `npm run check:tokens`, the axe suite and a visual review.
+ * Never use a hex colour anywhere else: Stylelint (color-no-hex) and ESLint fail the build.
+ */
+:root {
+  /* Prototype brand.css tokens */
+  --tm-primary: #0b2a4a; /* deep navy: top bar, hero bands, primary buttons */
+  --tm-primary-soft: #e8eef5; /* light navy tint: bands, chips */
+  --tm-accent: #00a3b4; /* teal: decorative accents only (never text) */
+  --tm-accent-ink: #00707b; /* teal dark enough for text and buttons on white (AA) */
+  --tm-accent-soft: #e0f4f6;
+  --tm-highlight: #9a4a08; /* orange ink for "illustrative" tags (demo only); prototype #B4570B was 4.19:1 */
+  --tm-page: #f5f7fa;
+  --tm-surface: #ffffff;
+  --tm-border: #dde3ea;
+  --tm-text: #0f1b2d;
+  --tm-text-2: #4f5e72;
+  --tm-text-inverse: #ffffff;
+  --tm-pass: #1b7a4e;
+  --tm-pass-soft: #e3f3ea;
+  --tm-findings: #2458c6;
+  --tm-findings-soft: #e6edfb;
+  --tm-input: #8a5a00;
+  --tm-input-soft: #fbf0d9;
+  --tm-escalate: #b4470f;
+  --tm-escalate-soft: #fbe7db;
+  --tm-abort: #b3261e;
+  --tm-abort-soft: #f9e1df;
+  --tm-retry: #556378;
+  --tm-retry-soft: #e9edf2;
+  --tm-font: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --tm-mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  --tm-radius: 12px;
+
+  /* Values the prototype boards used inline, lifted into tokens so the brand stays in one file */
+  --tm-demo-soft: #fcebdd; /* "Illustrative data" badge background (demo mode only) */
+  --tm-accent-on-primary: #7fdde6; /* eyebrow and back links on the navy band */
+  --tm-nav-active: #5fd3de; /* active top-bar underline */
+  --tm-input-ink: #6b4600; /* text on the amber "next action" and human-gate boxes */
+  --tm-input-line: #e8d3a6; /* border of the amber boxes */
+  --tm-on-primary-muted: rgb(255 255 255 / 86%); /* body text on the navy band */
+  --tm-on-primary-faint: rgb(255 255 255 / 80%);
+  --tm-overlay: rgb(255 255 255 / 10%); /* translucent chips on the navy band */
+  --tm-overlay-strong: rgb(255 255 255 / 14%);
+  --tm-focus: #00707b; /* 2 px focus ring, 3:1 against page and surface */
+  --tm-focus-on-primary: #ffffff;
+  --tm-shadow: rgb(15 27 45 / 12%);
+}
