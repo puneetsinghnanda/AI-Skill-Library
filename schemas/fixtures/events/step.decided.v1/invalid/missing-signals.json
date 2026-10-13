@@ -1,0 +1,32 @@
+{
+  "step": "design",
+  "skill": "design",
+  "skill_version": "1.4.0",
+  "attempt": 2,
+  "outcome": "PASS-WITH-FINDINGS",
+  "band": "Medium",
+  "caps": [],
+  "gate_failures": [],
+  "findings_count": {
+    "blocker": 0,
+    "major": 0,
+    "minor": 2
+  },
+  "duration_ms": 2100,
+  "verification_sha256": "4c94485e0c21ae6c41ce1dfe7b6bfaceea5ab68e40a2476f50208e526f506080",
+  "seq": 8,
+  "reasons": [
+    "S1"
+  ],
+  "findings_dropped": [
+    "F-3"
+  ],
+  "key_id": "key_01JC3D4E5F6G7H8J9KMNPQRSTV",
+  "decided_by": "tsl@1.6.0",
+  "session_id": "6b0e-0001",
+  "cause": "retry_review",
+  "claims": {
+    "total": 14,
+    "verified": 13
+  }
+}

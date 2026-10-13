@@ -1,0 +1,14 @@
+{
+  "schema": "tsl-output.v1",
+  "ok": true,
+  "code": "E-LOCK-01",
+  "exit": 3,
+  "message": "T-1 / brownfield-change is locked by eng-4f2a in run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "next": "/truminds:resume run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "data": {
+    "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+    "holder": "eng-4f2a"
+  },
+  "warnings": [],
+  "tsl_version": "0.1.0"
+}

@@ -1,0 +1,10 @@
+{
+  "ts": "2026-01-06T10:59:30Z",
+  "session_id": "6b0e-0001",
+  "step": "impl",
+  "attempt": 1,
+  "tool": "Bash",
+  "target": "git push origin HEAD",
+  "decision": "deny",
+  "code": "E-POL-01"
+}

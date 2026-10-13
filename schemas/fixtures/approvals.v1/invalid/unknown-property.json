@@ -1,0 +1,59 @@
+{
+  "schema": "approvals.v1",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "entries": [
+    {
+      "id": "G-design",
+      "kind": "workflow_gate",
+      "role": "tech_lead",
+      "artifacts": [
+        {
+          "path": "artifacts/T-1/run_01JA0B3C4D5E6F7G8H9JKMNPQR/design.md",
+          "sha256": "e788103ee15318fcd2af9b73b4ebbb33a903b020de7b307d71f5fed0f433e548"
+        }
+      ],
+      "reason": "workflow gate (always)",
+      "decision": "approve",
+      "comment": "Looks right.",
+      "signature": {
+        "schema": "approval-signature.v1",
+        "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+        "system": "SYS-ORD",
+        "gate": "G-design",
+        "kind": "workflow_gate",
+        "artifacts": [
+          {
+            "step": "design",
+            "attempt": 2,
+            "sha256": "e788103ee15318fcd2af9b73b4ebbb33a903b020de7b307d71f5fed0f433e548"
+          }
+        ],
+        "action": null,
+        "decision": "approve",
+        "comment_sha256": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df",
+        "role": "tech_lead",
+        "approver": "tl-7a1c",
+        "self_approved": false,
+        "approved_at": "2026-01-06T11:02:00Z",
+        "key_id": "key_01JD4E5F6G7H8J9KMNPQRSTVWX",
+        "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    {
+      "id": "G-escalate-impl-a1",
+      "kind": "escalation",
+      "role": "tech_lead",
+      "artifacts": [
+        {
+          "path": "artifacts/T-1/run_01JA0B3C4D5E6F7G8H9JKMNPQR/impl.md",
+          "sha256": "a898df22bfc74a1ae298c73211ab3b319e5b8da7543d6cd002a8dc4f8723be43"
+        }
+      ],
+      "reason": "band Low (S6 change risk over limit)",
+      "decision": null,
+      "comment": null,
+      "signature": null
+    }
+  ],
+  "x_unexpected": 1
+}

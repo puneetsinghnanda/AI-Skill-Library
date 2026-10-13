@@ -1,0 +1,36 @@
+{
+  "schema": "intent.v0",
+  "step": "secrev",
+  "skill": "secure-code-review@1.0.0",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "attempt": 1,
+  "inputs": [
+    {
+      "path": "artifacts/T-1/run_01JA0B3C4D5E6F7G8H9JKMNPQR/ticket.md",
+      "sha256": "14069429150abcbf244c4c2fb2c4c46a49c93ca9457263ecd9ebb176de3a58bb"
+    }
+  ],
+  "pack_sha": {
+    "orders-api": "86f7e437faa5a7fce15d1ddcb9eaeaea377667b8"
+  },
+  "claims": [],
+  "trace": [
+    "REQ-1"
+  ],
+  "known": [
+    "REQ-1"
+  ],
+  "assumed": [],
+  "unknown": [],
+  "scans": [
+    {
+      "kind": "sast",
+      "report_sha256": "3d7a633113667effb8048d14ac399b71fccffe3fb0ce2d3079e843767517a03d"
+    },
+    {
+      "kind": "secrets",
+      "report_sha256": "add93534eeb463800fe0ed0946048d33636dd2a014fab92e8a37f77ce98c740b"
+    }
+  ],
+  "findings": []
+}

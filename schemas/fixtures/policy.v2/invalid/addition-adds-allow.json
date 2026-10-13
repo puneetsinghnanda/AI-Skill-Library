@@ -1,0 +1,9 @@
+{
+  "schema": "policy.v2",
+  "write_scope": {
+    "allow": [
+      "**"
+    ],
+    "deny": []
+  }
+}

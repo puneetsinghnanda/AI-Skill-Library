@@ -1,0 +1,8 @@
+{
+  "schema": "ticket-snapshot.v1",
+  "ticket": "T-1",
+  "source": "jira_mcp",
+  "fetched_at": "2026-01-05T09:58:00Z",
+  "title": "Show order status history",
+  "issue_type": "Story"
+}

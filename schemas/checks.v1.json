@@ -1,0 +1,324 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/checks.v1.json",
+  "title": "<artifact>.checks.json (checks.v1)",
+  "description": "Code-check record written by tsl verify: hard gates H1-H7 with codes, soft checks, input hashes, verifier evidence and product changes for code steps.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "run_id",
+    "step",
+    "attempt",
+    "artifact_sha256",
+    "tool_log_sha256",
+    "gates",
+    "soft"
+  ],
+  "properties": {
+    "schema": {
+      "const": "checks.v1"
+    },
+    "run_id": {
+      "$ref": "#/$defs/run_id"
+    },
+    "step": {
+      "$ref": "#/$defs/step_id"
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "artifact_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "tool_log_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "tsl_version": {
+      "$ref": "#/$defs/semver"
+    },
+    "started_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "finished_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "pass",
+          "detail"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/hard_gate"
+          },
+          "pass": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/$defs/gate_status"
+          },
+          "codes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/error_code"
+            }
+          },
+          "detail": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "check_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 80
+            }
+          }
+        }
+      },
+      "minItems": 1,
+      "maxItems": 7
+    },
+    "soft": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "pass"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "pass": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sha256",
+          "verification_sha256"
+        ],
+        "properties": {
+          "path": {
+            "$ref": "#/$defs/rel_path"
+          },
+          "sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "verification_sha256": {
+            "$ref": "#/$defs/sha256"
+          }
+        }
+      }
+    },
+    "verifier": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "profile",
+            "image_digest",
+            "steps"
+          ],
+          "properties": {
+            "profile": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*@[0-9]+$"
+            },
+            "image_digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "status"
+                ],
+                "properties": {
+                  "name": {
+                    "enum": [
+                      "prepare",
+                      "build",
+                      "test",
+                      "lint",
+                      "sast",
+                      "secrets",
+                      "coverage"
+                    ]
+                  },
+                  "status": {
+                    "$ref": "#/$defs/gate_status"
+                  },
+                  "exit_code": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "duration_ms": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "report_sha256": {
+                    "oneOf": [
+                      {
+                        "$ref": "#/$defs/sha256"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "product_changes": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "repo",
+              "base_sha",
+              "tree_sha",
+              "diff_sha256"
+            ],
+            "properties": {
+              "repo": {
+                "$ref": "#/$defs/repo_name"
+              },
+              "base_sha": {
+                "$ref": "#/$defs/git_sha"
+              },
+              "tree_sha": {
+                "$ref": "#/$defs/git_sha"
+              },
+              "diff_sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "lines_added": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "lines_deleted": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "files": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/rel_path"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "error_code": {
+      "type": "string",
+      "pattern": "^E-[A-Z][A-Z0-9]{0,5}-[0-9]{2}$",
+      "description": "Error code (registry §2)."
+    },
+    "gate_status": {
+      "enum": [
+        "pass",
+        "fail",
+        "skip",
+        "pending"
+      ]
+    },
+    "git_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full 40-hex git commit or tree SHA."
+    },
+    "hard_gate": {
+      "enum": [
+        "H1",
+        "H2",
+        "H3",
+        "H4",
+        "H5",
+        "H6",
+        "H7"
+      ]
+    },
+    "rel_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400,
+      "pattern": "^(?!/)(?!.*\\.\\.)[^\\\\]+$",
+      "description": "Relative POSIX path, no '..', no leading '/'."
+    },
+    "repo_name": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,40}$",
+      "description": "Product repo short name from tsl.yaml."
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Run id, run_<ULID> (Doc 5 §1.1)."
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "SemVer 2.0.0 without pre-release tags."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    },
+    "step_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,40}$",
+      "description": "Workflow step id (SDD-02 §3.2)."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+      "description": "ISO 8601 UTC with Z (Doc 5 §1.1)."
+    }
+  },
+  "x-owner": "SDD-03 §6"
+}

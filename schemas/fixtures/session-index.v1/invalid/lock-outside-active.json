@@ -1,0 +1,8 @@
+{
+  "schema": "session-index.v1",
+  "session_id": "6b0e2c1a-0000-4000-8000-000000000001",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "companion": "/home/eng/src/sys-ord-companion",
+  "lock": "runs/T-1.lock",
+  "bound_at": "2026-01-05T09:58:00Z"
+}

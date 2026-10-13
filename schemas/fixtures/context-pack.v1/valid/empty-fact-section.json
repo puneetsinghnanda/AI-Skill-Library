@@ -1,0 +1,49 @@
+{
+  "schema": "context-pack.v1",
+  "system": "SYS-SMP",
+  "built_by": "tsl@0.3.0",
+  "sources": [
+    {
+      "repo": "sample-system",
+      "commit": "fb71731dfe0ec970d3964518e40a1e1fd11f20ee",
+      "default_branch": "main",
+      "scope": ".",
+      "files_scanned": 214,
+      "files_excluded": 9
+    }
+  ],
+  "extractors": [
+    {
+      "name": "js-routes",
+      "version": "1.0.0"
+    },
+    {
+      "name": "repo-tree",
+      "version": "1.0.0"
+    }
+  ],
+  "sections": [
+    {
+      "id": "api-inventory",
+      "path": "context/generated/api-inventory.json",
+      "kind": "fact",
+      "required": false,
+      "sha256": "14c2529eb4498c5d1ffd6915d05bf58a91bdda796af59f41d480d11c099d0479",
+      "tokens_est": 10,
+      "fact_count": 0,
+      "empty_reason": "no routes found"
+    }
+  ],
+  "redaction": {
+    "rules_version": "1",
+    "values_masked": 3,
+    "paths_excluded": 9,
+    "blocking_hits": 0
+  },
+  "limits": {
+    "section_tokens": 8000,
+    "judgement_tokens": 40000,
+    "generated_file_bytes": 2097152
+  },
+  "tokens_total_est": 10
+}

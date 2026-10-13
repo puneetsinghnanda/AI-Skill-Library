@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/events/security.abort.v1.json",
+  "title": "Event body: security.abort (schema_version 1)",
+  "description": "Sent by tsl decide or a hook when a run aborts on E-SEC or E-POL. Closed object; every string is length-capped (TM-08).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "code",
+    "step"
+  ],
+  "properties": {
+    "code": {
+      "enum": [
+        "E-SEC-01",
+        "E-SEC-02",
+        "E-POL-01",
+        "E-POL-02",
+        "E-POL-03",
+        "E-POL-04",
+        "E-POL-05"
+      ]
+    },
+    "step": {
+      "$ref": "#/$defs/step_id"
+    }
+  },
+  "$defs": {
+    "step_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,40}$",
+      "description": "Workflow step id (SDD-02 §3.2)."
+    }
+  },
+  "x-owner": "SDD-08 §4.5"
+}

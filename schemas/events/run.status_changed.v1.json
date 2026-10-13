@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/events/run.status_changed.v1.json",
+  "title": "Event body: run.status_changed (schema_version 1)",
+  "description": "Sent by tsl state, decide and pr. reason_code values follow SDD-02 §12, or an error code. Closed object; every string is length-capped (TM-08).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "from",
+    "to",
+    "reason_code"
+  ],
+  "properties": {
+    "from": {
+      "$ref": "#/$defs/run_status"
+    },
+    "to": {
+      "$ref": "#/$defs/run_status"
+    },
+    "reason_code": {
+      "oneOf": [
+        {
+          "enum": [
+            "pr_opened",
+            "completed",
+            "aborted",
+            "rejected",
+            "cancelled",
+            "lock_released",
+            "archived",
+            "paused_input",
+            "paused_approval",
+            "resumed"
+          ]
+        },
+        {
+          "$ref": "#/$defs/error_code"
+        }
+      ]
+    },
+    "gate": {
+      "$ref": "#/$defs/gate_id"
+    },
+    "step": {
+      "$ref": "#/$defs/step_id"
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    }
+  },
+  "$defs": {
+    "error_code": {
+      "type": "string",
+      "pattern": "^E-[A-Z][A-Z0-9]{0,5}-[0-9]{2}$",
+      "description": "Error code (registry §2)."
+    },
+    "gate_id": {
+      "type": "string",
+      "pattern": "^(G-[a-z0-9-]+|W-[0-9]+)$",
+      "description": "Gate id G-<id>, escalation G-escalate-<step>-a<n>, or external-write approval W-<n> (SDD-02 §9.2)."
+    },
+    "run_status": {
+      "enum": [
+        "RUNNING",
+        "PAUSED_INPUT",
+        "PAUSED_APPROVAL",
+        "COMPLETED"
+      ]
+    },
+    "step_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,40}$",
+      "description": "Workflow step id (SDD-02 §3.2)."
+    }
+  },
+  "x-owner": "SDD-08 §4.5"
+}

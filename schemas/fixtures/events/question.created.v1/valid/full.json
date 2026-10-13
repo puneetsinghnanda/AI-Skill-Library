@@ -1,0 +1,7 @@
+{
+  "step": "design",
+  "question_id": "Q-01",
+  "blocking": true,
+  "ask_role": "product_owner",
+  "evidence_ref": "context/data-model.md#data-retention"
+}

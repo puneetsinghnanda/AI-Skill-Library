@@ -1,0 +1,8 @@
+{
+  "schema": "ticket-snapshot.v1",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "ticket": "SAMPLE-12",
+  "source": "file",
+  "fetched_at": "2026-01-05T09:58:00Z",
+  "source_sha256": "5d511b0e620692d48f7a12dbc2b0744df1bacd337ea41812a42b9035349c8b76"
+}

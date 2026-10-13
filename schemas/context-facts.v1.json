@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/context-facts.v1.json",
+  "title": "context/generated/*.json (context-facts.v1)",
+  "description": "Common envelope of every generated fact file. Fact ids are stable strings built from the fact itself (SDD-06 §3.4); fact fields beyond id, kind and source vary per extractor.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "section",
+    "extractor",
+    "sources",
+    "empty_reason",
+    "facts"
+  ],
+  "properties": {
+    "schema": {
+      "const": "context-facts.v1"
+    },
+    "section": {
+      "enum": [
+        "module-map",
+        "dependency-graph",
+        "api-inventory",
+        "db-schema",
+        "test-layout"
+      ]
+    },
+    "extractor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,40}$"
+        },
+        "version": {
+          "$ref": "#/$defs/semver"
+        }
+      }
+    },
+    "sources": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/repo_name"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/git_sha"
+      }
+    },
+    "empty_reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 200
+    },
+    "facts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^(module|dep|import|http|ui|call|table|column|index|migration|test|sym):\\S+$"
+          },
+          "kind": {
+            "type": "string",
+            "pattern": "^[a-z-]+$"
+          },
+          "source": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "repo",
+              "path",
+              "line"
+            ],
+            "properties": {
+              "repo": {
+                "$ref": "#/$defs/repo_name"
+              },
+              "path": {
+                "$ref": "#/$defs/rel_path"
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
+          "confidence": {
+            "enum": [
+              "resolved",
+              "partial"
+            ]
+          }
+        }
+      }
+    },
+    "unresolved": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "reason"
+        ],
+        "properties": {
+          "source": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "repo",
+              "path",
+              "line"
+            ],
+            "properties": {
+              "repo": {
+                "$ref": "#/$defs/repo_name"
+              },
+              "path": {
+                "$ref": "#/$defs/rel_path"
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 200
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "facts": {
+            "maxItems": 0
+          }
+        },
+        "required": [
+          "facts"
+        ]
+      },
+      "then": {
+        "properties": {
+          "empty_reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "git_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full 40-hex git commit or tree SHA."
+    },
+    "rel_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400,
+      "pattern": "^(?!/)(?!.*\\.\\.)[^\\\\]+$",
+      "description": "Relative POSIX path, no '..', no leading '/'."
+    },
+    "repo_name": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,40}$",
+      "description": "Product repo short name from tsl.yaml."
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "SemVer 2.0.0 without pre-release tags."
+    }
+  },
+  "x-owner": "SDD-06 §4.3"
+}

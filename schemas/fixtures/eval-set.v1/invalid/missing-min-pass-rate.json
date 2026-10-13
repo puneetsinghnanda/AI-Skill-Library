@@ -1,0 +1,6 @@
+{
+  "schema": "eval-set.v1",
+  "skill": "requirement-review",
+  "min_cases": 10,
+  "fixture_system": "sample-orders"
+}

@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/eval-result.v1.json",
+  "title": "Signed eval result (eval-result.v1)",
+  "description": "skills/<skill>/evals/results/<version>.eval-result.json: signed by the skill author's key; binds case results and pass rate to an exact skill version and content hash.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "skill",
+    "version",
+    "skill_sha256",
+    "cases",
+    "pass_rate",
+    "recorded_by",
+    "recorded_at",
+    "key_id",
+    "signature"
+  ],
+  "properties": {
+    "schema": {
+      "const": "eval-result.v1"
+    },
+    "skill": {
+      "$ref": "#/$defs/skill_id"
+    },
+    "version": {
+      "$ref": "#/$defs/semver"
+    },
+    "skill_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "case_sha256",
+          "result"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9-]{2,40}$"
+          },
+          "kind": {
+            "enum": [
+              "normal",
+              "edge",
+              "conflict",
+              "adversarial",
+              "forbidden-content"
+            ]
+          },
+          "case_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "result": {
+            "enum": [
+              "pass",
+              "fail",
+              "flaky"
+            ]
+          },
+          "outcome": {
+            "$ref": "#/$defs/outcome"
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "cases_total": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "cases_passed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "pass_rate": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "repeats": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3
+    },
+    "claude_code_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "recorded_by": {
+      "$ref": "#/$defs/tsl_by"
+    },
+    "recorded_at": {
+      "$ref": "#/$defs/signed_timestamp"
+    },
+    "key_id": {
+      "$ref": "#/$defs/key_id"
+    },
+    "signature": {
+      "$ref": "#/$defs/signature"
+    }
+  },
+  "$defs": {
+    "key_id": {
+      "type": "string",
+      "pattern": "^key_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Signing key id, key_<ULID> (SDD-07 §5.1)."
+    },
+    "outcome": {
+      "enum": [
+        "PASS",
+        "PASS-WITH-FINDINGS",
+        "RETRY",
+        "NEEDS-INPUT",
+        "ESCALATE",
+        "ABORT"
+      ]
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "SemVer 2.0.0 without pre-release tags."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{86}$",
+      "description": "base64url (no padding) Ed25519 signature over the JCS form without this field."
+    },
+    "signed_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "Signing-time field: YYYY-MM-DDTHH:MM:SSZ (SDD-07 §6.2)."
+    },
+    "skill_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,39}$",
+      "description": "Skill id (SDD-01 §4)."
+    },
+    "tsl_by": {
+      "type": "string",
+      "pattern": "^tsl@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+    }
+  },
+  "x-owner": "SDD-01 §10"
+}

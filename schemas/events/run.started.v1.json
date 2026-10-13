@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/events/run.started.v1.json",
+  "title": "Event body: run.started (schema_version 1)",
+  "description": "Sent by tsl state start. Closed object; every string is length-capped (TM-08).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "workflow",
+    "workflow_version",
+    "ticket_ref",
+    "system",
+    "plugin_version",
+    "pinned_skills"
+  ],
+  "properties": {
+    "workflow": {
+      "$ref": "#/$defs/workflow_id"
+    },
+    "workflow_version": {
+      "$ref": "#/$defs/semver"
+    },
+    "ticket_ref": {
+      "$ref": "#/$defs/ticket"
+    },
+    "system": {
+      "$ref": "#/$defs/code"
+    },
+    "plugin_version": {
+      "$ref": "#/$defs/semver"
+    },
+    "pinned_skills": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/skill_id"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/semver"
+      }
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "pod": {
+      "$ref": "#/$defs/pod_id"
+    },
+    "pack_fresh": {
+      "type": "boolean"
+    }
+  },
+  "$defs": {
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{1,31}$",
+      "description": "Client, project or system code; never a name (SDD-04 §7.2, C-09)."
+    },
+    "pod_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,35}-pod$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "SemVer 2.0.0 without pre-release tags."
+    },
+    "skill_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,39}$",
+      "description": "Skill id (SDD-01 §4)."
+    },
+    "ticket": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_]*-[0-9]+$",
+      "maxLength": 40
+    },
+    "workflow_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,40}$"
+    }
+  },
+  "x-owner": "SDD-08 §4.5"
+}

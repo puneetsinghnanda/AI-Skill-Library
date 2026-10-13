@@ -1,0 +1,36 @@
+{
+  "schema": "change.v1",
+  "step": "impl",
+  "skill": "implement@1.0.0",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "attempt": 1,
+  "inputs": [
+    {
+      "path": "artifacts/T-1/run_01JA0B3C4D5E6F7G8H9JKMNPQR/ticket.md",
+      "sha256": "14069429150abcbf244c4c2fb2c4c46a49c93ca9457263ecd9ebb176de3a58bb"
+    }
+  ],
+  "pack_sha": {
+    "orders-api": "86f7e437faa5a7fce15d1ddcb9eaeaea377667b8"
+  },
+  "claims": [],
+  "trace": [
+    "REQ-1"
+  ],
+  "known": [
+    "REQ-1"
+  ],
+  "assumed": [],
+  "unknown": [],
+  "code": [
+    {
+      "repo": "orders-api",
+      "base_sha": "e9d71f5ee7c92d6dc9e92ffdad17b8bd49418f98",
+      "head_sha": "27d5482eebd075de44389774fce28c69f45c8a75",
+      "diff_sha256": "df087996d45b03e7eb8c133c0298fd98d35113fca26aaba58612fef3cc212cad",
+      "files": [
+        "src/routes/orders.js"
+      ]
+    }
+  ]
+}

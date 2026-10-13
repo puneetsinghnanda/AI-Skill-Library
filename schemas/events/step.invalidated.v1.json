@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/events/step.invalidated.v1.json",
+  "title": "Event body: step.invalidated (schema_version 1)",
+  "description": "Sent by tsl next when a step goes STALE (SDD-02 §10.2). Closed object; every string is length-capped (TM-08).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "step",
+    "cause_step",
+    "reason"
+  ],
+  "properties": {
+    "step": {
+      "$ref": "#/$defs/step_id"
+    },
+    "cause_step": {
+      "$ref": "#/$defs/step_id"
+    },
+    "reason": {
+      "enum": [
+        "stale_input",
+        "gate_reject",
+        "repin"
+      ]
+    }
+  },
+  "$defs": {
+    "step_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,40}$",
+      "description": "Workflow step id (SDD-02 §3.2)."
+    }
+  },
+  "x-owner": "SDD-08 §4.5"
+}

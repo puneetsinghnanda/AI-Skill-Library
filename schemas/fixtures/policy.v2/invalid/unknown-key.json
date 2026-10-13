@@ -1,0 +1,40 @@
+{
+  "schema": "policy.v2",
+  "write_scope": {
+    "allow": [
+      "<companion>/artifacts/**",
+      "<companion>/runs/<run_id>/**",
+      "<product_repos>/**"
+    ],
+    "deny": [
+      "<companion>/context/pack.signature.json",
+      "**/.github/workflows/**"
+    ]
+  },
+  "bash_in_run": {
+    "deny_patterns": [
+      "git push",
+      "git commit --amend",
+      "rm -rf"
+    ]
+  },
+  "mcp": {
+    "read_tools": [
+      "*__get*",
+      "*__search*",
+      "*__list*",
+      "*__fetch*"
+    ],
+    "write_tools_need_approval": [
+      "*__create*",
+      "*__update*",
+      "*__edit*",
+      "*__add*",
+      "*__transition*",
+      "*__delete*"
+    ],
+    "unknown_tools": "deny"
+  },
+  "merge_and_deploy": "never",
+  "network": "allow"
+}

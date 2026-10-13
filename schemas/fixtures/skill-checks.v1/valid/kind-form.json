@@ -1,0 +1,22 @@
+{
+  "schema": "skill-checks.v1",
+  "skill": "design",
+  "checks": [
+    {
+      "id": "design.modules-exist",
+      "kind": "lookup",
+      "gate": "H5",
+      "select": "$.components[*].module",
+      "in": {
+        "file": "context/generated/module-map.json",
+        "path": "$.modules[*].name"
+      }
+    },
+    {
+      "id": "design.claims-cited",
+      "kind": "cites-required",
+      "gate": "soft",
+      "select": "$.claims[*]"
+    }
+  ]
+}

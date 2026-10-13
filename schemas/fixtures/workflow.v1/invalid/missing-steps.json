@@ -1,0 +1,24 @@
+{
+  "schema": "workflow.v1",
+  "id": "brownfield-change",
+  "version": "1.3.0",
+  "title": "Brownfield change",
+  "description": "Take a ticket on an existing system from requirement to a reviewed pull request.",
+  "owner": "wf-owner-2b",
+  "kind": "delivery",
+  "status": "production",
+  "requires_fresh_pack": true,
+  "inputs": {
+    "ticket": {
+      "required": true
+    }
+  },
+  "defaults": {
+    "retry": {
+      "checks": 2,
+      "review": 2,
+      "verifier": 3
+    },
+    "max_rework": 2
+  }
+}

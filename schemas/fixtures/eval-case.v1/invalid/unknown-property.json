@@ -1,0 +1,37 @@
+{
+  "schema": "eval-case.v1",
+  "id": "EC-03",
+  "title": "Ticket conflicts with the retention rule in the intent baseline",
+  "kind": "conflict",
+  "inputs": {
+    "ticket": "inputs/ticket.md",
+    "intent_baseline": "inputs/intent-baseline.md",
+    "glossary": "inputs/glossary.md"
+  },
+  "expect": {
+    "outcome_in": [
+      "NEEDS-INPUT"
+    ],
+    "gates": {
+      "H1": "pass",
+      "H2": "pass",
+      "H4": "pass"
+    },
+    "assert": [
+      {
+        "path": "questions[?blocking==`true`]",
+        "count_min": 1
+      },
+      {
+        "path": "questions[].text",
+        "any_matches": "(?i)retention|30 days|24 hours"
+      }
+    ]
+  },
+  "provenance": "invented",
+  "attestation": {
+    "by": "skill-owner-3b7e",
+    "statement": "All inputs are invented for the sample order system."
+  },
+  "x_unexpected": 1
+}

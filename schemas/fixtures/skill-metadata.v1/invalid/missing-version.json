@@ -1,0 +1,62 @@
+{
+  "schema": "skill-metadata.v1",
+  "id": "requirement-review",
+  "agent": "business-analyst",
+  "status": "draft",
+  "owner": "skill-owner-3b7e",
+  "title": "Requirement review",
+  "phase": "requirements",
+  "summary": "Finds gaps, conflicts and missing conditions in a ticket before design starts.",
+  "inputs": [
+    {
+      "name": "ticket",
+      "schema": "ticket-snapshot.v1",
+      "source": "run",
+      "required": true
+    },
+    {
+      "name": "intent_baseline",
+      "source": "context",
+      "path": "context/intent-baseline.md",
+      "required": true
+    },
+    {
+      "name": "glossary",
+      "source": "context",
+      "path": "context/glossary.md",
+      "required": false
+    }
+  ],
+  "outputs": [
+    {
+      "name": "intent",
+      "schema": "intent.v1",
+      "file": "intent.md"
+    }
+  ],
+  "context_sections": [
+    "intent-baseline#goals",
+    "intent-baseline#constraints",
+    "glossary"
+  ],
+  "size_budget_tokens": 30000,
+  "rubric": "rubric.md",
+  "checks": "checks.yaml",
+  "evals": {
+    "path": "evals/",
+    "min_cases": 10,
+    "min_pass_rate": 0.9
+  },
+  "allowed_tools": [
+    "Read",
+    "Grep",
+    "Glob",
+    "Write"
+  ],
+  "change_limits": null,
+  "deprecated_by": null,
+  "harness": {
+    "checks": "checks.yaml",
+    "trace_required": false
+  }
+}

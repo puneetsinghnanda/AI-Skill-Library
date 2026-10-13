@@ -1,0 +1,7 @@
+{
+  "schema": "eval-set.v1",
+  "skill": "test-plan",
+  "min_cases": 14,
+  "min_pass_rate": 0.95,
+  "fixture_system": "sample-tickets"
+}

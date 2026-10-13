@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/verifier-profile.v1.json",
+  "title": "verifiers/<name>@<major>/profile.yaml (verifier-profile.v1)",
+  "description": "Container verifier profile for H3: image pinned by digest and the prepare, build, test, lint, sast, secrets and optional coverage steps. Only prepare may use the network.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "id",
+    "image",
+    "steps",
+    "total_timeout_s"
+  ],
+  "properties": {
+    "schema": {
+      "const": "verifier-profile.v1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*@[0-9]+$"
+    },
+    "image": {
+      "type": "string",
+      "pattern": "^[a-z0-9.-]+(/[a-z0-9._<>-]+)+@sha256:[0-9a-f]{64}$"
+    },
+    "workdir": {
+      "type": "string",
+      "pattern": "^/"
+    },
+    "exclude_from_risk": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/glob"
+      }
+    },
+    "steps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "prepare",
+        "build",
+        "test",
+        "lint",
+        "sast",
+        "secrets"
+      ],
+      "properties": {
+        "prepare": {
+          "$ref": "#/$defs/step"
+        },
+        "build": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/step"
+            },
+            {
+              "properties": {
+                "network": {
+                  "const": "none"
+                }
+              }
+            }
+          ]
+        },
+        "test": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/step"
+            },
+            {
+              "properties": {
+                "network": {
+                  "const": "none"
+                }
+              }
+            }
+          ]
+        },
+        "lint": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/step"
+            },
+            {
+              "properties": {
+                "network": {
+                  "const": "none"
+                }
+              }
+            }
+          ]
+        },
+        "sast": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/step"
+            },
+            {
+              "properties": {
+                "network": {
+                  "const": "none"
+                }
+              }
+            }
+          ]
+        },
+        "secrets": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/step"
+            },
+            {
+              "properties": {
+                "network": {
+                  "const": "none"
+                }
+              }
+            }
+          ]
+        },
+        "coverage": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/step"
+            },
+            {
+              "properties": {
+                "network": {
+                  "const": "none"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "total_timeout_s": {
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 7200
+    }
+  },
+  "$defs": {
+    "glob": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cmd",
+        "timeout_s"
+      ],
+      "properties": {
+        "cmd": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "timeout_s": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        },
+        "network": {
+          "enum": [
+            "none",
+            "registry"
+          ],
+          "default": "none"
+        },
+        "parse": {
+          "enum": [
+            "exit-code",
+            "junit",
+            "sarif",
+            "coverage-summary"
+          ]
+        },
+        "report": {
+          "type": "string",
+          "maxLength": 200
+        }
+      }
+    }
+  },
+  "x-owner": "SDD-03 §5.5"
+}

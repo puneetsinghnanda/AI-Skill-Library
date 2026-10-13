@@ -1,0 +1,13 @@
+{
+  "schema": "harness-case.v1",
+  "id": "cite-fabricated-path-01",
+  "skill": "impact-analysis@1.1.2",
+  "kind": "citation",
+  "expect": {
+    "outcome": "PASS-WITH-FINDINGS",
+    "band": "Medium",
+    "fabricated_cites": [
+      "sample-system:api/src/nope.js#L10"
+    ]
+  }
+}

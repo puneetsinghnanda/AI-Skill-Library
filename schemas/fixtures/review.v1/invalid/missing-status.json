@@ -1,0 +1,57 @@
+{
+  "schema": "review.v1",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "step": "design",
+  "attempt": 2,
+  "artifact_sha256": "e788103ee15318fcd2af9b73b4ebbb33a903b020de7b307d71f5fed0f433e548",
+  "package_sha256": "e0ce1a7f3f76d7bfda0ffdae6e0226aa63b3009c4c4a770c321876aecad0a6c1",
+  "reviewer": {
+    "agent": "truminds:reviewer",
+    "skill": "review",
+    "version": "1.6.0",
+    "rubric_sha256": "454349e422f05297191ead13e21d3db520e5abef52055e4964b82fb213f593a1"
+  },
+  "rubric_score": 4.2,
+  "rubric_items": [
+    {
+      "id": "DS-R1",
+      "score": 4,
+      "reason": "Covers the impacted modules."
+    },
+    {
+      "id": "R-2",
+      "score": 5,
+      "reason": "Clear."
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-2",
+      "severity": "minor",
+      "category": "consistency",
+      "text": "History endpoint reads the archive table directly",
+      "cites": [
+        {
+          "ref": "orders-api:src/routes/orders.js#L40-L52",
+          "quote": "db.query('SELECT * FROM order_archive"
+        }
+      ]
+    }
+  ],
+  "claims_checked": [
+    {
+      "claim_id": "C1",
+      "verdict": "supported"
+    }
+  ],
+  "questions": [
+    {
+      "id": "Q-1",
+      "text": "Is the archive table in scope?",
+      "ask_role": "tech_lead",
+      "blocking": false
+    }
+  ],
+  "recorded_at": "2026-01-06T11:01:30Z",
+  "recorded_by": "tsl@1.6.0"
+}

@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/events/approval.recorded.v1.json",
+  "title": "Event body: approval.recorded (schema_version 1)",
+  "description": "Sent by tsl approve. Closed object; every string is length-capped (TM-08).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "gate",
+    "decision",
+    "approver_role",
+    "signature_block_sha256",
+    "key_id"
+  ],
+  "properties": {
+    "gate": {
+      "$ref": "#/$defs/gate_id"
+    },
+    "decision": {
+      "enum": [
+        "approve",
+        "reject",
+        "changes"
+      ]
+    },
+    "approver_role": {
+      "$ref": "#/$defs/grant_role"
+    },
+    "step": {
+      "$ref": "#/$defs/step_id"
+    },
+    "signature_block_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "key_id": {
+      "$ref": "#/$defs/key_id"
+    }
+  },
+  "$defs": {
+    "gate_id": {
+      "type": "string",
+      "pattern": "^(G-[a-z0-9-]+|W-[0-9]+)$",
+      "description": "Gate id G-<id>, escalation G-escalate-<step>-a<n>, or external-write approval W-<n> (SDD-02 §9.2)."
+    },
+    "grant_role": {
+      "enum": [
+        "viewer",
+        "engineer",
+        "tech_lead",
+        "skill_owner",
+        "stage_approver",
+        "eng_lead",
+        "admin"
+      ]
+    },
+    "key_id": {
+      "type": "string",
+      "pattern": "^key_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Signing key id, key_<ULID> (SDD-07 §5.1)."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    },
+    "step_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,40}$",
+      "description": "Workflow step id (SDD-02 §3.2)."
+    }
+  },
+  "x-owner": "SDD-08 §4.5"
+}

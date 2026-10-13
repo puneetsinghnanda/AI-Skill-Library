@@ -1,0 +1,9 @@
+{
+  "schema": "status.v1",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "step": "status",
+  "attempt": 1,
+  "skill": "status-report@1.0.0",
+  "inputs": [],
+  "pack_sha": {}
+}

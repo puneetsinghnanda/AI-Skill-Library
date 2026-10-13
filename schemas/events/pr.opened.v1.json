@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/events/pr.opened.v1.json",
+  "title": "Event body: pr.opened (schema_version 1)",
+  "description": "Sent by tsl pr per product repo. Closed object; every string is length-capped (TM-08).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "repo",
+    "number",
+    "draft",
+    "lowest_band"
+  ],
+  "properties": {
+    "repo": {
+      "$ref": "#/$defs/repo_name"
+    },
+    "number": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "draft": {
+      "type": "boolean"
+    },
+    "lowest_band": {
+      "$ref": "#/$defs/band"
+    }
+  },
+  "$defs": {
+    "band": {
+      "enum": [
+        "High",
+        "Medium",
+        "Low"
+      ]
+    },
+    "repo_name": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,40}$",
+      "description": "Product repo short name from tsl.yaml."
+    }
+  },
+  "x-owner": "SDD-08 §4.5"
+}

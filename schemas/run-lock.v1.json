@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/run-lock.v1.json",
+  "title": "runs/active/<ticket>__<workflow>.lock (run-lock.v1)",
+  "description": "The single lock file per ticket and workflow. Its fixed path makes a second laptop's git push fail (registry §10 row 9). Removed at COMPLETED or by tsl state unlock.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "run_id",
+    "holder",
+    "key_id",
+    "created_at",
+    "heartbeat_at"
+  ],
+  "properties": {
+    "schema": {
+      "const": "run-lock.v1"
+    },
+    "run_id": {
+      "$ref": "#/$defs/run_id"
+    },
+    "holder": {
+      "$ref": "#/$defs/pseudonym"
+    },
+    "key_id": {
+      "$ref": "#/$defs/key_id"
+    },
+    "created_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "heartbeat_at": {
+      "$ref": "#/$defs/timestamp"
+    }
+  },
+  "$defs": {
+    "key_id": {
+      "type": "string",
+      "pattern": "^key_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Signing key id, key_<ULID> (SDD-07 §5.1)."
+    },
+    "pseudonym": {
+      "type": "string",
+      "pattern": "^[a-z][a-z-]{0,23}-[0-9a-f]{2,8}$",
+      "maxLength": 32,
+      "description": "Pseudonym such as eng-4f2a; never a real name."
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Run id, run_<ULID> (Doc 5 §1.1)."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+      "description": "ISO 8601 UTC with Z (Doc 5 §1.1)."
+    }
+  },
+  "x-owner": "SDD-02 §11.1"
+}

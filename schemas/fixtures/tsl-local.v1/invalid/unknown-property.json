@@ -1,0 +1,7 @@
+{
+  "schema": "tsl-local.v1",
+  "product_repos": {
+    "sample-system": "/home/eng/src/sample-system"
+  },
+  "x_unexpected": 1
+}

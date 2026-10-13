@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/policy.v2.json",
+  "title": "policy.yaml (policy.v2)",
+  "description": "Run-dependent rules read by the pre-tool and pre-mcp hooks: write scope, Bash patterns in a run and MCP read/write classification. The org file is complete; a system's policy.yaml may only add denies (structurally: it cannot carry allow or read_tools lists).",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "write_scope",
+        "bash_in_run",
+        "mcp",
+        "merge_and_deploy"
+      ],
+      "properties": {
+        "schema": {
+          "const": "policy.v2"
+        },
+        "write_scope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "allow",
+            "deny"
+          ],
+          "properties": {
+            "allow": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "uniqueItems": true
+            },
+            "deny": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "uniqueItems": true
+            }
+          }
+        },
+        "bash_in_run": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "deny_patterns"
+          ],
+          "properties": {
+            "deny_patterns": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "uniqueItems": true
+            }
+          }
+        },
+        "mcp": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "read_tools",
+            "write_tools_need_approval",
+            "unknown_tools"
+          ],
+          "properties": {
+            "read_tools": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "uniqueItems": true
+            },
+            "write_tools_need_approval": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "uniqueItems": true
+            },
+            "unknown_tools": {
+              "const": "deny"
+            }
+          }
+        },
+        "merge_and_deploy": {
+          "const": "never"
+        }
+      },
+      "title": "Org policy (shipped in the plugin)"
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema"
+      ],
+      "properties": {
+        "schema": {
+          "const": "policy.v2"
+        },
+        "write_scope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "deny"
+          ],
+          "properties": {
+            "deny": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "uniqueItems": true
+            }
+          }
+        },
+        "read_deny": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "uniqueItems": true
+        },
+        "bash_in_run": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "deny_patterns"
+          ],
+          "properties": {
+            "deny_patterns": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "uniqueItems": true
+            }
+          }
+        },
+        "mcp": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "write_tools_need_approval": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "uniqueItems": true
+            },
+            "unknown_tools": {
+              "const": "deny"
+            }
+          }
+        },
+        "merge_and_deploy": {
+          "const": "never"
+        }
+      },
+      "title": "System addition (companion policy.yaml): may only add denies",
+      "minProperties": 2
+    }
+  ],
+  "x-owner": "SDD-05 §6.4"
+}

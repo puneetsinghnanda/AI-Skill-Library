@@ -1,0 +1,451 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/verification.v1.json",
+  "title": "<artifact>.verification.json (verification.v1)",
+  "description": "The signed check record written by tsl decide: hashes of the artifact, checks and review, input chain, kept and dropped findings, signals S1-S6, band, outcome and caps. Ed25519 over JCS without signature.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "run_id",
+    "step",
+    "attempt",
+    "skill",
+    "artifact_path",
+    "artifact_sha256",
+    "checks_sha256",
+    "review_sha256",
+    "inputs",
+    "findings_kept",
+    "findings_dropped",
+    "signals",
+    "band",
+    "outcome",
+    "caps",
+    "thresholds_sha256",
+    "pack",
+    "decided_by",
+    "decided_at",
+    "key_id",
+    "signature"
+  ],
+  "properties": {
+    "schema": {
+      "const": "verification.v1"
+    },
+    "run_id": {
+      "$ref": "#/$defs/run_id"
+    },
+    "step": {
+      "$ref": "#/$defs/step_id"
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "skill": {
+      "$ref": "#/$defs/skill_ref"
+    },
+    "artifact_path": {
+      "$ref": "#/$defs/rel_path"
+    },
+    "artifact_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "checks_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "review_sha256": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sha256",
+          "verification_sha256"
+        ],
+        "properties": {
+          "path": {
+            "$ref": "#/$defs/rel_path"
+          },
+          "sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "verification_sha256": {
+            "$ref": "#/$defs/sha256"
+          }
+        }
+      }
+    },
+    "product_changes": {
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "repo",
+              "base_sha",
+              "tree_sha",
+              "diff_sha256"
+            ],
+            "properties": {
+              "repo": {
+                "$ref": "#/$defs/repo_name"
+              },
+              "base_sha": {
+                "$ref": "#/$defs/git_sha"
+              },
+              "tree_sha": {
+                "$ref": "#/$defs/git_sha"
+              },
+              "diff_sha256": {
+                "$ref": "#/$defs/sha256"
+              }
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "findings_kept": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "severity"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^F-[0-9]+$"
+          },
+          "severity": {
+            "$ref": "#/$defs/severity"
+          },
+          "raised_from": {
+            "enum": [
+              "major",
+              "minor"
+            ]
+          }
+        }
+      }
+    },
+    "findings_dropped": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "string",
+            "pattern": "^F-[0-9]+$"
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "reason"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^F-[0-9]+$"
+              },
+              "reason": {
+                "type": "string",
+                "maxLength": 200
+              }
+            }
+          }
+        ]
+      }
+    },
+    "claims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "verified"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "verified": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "signals": {
+      "$ref": "#/$defs/signals"
+    },
+    "band": {
+      "enum": [
+        "High",
+        "Medium",
+        "Low",
+        null
+      ]
+    },
+    "outcome": {
+      "$ref": "#/$defs/outcome"
+    },
+    "gate_failures": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/hard_gate"
+      }
+    },
+    "caps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/cap"
+      },
+      "uniqueItems": true
+    },
+    "thresholds_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "pack": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "signed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "source_sha": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/git_sha"
+          }
+        },
+        "manifest_sha256": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "prev_attempt_sha256": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "accepted_default": {
+      "type": "boolean",
+      "description": "Additive (SDD-02 §9.1): a non-blocking default was accepted."
+    },
+    "decided_by": {
+      "$ref": "#/$defs/tsl_by"
+    },
+    "decided_at": {
+      "$ref": "#/$defs/signed_timestamp"
+    },
+    "key_id": {
+      "$ref": "#/$defs/key_id"
+    },
+    "signature": {
+      "$ref": "#/$defs/signature"
+    }
+  },
+  "$defs": {
+    "cap": {
+      "enum": [
+        "pack-stale",
+        "reviewer-missing",
+        "no-verifier",
+        "format-only-cites"
+      ]
+    },
+    "git_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full 40-hex git commit or tree SHA."
+    },
+    "hard_gate": {
+      "enum": [
+        "H1",
+        "H2",
+        "H3",
+        "H4",
+        "H5",
+        "H6",
+        "H7"
+      ]
+    },
+    "key_id": {
+      "type": "string",
+      "pattern": "^key_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Signing key id, key_<ULID> (SDD-07 §5.1)."
+    },
+    "outcome": {
+      "enum": [
+        "PASS",
+        "PASS-WITH-FINDINGS",
+        "RETRY",
+        "NEEDS-INPUT",
+        "ESCALATE",
+        "ABORT"
+      ]
+    },
+    "rel_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400,
+      "pattern": "^(?!/)(?!.*\\.\\.)[^\\\\]+$",
+      "description": "Relative POSIX path, no '..', no leading '/'."
+    },
+    "repo_name": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,40}$",
+      "description": "Product repo short name from tsl.yaml."
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Run id, run_<ULID> (Doc 5 §1.1)."
+    },
+    "severity": {
+      "enum": [
+        "blocker",
+        "major",
+        "minor"
+      ]
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    },
+    "signals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6"
+      ],
+      "properties": {
+        "S1": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "S2": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "S3": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 5
+        },
+        "S4": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "S5": {
+          "enum": [
+            "fresh",
+            "stale",
+            "missing"
+          ]
+        },
+        "S5_basis": {
+          "enum": [
+            "live",
+            "cached"
+          ]
+        },
+        "S6": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "lines",
+            "files",
+            "sensitive"
+          ],
+          "properties": {
+            "lines": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "files": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sensitive": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{86}$",
+      "description": "base64url (no padding) Ed25519 signature over the JCS form without this field."
+    },
+    "signed_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "Signing-time field: YYYY-MM-DDTHH:MM:SSZ (SDD-07 §6.2)."
+    },
+    "skill_ref": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,39}@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "Exact skill version, id@x.y.z."
+    },
+    "step_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,40}$",
+      "description": "Workflow step id (SDD-02 §3.2)."
+    },
+    "tsl_by": {
+      "type": "string",
+      "pattern": "^tsl@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+    }
+  },
+  "x-owner": "SDD-03 §12.1"
+}

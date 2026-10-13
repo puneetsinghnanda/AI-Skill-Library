@@ -306,6 +306,7 @@ Every file schema is `schemas/<name>.v<N>.json` in the skill-library repo (Doc 5
 | `eval-expect.v1` | `schemas/eval-expect.v1.json` | TST-01 §3.1 |
 | `eval-result.v1` | `schemas/eval-result.v1.json` | SDD-01 §10 |
 | `ticket-snapshot.v1` | `schemas/ticket-snapshot.v1.json` | SDD-01 §5 |
+| `envelope.v1` (artifact front-matter envelope; every body schema includes it) | `schemas/envelope.v1.json` | Doc 5 §3.6 (name from SDD-03 §4.3) |
 | Artifact body schemas: `intent.v1`, `stories.v1`, `impact.v1`, `design.v1`, `threat-model.v1`, `change.v1`, `ut-result.v1`, `secure-review.v1`, `test-plan.v1`, `test-result.v1`, `triage.v1`, `plan.v1`, `pipeline-review.v1`, `deploy-failure.v1`, `ux-flow.v1`, `a11y.v1`, `estimate.v1`, `status.v1` | `schemas/<name>.v1.json` | SDD-01 §12 (list in Doc 3 §7) |
 | `workflow.v1` | `schemas/workflow.v1.json` | SDD-02 §3 |
 | `workflow-lock.v1` | `schemas/workflow-lock.v1.json` | SDD-02 §3.5 |
@@ -333,6 +334,7 @@ Every file schema is `schemas/<name>.v<N>.json` in the skill-library repo (Doc 5
 | `pod.v1` | `schemas/pod.v1.json` | SDD-10 §3 |
 | `improvement.v1` | `schemas/improvement.v1.json` | SDD-11 §6.2 |
 | `consent-record.v1` | `schemas/consent-record.v1.json` | LEG-01 §13.1 |
+| `event-envelope.v1` (one event inside a `POST /v1/events` batch) | `schemas/event-envelope.v1.json` | Doc 5 §5.2 |
 | Event bodies (one per type in §5) | `schemas/events/<type>.v<N>.json` | SDD-08 §4.5 |
 
 ## 7. Database tables and views (owner: SDD-08)

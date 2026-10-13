@@ -1,0 +1,39 @@
+{
+  "step": "impact",
+  "skill": "impact-analysis",
+  "skill_version": "1.1.2",
+  "attempt": 1,
+  "outcome": "RETRY",
+  "band": null,
+  "signals": {
+    "S1": 1.0,
+    "S2": 1.0,
+    "S3": null,
+    "S4": 0,
+    "S5": "stale",
+    "S6": {
+      "lines": 0,
+      "files": 0,
+      "sensitive": false
+    }
+  },
+  "caps": [
+    "pack-stale"
+  ],
+  "gate_failures": [
+    "H5"
+  ],
+  "findings_count": {
+    "blocker": 0,
+    "major": 0,
+    "minor": 0
+  },
+  "duration_ms": 900,
+  "verification_sha256": "3bfc269594ef649228e9a74bab00f042efc91d5acc6fbee31a382e80d42388fe",
+  "seq": 3,
+  "reasons": [
+    "H5"
+  ],
+  "key_id": "key_01JC3D4E5F6G7H8J9KMNPQRSTV",
+  "decided_by": "tsl@1.6.0"
+}

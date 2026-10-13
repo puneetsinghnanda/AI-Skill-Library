@@ -1,0 +1,19 @@
+schema: harness-case.v1
+id: design-planted-wrong-table-01
+skill: design@1.4.0
+kind: reviewer
+expect:
+  gates:
+    H1: pass
+    H2: pass
+    H5: pass
+  outcome: RETRY
+  planted_defects:
+  - id: D1
+    severity: major
+    path: sample-system:api/src/db/orders.js
+    lines:
+    - 12
+    - 30
+    note: design reads the archive table; history lives in events
+  fabricated_cites: []

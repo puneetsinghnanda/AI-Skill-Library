@@ -1,0 +1,10 @@
+{
+  "schema": "eval-expect.v1",
+  "case": "EC-01",
+  "skill": "design@1",
+  "expect": {
+    "outcome_in": [
+      "NEEDS-INPUT"
+    ]
+  }
+}

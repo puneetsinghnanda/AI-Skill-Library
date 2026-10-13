@@ -1,0 +1,21 @@
+{
+  "device": {
+    "device_id": "dev_01JE5F6G7H8J9KMNPQRSTVWXYZ",
+    "label": "laptop-4f2a"
+  },
+  "service": {
+    "timeout_s": 5
+  },
+  "telemetry": {
+    "outbox_max_mb": 50,
+    "retain_sent_days": 7
+  },
+  "logging": {
+    "level": "warning",
+    "max_mb": 10,
+    "backups": 3
+  },
+  "ui": {
+    "color": "auto"
+  }
+}

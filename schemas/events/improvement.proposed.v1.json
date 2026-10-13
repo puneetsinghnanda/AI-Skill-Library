@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/events/improvement.proposed.v1.json",
+  "title": "Event body: improvement.proposed (schema_version 1)",
+  "description": "Sent by tsl improve pr (SDD-11 §10). Closed object; every string is length-capped (TM-08).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "improvement_id",
+    "skill",
+    "from_version",
+    "to_version",
+    "flag_ids",
+    "before_pass_rate",
+    "after_pass_rate",
+    "cases_added"
+  ],
+  "properties": {
+    "improvement_id": {
+      "$ref": "#/$defs/improvement_id"
+    },
+    "skill": {
+      "$ref": "#/$defs/skill_id"
+    },
+    "from_version": {
+      "$ref": "#/$defs/semver"
+    },
+    "to_version": {
+      "$ref": "#/$defs/semver"
+    },
+    "flag_ids": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/flag_id"
+      },
+      "uniqueItems": true
+    },
+    "before_pass_rate": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "after_pass_rate": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "cases_added": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "$defs": {
+    "flag_id": {
+      "type": "string",
+      "pattern": "^flg_[0-9A-HJKMNP-TV-Z]{26}$"
+    },
+    "improvement_id": {
+      "type": "string",
+      "pattern": "^imp_[0-9A-HJKMNP-TV-Z]{26}$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "SemVer 2.0.0 without pre-release tags."
+    },
+    "skill_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,39}$",
+      "description": "Skill id (SDD-01 §4)."
+    }
+  },
+  "x-owner": "SDD-08 §4.5"
+}

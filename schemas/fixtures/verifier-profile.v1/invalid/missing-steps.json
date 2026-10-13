@@ -1,0 +1,11 @@
+{
+  "schema": "verifier-profile.v1",
+  "id": "node-20@1",
+  "image": "ghcr.io/example-org/tsl-verifier-node20@sha256:402699de92fc20f3eaa1098d108a1ff2cab5245f8984d858a772572fb932dcc0",
+  "workdir": "/src",
+  "exclude_from_risk": [
+    "package-lock.json",
+    "**/*.snap"
+  ],
+  "total_timeout_s": 1800
+}

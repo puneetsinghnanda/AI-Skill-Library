@@ -1,0 +1,47 @@
+{
+  "id": "node-20@1",
+  "image": "ghcr.io/example-org/tsl-verifier-node20@sha256:402699de92fc20f3eaa1098d108a1ff2cab5245f8984d858a772572fb932dcc0",
+  "workdir": "/src",
+  "exclude_from_risk": [
+    "package-lock.json",
+    "**/*.snap"
+  ],
+  "steps": {
+    "prepare": {
+      "cmd": "npm ci --ignore-scripts",
+      "timeout_s": 600,
+      "network": "registry"
+    },
+    "build": {
+      "cmd": "npm run build --if-present",
+      "timeout_s": 300
+    },
+    "test": {
+      "cmd": "npm test",
+      "timeout_s": 600,
+      "parse": "junit",
+      "report": "junit.xml"
+    },
+    "lint": {
+      "cmd": "npx eslint .",
+      "timeout_s": 120,
+      "parse": "sarif"
+    },
+    "sast": {
+      "cmd": "semgrep --sarif -o sast.sarif",
+      "timeout_s": 300,
+      "parse": "sarif"
+    },
+    "secrets": {
+      "cmd": "gitleaks detect --no-git",
+      "timeout_s": 60,
+      "parse": "sarif"
+    },
+    "coverage": {
+      "cmd": "npm test -- --coverage",
+      "timeout_s": 600,
+      "parse": "coverage-summary"
+    }
+  },
+  "total_timeout_s": 1800
+}

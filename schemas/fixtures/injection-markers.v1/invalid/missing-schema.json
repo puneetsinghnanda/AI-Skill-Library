@@ -1,0 +1,7 @@
+{
+  "patterns": [
+    "\\bignore (all |any )?(previous|prior|above) (instructions|prompts)\\b",
+    "\\bdisregard (the )?(rules|policy|guardrails)\\b",
+    "<\\s*/?\\s*(system|untrusted-input)\\s*>"
+  ]
+}

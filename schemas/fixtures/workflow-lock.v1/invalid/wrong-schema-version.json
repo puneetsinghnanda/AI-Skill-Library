@@ -1,0 +1,11 @@
+{
+  "schema": "workflow-lock.v0",
+  "workflow": "brownfield-change@1.3.0",
+  "workflow_sha256": "55cf1725549ddc93e4855595839742334c9a658c145f24c047f2831896768fa0",
+  "plugin_version": "1.6.0",
+  "resolved": {
+    "req": "requirement-review@1.2.3",
+    "design": "design@1.4.0"
+  },
+  "generated_by": "tsl@1.6.0"
+}

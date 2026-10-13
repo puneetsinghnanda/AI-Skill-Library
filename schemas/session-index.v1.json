@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/session-index.v1.json",
+  "title": "Session index (session-index.v1)",
+  "description": "~/.truminds/sessions/<session_id>.json: binds a Claude Code session to the run it holds, so the pre-tool hook has a fast path when no run is bound.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "session_id",
+    "run_id",
+    "companion",
+    "lock",
+    "bound_at"
+  ],
+  "properties": {
+    "schema": {
+      "const": "session-index.v1"
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "run_id": {
+      "$ref": "#/$defs/run_id"
+    },
+    "companion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "description": "Absolute path of the companion clone."
+    },
+    "lock": {
+      "type": "string",
+      "pattern": "^runs/active/[A-Za-z0-9_-]+__[a-z0-9-]+\\.lock$"
+    },
+    "bound_at": {
+      "$ref": "#/$defs/timestamp"
+    }
+  },
+  "$defs": {
+    "run_id": {
+      "type": "string",
+      "pattern": "^run_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Run id, run_<ULID> (Doc 5 §1.1)."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+      "description": "ISO 8601 UTC with Z (Doc 5 §1.1)."
+    }
+  },
+  "x-owner": "SDD-04 §6.14"
+}

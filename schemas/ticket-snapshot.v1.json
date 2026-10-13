@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/ticket-snapshot.v1.json",
+  "title": "ticket.md front matter (ticket-snapshot.v1)",
+  "description": "Read-only snapshot of the run's ticket, written by the run loop before the first step and hashed like any artifact so H6 staleness works on it. Field list is provisional until SDD-02 settles who writes it (SDD-01 O-07).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "run_id",
+    "ticket",
+    "source",
+    "fetched_at"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ticket-snapshot.v1"
+    },
+    "run_id": {
+      "$ref": "#/$defs/run_id"
+    },
+    "ticket": {
+      "$ref": "#/$defs/ticket"
+    },
+    "source": {
+      "enum": [
+        "jira_mcp",
+        "file"
+      ]
+    },
+    "fetched_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 300
+    },
+    "issue_type": {
+      "type": "string",
+      "maxLength": 40
+    },
+    "source_sha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "x-fields-status": "provisional",
+  "$defs": {
+    "run_id": {
+      "type": "string",
+      "pattern": "^run_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Run id, run_<ULID> (Doc 5 §1.1)."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    },
+    "ticket": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_]*-[0-9]+$",
+      "maxLength": 40
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+      "description": "ISO 8601 UTC with Z (Doc 5 §1.1)."
+    }
+  },
+  "x-owner": "SDD-01 §5"
+}

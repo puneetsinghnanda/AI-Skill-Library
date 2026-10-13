@@ -1,0 +1,7 @@
+schema: policy.v2
+write_scope:
+  deny:
+  - orders-api:test-data/**
+bash_in_run:
+  deny_patterns:
+  - npm publish

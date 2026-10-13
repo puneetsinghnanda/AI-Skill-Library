@@ -1,0 +1,13 @@
+{
+  "schema": "context-facts.v1",
+  "section": "db-schema",
+  "extractor": {
+    "name": "sql-migrations",
+    "version": "1.0.0"
+  },
+  "sources": {
+    "sample-system": "fb71731dfe0ec970d3964518e40a1e1fd11f20ee"
+  },
+  "empty_reason": "no migrations folder",
+  "facts": []
+}

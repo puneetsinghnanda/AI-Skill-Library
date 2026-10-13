@@ -1,0 +1,38 @@
+{
+  "schema": "open-questions.v1",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "workflow": "brownfield-change@1.3",
+  "step": "design@1.4",
+  "created_at": "2026-01-06T10:20:00Z",
+  "status": "open",
+  "questions": [
+    {
+      "id": "Q-01",
+      "round": 1,
+      "blocking": true,
+      "ask": "product owner",
+      "question": "History must cover 30 days but the baseline keeps 24 hours. Which applies?",
+      "why": "Decides whether the design must extend retention.",
+      "evidence": [
+        "context/data-model.md#data-retention"
+      ],
+      "options": [
+        "Extend retention to 30 days",
+        "Keep 24 hours"
+      ],
+      "proposed_default": null,
+      "answer": null,
+      "answered_by": null,
+      "decision": null
+    },
+    {
+      "id": "Q-02",
+      "round": 1,
+      "blocking": false,
+      "ask": "tech lead",
+      "question": "Time-zone boundary for 30 days is not stated.",
+      "proposed_default": "UTC, start-inclusive",
+      "answer": null
+    }
+  ]
+}

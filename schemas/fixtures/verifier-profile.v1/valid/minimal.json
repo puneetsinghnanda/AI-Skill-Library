@@ -1,0 +1,32 @@
+{
+  "schema": "verifier-profile.v1",
+  "id": "python-312@1",
+  "image": "ghcr.io/example-org/tsl-verifier-py312@sha256:6e491c02882ac36e3bcaaac4d151d4b2793135d4482adf227b1b730cdd90b46d",
+  "steps": {
+    "prepare": {
+      "cmd": "make prepare",
+      "timeout_s": 120
+    },
+    "build": {
+      "cmd": "make build",
+      "timeout_s": 120
+    },
+    "test": {
+      "cmd": "make test",
+      "timeout_s": 120
+    },
+    "lint": {
+      "cmd": "make lint",
+      "timeout_s": 120
+    },
+    "sast": {
+      "cmd": "make sast",
+      "timeout_s": 120
+    },
+    "secrets": {
+      "cmd": "make secrets",
+      "timeout_s": 120
+    }
+  },
+  "total_timeout_s": 900
+}

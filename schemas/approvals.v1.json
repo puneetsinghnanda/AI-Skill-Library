@@ -1,0 +1,363 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/approvals.v1.json",
+  "title": "runs/<run_id>/approvals.md (approvals.v1)",
+  "description": "Front matter of approvals.md plus gate entries as tsl parses them; each signed entry carries an approval-signature.v1 block.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "run_id"
+  ],
+  "properties": {
+    "schema": {
+      "const": "approvals.v1"
+    },
+    "run_id": {
+      "$ref": "#/$defs/run_id"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "role",
+          "artifacts",
+          "decision"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/gate_id"
+          },
+          "kind": {
+            "enum": [
+              "workflow_gate",
+              "escalation",
+              "external_write"
+            ]
+          },
+          "role": {
+            "$ref": "#/$defs/grant_role"
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "$ref": "#/$defs/rel_path"
+                },
+                "sha256": {
+                  "$ref": "#/$defs/sha256"
+                }
+              }
+            }
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "action": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "tool",
+                  "target"
+                ],
+                "properties": {
+                  "tool": {
+                    "type": "string"
+                  },
+                  "target": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decision": {
+            "enum": [
+              "approve",
+              "reject",
+              "changes",
+              "abort",
+              null
+            ]
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4000
+          },
+          "signature": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/approval_signature"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "description": "Parsed entries (not part of the front matter)."
+    }
+  },
+  "$defs": {
+    "approval_signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "run_id",
+        "system",
+        "gate",
+        "kind",
+        "artifacts",
+        "action",
+        "decision",
+        "comment_sha256",
+        "role",
+        "approver",
+        "self_approved",
+        "approved_at",
+        "key_id",
+        "signature"
+      ],
+      "properties": {
+        "schema": {
+          "const": "approval-signature.v1"
+        },
+        "run_id": {
+          "$ref": "#/$defs/run_id"
+        },
+        "system": {
+          "$ref": "#/$defs/code"
+        },
+        "gate": {
+          "$ref": "#/$defs/gate_id"
+        },
+        "kind": {
+          "enum": [
+            "workflow_gate",
+            "escalation",
+            "external_write"
+          ]
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "step",
+              "attempt",
+              "sha256"
+            ],
+            "properties": {
+              "step": {
+                "$ref": "#/$defs/step_id"
+              },
+              "attempt": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              }
+            }
+          }
+        },
+        "action": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "tool",
+                "target"
+              ],
+              "properties": {
+                "tool": {
+                  "type": "string",
+                  "pattern": "^mcp__[A-Za-z0-9_-]+__[A-Za-z0-9_-]+$"
+                },
+                "target": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "decision": {
+          "enum": [
+            "approve",
+            "reject",
+            "changes",
+            "abort"
+          ]
+        },
+        "comment_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "role": {
+          "$ref": "#/$defs/grant_role"
+        },
+        "approver": {
+          "$ref": "#/$defs/pseudonym"
+        },
+        "self_approved": {
+          "type": "boolean"
+        },
+        "approved_at": {
+          "$ref": "#/$defs/signed_timestamp"
+        },
+        "key_id": {
+          "$ref": "#/$defs/key_id"
+        },
+        "signature": {
+          "$ref": "#/$defs/signature"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "external_write"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "gate": {
+                "pattern": "^W-[0-9]+$"
+              },
+              "action": {
+                "type": "object"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "gate": {
+                "pattern": "^G-[a-z0-9-]+$"
+              },
+              "action": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "escalation"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "gate": {
+                "pattern": "^G-escalate-[a-z0-9-]+-a[0-9]+$"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{1,31}$",
+      "description": "Client, project or system code; never a name (SDD-04 §7.2, C-09)."
+    },
+    "gate_id": {
+      "type": "string",
+      "pattern": "^(G-[a-z0-9-]+|W-[0-9]+)$",
+      "description": "Gate id G-<id>, escalation G-escalate-<step>-a<n>, or external-write approval W-<n> (SDD-02 §9.2)."
+    },
+    "grant_role": {
+      "enum": [
+        "viewer",
+        "engineer",
+        "tech_lead",
+        "skill_owner",
+        "stage_approver",
+        "eng_lead",
+        "admin"
+      ]
+    },
+    "key_id": {
+      "type": "string",
+      "pattern": "^key_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Signing key id, key_<ULID> (SDD-07 §5.1)."
+    },
+    "pseudonym": {
+      "type": "string",
+      "pattern": "^[a-z][a-z-]{0,23}-[0-9a-f]{2,8}$",
+      "maxLength": 32,
+      "description": "Pseudonym such as eng-4f2a; never a real name."
+    },
+    "rel_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400,
+      "pattern": "^(?!/)(?!.*\\.\\.)[^\\\\]+$",
+      "description": "Relative POSIX path, no '..', no leading '/'."
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Run id, run_<ULID> (Doc 5 §1.1)."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{86}$",
+      "description": "base64url (no padding) Ed25519 signature over the JCS form without this field."
+    },
+    "signed_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "Signing-time field: YYYY-MM-DDTHH:MM:SSZ (SDD-07 §6.2)."
+    },
+    "step_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,40}$",
+      "description": "Workflow step id (SDD-02 §3.2)."
+    }
+  },
+  "x-owner": "Doc 4 §4.2, SDD-02 §9.2"
+}

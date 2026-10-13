@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/consent-record.v1.json",
+  "title": "Client consent record (consent-record.v1)",
+  "description": "Fields the insights service keeps about a signed client consent (codes only; the signed document lives in the contract store). Enforced by tsl init, context build and state start (E-CONS-01).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "consent_ref",
+    "client",
+    "systems",
+    "repos_in_scope",
+    "options",
+    "template_version",
+    "signed_at",
+    "recorded_by",
+    "withdrawn_at"
+  ],
+  "properties": {
+    "schema": {
+      "const": "consent-record.v1"
+    },
+    "consent_ref": {
+      "type": "string",
+      "pattern": "^CONS-[A-Z0-9-]+-[0-9]{3}$"
+    },
+    "client": {
+      "$ref": "#/$defs/code"
+    },
+    "systems": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/code"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "repos_in_scope": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/repo_name"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "excluded_paths": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9-]{1,40}:\\S+$"
+      }
+    },
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "webhook",
+        "companion_host",
+        "end_of_engagement",
+        "ci_verify",
+        "tracker_access"
+      ],
+      "properties": {
+        "webhook": {
+          "type": "boolean"
+        },
+        "companion_host": {
+          "enum": [
+            "truminds",
+            "client"
+          ]
+        },
+        "end_of_engagement": {
+          "enum": [
+            "handover",
+            "delete",
+            "handover_then_delete"
+          ]
+        },
+        "ci_verify": {
+          "type": "boolean"
+        },
+        "tracker_access": {
+          "enum": [
+            "read_only",
+            "read_write_with_approval",
+            "none"
+          ]
+        }
+      }
+    },
+    "template_version": {
+      "type": "string",
+      "pattern": "^LEG-01@[0-9]+\\.[0-9]+$"
+    },
+    "signed_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "recorded_by": {
+      "$ref": "#/$defs/pseudonym"
+    },
+    "withdrawn_at": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/timestamp"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{1,31}$",
+      "description": "Client, project or system code; never a name (SDD-04 §7.2, C-09)."
+    },
+    "pseudonym": {
+      "type": "string",
+      "pattern": "^[a-z][a-z-]{0,23}-[0-9a-f]{2,8}$",
+      "maxLength": 32,
+      "description": "Pseudonym such as eng-4f2a; never a real name."
+    },
+    "repo_name": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,40}$",
+      "description": "Product repo short name from tsl.yaml."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+      "description": "ISO 8601 UTC with Z (Doc 5 §1.1)."
+    }
+  },
+  "x-owner": "LEG-01 §13.1"
+}

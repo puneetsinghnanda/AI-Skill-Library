@@ -1,0 +1,15 @@
+{
+  "schema": "rubric.v1",
+  "skill": "requirement-review",
+  "severity_triggers": {
+    "blocker": [
+      "Contradiction resolved silently"
+    ],
+    "major": [
+      "Invented value marked known"
+    ],
+    "minor": [
+      "Wording"
+    ]
+  }
+}

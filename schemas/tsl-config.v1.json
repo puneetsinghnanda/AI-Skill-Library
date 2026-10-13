@@ -1,0 +1,391 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/tsl-config.v1.json",
+  "title": "tsl.yaml (tsl-config.v1)",
+  "description": "Per-companion-repo configuration: system codes, product repos, context and change limits, gates, PR and harness settings. Values may only tighten org defaults (E-CFG-01).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "system",
+    "companion",
+    "product_repos"
+  ],
+  "properties": {
+    "schema": {
+      "const": "tsl-config.v1"
+    },
+    "system": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "project",
+        "client"
+      ],
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/code"
+        },
+        "project": {
+          "$ref": "#/$defs/code"
+        },
+        "client": {
+          "$ref": "#/$defs/code"
+        }
+      }
+    },
+    "companion": {
+      "description": "Companion repo. SDD-04 §7.2 form {repo, default_branch}; SDD-12 §4.1 form {org, name}.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repo"
+          ],
+          "properties": {
+            "repo": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$"
+            },
+            "default_branch": {
+              "type": "string",
+              "default": "main"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "org",
+            "name"
+          ],
+          "properties": {
+            "org": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._-]+$"
+            },
+            "name": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]+-companion$"
+            },
+            "default_branch": {
+              "type": "string",
+              "default": "main"
+            }
+          }
+        }
+      ]
+    },
+    "product_repos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "url",
+          "verifier_profile"
+        ],
+        "properties": {
+          "name": {
+            "$ref": "#/$defs/repo_name"
+          },
+          "url": {
+            "type": "string",
+            "pattern": "^(git@[A-Za-z0-9.-]+:[A-Za-z0-9._/-]+\\.git|https://[A-Za-z0-9.-]+/[A-Za-z0-9._/-]+)$"
+          },
+          "path": {
+            "type": "string",
+            "default": ".",
+            "pattern": "^(\\.|(?!/)(?!.*\\.\\.)[A-Za-z0-9._/-]+)$"
+          },
+          "default_branch": {
+            "type": "string",
+            "default": "main",
+            "maxLength": 100
+          },
+          "verifier_profile": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*@[0-9]+$"
+          },
+          "pr": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "branch_prefix": {
+                "type": "string",
+                "pattern": "^[a-z0-9/_-]{1,20}$"
+              },
+              "draft_below": {
+                "enum": [
+                  "High",
+                  "Medium"
+                ]
+              },
+              "labels": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 30
+                }
+              }
+            },
+            "description": "Per-repo PR settings (SDD-12 §4.1)."
+          }
+        }
+      },
+      "minItems": 1,
+      "maxItems": 10
+    },
+    "read_only_repos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "url"
+        ],
+        "properties": {
+          "name": {
+            "$ref": "#/$defs/repo_name"
+          },
+          "url": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      },
+      "default": []
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_age_days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30,
+          "default": 30
+        },
+        "drift_files": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 50
+        },
+        "critical_paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,40}:\\S+$"
+          }
+        }
+      }
+    },
+    "change_limits": {
+      "$ref": "#/$defs/change_limits"
+    },
+    "policy": {
+      "type": "string",
+      "default": "policy.yaml",
+      "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9._/-]+\\.ya?ml$"
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "self_approval": {
+          "type": "boolean",
+          "default": false
+        },
+        "lock_timeout_hours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 24,
+          "default": 24
+        }
+      }
+    },
+    "pr": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "branch_prefix": {
+          "type": "string",
+          "pattern": "^[a-z0-9/_-]{1,20}$",
+          "default": "tsl/"
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 30
+          }
+        }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "endpoint": {
+          "type": "string",
+          "deprecated": true,
+          "description": "Deprecated and ignored with a warning (SDD-04 §7.2)."
+        }
+      }
+    },
+    "harness": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bands": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/skill_id"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/bands"
+          }
+        },
+        "allow": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/sha256"
+            }
+          },
+          "description": "H4 allow lists by rule family; values are SHA-256 of the matched string."
+        },
+        "link_hosts": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9.-]+$"
+          }
+        }
+      },
+      "description": "Additive harness block (SDD-03 §18)."
+    },
+    "h4_allow": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/sha256"
+      },
+      "description": "SEC-01 §7.2 false-positive allow list (SHA-256 only)."
+    },
+    "ci": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "non_code_globs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/glob"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "band_thresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "S1_min": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "S2_min": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "S3_min": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "S6_max_ratio": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "bands": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Per-skill band thresholds; may only tighten the defaults (SDD-03 §10.2).",
+      "properties": {
+        "high": {
+          "$ref": "#/$defs/band_thresholds"
+        },
+        "medium": {
+          "$ref": "#/$defs/band_thresholds"
+        }
+      }
+    },
+    "change_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "lines": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 400
+        },
+        "files": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 15
+        },
+        "sensitive_paths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/glob"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{1,31}$",
+      "description": "Client, project or system code; never a name (SDD-04 §7.2, C-09)."
+    },
+    "glob": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300
+    },
+    "repo_name": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,40}$",
+      "description": "Product repo short name from tsl.yaml."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    },
+    "skill_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,39}$",
+      "description": "Skill id (SDD-01 §4)."
+    }
+  },
+  "x-owner": "SDD-04 §7.2"
+}

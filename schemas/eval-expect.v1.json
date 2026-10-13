@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/eval-expect.v1.json",
+  "title": "expect.yaml sketch (eval-expect.v1)",
+  "description": "TST-01 sketch of case expectations: outcome set, band floor, gates that must pass, citations that must appear and invented elements that must not be claimed. SDD-01 owns the final format.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "case",
+    "skill",
+    "expect"
+  ],
+  "properties": {
+    "schema": {
+      "const": "eval-expect.v1"
+    },
+    "case": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9-]{2,60}$"
+    },
+    "skill": {
+      "$ref": "#/$defs/skill_range"
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 300
+      }
+    },
+    "expect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome_in"
+      ],
+      "properties": {
+        "outcome_in": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/outcome"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "band_at_least": {
+          "$ref": "#/$defs/band"
+        },
+        "gates_pass": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hard_gate"
+          },
+          "uniqueItems": true
+        },
+        "must_cite": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          }
+        },
+        "must_not_claim": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "sections": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "band": {
+      "enum": [
+        "High",
+        "Medium",
+        "Low"
+      ]
+    },
+    "hard_gate": {
+      "enum": [
+        "H1",
+        "H2",
+        "H3",
+        "H4",
+        "H5",
+        "H6",
+        "H7"
+      ]
+    },
+    "outcome": {
+      "enum": [
+        "PASS",
+        "PASS-WITH-FINDINGS",
+        "RETRY",
+        "NEEDS-INPUT",
+        "ESCALATE",
+        "ABORT"
+      ]
+    },
+    "skill_range": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,39}@[\\^~]?\\d+(\\.\\d+){0,2}$",
+      "description": "Skill id with a SemVer range, id@^1.2."
+    }
+  },
+  "x-owner": "TST-01 §3.1"
+}

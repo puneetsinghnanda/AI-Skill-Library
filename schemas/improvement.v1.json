@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/improvement.v1.json",
+  "title": "evals/improvements/<imp_id>.json (improvement.v1)",
+  "description": "Evidence file written by tsl improve check: the flags addressed, the new failing-first cases, before and after signed eval results, and regressions. signature here is the failure signature string, not a crypto signature.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "id",
+    "skill",
+    "from_version",
+    "to_version",
+    "flags",
+    "signature",
+    "cases_added",
+    "before",
+    "after",
+    "regressions",
+    "checked_by"
+  ],
+  "properties": {
+    "schema": {
+      "const": "improvement.v1"
+    },
+    "id": {
+      "$ref": "#/$defs/improvement_id"
+    },
+    "skill": {
+      "$ref": "#/$defs/skill_id"
+    },
+    "from_version": {
+      "$ref": "#/$defs/semver"
+    },
+    "to_version": {
+      "$ref": "#/$defs/semver"
+    },
+    "flags": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/flag_id"
+      },
+      "uniqueItems": true
+    },
+    "signature": {
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^[A-Z-]+(\\|[^|]*){4}$",
+      "description": "Failure signature outcome|gates|signals|findings|cause (SDD-11 §4.3)."
+    },
+    "cases_added": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9-]{2,40}$"
+      },
+      "minItems": 1
+    },
+    "before": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result",
+        "sha256",
+        "pass_rate",
+        "new_cases_failed"
+      ],
+      "properties": {
+        "result": {
+          "$ref": "#/$defs/rel_path"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "pass_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "new_cases_failed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9-]{2,40}$"
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "after": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result",
+        "sha256",
+        "pass_rate",
+        "new_cases_passed"
+      ],
+      "properties": {
+        "result": {
+          "$ref": "#/$defs/rel_path"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "pass_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "new_cases_passed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9-]{2,40}$"
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "regressions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9-]{2,40}$"
+      }
+    },
+    "checked_by": {
+      "$ref": "#/$defs/tsl_by"
+    }
+  },
+  "$defs": {
+    "flag_id": {
+      "type": "string",
+      "pattern": "^flg_[0-9A-HJKMNP-TV-Z]{26}$"
+    },
+    "improvement_id": {
+      "type": "string",
+      "pattern": "^imp_[0-9A-HJKMNP-TV-Z]{26}$"
+    },
+    "rel_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400,
+      "pattern": "^(?!/)(?!.*\\.\\.)[^\\\\]+$",
+      "description": "Relative POSIX path, no '..', no leading '/'."
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "SemVer 2.0.0 without pre-release tags."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    },
+    "skill_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,39}$",
+      "description": "Skill id (SDD-01 §4)."
+    },
+    "tsl_by": {
+      "type": "string",
+      "pattern": "^tsl@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+    }
+  },
+  "x-owner": "SDD-11 §6.2"
+}

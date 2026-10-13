@@ -1,0 +1,10 @@
+{
+  "workflow": "defect-fix",
+  "workflow_version": "1.0.0",
+  "ticket_ref": "SAMPLE-9",
+  "system": "SYS-SMP",
+  "plugin_version": "0.1.0",
+  "pinned_skills": {
+    "defect-triage": "1.0.0"
+  }
+}

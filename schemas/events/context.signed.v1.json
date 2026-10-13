@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/events/context.signed.v1.json",
+  "title": "Event body: context.signed (schema_version 1)",
+  "description": "Sent by tsl context sign. Closed object; every string is length-capped (TM-08).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "system",
+    "age_days",
+    "drift_files",
+    "status",
+    "signature_sha256",
+    "key_id"
+  ],
+  "properties": {
+    "system": {
+      "$ref": "#/$defs/code"
+    },
+    "age_days": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "drift_files": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "status": {
+      "enum": [
+        "fresh",
+        "stale"
+      ]
+    },
+    "signature_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "key_id": {
+      "$ref": "#/$defs/key_id"
+    }
+  },
+  "$defs": {
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{1,31}$",
+      "description": "Client, project or system code; never a name (SDD-04 §7.2, C-09)."
+    },
+    "key_id": {
+      "type": "string",
+      "pattern": "^key_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Signing key id, key_<ULID> (SDD-07 §5.1)."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    }
+  },
+  "x-owner": "SDD-08 §4.5"
+}

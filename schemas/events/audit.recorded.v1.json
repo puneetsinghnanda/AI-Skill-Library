@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/events/audit.recorded.v1.json",
+  "title": "Event body: audit.recorded (schema_version 1)",
+  "description": "Sent after a calibration audit (SDD-03 §16.3); run_id is in the envelope. Closed object; every string is length-capped (TM-08).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "step",
+    "verdict",
+    "reason_code"
+  ],
+  "properties": {
+    "step": {
+      "$ref": "#/$defs/step_id"
+    },
+    "verdict": {
+      "enum": [
+        "deserved",
+        "miss"
+      ]
+    },
+    "reason_code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{1,31}$"
+    }
+  },
+  "$defs": {
+    "step_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,40}$",
+      "description": "Workflow step id (SDD-02 §3.2)."
+    }
+  },
+  "x-owner": "SDD-08 §4.5"
+}

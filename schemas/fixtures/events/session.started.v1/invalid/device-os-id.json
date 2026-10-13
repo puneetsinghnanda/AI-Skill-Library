@@ -1,0 +1,9 @@
+{
+  "session_id": "6b0e-0001",
+  "device_id": "C02XK0ABJGH5",
+  "plugin_version": "1.6.0",
+  "tsl_version": "1.6.0",
+  "os": "macos",
+  "outbox_depth": 3,
+  "outbox_oldest_at": "2026-01-06T08:00:00Z"
+}

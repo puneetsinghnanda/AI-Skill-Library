@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/feedback.v1.json",
+  "title": "runs/<run_id>/feedback/<step>.a<N>.json (feedback.v1)",
+  "description": "Written by tsl decide on every RETRY and passed to attempt N+1: failed gates, verified findings, dropped finding ids and the ids the next artifact must resolve.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "run_id",
+    "step",
+    "from_attempt",
+    "kind",
+    "gate_failures",
+    "findings",
+    "dropped",
+    "must_resolve"
+  ],
+  "properties": {
+    "schema": {
+      "const": "feedback.v1"
+    },
+    "run_id": {
+      "$ref": "#/$defs/run_id"
+    },
+    "step": {
+      "$ref": "#/$defs/step_id"
+    },
+    "from_attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "kind": {
+      "enum": [
+        "checks",
+        "review",
+        "verifier",
+        "rework"
+      ]
+    },
+    "gate_failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "detail"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/hard_gate"
+          },
+          "detail": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "severity",
+          "text",
+          "cites"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^F-[0-9]+$"
+          },
+          "severity": {
+            "$ref": "#/$defs/severity"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "cites": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/cite"
+            },
+            "minItems": 1
+          }
+        }
+      }
+    },
+    "dropped": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^F-[0-9]+$"
+      }
+    },
+    "must_resolve": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(H[1-7]|F-[0-9]+)$"
+      },
+      "uniqueItems": true
+    },
+    "comment_sha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "cite": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/cite_string"
+        },
+        {
+          "$ref": "#/$defs/cite_object"
+        }
+      ]
+    },
+    "cite_object": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "quote"
+      ],
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/cite_string"
+        },
+        "quote": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 200
+        }
+      }
+    },
+    "cite_string": {
+      "type": "string",
+      "maxLength": 400,
+      "pattern": "^(?!/)(?!.*\\.\\.)(?:[a-z0-9-]{1,40}:)?[^\\s#\\\\]+#\\S+$",
+      "description": "Citation [repo:]path#anchor (SDD-03 §8.1)."
+    },
+    "hard_gate": {
+      "enum": [
+        "H1",
+        "H2",
+        "H3",
+        "H4",
+        "H5",
+        "H6",
+        "H7"
+      ]
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Run id, run_<ULID> (Doc 5 §1.1)."
+    },
+    "severity": {
+      "enum": [
+        "blocker",
+        "major",
+        "minor"
+      ]
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    },
+    "step_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,40}$",
+      "description": "Workflow step id (SDD-02 §3.2)."
+    }
+  },
+  "x-owner": "SDD-02 §8.2"
+}

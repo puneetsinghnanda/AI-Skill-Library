@@ -1,0 +1,46 @@
+{
+  "schema": "secrets.v1",
+  "version": 1,
+  "plugins": [
+    {
+      "name": "AWSKeyDetector"
+    },
+    {
+      "name": "Base64HighEntropyString",
+      "limit": 4.5
+    }
+  ],
+  "entropy": {
+    "min_length": 20,
+    "min_bits_per_char": 4.0,
+    "keyword_window": 40,
+    "keywords": [
+      "key",
+      "secret",
+      "token",
+      "password"
+    ]
+  },
+  "rules": [
+    {
+      "id": "SECRET-5",
+      "name": "Connection string with password",
+      "pattern": "(?i)(postgres(ql)?|mysql|mongodb(\\+srv)?|redis)://[^:\\s]+:[^@\\s]+@"
+    },
+    {
+      "id": "SEC-P-06",
+      "name": "Generic assignment",
+      "pattern": "(?i)(password|passwd|secret|api[_-]?key|token)\\s*[:=]\\s*[\"'][^\"'\\s]{8,}[\"']",
+      "exclude_values": [
+        "changeme",
+        "example"
+      ]
+    }
+  ],
+  "placeholders": [
+    "<...>",
+    "xxxx",
+    "example",
+    "changeme"
+  ]
+}

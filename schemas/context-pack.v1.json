@@ -1,0 +1,325 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/context-pack.v1.json",
+  "title": "context/manifest.json (context-pack.v1)",
+  "description": "Pack index written by tsl context build: sources at exact commits, extractors, sections with hashes, anchors and token estimates, redaction counts and effective limits. No timestamps, so it is byte-stable.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "system",
+    "built_by",
+    "sources",
+    "extractors",
+    "sections",
+    "redaction",
+    "limits",
+    "tokens_total_est"
+  ],
+  "properties": {
+    "schema": {
+      "const": "context-pack.v1"
+    },
+    "system": {
+      "$ref": "#/$defs/code"
+    },
+    "built_by": {
+      "$ref": "#/$defs/tsl_by"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "repo",
+          "commit",
+          "scope"
+        ],
+        "properties": {
+          "repo": {
+            "$ref": "#/$defs/repo_name"
+          },
+          "commit": {
+            "$ref": "#/$defs/git_sha"
+          },
+          "default_branch": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "files_scanned": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "files_excluded": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "extractors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "version"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,40}$"
+          },
+          "version": {
+            "$ref": "#/$defs/semver"
+          }
+        }
+      }
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "path",
+          "kind",
+          "required",
+          "sha256",
+          "tokens_est"
+        ],
+        "properties": {
+          "id": {
+            "enum": [
+              "system-baseline",
+              "architecture",
+              "data-model",
+              "glossary",
+              "conventions",
+              "test-strategy",
+              "intent-baseline",
+              "module-map",
+              "dependency-graph",
+              "api-inventory",
+              "db-schema",
+              "test-layout"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^context/(generated/)?[a-z-]+\\.(md|json)$"
+          },
+          "kind": {
+            "enum": [
+              "judgement",
+              "fact"
+            ]
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "origin": {
+            "enum": [
+              "human",
+              "ai-draft"
+            ]
+          },
+          "status": {
+            "enum": [
+              "drafted",
+              "reviewed"
+            ]
+          },
+          "owner": {
+            "$ref": "#/$defs/pseudonym"
+          },
+          "verified_at": {
+            "type": "object",
+            "propertyNames": {
+              "$ref": "#/$defs/repo_name"
+            },
+            "additionalProperties": {
+              "$ref": "#/$defs/git_sha"
+            }
+          },
+          "sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "tokens_est": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "anchors": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{1,64}$"
+            }
+          },
+          "fact_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "empty_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": {
+                  "const": "judgement"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            "then": {
+              "required": [
+                "anchors",
+                "origin",
+                "status",
+                "owner"
+              ],
+              "properties": {
+                "id": {
+                  "enum": [
+                    "system-baseline",
+                    "architecture",
+                    "data-model",
+                    "glossary",
+                    "conventions",
+                    "test-strategy",
+                    "intent-baseline"
+                  ]
+                }
+              }
+            },
+            "else": {
+              "required": [
+                "fact_count"
+              ],
+              "properties": {
+                "id": {
+                  "enum": [
+                    "module-map",
+                    "dependency-graph",
+                    "api-inventory",
+                    "db-schema",
+                    "test-layout"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      "minItems": 1
+    },
+    "redaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rules_version",
+        "values_masked",
+        "paths_excluded",
+        "blocking_hits"
+      ],
+      "properties": {
+        "rules_version": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "values_masked": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "paths_excluded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocking_hits": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "section_tokens",
+        "judgement_tokens",
+        "generated_file_bytes"
+      ],
+      "properties": {
+        "section_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "judgement_tokens": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "generated_file_bytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "tokens_total_est": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "$defs": {
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{1,31}$",
+      "description": "Client, project or system code; never a name (SDD-04 §7.2, C-09)."
+    },
+    "git_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full 40-hex git commit or tree SHA."
+    },
+    "pseudonym": {
+      "type": "string",
+      "pattern": "^[a-z][a-z-]{0,23}-[0-9a-f]{2,8}$",
+      "maxLength": 32,
+      "description": "Pseudonym such as eng-4f2a; never a real name."
+    },
+    "repo_name": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,40}$",
+      "description": "Product repo short name from tsl.yaml."
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "SemVer 2.0.0 without pre-release tags."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    },
+    "tsl_by": {
+      "type": "string",
+      "pattern": "^tsl@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+    }
+  },
+  "x-owner": "SDD-06 §4.1"
+}

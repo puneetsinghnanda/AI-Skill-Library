@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/pack-signature.v1.json",
+  "title": "context/pack.signature.json (pack-signature.v1)",
+  "description": "Tech lead's Ed25519 signature over the manifest hash and source commits (tsl context sign). signed_at is for key validity and audit only; freshness never uses it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "system",
+    "manifest_sha256",
+    "sources",
+    "signed_by",
+    "role",
+    "key_id",
+    "signed_at",
+    "tsl",
+    "signature"
+  ],
+  "properties": {
+    "schema": {
+      "const": "pack-signature.v1"
+    },
+    "system": {
+      "$ref": "#/$defs/code"
+    },
+    "manifest_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "sources": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/repo_name"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/git_sha"
+      }
+    },
+    "signed_by": {
+      "$ref": "#/$defs/pseudonym"
+    },
+    "role": {
+      "const": "tech_lead"
+    },
+    "key_id": {
+      "$ref": "#/$defs/key_id"
+    },
+    "signed_at": {
+      "$ref": "#/$defs/signed_timestamp"
+    },
+    "tsl": {
+      "$ref": "#/$defs/semver"
+    },
+    "signature": {
+      "$ref": "#/$defs/signature"
+    }
+  },
+  "$defs": {
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{1,31}$",
+      "description": "Client, project or system code; never a name (SDD-04 §7.2, C-09)."
+    },
+    "git_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full 40-hex git commit or tree SHA."
+    },
+    "key_id": {
+      "type": "string",
+      "pattern": "^key_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Signing key id, key_<ULID> (SDD-07 §5.1)."
+    },
+    "pseudonym": {
+      "type": "string",
+      "pattern": "^[a-z][a-z-]{0,23}-[0-9a-f]{2,8}$",
+      "maxLength": 32,
+      "description": "Pseudonym such as eng-4f2a; never a real name."
+    },
+    "repo_name": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,40}$",
+      "description": "Product repo short name from tsl.yaml."
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "SemVer 2.0.0 without pre-release tags."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{86}$",
+      "description": "base64url (no padding) Ed25519 signature over the JCS form without this field."
+    },
+    "signed_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "Signing-time field: YYYY-MM-DDTHH:MM:SSZ (SDD-07 §6.2)."
+    }
+  },
+  "x-owner": "SDD-06 §4.2"
+}

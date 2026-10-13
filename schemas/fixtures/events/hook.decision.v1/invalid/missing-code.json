@@ -1,0 +1,6 @@
+{
+  "hook": "pre-tool",
+  "decision": "deny",
+  "tool_kind": "write",
+  "session_id": "6b0e-0001"
+}

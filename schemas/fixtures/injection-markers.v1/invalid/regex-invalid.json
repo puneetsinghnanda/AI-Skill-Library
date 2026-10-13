@@ -1,0 +1,8 @@
+{
+  "schema": "injection-markers.v1",
+  "patterns": [
+    "(ignore",
+    "\\bdisregard (the )?(rules|policy|guardrails)\\b",
+    "<\\s*/?\\s*(system|untrusted-input)\\s*>"
+  ]
+}

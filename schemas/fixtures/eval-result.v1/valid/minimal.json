@@ -1,0 +1,18 @@
+{
+  "schema": "eval-result.v1",
+  "skill": "design",
+  "version": "1.4.0",
+  "skill_sha256": "f9c7af7ebcbf098b9f5f37361d1b168bb2e5b98d930ceef0f055377a8c94db61",
+  "cases": [
+    {
+      "id": "EC-01",
+      "case_sha256": "8b53639f152c8fc6ef30802fde462ba0be9cf085f7580dc69efd72e002abbb35",
+      "result": "flaky"
+    }
+  ],
+  "pass_rate": 0.0,
+  "recorded_by": "tsl@0.1.0",
+  "recorded_at": "2026-01-10T12:00:00Z",
+  "key_id": "key_01JC3D4E5F6G7H8J9KMNPQRSTV",
+  "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+}

@@ -1,0 +1,7 @@
+{
+  "to": "PAUSED_APPROVAL",
+  "reason_code": "paused_approval",
+  "gate": "G-design",
+  "step": "design",
+  "session_id": "6b0e-0001"
+}

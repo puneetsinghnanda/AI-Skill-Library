@@ -1,0 +1,11 @@
+{
+  "schema": "secrets.v1",
+  "version": 2,
+  "rules": [
+    {
+      "id": "SEC-P-01",
+      "name": "Test key",
+      "pattern": "FAKE-KEY-[0-9]{4}"
+    }
+  ]
+}

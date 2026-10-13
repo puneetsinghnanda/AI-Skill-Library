@@ -1,0 +1,772 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/run-state.v1.json",
+  "title": "runs/<run_id>/state.json (run-state.v1)",
+  "description": "The run's state: status, pins, pack status, steps with every attempt, gates, questions and PRs. Written only by tsl with optimistic concurrency on rev.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "run_id",
+    "rev",
+    "workflow",
+    "ticket",
+    "system",
+    "owner",
+    "status",
+    "end_reason",
+    "pinned",
+    "pack",
+    "steps",
+    "updated_at"
+  ],
+  "properties": {
+    "schema": {
+      "const": "run-state.v1"
+    },
+    "run_id": {
+      "$ref": "#/$defs/run_id"
+    },
+    "rev": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "workflow": {
+      "$ref": "#/$defs/workflow_ref"
+    },
+    "workflow_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "ticket": {
+      "$ref": "#/$defs/ticket"
+    },
+    "system": {
+      "$ref": "#/$defs/code"
+    },
+    "owner": {
+      "$ref": "#/$defs/key_id"
+    },
+    "owner_pseudonym": {
+      "$ref": "#/$defs/pseudonym"
+    },
+    "pod": {
+      "$ref": "#/$defs/pod_id"
+    },
+    "status": {
+      "$ref": "#/$defs/run_status"
+    },
+    "end_reason": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/end_reason"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "pinned": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plugin",
+        "tsl",
+        "skills"
+      ],
+      "properties": {
+        "plugin": {
+          "$ref": "#/$defs/semver"
+        },
+        "tsl": {
+          "$ref": "#/$defs/semver"
+        },
+        "skills": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/skill_id"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/semver"
+          }
+        }
+      }
+    },
+    "pack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fresh"
+      ],
+      "properties": {
+        "signed_at": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fresh": {
+          "type": "boolean"
+        },
+        "source_sha": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/repo_name"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/git_sha"
+          }
+        },
+        "manifest_sha256": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "age",
+              "drift",
+              "critical_change",
+              "unsigned",
+              "signature_invalid",
+              "missing",
+              "manifest_changed"
+            ]
+          }
+        },
+        "commits_behind": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "drift_files": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "checked_offline": {
+          "type": "boolean"
+        }
+      },
+      "description": "Pack status at start: SDD-02 §5.3 fields plus SDD-06 §7.4 fields."
+    },
+    "branch": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/repo_name"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "base_sha"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "base_sha": {
+            "$ref": "#/$defs/git_sha"
+          },
+          "head_sha": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/git_sha"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "active_session": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "session_id",
+            "host_hash",
+            "since"
+          ],
+          "properties": {
+            "session_id": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "host_hash": {
+              "type": "string",
+              "pattern": "^h_[0-9a-f]{4,16}$"
+            },
+            "since": {
+              "$ref": "#/$defs/timestamp"
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "cursor": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "step",
+            "attempt"
+          ],
+          "properties": {
+            "step": {
+              "$ref": "#/$defs/step_id"
+            },
+            "attempt": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "attempts"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^(G-[a-z0-9-]+|[a-z][a-z0-9-]{0,40})$"
+          },
+          "kind": {
+            "enum": [
+              "skill",
+              "gate",
+              "pr"
+            ]
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "READY",
+              "IN_PROGRESS",
+              "DONE",
+              "WAITING_INPUT",
+              "WAITING_APPROVAL",
+              "ACCEPTED",
+              "APPROVED",
+              "FAILED",
+              "STALE"
+            ]
+          },
+          "budget_used": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "checks",
+              "review",
+              "verifier",
+              "rework"
+            ],
+            "properties": {
+              "checks": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "review": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "verifier": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "rework": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          "attempts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "n",
+                "cause",
+                "skill"
+              ],
+              "properties": {
+                "n": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "cause": {
+                  "$ref": "#/$defs/attempt_cause"
+                },
+                "skill": {
+                  "$ref": "#/$defs/skill_ref"
+                },
+                "started_at": {
+                  "$ref": "#/$defs/timestamp"
+                },
+                "decided_at": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/timestamp"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "outcome": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/outcome"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "band": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/band"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "artifact": {
+                  "$ref": "#/$defs/rel_path"
+                },
+                "artifact_sha256": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/sha256"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "record": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/rel_path"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "inputs": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "name",
+                      "step",
+                      "sha256"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "step": {
+                        "$ref": "#/$defs/step_id"
+                      },
+                      "sha256": {
+                        "$ref": "#/$defs/sha256"
+                      }
+                    }
+                  }
+                },
+                "feedback": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/rel_path"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "answers_sha256": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/$defs/sha256"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "accepted_default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/gate_id"
+          },
+          "kind": {
+            "enum": [
+              "workflow",
+              "escalate",
+              "external_write"
+            ]
+          },
+          "step": {
+            "$ref": "#/$defs/step_id"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "WAITING_APPROVAL",
+              "APPROVED",
+              "CHANGES",
+              "REJECTED",
+              "ABORTED"
+            ]
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "step",
+                "sha256"
+              ],
+              "properties": {
+                "step": {
+                  "$ref": "#/$defs/step_id"
+                },
+                "sha256": {
+                  "$ref": "#/$defs/sha256"
+                }
+              }
+            }
+          },
+          "decision": {
+            "enum": [
+              "approve",
+              "reject",
+              "changes",
+              "abort",
+              null
+            ]
+          },
+          "approver_key": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/key_id"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decided_at": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "questions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "round",
+        "open_blocking",
+        "open_non_blocking",
+        "answered_sha256"
+      ],
+      "properties": {
+        "round": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "open_blocking": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "open_non_blocking": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "answered_sha256": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^Q-[0-9]{2,}$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/sha256"
+          }
+        }
+      }
+    },
+    "prs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "repo",
+          "number",
+          "url",
+          "draft"
+        ],
+        "properties": {
+          "repo": {
+            "$ref": "#/$defs/repo_name"
+          },
+          "number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "url": {
+            "type": "string",
+            "pattern": "^https://"
+          },
+          "draft": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "created_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "updated_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "heartbeat_at": {
+      "$ref": "#/$defs/timestamp"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "COMPLETED"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "end_reason": {
+            "$ref": "#/$defs/end_reason"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "end_reason": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "attempt_cause": {
+      "enum": [
+        "first",
+        "retry_checks",
+        "retry_review",
+        "retry_verifier",
+        "input_answered",
+        "gate_changes",
+        "gate_reject",
+        "stale_rerun",
+        "repin"
+      ]
+    },
+    "band": {
+      "enum": [
+        "High",
+        "Medium",
+        "Low"
+      ]
+    },
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{1,31}$",
+      "description": "Client, project or system code; never a name (SDD-04 §7.2, C-09)."
+    },
+    "end_reason": {
+      "enum": [
+        "pr_opened",
+        "completed",
+        "aborted",
+        "rejected",
+        "cancelled",
+        "lock_released",
+        "archived"
+      ]
+    },
+    "gate_id": {
+      "type": "string",
+      "pattern": "^(G-[a-z0-9-]+|W-[0-9]+)$",
+      "description": "Gate id G-<id>, escalation G-escalate-<step>-a<n>, or external-write approval W-<n> (SDD-02 §9.2)."
+    },
+    "git_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full 40-hex git commit or tree SHA."
+    },
+    "key_id": {
+      "type": "string",
+      "pattern": "^key_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Signing key id, key_<ULID> (SDD-07 §5.1)."
+    },
+    "outcome": {
+      "enum": [
+        "PASS",
+        "PASS-WITH-FINDINGS",
+        "RETRY",
+        "NEEDS-INPUT",
+        "ESCALATE",
+        "ABORT"
+      ]
+    },
+    "pod_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,35}-pod$"
+    },
+    "pseudonym": {
+      "type": "string",
+      "pattern": "^[a-z][a-z-]{0,23}-[0-9a-f]{2,8}$",
+      "maxLength": 32,
+      "description": "Pseudonym such as eng-4f2a; never a real name."
+    },
+    "rel_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400,
+      "pattern": "^(?!/)(?!.*\\.\\.)[^\\\\]+$",
+      "description": "Relative POSIX path, no '..', no leading '/'."
+    },
+    "repo_name": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,40}$",
+      "description": "Product repo short name from tsl.yaml."
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Run id, run_<ULID> (Doc 5 §1.1)."
+    },
+    "run_status": {
+      "enum": [
+        "RUNNING",
+        "PAUSED_INPUT",
+        "PAUSED_APPROVAL",
+        "COMPLETED"
+      ]
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "SemVer 2.0.0 without pre-release tags."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    },
+    "skill_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,39}$",
+      "description": "Skill id (SDD-01 §4)."
+    },
+    "skill_ref": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,39}@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "Exact skill version, id@x.y.z."
+    },
+    "step_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,40}$",
+      "description": "Workflow step id (SDD-02 §3.2)."
+    },
+    "ticket": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_]*-[0-9]+$",
+      "maxLength": 40
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+      "description": "ISO 8601 UTC with Z (Doc 5 §1.1)."
+    },
+    "workflow_ref": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,40}@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+    }
+  },
+  "x-owner": "SDD-02 §5.3"
+}

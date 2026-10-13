@@ -1,0 +1,350 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/review.v1.json",
+  "title": "<artifact>.review.json (review.v1)",
+  "description": "Reviewer subagent output as stored by tsl review record: rubric scores, cited findings, claim verdicts and questions. Every citation is an object with ref and an 8-200 character quote.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "run_id",
+    "step",
+    "attempt",
+    "artifact_sha256",
+    "package_sha256",
+    "status",
+    "reviewer",
+    "rubric_score",
+    "rubric_items",
+    "findings",
+    "claims_checked",
+    "questions"
+  ],
+  "properties": {
+    "schema": {
+      "const": "review.v1"
+    },
+    "run_id": {
+      "$ref": "#/$defs/run_id"
+    },
+    "step": {
+      "$ref": "#/$defs/step_id"
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "artifact_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "package_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "status": {
+      "enum": [
+        "ok",
+        "could_not_review"
+      ]
+    },
+    "status_reason": {
+      "type": "string",
+      "maxLength": 300
+    },
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agent",
+        "skill",
+        "version",
+        "rubric_sha256"
+      ],
+      "properties": {
+        "agent": {
+          "const": "truminds:reviewer"
+        },
+        "skill": {
+          "const": "review"
+        },
+        "version": {
+          "$ref": "#/$defs/semver"
+        },
+        "rubric_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "rubric_score": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 5
+    },
+    "rubric_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "score",
+          "reason"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^([A-Z]{2,3}-R[0-9]+|R-[0-9]+)$"
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 300
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "severity",
+          "category",
+          "text",
+          "cites"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^F-[0-9]+$"
+          },
+          "severity": {
+            "$ref": "#/$defs/severity"
+          },
+          "category": {
+            "enum": [
+              "correctness",
+              "completeness",
+              "consistency",
+              "traceability",
+              "security",
+              "style",
+              "other"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "claim_ref": {
+            "type": "string",
+            "pattern": "^C[0-9]+$"
+          },
+          "suggested_fix": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "cites": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/cite_object"
+            },
+            "minItems": 1,
+            "maxItems": 5
+          }
+        }
+      },
+      "maxItems": 50
+    },
+    "claims_checked": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "claim_id",
+          "verdict"
+        ],
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "pattern": "^C[0-9]+$"
+          },
+          "verdict": {
+            "enum": [
+              "supported",
+              "unsupported",
+              "not-checked"
+            ]
+          },
+          "cites": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/cite_object"
+            },
+            "maxItems": 5
+          }
+        }
+      }
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "text",
+          "ask_role",
+          "blocking"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^Q-[0-9]+$"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "ask_role": {
+            "enum": [
+              "tech_lead",
+              "engineer",
+              "product_owner",
+              "stage_approver"
+            ]
+          },
+          "blocking": {
+            "type": "boolean"
+          },
+          "finding_ref": {
+            "type": "string",
+            "pattern": "^F-[0-9]+$"
+          }
+        }
+      },
+      "maxItems": 20
+    },
+    "recorded_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "recorded_by": {
+      "$ref": "#/$defs/tsl_by"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "ok"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "rubric_score": {
+            "type": "number"
+          },
+          "rubric_items": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "could_not_review"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "required": [
+          "status_reason"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "cite_object": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "quote"
+      ],
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/cite_string"
+        },
+        "quote": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 200
+        }
+      }
+    },
+    "cite_string": {
+      "type": "string",
+      "maxLength": 400,
+      "pattern": "^(?!/)(?!.*\\.\\.)(?:[a-z0-9-]{1,40}:)?[^\\s#\\\\]+#\\S+$",
+      "description": "Citation [repo:]path#anchor (SDD-03 §8.1)."
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Run id, run_<ULID> (Doc 5 §1.1)."
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "SemVer 2.0.0 without pre-release tags."
+    },
+    "severity": {
+      "enum": [
+        "blocker",
+        "major",
+        "minor"
+      ]
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    },
+    "step_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,40}$",
+      "description": "Workflow step id (SDD-02 §3.2)."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+      "description": "ISO 8601 UTC with Z (Doc 5 §1.1)."
+    },
+    "tsl_by": {
+      "type": "string",
+      "pattern": "^tsl@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+    }
+  },
+  "x-owner": "SDD-03 §7.3"
+}

@@ -1,0 +1,15 @@
+{
+  "schema": "review-package.v1",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "step": "req",
+  "attempt": 1,
+  "skill": "requirement-review@1.0.0",
+  "artifact_path": "artifacts/T-1/run_01JA0B3C4D5E6F7G8H9JKMNPQR/req.md",
+  "artifact_sha256": "82f3e9c695dc6b8d1b11818d5701919e286de8d47f7c3eb3100c485f79e57828",
+  "rubric": {
+    "path": "rubric.md",
+    "sha256": "64f232610aa64e4f7f03c51728b5050d82d294b55c3040704f0e5d83c129b8f0",
+    "items": []
+  },
+  "package_sha256": "148de9c5a7a44d19e56cd9ae1a554bf67847afb0c58f6e12fa29ac7ddfca9940"
+}

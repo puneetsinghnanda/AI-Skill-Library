@@ -1,0 +1,6 @@
+{
+  "schema": "skill-checks.v1",
+  "skill": "requirement-review",
+  "artifact_schema": "intent.v1",
+  "checks": []
+}

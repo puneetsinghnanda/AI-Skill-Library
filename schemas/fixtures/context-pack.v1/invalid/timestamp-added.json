@@ -1,0 +1,70 @@
+{
+  "schema": "context-pack.v1",
+  "system": "SYS-SMP",
+  "built_by": "tsl@0.3.0",
+  "sources": [
+    {
+      "repo": "sample-system",
+      "commit": "fb71731dfe0ec970d3964518e40a1e1fd11f20ee",
+      "default_branch": "main",
+      "scope": ".",
+      "files_scanned": 214,
+      "files_excluded": 9
+    }
+  ],
+  "extractors": [
+    {
+      "name": "js-routes",
+      "version": "1.0.0"
+    },
+    {
+      "name": "repo-tree",
+      "version": "1.0.0"
+    }
+  ],
+  "sections": [
+    {
+      "id": "data-model",
+      "path": "context/data-model.md",
+      "kind": "judgement",
+      "required": true,
+      "origin": "ai-draft",
+      "status": "reviewed",
+      "owner": "tl-7a1c",
+      "verified_at": {
+        "sample-system": "fb71731dfe0ec970d3964518e40a1e1fd11f20ee"
+      },
+      "sha256": "cde0e753dc250f2c57e27a5815e9eaf3a64df85acf8a3311aab066ba7c90643c",
+      "tokens_est": 2140,
+      "anchors": [
+        "data-model",
+        "orders",
+        "order-events",
+        "data-retention"
+      ]
+    },
+    {
+      "id": "db-schema",
+      "path": "context/generated/db-schema.json",
+      "kind": "fact",
+      "required": true,
+      "sha256": "7bdc25d1694ef984782a16f6f1710c1c6bc83ba7a131b515baf532bea021d011",
+      "tokens_est": 3900,
+      "fact_count": 41,
+      "empty_reason": null
+    }
+  ],
+  "redaction": {
+    "rules_version": "1",
+    "values_masked": 3,
+    "paths_excluded": 9,
+    "blocking_hits": 0
+  },
+  "limits": {
+    "section_tokens": 8000,
+    "judgement_tokens": 40000,
+    "generated_file_bytes": 2097152
+  },
+  "tokens_total_est": 6040,
+  "built_at": "2026-01-01T00:00:00Z"
+}

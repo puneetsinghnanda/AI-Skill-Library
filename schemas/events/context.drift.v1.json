@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/events/context.drift.v1.json",
+  "title": "Event body: context.drift (schema_version 1)",
+  "description": "Sent by tsl context build --check. Closed object; every string is length-capped (TM-08).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "system",
+    "age_days",
+    "drift_files",
+    "status"
+  ],
+  "properties": {
+    "system": {
+      "$ref": "#/$defs/code"
+    },
+    "age_days": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "drift_files": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "status": {
+      "enum": [
+        "fresh",
+        "stale"
+      ]
+    }
+  },
+  "$defs": {
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{1,31}$",
+      "description": "Client, project or system code; never a name (SDD-04 §7.2, C-09)."
+    }
+  },
+  "x-owner": "SDD-08 §4.5"
+}

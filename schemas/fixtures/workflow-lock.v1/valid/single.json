@@ -1,0 +1,10 @@
+{
+  "schema": "workflow-lock.v1",
+  "workflow": "estimate@1.0.0",
+  "workflow_sha256": "b6cf348bc9b1a71d9db0ce76c3b2645a3d57e2a6b2119b58a236adbef5e05c43",
+  "plugin_version": "0.1.0",
+  "resolved": {
+    "est": "estimate-review@1.0.0"
+  },
+  "generated_by": "tsl@0.1.0"
+}

@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/events/question.created.v1.json",
+  "title": "Event body: question.created (schema_version 1)",
+  "description": "Sent by tsl decide per question. No question text (RD-3 default). Closed object; every string is length-capped (TM-08).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "step",
+    "question_id",
+    "blocking",
+    "ask_role"
+  ],
+  "properties": {
+    "step": {
+      "$ref": "#/$defs/step_id"
+    },
+    "question_id": {
+      "type": "string",
+      "pattern": "^Q-[0-9]{1,}$"
+    },
+    "blocking": {
+      "type": "boolean"
+    },
+    "ask_role": {
+      "enum": [
+        "product_owner",
+        "tech_lead",
+        "sme",
+        "client"
+      ]
+    },
+    "evidence_ref": {
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^(context|artifacts|runs)/(?!.*\\.\\.)\\S+$"
+    }
+  },
+  "$defs": {
+    "step_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,40}$",
+      "description": "Workflow step id (SDD-02 §3.2)."
+    }
+  },
+  "x-owner": "SDD-08 §4.5"
+}

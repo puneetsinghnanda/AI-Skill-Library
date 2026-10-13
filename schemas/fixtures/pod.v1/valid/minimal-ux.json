@@ -1,0 +1,44 @@
+{
+  "schema": "pod.v1",
+  "id": "ux-review-pod",
+  "version": "0.1.0",
+  "status": "pilot",
+  "title": "UX Review Pod",
+  "kind": "ux",
+  "owner": "skill-owner-77aa",
+  "summary": "Flow and accessibility review of designs.",
+  "client_gets": [
+    "Accessibility findings mapped to WCAG"
+  ],
+  "agents": [
+    {
+      "key": "ux",
+      "role": "ux-designer",
+      "display_name": "UX Designer",
+      "engineers": 1,
+      "job": "Reviews flows and accessibility.",
+      "skills": [
+        "ux-flow-review@^1.0"
+      ]
+    }
+  ],
+  "workflows": [
+    "ux-review@^1.0"
+  ],
+  "people": [
+    {
+      "title": "Tech lead",
+      "kind": "platform",
+      "platform_role": "tech_lead",
+      "duties": [
+        "Approves"
+      ]
+    }
+  ],
+  "best_fit": {
+    "good_fit_when": [
+      "Designs live in a shared design tool"
+    ]
+  },
+  "one_pager": "one-pager.md"
+}

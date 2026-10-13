@@ -1,0 +1,7 @@
+{
+  "event_id": "evt_01JC3D4E5F6G7H8J9KMNPQRSTV",
+  "type": "session.started",
+  "schema_version": 1,
+  "occurred_at": "2026-01-06T09:00:00.120Z",
+  "body": {}
+}

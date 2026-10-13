@@ -1,0 +1,11 @@
+{
+  "schema": "audit.v1",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "step": "impact",
+  "attempt": 1,
+  "verdict": "miss",
+  "reason_code": "H5",
+  "audited_at": "2026-01-09T10:05:00Z",
+  "key_id": "key_01JD4E5F6G7H8J9KMNPQRSTVWX",
+  "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+}

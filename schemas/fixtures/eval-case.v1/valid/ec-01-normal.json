@@ -1,0 +1,19 @@
+{
+  "schema": "eval-case.v1",
+  "id": "EC-01",
+  "title": "Clear ticket with a matching baseline",
+  "kind": "normal",
+  "inputs": {
+    "ticket": "inputs/ticket.md"
+  },
+  "expect": {
+    "outcome_in": [
+      "PASS"
+    ]
+  },
+  "provenance": "invented",
+  "attestation": {
+    "by": "skill-owner-3b7e",
+    "statement": "Invented ticket text, no client data."
+  }
+}

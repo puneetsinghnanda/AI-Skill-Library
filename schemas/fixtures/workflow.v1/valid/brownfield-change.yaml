@@ -1,0 +1,68 @@
+schema: workflow.v1
+id: brownfield-change
+version: 1.3.0
+title: Brownfield change
+description: Take a ticket on an existing system from requirement to a reviewed pull request.
+owner: wf-owner-2b
+kind: delivery
+status: production
+requires_fresh_pack: true
+inputs:
+  ticket:
+    required: true
+defaults:
+  retry:
+    checks: 2
+    review: 2
+    verifier: 3
+  max_rework: 2
+steps:
+- id: req
+  skill: requirement-review@^1.2
+  inputs:
+    ticket: run.ticket
+    baseline: context.intent-baseline
+- id: split
+  skill: story-split@^1.0
+  after:
+  - req
+  inputs:
+    intent: req.intent
+- id: impact
+  skill: impact-analysis@^1.1
+  after:
+  - req
+  inputs:
+    intent: req.intent
+- id: design
+  skill: design@^1.4
+  after:
+  - split
+  - impact
+  inputs:
+    impact: impact.impact
+    stories: split.stories
+- gate: G-design
+  role: tech_lead
+  after:
+  - design
+  artifacts:
+  - design
+  on_reject: req
+  on_changes: design
+- id: impl
+  skill: implement@^1.0
+  after:
+  - G-design
+  inputs:
+    design: design.design
+  retry:
+    checks: 1
+  'on':
+    ESCALATE:
+      gate_role: tech_lead
+- pr: true
+  after:
+  - impl
+  draft_when_band: Medium
+  repos: changed

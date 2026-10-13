@@ -1,0 +1,59 @@
+schema: intent.v1
+step: req
+skill: requirement-review@1.0.0
+run_id: run_01JA0B3C4D5E6F7G8H9JKMNPQR
+attempt: 1
+inputs:
+- path: artifacts/T-1/run_01JA0B3C4D5E6F7G8H9JKMNPQR/ticket.md
+  sha256: 14069429150abcbf244c4c2fb2c4c46a49c93ca9457263ecd9ebb176de3a58bb
+pack_sha:
+  orders-api: 86f7e437faa5a7fce15d1ddcb9eaeaea377667b8
+claims:
+- id: C1
+  text: Order history is kept for 24 hours
+  cites:
+  - context/intent-baseline.md#data-retention
+trace:
+- REQ-1
+- REQ-2
+known:
+- REQ-1
+assumed:
+- REQ-2
+unknown:
+- U-1
+requirements:
+- id: REQ-1
+  title: Show order history list
+  type: functional
+  status: known
+  statement: The order page shows past orders, newest first.
+  cites:
+  - artifacts/T-1/run_01JA0B3C4D5E6F7G8H9JKMNPQR/ticket.md#L4
+- id: REQ-2
+  title: Page size
+  type: functional
+  status: assumed
+  statement: The list shows 20 orders per page.
+  basis: Matches the existing list pattern
+  cites:
+  - context/system-baseline.md#ui-lists
+unknowns:
+- id: U-1
+  text: Ticket asks for 30 days; baseline keeps 24 hours
+  question: Q-01
+questions:
+- id: Q-01
+  blocking: true
+  ask: product owner
+  text: Which history window applies?
+  why: Decides whether retention changes
+  evidence:
+  - context/intent-baseline.md#data-retention
+  options:
+  - Extend to 30 days
+  - Keep 24 hours
+  default: null
+glossary:
+- term: Order history
+  found: true

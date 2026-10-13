@@ -1,0 +1,39 @@
+{
+  "schema": "next-action.v0",
+  "action": "run_skill",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "step": "design",
+  "attempt": 2,
+  "cause": "retry_review",
+  "skill": "design@1.4.0",
+  "artifact_path": "artifacts/T-1/run_01JA0B3C4D5E6F7G8H9JKMNPQR/design.md",
+  "inputs": [
+    {
+      "name": "impact",
+      "path": "artifacts/T-1/run_01JA0B3C4D5E6F7G8H9JKMNPQR/impact.md",
+      "sha256": "420fce314175df402adbeae3cfbbb85665b72d8b9bc2346f463e32a82f64b114",
+      "schema": "impact.v1"
+    },
+    {
+      "name": "baseline",
+      "path": "context/intent-baseline.md",
+      "sha256": "3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d",
+      "schema": null
+    }
+  ],
+  "feedback": "runs/run_01JA0B3C4D5E6F7G8H9JKMNPQR/feedback/design.a1.json",
+  "answers": null,
+  "context_sections": [
+    "architecture",
+    "generated/api-inventory.json"
+  ],
+  "budget": {
+    "checks": "0/2",
+    "review": "1/2",
+    "verifier": "0/3"
+  },
+  "progress": {
+    "index": 5,
+    "total": 11
+  }
+}

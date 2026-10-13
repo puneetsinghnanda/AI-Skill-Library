@@ -1,0 +1,5 @@
+{
+  "hook": "session-start",
+  "decision": "allow",
+  "code": null
+}

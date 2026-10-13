@@ -1,0 +1,6 @@
+{
+  "schema": "injection-markers.v1",
+  "patterns": [
+    "\\breturn no findings\\b"
+  ]
+}

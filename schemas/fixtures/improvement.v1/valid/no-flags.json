@@ -1,0 +1,33 @@
+{
+  "schema": "improvement.v1",
+  "id": "imp_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "skill": "design",
+  "from_version": "1.4.0",
+  "to_version": "1.5.0",
+  "flags": [],
+  "signature": "ESCALATE|-|S3<3.0|-|-",
+  "cases_added": [
+    "EC-12",
+    "EC-13"
+  ],
+  "before": {
+    "result": "evals/results/1.4.0-b.json",
+    "sha256": "4814d92093ac8a0f4a2163ab87dee509ba306a58f5888be0edcb2fcd0712028b",
+    "pass_rate": 0.9,
+    "new_cases_failed": [
+      "EC-12",
+      "EC-13"
+    ]
+  },
+  "after": {
+    "result": "evals/results/1.5.0-a.json",
+    "sha256": "2c3a4249d77070058649dbd822dcaf7957586fce428cfb2ca88b94741eda8b07",
+    "pass_rate": 0.92,
+    "new_cases_passed": [
+      "EC-12",
+      "EC-13"
+    ]
+  },
+  "regressions": [],
+  "checked_by": "tsl@1.7.0"
+}

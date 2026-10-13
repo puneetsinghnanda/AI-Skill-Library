@@ -1,0 +1,44 @@
+{
+  "schema": "skill-metadata.v1",
+  "id": "implement",
+  "version": "1.2.0",
+  "agent": "developer",
+  "status": "deprecated",
+  "owner": "skill-owner-9c01",
+  "deprecated_by": "implement@2.0.0",
+  "inputs": [
+    {
+      "name": "design",
+      "schema": "design.v1",
+      "source": "artifact",
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "change",
+      "schema": "change.v1",
+      "file": "change.md"
+    },
+    {
+      "name": "code",
+      "kind": "code"
+    }
+  ],
+  "rubric": "rubric.md",
+  "allowed_tools": [
+    "Read",
+    "Grep",
+    "Glob",
+    "Write",
+    "Edit",
+    "Bash(npm test *)"
+  ],
+  "change_limits": {
+    "lines": 400,
+    "files": 15,
+    "sensitive_paths": [
+      "**/auth/**"
+    ]
+  }
+}

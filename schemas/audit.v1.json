@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/audit.v1.json",
+  "title": "audits/<run_id>/<step>.audit.json (audit.v1)",
+  "description": "Signed calibration audit of a High-band outcome by a tech lead who is not the run owner: deserved or miss, with a reason code.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "run_id",
+    "step",
+    "attempt",
+    "verdict",
+    "reason_code",
+    "audited_at",
+    "key_id",
+    "signature"
+  ],
+  "properties": {
+    "schema": {
+      "const": "audit.v1"
+    },
+    "run_id": {
+      "$ref": "#/$defs/run_id"
+    },
+    "step": {
+      "$ref": "#/$defs/step_id"
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "verification_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "verdict": {
+      "enum": [
+        "deserved",
+        "miss"
+      ]
+    },
+    "reason_code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{1,31}$"
+    },
+    "auditor": {
+      "$ref": "#/$defs/pseudonym"
+    },
+    "audited_at": {
+      "$ref": "#/$defs/signed_timestamp"
+    },
+    "key_id": {
+      "$ref": "#/$defs/key_id"
+    },
+    "signature": {
+      "$ref": "#/$defs/signature"
+    }
+  },
+  "$defs": {
+    "key_id": {
+      "type": "string",
+      "pattern": "^key_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Signing key id, key_<ULID> (SDD-07 §5.1)."
+    },
+    "pseudonym": {
+      "type": "string",
+      "pattern": "^[a-z][a-z-]{0,23}-[0-9a-f]{2,8}$",
+      "maxLength": 32,
+      "description": "Pseudonym such as eng-4f2a; never a real name."
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Run id, run_<ULID> (Doc 5 §1.1)."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{86}$",
+      "description": "base64url (no padding) Ed25519 signature over the JCS form without this field."
+    },
+    "signed_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "Signing-time field: YYYY-MM-DDTHH:MM:SSZ (SDD-07 §6.2)."
+    },
+    "step_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,40}$",
+      "description": "Workflow step id (SDD-02 §3.2)."
+    }
+  },
+  "x-owner": "SDD-03 §16.3"
+}

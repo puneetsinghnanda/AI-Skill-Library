@@ -1,0 +1,9 @@
+{
+  "repo": "orders-api",
+  "number": 42,
+  "result": "fail",
+  "codes": [
+    "E-CI-04"
+  ],
+  "head_sha": "1a954628a960aaef81d7b2d4521929579f3541e6"
+}

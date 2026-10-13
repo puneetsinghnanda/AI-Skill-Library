@@ -1,0 +1,43 @@
+{
+  "schema": "checks.v1",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "step": "impl",
+  "attempt": 1,
+  "artifact_sha256": "a898df22bfc74a1ae298c73211ab3b319e5b8da7543d6cd002a8dc4f8723be43",
+  "tool_log_sha256": "9471616778c76d117cfa5529aafc1b6ddaf4c0e22cf23ca810f0c4ea1af171bf",
+  "gates": [
+    {
+      "id": "H3",
+      "pass": true,
+      "status": "pass",
+      "detail": ""
+    }
+  ],
+  "soft": [],
+  "verifier": {
+    "profile": "node-20@1",
+    "image_digest": "sha256:b29814cf5792e684cd75d6a7fce7a67a11887e312f87ca2ac2496d81f365ff72",
+    "steps": [
+      {
+        "name": "test",
+        "status": "pass",
+        "exit_code": 0,
+        "duration_ms": 8123,
+        "report_sha256": "018bb207e5cea3036e36872e61a3a9d432d23b4a199661e7494f0f0607e57951"
+      }
+    ]
+  },
+  "product_changes": [
+    {
+      "repo": "orders-api",
+      "base_sha": "e9d71f5ee7c92d6dc9e92ffdad17b8bd49418f98",
+      "tree_sha": "8efd86fb78a56a5145ed7739dcb00c78581c5375",
+      "diff_sha256": "df087996d45b03e7eb8c133c0298fd98d35113fca26aaba58612fef3cc212cad",
+      "lines_added": 40,
+      "lines_deleted": 3,
+      "files": [
+        "src/routes/orders.js"
+      ]
+    }
+  ]
+}

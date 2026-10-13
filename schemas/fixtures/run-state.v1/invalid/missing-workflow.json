@@ -1,0 +1,105 @@
+{
+  "schema": "run-state.v1",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "rev": 27,
+  "workflow_sha256": "55cf1725549ddc93e4855595839742334c9a658c145f24c047f2831896768fa0",
+  "ticket": "T-1",
+  "system": "SYS-ORD",
+  "owner": "key_01JC3D4E5F6G7H8J9KMNPQRSTV",
+  "owner_pseudonym": "eng-4f2a",
+  "status": "PAUSED_INPUT",
+  "end_reason": null,
+  "pinned": {
+    "plugin": "1.6.0",
+    "tsl": "1.6.0",
+    "skills": {
+      "requirement-review": "1.2.3",
+      "design": "1.4.0"
+    }
+  },
+  "pack": {
+    "signed_at": "2026-01-01T09:00:00Z",
+    "fresh": true,
+    "source_sha": {
+      "orders-api": "86f7e437faa5a7fce15d1ddcb9eaeaea377667b8",
+      "orders-web": "aff024fe4ab0fece4091de044c58c9ae4233383a"
+    }
+  },
+  "branch": {},
+  "active_session": {
+    "session_id": "6b0e-0001",
+    "host_hash": "h_93f1",
+    "since": "2026-01-06T09:58:00Z"
+  },
+  "cursor": null,
+  "steps": [
+    {
+      "id": "impact",
+      "kind": "skill",
+      "status": "DONE",
+      "budget_used": {
+        "checks": 1,
+        "review": 0,
+        "verifier": 0,
+        "rework": 0
+      },
+      "attempts": [
+        {
+          "n": 1,
+          "cause": "first",
+          "skill": "impact-analysis@1.1.2",
+          "outcome": "RETRY",
+          "band": null,
+          "artifact": "artifacts/T-1/run_01JA0B3C4D5E6F7G8H9JKMNPQR/history/impact/a1/impact.md",
+          "artifact_sha256": "4cd9b7672d7fbee8fb51fb1e049f690342035f543a8efe734b7b5ffb0c154a45",
+          "record": "artifacts/T-1/run_01JA0B3C4D5E6F7G8H9JKMNPQR/history/impact/a1/impact.verification.json",
+          "inputs": [
+            {
+              "name": "intent",
+              "step": "req",
+              "sha256": "c3f7bdf537c46724392c4428e47e04c148c56966190c3c9ed92114800c9f35bb"
+            }
+          ],
+          "feedback": null,
+          "answers_sha256": null
+        },
+        {
+          "n": 2,
+          "cause": "retry_checks",
+          "skill": "impact-analysis@1.1.2",
+          "outcome": "PASS",
+          "band": "High",
+          "artifact": "artifacts/T-1/run_01JA0B3C4D5E6F7G8H9JKMNPQR/impact.md",
+          "artifact_sha256": "420fce314175df402adbeae3cfbbb85665b72d8b9bc2346f463e32a82f64b114",
+          "record": "artifacts/T-1/run_01JA0B3C4D5E6F7G8H9JKMNPQR/impact.verification.json",
+          "inputs": [
+            {
+              "name": "intent",
+              "step": "req",
+              "sha256": "c3f7bdf537c46724392c4428e47e04c148c56966190c3c9ed92114800c9f35bb"
+            }
+          ],
+          "feedback": "runs/run_01JA0B3C4D5E6F7G8H9JKMNPQR/feedback/impact.a1.json",
+          "answers_sha256": null
+        }
+      ]
+    },
+    {
+      "id": "G-design",
+      "kind": "gate",
+      "status": "PENDING",
+      "attempts": []
+    }
+  ],
+  "gates": [],
+  "questions": {
+    "round": 1,
+    "open_blocking": 1,
+    "open_non_blocking": 1,
+    "answered_sha256": {}
+  },
+  "prs": [],
+  "created_at": "2026-01-06T09:58:00Z",
+  "updated_at": "2026-01-06T10:20:00Z",
+  "heartbeat_at": "2026-01-06T10:20:00Z"
+}

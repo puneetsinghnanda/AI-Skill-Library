@@ -1,0 +1,29 @@
+{
+  "schema": "feedback.v1",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "step": "impact",
+  "kind": "checks",
+  "gate_failures": [
+    {
+      "id": "H5",
+      "detail": "Claim C4 has no trace to a REQ item"
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-2",
+      "severity": "major",
+      "text": "Retention job not listed as impacted",
+      "cites": [
+        "orders-api:src/jobs/retention.js#L12"
+      ]
+    }
+  ],
+  "dropped": [
+    "F-5"
+  ],
+  "must_resolve": [
+    "H5",
+    "F-2"
+  ]
+}

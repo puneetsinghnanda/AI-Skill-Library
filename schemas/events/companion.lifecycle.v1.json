@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/events/companion.lifecycle.v1.json",
+  "title": "Event body: companion.lifecycle (schema_version 1)",
+  "description": "Sent by tsl init and tsl companion archive (SDD-12 §9). Closed object; every string is length-capped (TM-08).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "system",
+    "from",
+    "to",
+    "reason_code"
+  ],
+  "properties": {
+    "system": {
+      "$ref": "#/$defs/code"
+    },
+    "from": {
+      "enum": [
+        "PROVISIONED",
+        "INITIALISED",
+        "ONBOARDING",
+        "ACTIVE",
+        "SUSPENDED",
+        "ARCHIVED",
+        "DELETED"
+      ]
+    },
+    "to": {
+      "enum": [
+        "PROVISIONED",
+        "INITIALISED",
+        "ONBOARDING",
+        "ACTIVE",
+        "SUSPENDED",
+        "ARCHIVED",
+        "DELETED"
+      ]
+    },
+    "reason_code": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{1,39}$"
+    }
+  },
+  "$defs": {
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{1,31}$",
+      "description": "Client, project or system code; never a name (SDD-04 §7.2, C-09)."
+    }
+  },
+  "x-owner": "SDD-08 §4.5"
+}

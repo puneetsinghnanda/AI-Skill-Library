@@ -1,0 +1,30 @@
+[project]
+name = "truminds-schemas"
+version = "0.1.0"
+description = "Contract tests for the Truminds JSON Schemas (TST-01 §2.2, TC-SCH-001..003). Test-only; nothing is packaged."
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "jsonschema>=4.23",
+    "rfc3339-validator>=0.1.4",
+    "pyyaml>=6.0.2",
+    "ruff>=0.6",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S"]
+ignore = ["S101"]

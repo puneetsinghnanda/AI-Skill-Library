@@ -1,0 +1,42 @@
+{
+  "schema": "verification.v1",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "step": "impact",
+  "attempt": 1,
+  "skill": "impact-analysis@1.1.2",
+  "artifact_path": "artifacts/T-1/run_01JA0B3C4D5E6F7G8H9JKMNPQR/impact.md",
+  "artifact_sha256": "4cd9b7672d7fbee8fb51fb1e049f690342035f543a8efe734b7b5ffb0c154a45",
+  "checks_sha256": "d0f631ca1ddba8db3bcfcb9e057cdc98d0379f1bee00e75a545147a27dadd982",
+  "review_sha256": null,
+  "inputs": [],
+  "findings_kept": [],
+  "findings_dropped": [],
+  "signals": {
+    "S1": 1.0,
+    "S2": 1.0,
+    "S3": null,
+    "S4": 0,
+    "S5": "stale",
+    "S6": {
+      "lines": 0,
+      "files": 0,
+      "sensitive": false
+    }
+  },
+  "band": null,
+  "outcome": "RETRY",
+  "gate_failures": [
+    "H5"
+  ],
+  "caps": [
+    "pack-stale"
+  ],
+  "thresholds_sha256": "6bde0b830d8bd56dea61c5c1cb648c7ffca6ffce2923ad1db9f29079cac947e0",
+  "pack": {
+    "signed_at": null
+  },
+  "decided_by": "tsl@1.6.0",
+  "decided_at": "2026-01-06T10:02:00Z",
+  "key_id": "key_01JC3D4E5F6G7H8J9KMNPQRSTV",
+  "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+}

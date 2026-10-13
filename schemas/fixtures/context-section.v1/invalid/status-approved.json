@@ -1,0 +1,10 @@
+{
+  "schema": "context-section.v1",
+  "section": "data-model",
+  "owner": "tl-7a1c",
+  "origin": "ai-draft",
+  "status": "approved",
+  "verified_at": {
+    "sample-system": "fb71731dfe0ec970d3964518e40a1e1fd11f20ee"
+  }
+}

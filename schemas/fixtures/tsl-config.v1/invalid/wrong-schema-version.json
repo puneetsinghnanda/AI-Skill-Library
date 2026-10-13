@@ -1,0 +1,89 @@
+{
+  "schema": "tsl-config.v0",
+  "system": {
+    "code": "SYS-ORD",
+    "project": "PRJ-07",
+    "client": "CL-03"
+  },
+  "companion": {
+    "repo": "example-org/sys-ord-companion",
+    "default_branch": "main"
+  },
+  "product_repos": [
+    {
+      "name": "orders-api",
+      "url": "git@github.com:example-org/orders-api.git",
+      "path": ".",
+      "default_branch": "main",
+      "verifier_profile": "node-20@1"
+    },
+    {
+      "name": "orders-web",
+      "url": "git@github.com:example-org/orders-web.git",
+      "path": ".",
+      "default_branch": "main",
+      "verifier_profile": "node-20@1",
+      "pr": {
+        "branch_prefix": "tsl",
+        "draft_below": "High",
+        "labels": [
+          "tsl"
+        ]
+      }
+    }
+  ],
+  "read_only_repos": [
+    {
+      "name": "common-lib",
+      "url": "git@github.com:example-org/common-lib.git"
+    }
+  ],
+  "context": {
+    "max_age_days": 30,
+    "drift_files": 50,
+    "critical_paths": [
+      "orders-api:src/billing/**"
+    ]
+  },
+  "change_limits": {
+    "lines": 400,
+    "files": 15,
+    "sensitive_paths": [
+      "**/auth/**",
+      "**/migrations/**",
+      ".github/**"
+    ]
+  },
+  "policy": "policy.yaml",
+  "gates": {
+    "self_approval": false,
+    "lock_timeout_hours": 24
+  },
+  "pr": {
+    "branch_prefix": "tsl/",
+    "labels": [
+      "truminds"
+    ]
+  },
+  "telemetry": {
+    "enabled": true
+  },
+  "harness": {
+    "bands": {
+      "design": {
+        "high": {
+          "S1_min": 0.92
+        }
+      }
+    },
+    "link_hosts": [
+      "github.com"
+    ]
+  },
+  "ci": {
+    "non_code_globs": [
+      "**/*.md",
+      "docs/**"
+    ]
+  }
+}

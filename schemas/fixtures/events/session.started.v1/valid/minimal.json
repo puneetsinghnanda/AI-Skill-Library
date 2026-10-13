@@ -1,0 +1,9 @@
+{
+  "session_id": "s-2",
+  "device_id": "dev_01JE5F6G7H8J9KMNPQRSTVWXYZ",
+  "plugin_version": "0.1.0",
+  "tsl_version": "0.1.0",
+  "os": "windows",
+  "outbox_depth": 0,
+  "outbox_oldest_at": null
+}

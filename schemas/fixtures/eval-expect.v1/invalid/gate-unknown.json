@@ -1,0 +1,32 @@
+{
+  "schema": "eval-expect.v1",
+  "case": "impact-analysis-007",
+  "skill": "impact-analysis@^1.1",
+  "input": {
+    "ticket": "tickets/SAMPLE-7.md",
+    "snapshot": "sample-system@603863e3988380844e02ea62d89b3f9c92fe8627"
+  },
+  "expect": {
+    "outcome_in": [
+      "PASS",
+      "PASS-WITH-FINDINGS"
+    ],
+    "band_at_least": "Medium",
+    "gates_pass": [
+      "H9",
+      "H2",
+      "H5"
+    ],
+    "must_cite": [
+      "sample-system:api/src/routes/orders.js"
+    ],
+    "must_not_claim": [
+      "OrderHistoryService"
+    ],
+    "sections": [
+      "Known",
+      "Assumed",
+      "Unknown"
+    ]
+  }
+}

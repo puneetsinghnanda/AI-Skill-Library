@@ -1,0 +1,417 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/test-result.v1.json",
+  "title": "test-result.v1 artifact front matter",
+  "description": "Output of test-automation: results linked to acceptance criteria. Structured keys beyond the envelope are provisional until SDD-01 §12 fixes them.",
+  "allOf": [
+    {
+      "$ref": "#/$defs/envelope"
+    }
+  ],
+  "type": "object",
+  "required": [
+    "schema",
+    "results"
+  ],
+  "properties": {
+    "schema": {
+      "const": "test-result.v1"
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "test_id",
+          "covers",
+          "status"
+        ],
+        "properties": {
+          "test_id": {
+            "type": "string",
+            "pattern": "^TP-[0-9]+$"
+          },
+          "covers": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^S-[0-9]+/AC[0-9]+$"
+            },
+            "minItems": 1
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "fail",
+              "skip"
+            ]
+          }
+        }
+      },
+      "minItems": 1
+    }
+  },
+  "x-required-sections": [
+    {
+      "title": "Summary",
+      "level": 2,
+      "min_chars": 1
+    },
+    {
+      "title": "Results",
+      "level": 2,
+      "min_chars": 1
+    },
+    {
+      "title": "Known",
+      "level": 2,
+      "min_chars": 1
+    },
+    {
+      "title": "Assumed",
+      "level": 2,
+      "min_chars": 1
+    },
+    {
+      "title": "Unknown",
+      "level": 2,
+      "min_chars": 1
+    }
+  ],
+  "x-fields-status": "provisional",
+  "$defs": {
+    "cite": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/cite_string"
+        },
+        {
+          "$ref": "#/$defs/cite_object"
+        }
+      ]
+    },
+    "cite_object": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "quote"
+      ],
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/cite_string"
+        },
+        "quote": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 200
+        }
+      }
+    },
+    "cite_string": {
+      "type": "string",
+      "maxLength": 400,
+      "pattern": "^(?!/)(?!.*\\.\\.)(?:[a-z0-9-]{1,40}:)?[^\\s#\\\\]+#\\S+$",
+      "description": "Citation [repo:]path#anchor (SDD-03 §8.1)."
+    },
+    "envelope": {
+      "type": "object",
+      "required": [
+        "schema",
+        "run_id",
+        "step",
+        "attempt",
+        "skill",
+        "inputs",
+        "pack_sha"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*\\.v[0-9]+$"
+        },
+        "run_id": {
+          "$ref": "#/$defs/run_id"
+        },
+        "step": {
+          "$ref": "#/$defs/step_id"
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "skill": {
+          "$ref": "#/$defs/skill_ref"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "$ref": "#/$defs/rel_path"
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              }
+            }
+          }
+        },
+        "pack_sha": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/repo_name"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/git_sha"
+          }
+        },
+        "claims": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "text",
+              "cites"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^C[0-9]+$"
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "element": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "cites": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/cite"
+                },
+                "minItems": 1
+              }
+            }
+          }
+        },
+        "trace": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z]+-[0-9]+$"
+          },
+          "uniqueItems": true
+        },
+        "known": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z]+-[0-9]+$"
+          },
+          "uniqueItems": true
+        },
+        "assumed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z]+-[0-9]+$"
+          },
+          "uniqueItems": true
+        },
+        "unknown": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]+-[0-9]+$"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "blocking"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[A-Z]+-[0-9]+$"
+                  },
+                  "blocking": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "blocking",
+              "ask",
+              "text",
+              "evidence"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^Q-[0-9]{2,}$"
+              },
+              "blocking": {
+                "type": "boolean"
+              },
+              "ask": {
+                "enum": [
+                  "product owner",
+                  "tech lead",
+                  "SME",
+                  "client"
+                ]
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "why": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "evidence": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/cite_string"
+                }
+              },
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 300
+                }
+              },
+              "default": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 300
+              }
+            }
+          }
+        },
+        "resolves": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "how"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^(H[1-7]|F-[0-9]+)$"
+              },
+              "how": {
+                "type": "string",
+                "maxLength": 300
+              }
+            }
+          }
+        },
+        "code": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "repo",
+              "base_sha",
+              "head_sha",
+              "diff_sha256",
+              "files"
+            ],
+            "properties": {
+              "repo": {
+                "$ref": "#/$defs/repo_name"
+              },
+              "base_sha": {
+                "$ref": "#/$defs/git_sha"
+              },
+              "head_sha": {
+                "$ref": "#/$defs/git_sha"
+              },
+              "diff_sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "files": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/rel_path"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "git_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full 40-hex git commit or tree SHA."
+    },
+    "rel_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400,
+      "pattern": "^(?!/)(?!.*\\.\\.)[^\\\\]+$",
+      "description": "Relative POSIX path, no '..', no leading '/'."
+    },
+    "repo_name": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,40}$",
+      "description": "Product repo short name from tsl.yaml."
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Run id, run_<ULID> (Doc 5 §1.1)."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    },
+    "skill_ref": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,39}@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "Exact skill version, id@x.y.z."
+    },
+    "step_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,40}$",
+      "description": "Workflow step id (SDD-02 §3.2)."
+    }
+  },
+  "x-owner": "SDD-01 §12"
+}

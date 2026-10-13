@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/tsl-output.v1.json",
+  "title": "tsl --json output envelope (tsl-output.v1)",
+  "description": "The one JSON object every tsl command (except tsl hook) prints on stdout with --json. Skills read only ok, code, exit, next and data.action.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "ok",
+    "code",
+    "exit",
+    "message",
+    "next",
+    "data",
+    "warnings",
+    "tsl_version"
+  ],
+  "properties": {
+    "schema": {
+      "const": "tsl-output.v1"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "code": {
+      "oneOf": [
+        {
+          "const": "OK"
+        },
+        {
+          "$ref": "#/$defs/error_code"
+        }
+      ]
+    },
+    "exit": {
+      "enum": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        10
+      ]
+    },
+    "message": {
+      "type": "string",
+      "maxLength": 300
+    },
+    "next": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 300
+    },
+    "data": {
+      "type": "object"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "$ref": "#/$defs/error_code"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 300
+          }
+        }
+      }
+    },
+    "tsl_version": {
+      "$ref": "#/$defs/semver"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "ok": {
+            "const": true
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "then": {
+        "properties": {
+          "exit": {
+            "const": 0
+          },
+          "code": {
+            "const": "OK"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "ok": {
+            "const": false
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "then": {
+        "properties": {
+          "code": {
+            "$ref": "#/$defs/error_code"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "error_code": {
+      "type": "string",
+      "pattern": "^E-[A-Z][A-Z0-9]{0,5}-[0-9]{2}$",
+      "description": "Error code (registry §2)."
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "SemVer 2.0.0 without pre-release tags."
+    }
+  },
+  "x-owner": "SDD-04 §4"
+}

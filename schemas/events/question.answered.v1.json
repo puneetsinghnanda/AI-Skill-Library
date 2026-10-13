@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/events/question.answered.v1.json",
+  "title": "Event body: question.answered (schema_version 1)",
+  "description": "Sent by tsl state resume per answered question. Closed object; every string is length-capped (TM-08).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "step",
+    "question_id",
+    "age_s"
+  ],
+  "properties": {
+    "step": {
+      "$ref": "#/$defs/step_id"
+    },
+    "question_id": {
+      "type": "string",
+      "pattern": "^Q-[0-9]{1,}$"
+    },
+    "age_s": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "accepted_default": {
+      "type": "boolean"
+    }
+  },
+  "$defs": {
+    "step_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,40}$",
+      "description": "Workflow step id (SDD-02 §3.2)."
+    }
+  },
+  "x-owner": "SDD-08 §4.5"
+}

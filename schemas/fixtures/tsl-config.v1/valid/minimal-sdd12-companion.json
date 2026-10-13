@@ -1,0 +1,19 @@
+{
+  "schema": "tsl-config.v1",
+  "system": {
+    "code": "SYS-SMP",
+    "project": "PRJ-SMP",
+    "client": "CL-INT"
+  },
+  "companion": {
+    "org": "example-org",
+    "name": "cl-int-sys-smp-companion"
+  },
+  "product_repos": [
+    {
+      "name": "sample-system",
+      "url": "git@github.com:example-org/sample-system.git",
+      "verifier_profile": "node-20@1"
+    }
+  ]
+}

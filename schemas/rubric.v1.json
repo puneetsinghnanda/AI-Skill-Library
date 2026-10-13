@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/rubric.v1.json",
+  "title": "rubric.md front matter (rubric.v1)",
+  "description": "Machine-read front matter of a skill's rubric: weighted criteria the reviewer scores 1-5 (signal S3) and severity triggers. Weights must sum to 1.00 (SKL-V07, checked by tsl validate).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "skill",
+    "criteria"
+  ],
+  "properties": {
+    "schema": {
+      "const": "rubric.v1"
+    },
+    "skill": {
+      "$ref": "#/$defs/skill_id"
+    },
+    "criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "weight"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Z]{2,3}-R[0-9]+$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "weight": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1
+          }
+        }
+      },
+      "minItems": 1,
+      "maxItems": 12
+    },
+    "severity_triggers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "blocker",
+        "major",
+        "minor"
+      ],
+      "properties": {
+        "blocker": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "major": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "minor": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "skill_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,39}$",
+      "description": "Skill id (SDD-01 §4)."
+    }
+  },
+  "x-owner": "SDD-01 §8"
+}

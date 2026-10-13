@@ -1,0 +1,287 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/workflow.v1.json",
+  "title": "Workflow definition (workflow.v1)",
+  "description": "<id>.workflow.yaml in plugins/truminds/workflows/: ordered skill, gate and PR steps with input bindings. Graph rules (ids, cycles, reachability, bindings) are checked by tsl validate (E-WFL-02..05).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "id",
+    "version",
+    "title",
+    "description",
+    "owner",
+    "kind",
+    "status",
+    "inputs",
+    "steps"
+  ],
+  "properties": {
+    "schema": {
+      "const": "workflow.v1"
+    },
+    "id": {
+      "$ref": "#/$defs/workflow_id"
+    },
+    "version": {
+      "$ref": "#/$defs/semver"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400
+    },
+    "owner": {
+      "$ref": "#/$defs/pseudonym"
+    },
+    "kind": {
+      "enum": [
+        "delivery",
+        "read_only"
+      ]
+    },
+    "status": {
+      "$ref": "#/$defs/lifecycle_status"
+    },
+    "requires_fresh_pack": {
+      "type": "boolean",
+      "default": true
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ticket"
+      ],
+      "properties": {
+        "ticket": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "required"
+          ],
+          "properties": {
+            "required": {
+              "const": true
+            }
+          }
+        }
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "retry": {
+          "$ref": "#/$defs/retry"
+        },
+        "max_rework": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/skillStep"
+          },
+          {
+            "$ref": "#/$defs/gateStep"
+          },
+          {
+            "$ref": "#/$defs/prStep"
+          }
+        ]
+      },
+      "minItems": 1
+    }
+  },
+  "$defs": {
+    "after": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(G-[a-z0-9-]+|[a-z][a-z0-9-]{1,30})$"
+      },
+      "uniqueItems": true
+    },
+    "gateStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gate",
+        "role",
+        "after",
+        "on_reject"
+      ],
+      "properties": {
+        "gate": {
+          "type": "string",
+          "pattern": "^G-[a-z0-9-]+$"
+        },
+        "role": {
+          "enum": [
+            "tech_lead",
+            "eng_lead",
+            "stage_approver"
+          ]
+        },
+        "after": {
+          "$ref": "#/$defs/after"
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,30}$"
+          }
+        },
+        "on_reject": {
+          "type": "string",
+          "pattern": "^(abort|[a-z][a-z0-9-]{1,30})$"
+        },
+        "on_changes": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,30}$"
+        },
+        "self_approval": {
+          "const": false
+        }
+      }
+    },
+    "lifecycle_status": {
+      "enum": [
+        "draft",
+        "pilot",
+        "production",
+        "deprecated"
+      ]
+    },
+    "prStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pr",
+        "after"
+      ],
+      "properties": {
+        "pr": {
+          "const": true
+        },
+        "after": {
+          "$ref": "#/$defs/after"
+        },
+        "draft_when_band": {
+          "const": "Medium"
+        },
+        "repos": {
+          "const": "changed"
+        }
+      }
+    },
+    "pseudonym": {
+      "type": "string",
+      "pattern": "^[a-z][a-z-]{0,23}-[0-9a-f]{2,8}$",
+      "maxLength": 32,
+      "description": "Pseudonym such as eng-4f2a; never a real name."
+    },
+    "retry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "review": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "verifier": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        }
+      }
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "SemVer 2.0.0 without pre-release tags."
+    },
+    "skillStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "skill"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,30}$"
+        },
+        "skill": {
+          "$ref": "#/$defs/skill_range"
+        },
+        "after": {
+          "$ref": "#/$defs/after"
+        },
+        "inputs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^(run\\.ticket|context\\.[a-z0-9-#/.]+|[a-z][a-z0-9-]*\\.[a-z][a-z0-9_-]*)$"
+          }
+        },
+        "retry": {
+          "$ref": "#/$defs/retry"
+        },
+        "on": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "ESCALATE": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "gate_role"
+              ],
+              "properties": {
+                "gate_role": {
+                  "enum": [
+                    "tech_lead",
+                    "eng_lead",
+                    "stage_approver"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "skill_range": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,39}@[\\^~]?\\d+(\\.\\d+){0,2}$",
+      "description": "Skill id with a SemVer range, id@^1.2."
+    },
+    "workflow_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,40}$"
+    }
+  },
+  "x-owner": "SDD-02 §3"
+}

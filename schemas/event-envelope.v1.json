@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/event-envelope.v1.json",
+  "title": "Telemetry event envelope (event-envelope.v1)",
+  "description": "One event inside a POST /v1/events batch. The body is validated separately against schemas/events/<type>.v<schema_version>.json. No user field: the server sets the user from the token.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "type",
+    "schema_version",
+    "occurred_at",
+    "body"
+  ],
+  "properties": {
+    "event_id": {
+      "$ref": "#/$defs/event_id"
+    },
+    "type": {
+      "enum": [
+        "session.started",
+        "session.ended",
+        "run.started",
+        "run.status_changed",
+        "step.started",
+        "step.decided",
+        "step.invalidated",
+        "question.created",
+        "question.answered",
+        "approval.recorded",
+        "hook.decision",
+        "pr.opened",
+        "ci.verified",
+        "context.signed",
+        "context.drift",
+        "eval.recorded",
+        "security.abort",
+        "audit.recorded",
+        "companion.lifecycle",
+        "companion.policy_violation",
+        "improvement.proposed"
+      ]
+    },
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "run_id": {
+      "$ref": "#/$defs/run_id"
+    },
+    "occurred_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "body": {
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "enum": [
+              "step.started",
+              "step.decided",
+              "step.invalidated",
+              "run.started",
+              "run.status_changed",
+              "question.created",
+              "question.answered",
+              "approval.recorded",
+              "pr.opened",
+              "audit.recorded"
+            ]
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "then": {
+        "required": [
+          "run_id"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "event_id": {
+      "type": "string",
+      "pattern": "^evt_[0-9A-HJKMNP-TV-Z]{26}$"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Run id, run_<ULID> (Doc 5 §1.1)."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+      "description": "ISO 8601 UTC with Z (Doc 5 §1.1)."
+    }
+  },
+  "x-owner": "Doc 5 §5.2"
+}

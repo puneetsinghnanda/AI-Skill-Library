@@ -1,0 +1,22 @@
+{
+  "schema": "approval-signature.v1",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "system": "SYS-ORD",
+  "gate": "G-design",
+  "kind": "workflow_gate",
+  "artifacts": [
+    {
+      "step": "design",
+      "attempt": 2,
+      "sha256": "e788103ee15318fcd2af9b73b4ebbb33a903b020de7b307d71f5fed0f433e548"
+    }
+  ],
+  "action": null,
+  "decision": "approve",
+  "comment_sha256": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df",
+  "role": "tech_lead",
+  "approver": "tl-7a1c",
+  "self_approved": false,
+  "key_id": "key_01JD4E5F6G7H8J9KMNPQRSTVWX",
+  "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+}

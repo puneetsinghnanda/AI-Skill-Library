@@ -1,0 +1,25 @@
+{
+  "consent_ref": "CONS-CL-03-001",
+  "client": "CL-03",
+  "systems": [
+    "SYS-ORD"
+  ],
+  "repos_in_scope": [
+    "orders-api",
+    "orders-web"
+  ],
+  "excluded_paths": [
+    "orders-api:test-data/**"
+  ],
+  "options": {
+    "webhook": false,
+    "companion_host": "truminds",
+    "end_of_engagement": "handover_then_delete",
+    "ci_verify": true,
+    "tracker_access": "read_only"
+  },
+  "template_version": "LEG-01@0.1",
+  "signed_at": "2026-01-01T00:00:00Z",
+  "recorded_by": "admin-7c1e",
+  "withdrawn_at": null
+}

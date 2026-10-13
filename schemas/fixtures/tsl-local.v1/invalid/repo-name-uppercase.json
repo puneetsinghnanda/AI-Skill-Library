@@ -1,0 +1,6 @@
+{
+  "schema": "tsl-local.v1",
+  "product_repos": {
+    "Orders_API": "/src/x"
+  }
+}

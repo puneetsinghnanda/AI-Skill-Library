@@ -1,0 +1,9 @@
+{
+  "event_id": "evt_01JB2C3D4E5F6G7H8J9KMNPQRS",
+  "type": "step.decided",
+  "schema_version": 1,
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "body": {
+    "step": "design"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/tsl-local.v1.json",
+  "title": ".tsl/local.yaml (tsl-local.v1)",
+  "description": "Laptop-local, git-ignored map from product repo short name to its clone path. Written by tsl init and tsl doctor.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "product_repos"
+  ],
+  "properties": {
+    "schema": {
+      "const": "tsl-local.v1"
+    },
+    "product_repos": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/repo_name"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 1024
+      }
+    }
+  },
+  "$defs": {
+    "repo_name": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,40}$",
+      "description": "Product repo short name from tsl.yaml."
+    }
+  },
+  "x-owner": "SDD-12 §4.1"
+}

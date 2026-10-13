@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/events/eval.recorded.v1.json",
+  "title": "Event body: eval.recorded (schema_version 1)",
+  "description": "Sent by tsl eval run. Closed object; every string is length-capped (TM-08).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "skill",
+    "version",
+    "cases",
+    "pass_rate",
+    "key_id",
+    "result_sha256"
+  ],
+  "properties": {
+    "skill": {
+      "$ref": "#/$defs/skill_id"
+    },
+    "version": {
+      "$ref": "#/$defs/semver"
+    },
+    "cases": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "pass_rate": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "key_id": {
+      "$ref": "#/$defs/key_id"
+    },
+    "result_sha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "key_id": {
+      "type": "string",
+      "pattern": "^key_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Signing key id, key_<ULID> (SDD-07 §5.1)."
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "SemVer 2.0.0 without pre-release tags."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    },
+    "skill_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,39}$",
+      "description": "Skill id (SDD-01 §4)."
+    }
+  },
+  "x-owner": "SDD-08 §4.5"
+}

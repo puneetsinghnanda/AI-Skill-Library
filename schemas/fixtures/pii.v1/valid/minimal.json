@@ -1,0 +1,17 @@
+{
+  "schema": "pii.v1",
+  "version": 1,
+  "rules": [
+    {
+      "id": "PII-03",
+      "name": "Mobile number",
+      "pattern": "(?<!\\d)[6-9]\\d{9}(?!\\d)",
+      "context_words": [
+        "phone",
+        "mobile"
+      ],
+      "context_window": 20,
+      "action": "H4"
+    }
+  ]
+}

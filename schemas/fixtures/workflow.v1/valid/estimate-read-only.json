@@ -1,0 +1,21 @@
+{
+  "schema": "workflow.v1",
+  "id": "estimate",
+  "version": "1.0.0",
+  "title": "Estimate",
+  "description": "Review story sizes against the design.",
+  "owner": "wf-owner-2b",
+  "kind": "read_only",
+  "status": "pilot",
+  "inputs": {
+    "ticket": {
+      "required": true
+    }
+  },
+  "steps": [
+    {
+      "id": "est",
+      "skill": "estimate-review@^1.0"
+    }
+  ]
+}

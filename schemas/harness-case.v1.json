@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/harness-case.v1.json",
+  "title": "harness-evals/cases/<id>/case.yaml (harness-case.v1)",
+  "description": "Labels for one harness-accuracy case on the invented sample system: expected gate results, outcome, band, planted defects and fabricated citations.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "id",
+    "skill",
+    "kind",
+    "expect"
+  ],
+  "properties": {
+    "schema": {
+      "const": "harness-case.v1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,80}$"
+    },
+    "skill": {
+      "$ref": "#/$defs/skill_ref"
+    },
+    "kind": {
+      "enum": [
+        "gate",
+        "citation",
+        "decide",
+        "reviewer"
+      ]
+    },
+    "expect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome"
+      ],
+      "properties": {
+        "gates": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/hard_gate"
+          },
+          "additionalProperties": {
+            "enum": [
+              "pass",
+              "fail",
+              "skip"
+            ]
+          }
+        },
+        "outcome": {
+          "$ref": "#/$defs/outcome"
+        },
+        "band": {
+          "enum": [
+            "High",
+            "Medium",
+            "Low",
+            null
+          ]
+        },
+        "planted_defects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "severity",
+              "path",
+              "lines"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^D[0-9]+$"
+              },
+              "severity": {
+                "$ref": "#/$defs/severity"
+              },
+              "path": {
+                "type": "string",
+                "pattern": "^(?:[a-z0-9-]{1,40}:)?(?!/)[^\\s#]+$"
+              },
+              "lines": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 300
+              }
+            }
+          }
+        },
+        "fabricated_cites": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/cite_string"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "cite_string": {
+      "type": "string",
+      "maxLength": 400,
+      "pattern": "^(?!/)(?!.*\\.\\.)(?:[a-z0-9-]{1,40}:)?[^\\s#\\\\]+#\\S+$",
+      "description": "Citation [repo:]path#anchor (SDD-03 §8.1)."
+    },
+    "hard_gate": {
+      "enum": [
+        "H1",
+        "H2",
+        "H3",
+        "H4",
+        "H5",
+        "H6",
+        "H7"
+      ]
+    },
+    "outcome": {
+      "enum": [
+        "PASS",
+        "PASS-WITH-FINDINGS",
+        "RETRY",
+        "NEEDS-INPUT",
+        "ESCALATE",
+        "ABORT"
+      ]
+    },
+    "severity": {
+      "enum": [
+        "blocker",
+        "major",
+        "minor"
+      ]
+    },
+    "skill_ref": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,39}@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "Exact skill version, id@x.y.z."
+    }
+  },
+  "x-owner": "SDD-03 §16"
+}

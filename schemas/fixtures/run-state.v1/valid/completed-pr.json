@@ -1,0 +1,74 @@
+{
+  "schema": "run-state.v1",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "rev": 3,
+  "workflow": "defect-fix@1.0.0",
+  "ticket": "SAMPLE-9",
+  "system": "SYS-SMP",
+  "owner": "key_01JC3D4E5F6G7H8J9KMNPQRSTV",
+  "status": "COMPLETED",
+  "end_reason": "pr_opened",
+  "pinned": {
+    "plugin": "0.1.0",
+    "tsl": "0.1.0",
+    "skills": {
+      "defect-triage": "1.0.0"
+    }
+  },
+  "pack": {
+    "manifest_sha256": "62c66a7a5dd70c3146618063c344e531e6d4b59e379808443ce962b3abd63c5a",
+    "fresh": false,
+    "reasons": [
+      "critical_change"
+    ],
+    "commits_behind": {
+      "sample-system": 12
+    },
+    "drift_files": {
+      "sample-system": 7
+    },
+    "checked_offline": false
+  },
+  "steps": [
+    {
+      "id": "triage",
+      "kind": "skill",
+      "status": "DONE",
+      "attempts": [
+        {
+          "n": 1,
+          "cause": "first",
+          "skill": "defect-triage@1.0.0",
+          "outcome": "PASS",
+          "band": "Medium"
+        }
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "G-escalate-triage-a1",
+      "kind": "escalate",
+      "step": "triage",
+      "status": "APPROVED",
+      "artifacts": [
+        {
+          "step": "triage",
+          "sha256": "e3b98a4da31a127d4bde6e43033f66ba274cab0eb7eb1c70ec41402bf6273dd8"
+        }
+      ],
+      "decision": "approve",
+      "approver_key": "key_01JD4E5F6G7H8J9KMNPQRSTVWX",
+      "decided_at": "2026-01-07T08:00:00Z"
+    }
+  ],
+  "prs": [
+    {
+      "repo": "sample-system",
+      "number": 42,
+      "url": "https://github.example.test/o/sample-system/pull/42",
+      "draft": true
+    }
+  ],
+  "updated_at": "2026-01-07T09:00:00Z"
+}

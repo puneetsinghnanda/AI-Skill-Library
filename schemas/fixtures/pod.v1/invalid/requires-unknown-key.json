@@ -1,0 +1,94 @@
+{
+  "schema": "pod.v1",
+  "id": "brownfield-change-pod",
+  "version": "1.0.0",
+  "status": "draft",
+  "title": "Brownfield Change Pod",
+  "kind": "brownfield",
+  "owner": "skill-owner-3b7e",
+  "summary": "Change requests on an existing client system, from ticket to a reviewed pull request.",
+  "client_gets": [
+    "Reviewed pull requests with tests and an audit trail",
+    "Clear questions instead of guesses"
+  ],
+  "agents": [
+    {
+      "key": "sa",
+      "role": "solution-architect",
+      "display_name": "Solution Architect",
+      "engineers": 1,
+      "job": "Analyses the impact and designs the change.",
+      "skills": [
+        "impact-analysis@^1.0",
+        "design@^1.0",
+        "threat-model@^1.0"
+      ],
+      "cross_role_skills": [
+        {
+          "skill": "threat-model",
+          "reason": "No Security agent in this pod"
+        }
+      ]
+    },
+    {
+      "key": "qa",
+      "role": "qa-engineer",
+      "display_name": "QA Engineer",
+      "engineers": 1,
+      "job": "Clarifies requirements and plans tests.",
+      "skills": [
+        "requirement-review@^1.0",
+        "test-plan@^1.0"
+      ],
+      "cross_role_skills": [
+        {
+          "skill": "requirement-review",
+          "reason": "No Business Analyst in this pod"
+        }
+      ]
+    }
+  ],
+  "workflows": [
+    "brownfield-change@^1.3",
+    "defect-fix@^1.0"
+  ],
+  "people": [
+    {
+      "title": "Tech lead",
+      "kind": "platform",
+      "platform_role": "tech_lead",
+      "duties": [
+        "Signs the context pack",
+        "Approves the design gate"
+      ],
+      "gates": [
+        "G-design",
+        "escalate"
+      ]
+    },
+    {
+      "title": "Product owner",
+      "kind": "external",
+      "duties": [
+        "Answers business questions through the engineer"
+      ]
+    }
+  ],
+  "best_fit": {
+    "good_fit_when": [
+      "The client has an existing codebase on GitHub"
+    ],
+    "not_a_fit_when": [
+      "The system has no maintained source repository"
+    ],
+    "requires": {
+      "product_repo_host": "github",
+      "context_pack": "signed",
+      "docker": true,
+      "figma_mcp": false,
+      "kubernetes": true
+    }
+  },
+  "one_pager": "one-pager.md",
+  "deprecated_by": null
+}

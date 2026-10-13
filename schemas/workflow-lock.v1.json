@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/workflow-lock.v1.json",
+  "title": "Workflow lock file (workflow-lock.v1)",
+  "description": "<id>.lock.json written by tsl validate --lock at release: each skill range of the workflow resolved to the exact version present in the plugin. Field list is provisional (SDD-02 names the file but not its fields).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "workflow",
+    "workflow_sha256",
+    "plugin_version",
+    "resolved",
+    "generated_by"
+  ],
+  "properties": {
+    "schema": {
+      "const": "workflow-lock.v1"
+    },
+    "workflow": {
+      "$ref": "#/$defs/workflow_ref"
+    },
+    "workflow_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "plugin_version": {
+      "$ref": "#/$defs/semver"
+    },
+    "resolved": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]{1,30}$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/skill_ref"
+      }
+    },
+    "generated_by": {
+      "$ref": "#/$defs/tsl_by"
+    }
+  },
+  "x-fields-status": "provisional",
+  "$defs": {
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "SemVer 2.0.0 without pre-release tags."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    },
+    "skill_ref": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,39}@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "Exact skill version, id@x.y.z."
+    },
+    "tsl_by": {
+      "type": "string",
+      "pattern": "^tsl@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+    },
+    "workflow_ref": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,40}@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+    }
+  },
+  "x-owner": "SDD-02 §3.5"
+}

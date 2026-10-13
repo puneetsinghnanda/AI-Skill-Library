@@ -1,0 +1,11 @@
+{
+  "schema": "rubric.v1",
+  "skill": "status-report",
+  "criteria": [
+    {
+      "id": "SR-R1",
+      "name": "Counts correct",
+      "weight": 1.0
+    }
+  ]
+}

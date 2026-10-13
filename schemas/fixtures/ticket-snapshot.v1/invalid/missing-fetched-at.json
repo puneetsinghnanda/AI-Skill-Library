@@ -1,0 +1,8 @@
+{
+  "schema": "ticket-snapshot.v1",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "ticket": "T-1",
+  "source": "jira_mcp",
+  "title": "Show order status history",
+  "issue_type": "Story"
+}

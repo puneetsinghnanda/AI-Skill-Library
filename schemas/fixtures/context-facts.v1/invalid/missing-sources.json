@@ -1,0 +1,35 @@
+{
+  "schema": "context-facts.v1",
+  "section": "api-inventory",
+  "extractor": {
+    "name": "js-routes",
+    "version": "1.0.0"
+  },
+  "empty_reason": null,
+  "facts": [
+    {
+      "id": "http:GET:/api/orders/:id",
+      "kind": "http",
+      "method": "GET",
+      "path": "/api/orders/:id",
+      "handler": "getOrder",
+      "module": "module:sample-system:api/src/orders",
+      "source": {
+        "repo": "sample-system",
+        "path": "api/src/routes/orders.js",
+        "line": 18
+      },
+      "confidence": "resolved"
+    }
+  ],
+  "unresolved": [
+    {
+      "source": {
+        "repo": "sample-system",
+        "path": "api/src/routes/admin.js",
+        "line": 7
+      },
+      "reason": "dynamic path expression"
+    }
+  ]
+}

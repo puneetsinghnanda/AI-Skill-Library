@@ -1,0 +1,18 @@
+{
+  "schema": "tsl-output.v1",
+  "ok": true,
+  "code": "OK",
+  "exit": 0,
+  "message": "inputs ready",
+  "next": "write the artifact",
+  "data": {
+    "action": "run_skill"
+  },
+  "warnings": [
+    {
+      "code": "E-CTX-02",
+      "message": "context pack stale; band capped at Medium"
+    }
+  ],
+  "tsl_version": "0.1.0"
+}

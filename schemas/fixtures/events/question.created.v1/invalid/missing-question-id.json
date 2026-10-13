@@ -1,0 +1,6 @@
+{
+  "step": "design",
+  "blocking": true,
+  "ask_role": "product_owner",
+  "evidence_ref": "context/data-model.md#data-retention"
+}

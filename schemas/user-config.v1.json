@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/user-config.v1.json",
+  "title": "~/.truminds/config.toml (user-config.v1)",
+  "description": "Per-user tsl settings, stored as TOML and validated as the equivalent JSON object. Holds no identity provider or service endpoint values (those ship inside the wheel).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema"
+  ],
+  "properties": {
+    "schema": {
+      "const": "user-config.v1"
+    },
+    "device": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "device_id": {
+          "$ref": "#/$defs/device_id"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 40
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "timeout_s": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30,
+          "default": 5
+        }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "outbox_max_mb": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 500,
+          "default": 50
+        },
+        "retain_sent_days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30,
+          "default": 7
+        }
+      }
+    },
+    "logging": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "enum": [
+            "debug",
+            "info",
+            "warning",
+            "error"
+          ],
+          "default": "warning"
+        },
+        "max_mb": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10
+        },
+        "backups": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20,
+          "default": 3
+        }
+      }
+    },
+    "ui": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "enum": [
+            "auto",
+            "always",
+            "never"
+          ],
+          "default": "auto"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "device_id": {
+      "type": "string",
+      "pattern": "^dev_[0-9A-HJKMNP-TV-Z]{26}$"
+    }
+  },
+  "x-owner": "SDD-04 §7.1"
+}

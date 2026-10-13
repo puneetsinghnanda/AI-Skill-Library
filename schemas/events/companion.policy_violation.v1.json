@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/events/companion.policy_violation.v1.json",
+  "title": "Event body: companion.policy_violation (schema_version 1)",
+  "description": "Sent by companion CI (tsl companion check). Closed object; every string is length-capped (TM-08).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "system",
+    "code"
+  ],
+  "properties": {
+    "system": {
+      "$ref": "#/$defs/code"
+    },
+    "code": {
+      "enum": [
+        "E-COMP-01",
+        "E-COMP-02",
+        "E-COMP-03",
+        "E-COMP-04",
+        "E-COMP-05"
+      ]
+    }
+  },
+  "$defs": {
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{1,31}$",
+      "description": "Client, project or system code; never a name (SDD-04 §7.2, C-09)."
+    }
+  },
+  "x-owner": "SDD-08 §4.5"
+}

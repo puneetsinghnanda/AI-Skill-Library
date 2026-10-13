@@ -1,0 +1,8 @@
+{
+  "from": "RUNNING",
+  "to": "PAUSED_APPROVAL",
+  "reason_code": "user stopped it",
+  "gate": "G-design",
+  "step": "design",
+  "session_id": "6b0e-0001"
+}

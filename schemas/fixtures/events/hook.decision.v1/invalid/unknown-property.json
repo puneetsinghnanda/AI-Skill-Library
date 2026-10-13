@@ -1,0 +1,8 @@
+{
+  "hook": "pre-tool",
+  "decision": "deny",
+  "code": "E-POL-01",
+  "tool_kind": "write",
+  "session_id": "6b0e-0001",
+  "x_unexpected": 1
+}

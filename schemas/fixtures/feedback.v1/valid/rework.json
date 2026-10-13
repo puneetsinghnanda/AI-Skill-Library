@@ -1,0 +1,12 @@
+{
+  "schema": "feedback.v1",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "step": "design",
+  "from_attempt": 2,
+  "kind": "rework",
+  "gate_failures": [],
+  "findings": [],
+  "dropped": [],
+  "must_resolve": [],
+  "comment_sha256": "2e7d2c03a9507ae265ecf5b5356885a53393a2029d241394997265a1a25aefc6"
+}

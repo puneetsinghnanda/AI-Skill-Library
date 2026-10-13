@@ -1,0 +1,9 @@
+{
+  "event_id": "evt_01JB2C3D4E5F6G7H8J9KMNPQRS",
+  "type": "step.decided",
+  "schema_version": 1,
+  "occurred_at": "2026-01-06T11:02:00Z",
+  "body": {
+    "step": "design"
+  }
+}

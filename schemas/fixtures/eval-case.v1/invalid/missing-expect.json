@@ -1,0 +1,16 @@
+{
+  "schema": "eval-case.v1",
+  "id": "EC-03",
+  "title": "Ticket conflicts with the retention rule in the intent baseline",
+  "kind": "conflict",
+  "inputs": {
+    "ticket": "inputs/ticket.md",
+    "intent_baseline": "inputs/intent-baseline.md",
+    "glossary": "inputs/glossary.md"
+  },
+  "provenance": "invented",
+  "attestation": {
+    "by": "skill-owner-3b7e",
+    "statement": "All inputs are invented for the sample order system."
+  }
+}

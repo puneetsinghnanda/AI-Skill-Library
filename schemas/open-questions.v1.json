@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/open-questions.v1.json",
+  "title": "runs/<run_id>/open-questions.md (open-questions.v1)",
+  "description": "Front matter of open-questions.md plus the question blocks as tsl parses them. People fill only answer, answered_by and decision; tsl sets status.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "run_id",
+    "ticket",
+    "workflow",
+    "step",
+    "created_at",
+    "status"
+  ],
+  "properties": {
+    "schema": {
+      "const": "open-questions.v1"
+    },
+    "run_id": {
+      "$ref": "#/$defs/run_id"
+    },
+    "ticket": {
+      "$ref": "#/$defs/ticket"
+    },
+    "workflow": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,40}@[0-9]+(\\.[0-9]+){0,2}$"
+    },
+    "step": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,40}@[0-9]+(\\.[0-9]+){0,2}$"
+    },
+    "created_at": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "status": {
+      "enum": [
+        "open",
+        "answered"
+      ]
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "round",
+          "blocking",
+          "ask",
+          "question"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^Q-[0-9]{2,}$"
+          },
+          "round": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "blocking": {
+            "type": "boolean"
+          },
+          "ask": {
+            "enum": [
+              "product owner",
+              "tech lead",
+              "SME",
+              "client"
+            ]
+          },
+          "question": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "why": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/cite_string"
+            }
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          "proposed_default": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 300
+          },
+          "answer": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 4000
+          },
+          "answered_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          },
+          "decision": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 40
+          }
+        }
+      },
+      "description": "Parsed question blocks (not part of the front matter)."
+    }
+  },
+  "$defs": {
+    "cite_string": {
+      "type": "string",
+      "maxLength": 400,
+      "pattern": "^(?!/)(?!.*\\.\\.)(?:[a-z0-9-]{1,40}:)?[^\\s#\\\\]+#\\S+$",
+      "description": "Citation [repo:]path#anchor (SDD-03 §8.1)."
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Run id, run_<ULID> (Doc 5 §1.1)."
+    },
+    "ticket": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_]*-[0-9]+$",
+      "maxLength": 40
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+      "description": "ISO 8601 UTC with Z (Doc 5 §1.1)."
+    }
+  },
+  "x-owner": "Doc 4 §3, SDD-02 §9.1"
+}

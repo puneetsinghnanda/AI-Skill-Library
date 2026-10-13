@@ -1,0 +1,12 @@
+{
+  "workflow": "brownfield-change",
+  "workflow_version": "1.3.0",
+  "system": "SYS-ORD",
+  "plugin_version": "1.6.0",
+  "pinned_skills": {
+    "design": "1.4.0"
+  },
+  "session_id": "6b0e-0001",
+  "pod": "brownfield-change-pod",
+  "pack_fresh": true
+}

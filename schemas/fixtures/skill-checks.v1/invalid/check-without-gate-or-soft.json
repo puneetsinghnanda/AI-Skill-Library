@@ -1,0 +1,33 @@
+{
+  "schema": "skill-checks.v1",
+  "skill": "requirement-review",
+  "artifact_schema": "intent.v1",
+  "checks": [
+    {
+      "id": "RR-C01",
+      "uses": "schema.valid"
+    },
+    {
+      "id": "RR-C02",
+      "uses": "sections.present",
+      "gate": "H2",
+      "with": {
+        "sections": [
+          "Summary",
+          "Requirements",
+          "Known",
+          "Assumed",
+          "Unknown"
+        ]
+      }
+    },
+    {
+      "id": "RR-C11",
+      "uses": "text.vague_terms",
+      "soft": true,
+      "with": {
+        "terms_file": "vague-terms.txt"
+      }
+    }
+  ]
+}

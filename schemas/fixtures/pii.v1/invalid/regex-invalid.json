@@ -1,0 +1,34 @@
+{
+  "schema": "pii.v1",
+  "version": 1,
+  "rules": [
+    {
+      "id": "PII-01",
+      "name": "Email address",
+      "pattern": "[unclosed",
+      "validator": "none",
+      "ignore": [
+        "example.com",
+        "example.org",
+        "example.net",
+        "*.test",
+        "*.invalid"
+      ],
+      "action": "H4"
+    },
+    {
+      "id": "PII-06",
+      "name": "Payment card",
+      "pattern": "(?:\\d[ -]?){13,19}",
+      "validator": "luhn",
+      "action": "H4"
+    },
+    {
+      "id": "PII-10",
+      "name": "Public IPv4",
+      "pattern": "\\b\\d{1,3}(\\.\\d{1,3}){3}\\b",
+      "validator": "ipv4-public",
+      "action": "soft"
+    }
+  ]
+}

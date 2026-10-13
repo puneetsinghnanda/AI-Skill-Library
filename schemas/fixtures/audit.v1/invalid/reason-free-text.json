@@ -1,0 +1,13 @@
+{
+  "schema": "audit.v1",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "step": "design",
+  "attempt": 2,
+  "verification_sha256": "4c94485e0c21ae6c41ce1dfe7b6bfaceea5ab68e40a2476f50208e526f506080",
+  "verdict": "deserved",
+  "reason_code": "missed the retention job",
+  "auditor": "tl-7a1c",
+  "audited_at": "2026-01-09T10:00:00Z",
+  "key_id": "key_01JD4E5F6G7H8J9KMNPQRSTVWX",
+  "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+}

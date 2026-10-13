@@ -1,0 +1,37 @@
+{
+  "schema": "context-pack.v1",
+  "system": "SYS-SMP",
+  "built_by": "tsl@0.3.0",
+  "sources": [
+    {
+      "repo": "sample-system",
+      "commit": "fb71731dfe0ec970d3964518e40a1e1fd11f20ee",
+      "default_branch": "main",
+      "scope": ".",
+      "files_scanned": 214,
+      "files_excluded": 9
+    }
+  ],
+  "extractors": [
+    {
+      "name": "js-routes",
+      "version": "1.0.0"
+    },
+    {
+      "name": "repo-tree",
+      "version": "1.0.0"
+    }
+  ],
+  "redaction": {
+    "rules_version": "1",
+    "values_masked": 3,
+    "paths_excluded": 9,
+    "blocking_hits": 0
+  },
+  "limits": {
+    "section_tokens": 8000,
+    "judgement_tokens": 40000,
+    "generated_file_bytes": 2097152
+  },
+  "tokens_total_est": 6040
+}

@@ -1,0 +1,9 @@
+{
+  "type": "step.decided",
+  "schema_version": 1,
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "occurred_at": "2026-01-06T11:02:00Z",
+  "body": {
+    "step": "design"
+  }
+}

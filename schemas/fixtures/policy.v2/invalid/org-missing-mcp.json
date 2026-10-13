@@ -1,0 +1,22 @@
+{
+  "schema": "policy.v2",
+  "write_scope": {
+    "allow": [
+      "<companion>/artifacts/**",
+      "<companion>/runs/<run_id>/**",
+      "<product_repos>/**"
+    ],
+    "deny": [
+      "<companion>/context/pack.signature.json",
+      "**/.github/workflows/**"
+    ]
+  },
+  "bash_in_run": {
+    "deny_patterns": [
+      "git push",
+      "git commit --amend",
+      "rm -rf"
+    ]
+  },
+  "merge_and_deploy": "never"
+}

@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/context-section.v1.json",
+  "title": "Judgement section front matter (context-section.v1)",
+  "description": "Front matter of each human-curated context/*.md section. Only a human sets status reviewed; tsl context sign requires reviewed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "section",
+    "owner",
+    "origin",
+    "status"
+  ],
+  "properties": {
+    "schema": {
+      "const": "context-section.v1"
+    },
+    "section": {
+      "enum": [
+        "system-baseline",
+        "architecture",
+        "data-model",
+        "glossary",
+        "conventions",
+        "test-strategy",
+        "intent-baseline"
+      ]
+    },
+    "owner": {
+      "$ref": "#/$defs/pseudonym"
+    },
+    "origin": {
+      "enum": [
+        "human",
+        "ai-draft"
+      ]
+    },
+    "status": {
+      "enum": [
+        "drafted",
+        "reviewed"
+      ]
+    },
+    "verified_at": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "propertyNames": {
+        "$ref": "#/$defs/repo_name"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/git_sha"
+      }
+    }
+  },
+  "$defs": {
+    "git_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full 40-hex git commit or tree SHA."
+    },
+    "pseudonym": {
+      "type": "string",
+      "pattern": "^[a-z][a-z-]{0,23}-[0-9a-f]{2,8}$",
+      "maxLength": 32,
+      "description": "Pseudonym such as eng-4f2a; never a real name."
+    },
+    "repo_name": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,40}$",
+      "description": "Product repo short name from tsl.yaml."
+    }
+  },
+  "x-owner": "SDD-06 §3.3"
+}

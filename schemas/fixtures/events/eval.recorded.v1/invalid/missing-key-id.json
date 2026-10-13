@@ -1,0 +1,7 @@
+{
+  "skill": "requirement-review",
+  "version": "1.0.0",
+  "cases": 10,
+  "pass_rate": 0.9,
+  "result_sha256": "cc7e4412564ba8a761bd32ab4cc6086bac3c2c9e580367e0b0eb32a4316f9154"
+}

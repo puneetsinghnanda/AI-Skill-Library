@@ -1,0 +1,7 @@
+{
+  "schema": "session-index.v1",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "companion": "/home/eng/src/sys-ord-companion",
+  "lock": "runs/active/T-1__brownfield-change.lock",
+  "bound_at": "2026-01-05T09:58:00Z"
+}

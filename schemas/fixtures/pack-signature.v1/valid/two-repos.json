@@ -1,0 +1,15 @@
+{
+  "schema": "pack-signature.v1",
+  "system": "SYS-ORD",
+  "manifest_sha256": "29c1b289e7522195b362e44f54e05470b69ad20540ab60a18a05e5bf6951f13d",
+  "sources": {
+    "orders-api": "86f7e437faa5a7fce15d1ddcb9eaeaea377667b8",
+    "orders-web": "aff024fe4ab0fece4091de044c58c9ae4233383a"
+  },
+  "signed_by": "tl-7a1c",
+  "role": "tech_lead",
+  "key_id": "key_01JD4E5F6G7H8J9KMNPQRSTVWX",
+  "signed_at": "2026-01-02T08:00:00Z",
+  "tsl": "0.3.0",
+  "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+}

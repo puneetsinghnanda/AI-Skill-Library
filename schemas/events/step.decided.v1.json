@@ -1,0 +1,311 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/events/step.decided.v1.json",
+  "title": "Event body: step.decided (schema_version 1)",
+  "description": "Sent by tsl decide. Carries ids, counts and codes only; no findings text. Closed object; every string is length-capped (TM-08).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "step",
+    "skill",
+    "skill_version",
+    "attempt",
+    "outcome",
+    "band",
+    "signals",
+    "caps",
+    "gate_failures",
+    "findings_count",
+    "duration_ms",
+    "verification_sha256",
+    "seq",
+    "reasons",
+    "key_id",
+    "decided_by"
+  ],
+  "properties": {
+    "step": {
+      "$ref": "#/$defs/step_id"
+    },
+    "skill": {
+      "$ref": "#/$defs/skill_id"
+    },
+    "skill_version": {
+      "$ref": "#/$defs/semver"
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "outcome": {
+      "$ref": "#/$defs/outcome"
+    },
+    "band": {
+      "enum": [
+        "High",
+        "Medium",
+        "Low",
+        null
+      ]
+    },
+    "signals": {
+      "$ref": "#/$defs/signals"
+    },
+    "caps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/cap"
+      },
+      "uniqueItems": true
+    },
+    "gate_failures": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/hard_gate"
+      },
+      "uniqueItems": true
+    },
+    "findings_count": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "blocker",
+        "major",
+        "minor"
+      ],
+      "properties": {
+        "blocker": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "major": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minor": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "duration_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "verification_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "H1",
+          "H2",
+          "H3",
+          "H4",
+          "H5",
+          "H6",
+          "H7",
+          "S1",
+          "S2",
+          "S3",
+          "S4",
+          "S5",
+          "S6",
+          "REVIEW-MAJOR",
+          "REVIEWER-ERROR",
+          "CAP-PACK"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "findings_dropped": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^F-[0-9]+$"
+      }
+    },
+    "key_id": {
+      "$ref": "#/$defs/key_id"
+    },
+    "decided_by": {
+      "$ref": "#/$defs/tsl_by"
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "cause": {
+      "$ref": "#/$defs/attempt_cause"
+    },
+    "claims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "verified"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "verified": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  "$defs": {
+    "attempt_cause": {
+      "enum": [
+        "first",
+        "retry_checks",
+        "retry_review",
+        "retry_verifier",
+        "input_answered",
+        "gate_changes",
+        "gate_reject",
+        "stale_rerun",
+        "repin"
+      ]
+    },
+    "cap": {
+      "enum": [
+        "pack-stale",
+        "reviewer-missing",
+        "no-verifier",
+        "format-only-cites"
+      ]
+    },
+    "hard_gate": {
+      "enum": [
+        "H1",
+        "H2",
+        "H3",
+        "H4",
+        "H5",
+        "H6",
+        "H7"
+      ]
+    },
+    "key_id": {
+      "type": "string",
+      "pattern": "^key_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Signing key id, key_<ULID> (SDD-07 §5.1)."
+    },
+    "outcome": {
+      "enum": [
+        "PASS",
+        "PASS-WITH-FINDINGS",
+        "RETRY",
+        "NEEDS-INPUT",
+        "ESCALATE",
+        "ABORT"
+      ]
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "SemVer 2.0.0 without pre-release tags."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    },
+    "signals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6"
+      ],
+      "properties": {
+        "S1": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "S2": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "S3": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 5
+        },
+        "S4": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "S5": {
+          "enum": [
+            "fresh",
+            "stale",
+            "missing"
+          ]
+        },
+        "S5_basis": {
+          "enum": [
+            "live",
+            "cached"
+          ]
+        },
+        "S6": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "lines",
+            "files",
+            "sensitive"
+          ],
+          "properties": {
+            "lines": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "files": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sensitive": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "skill_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,39}$",
+      "description": "Skill id (SDD-01 §4)."
+    },
+    "step_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,40}$",
+      "description": "Workflow step id (SDD-02 §3.2)."
+    },
+    "tsl_by": {
+      "type": "string",
+      "pattern": "^tsl@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$"
+    }
+  },
+  "x-owner": "SDD-08 §4.5"
+}

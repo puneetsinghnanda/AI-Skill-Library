@@ -1,0 +1,22 @@
+{
+  "schema": "consent-record.v1",
+  "consent_ref": "CONS-CL-INT-002",
+  "client": "CL-INT",
+  "systems": [
+    "SYS-SMP"
+  ],
+  "repos_in_scope": [
+    "sample-system"
+  ],
+  "options": {
+    "webhook": true,
+    "companion_host": "client",
+    "end_of_engagement": "delete",
+    "ci_verify": false,
+    "tracker_access": "none"
+  },
+  "template_version": "LEG-01@0.2",
+  "signed_at": "2026-01-01T00:00:00Z",
+  "recorded_by": "admin-7c1e",
+  "withdrawn_at": "2026-03-01T00:00:00Z"
+}

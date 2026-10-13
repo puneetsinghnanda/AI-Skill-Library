@@ -1,0 +1,5 @@
+{
+  "system": "SYS-SMP",
+  "from": "PROVISIONED",
+  "reason_code": "tsl_init"
+}

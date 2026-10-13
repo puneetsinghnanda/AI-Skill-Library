@@ -1,0 +1,30 @@
+{
+  "schema": "eval-result.v1",
+  "skill": "requirement-review",
+  "version": "1.0.0",
+  "skill_sha256": "da47dd3bd1ff65a0646385e3de1de5f8527e0e7cf7b87f5fef719f47f5152a4c",
+  "cases": [
+    {
+      "id": "EC-01",
+      "kind": "normal",
+      "case_sha256": "13a3ec805ab247fa5bcdfa2c6f0790c57371f0a9227b81a240d6e75eaea0a7fa",
+      "result": "pass",
+      "outcome": "PASS"
+    },
+    {
+      "id": "EC-03",
+      "kind": "conflict",
+      "case_sha256": "a8ced05e38a19aabe7e8d62009ef748db792edf8be4e27d7cb6e8919d7278cc9",
+      "result": "pass",
+      "outcome": "NEEDS-INPUT"
+    }
+  ],
+  "cases_total": 2,
+  "cases_passed": 2,
+  "pass_rate": 1.0,
+  "repeats": 1,
+  "claude_code_version": "2.1.0",
+  "recorded_by": "tsl@0.1.0",
+  "recorded_at": "2026-01-10T12:00:00Z",
+  "key_id": "key_01JC3D4E5F6G7H8J9KMNPQRSTV"
+}

@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/injection-markers.v1.json",
+  "title": "policy/injection-markers.yaml (injection-markers.v1)",
+  "description": "Case-insensitive phrase list for the SC-INJ-01 soft check. A match lowers S2 and is listed in the PR body; it never blocks a run on its own.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "patterns"
+  ],
+  "properties": {
+    "schema": {
+      "const": "injection-markers.v1"
+    },
+    "patterns": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "regex",
+        "minLength": 3,
+        "maxLength": 300
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  },
+  "x-owner": "SEC-01 §6"
+}
