@@ -48,7 +48,7 @@
 | **Portal** | `portal-vX.Y.Z` | Image `truminds/portal:X.Y.Z` (+ digest) | Service operator |
 | **CI action** `tsl-ci-verify` | `vX.Y.Z` plus a floating `v1` | The action that wraps `tsl ci-verify` | Product repo workflows (`uses: <org>/tsl-ci-verify@v1`, Doc 5 §6.2). Where the action lives is open (DEV-01 §9) |
 | **Verifier images** | No tag of their own | Images built by `verifier-images.yml` when `verifiers/**` changes; referenced **by digest** in `verifiers/<name>@<major>/profile.yaml` (SDD-03 §5.5) | Shipped inside the next `vX.Y.Z` plugin release |
-| **Skills and workflows** | No git tag | Each has its own SemVer in `skill-metadata.yaml` / `workflow.v1` (SDD-01 §6). They ship inside a plugin release | Runs pin them (R-08) |
+| **Skills and workflows** | No git tag | Each has its own SemVer in `skill.yaml` (`skill-metadata.v1`) / `workflow.v1` (SDD-01 §6). They ship inside a plugin release | Runs pin them (R-08) |
 | **Managed settings** | Versioned file in `managed-settings/`, released with `vX.Y.Z` | `managed-settings.json` for the Claude admin | Claude organisation admin (§4.3) |
 
 The CI action's `v1` tag is moved to each new `v1.x.y` release, as is normal for GitHub Actions. It is the only moving tag.
@@ -140,7 +140,7 @@ These need a company seat or a real laptop, so CI cannot run them (TST-01 §6, C
 | Services | OPS-01 §8.3 deploy order | Service operator (TBD by Puneet) |
 | CI action | `v1` tag moved by the pipeline | Pipeline |
 
-**Not verified:** when Claude Code refreshes a marketplace and updates an already-installed, force-enabled plugin (at session start, on a timer, or only on a manual update). SDD-05 §2 does not state it. This needs a new spike before the first rollout (proposed for the SDD-05 spike list). Until then, the rollout notice tells engineers how to update by hand and `tsl doctor` reports the installed plugin version.
+**Not verified:** when Claude Code refreshes a marketplace and updates an already-installed, force-enabled plugin (at session start, on a timer, or only on a manual update). SDD-05 §2 does not state it. This needs spike S-14 (SDD-05 §8.1) before the first rollout. Until then, the rollout notice tells engineers how to update by hand and `tsl doctor` reports the installed plugin version.
 
 ### 4.2 Distribution channels (resolves the DEV-01 §2.2 conflict)
 
@@ -172,7 +172,7 @@ This depends on managed settings being able to point a marketplace at a branch o
 | Record | Release notes Upgrade block; the admin notes which file version is live |
 | Rollback | Re-apply the previous released file (§5) |
 
-**Not verified:** whether the Claude admin console can apply different managed settings to different groups of users. MDM can target device groups (SDD-05 V-09 says MDM delivery exists; group targeting is an MDM feature). If the console cannot target groups and MDM is not used, managed-settings changes go to everyone at once, and only plugin content can be staged (§4.2). Spike: new, proposed for SDD-05.
+**Not verified:** whether the Claude admin console can apply different managed settings to different groups of users. MDM can target device groups (SDD-05 V-09 says MDM delivery exists; group targeting is an MDM feature). If the console cannot target groups and MDM is not used, managed-settings changes go to everyone at once, and only plugin content can be staged (§4.2). Spike S-12 (SDD-13 §6.2 asks the same question; one spike answers both).
 
 ### 4.4 Staged rollout
 
@@ -215,7 +215,7 @@ Services follow the same idea: deploy to `staging` (OPS-01 §4.1), run the smoke
 | Plugin updated, `tsl` not yet | Outside a run: hooks allow, warn. Inside a run: pre-tool denies with `E-HOOK-01` until `tsl` matches | SDD-05 §5.4 |
 | Run started on N, resumed on N+1 minor | Continues; `tsl` reads schemas N and N-1 | R-08, R-09, SDD-04 §10 |
 | Run started on major N, resumed on N+1 | Refused with `E-VER-01` | SDD-04 OI-03 (rule conflict, open) |
-| Pinned skill version no longer in the plugin | `tsl next` fails `E-RUN-05`; `tsl state repin` proposed | SDD-02 §11.4 (open) |
+| Pinned skill version no longer in the plugin | `tsl next` fails `E-RUN-10`; `tsl state repin` proposed | SDD-02 §11.4 (open) |
 | New event type sent to an older service | Per-event `E-ING-02`; event stays queued until the service is upgraded | SDD-08 §4.3 |
 
 **Release order** when a plugin release needs a new service feature: `insights-v*` to `prod` first, then the plugin to Ring 1. The service always accepts N and N-1 event versions, so the reverse order only queues events.
@@ -334,7 +334,7 @@ Nothing is removed without notice, and nothing a running run depends on is remov
 
 - `release.yml` exists with the jobs in §3.1; a test tag on a fork produces a GitHub release with the wheel, `SHA256SUMS` and SBOM.
 - Tag protection and the `release` environment with required reviewers are configured; the release-managers group is named.
-- Spike S-07 is recorded and the channel mechanism in §4.2 is implemented accordingly; the two new spikes (marketplace refresh, per-group managed settings) are recorded.
+- Spike S-07 is recorded and the channel mechanism in §4.2 is implemented accordingly; spikes S-14 (marketplace refresh) and S-12 (per-group managed settings) are recorded.
 - One release has gone Ring 1 → Ring 2 using the §4.4 criteria, with the numbers read from the portal.
 - The rollback drill in §5 has passed once for the plugin and once for the insights service.
 - The support channel, issue templates and area labels exist; the support owner is named.
@@ -348,11 +348,11 @@ Nothing is removed without notice, and nothing a running run depends on is remov
 | new | Release-managers group (who may push release tags and approve `publish`) | TBD by Puneet |
 | OQ-04 | Pilot group for Ring 1 | TBD by Puneet |
 | SDD-05 U-05 / S-07 | Marketplace pinned to a branch or ref; decides channel branches vs distribution repos | Shubham Bansal |
-| new | Spike: when Claude Code updates a force-enabled plugin after its marketplace changes | Shubham Bansal |
-| new | Spike: can the Claude admin console target managed settings at a group of users | Shubham Bansal with the Claude admin |
+| S-14 | Spike: when Claude Code updates a force-enabled plugin after its marketplace changes | Shubham Bansal |
+| S-12 | Spike: can the Claude admin console target managed settings at a group of users (shared with SDD-13) | Shubham Bansal with the Claude admin |
 | DEV-01 §9 | Where the `tsl-ci-verify` action lives (separate repo needed for `uses: <org>/tsl-ci-verify@v1`) | TBD by Puneet |
 | SDD-04 OI-03 | A run on major N cannot resume on major N+1 (conflicts with R-08 wording) | Puneet Singh Nanda |
 | SDD-02 §11.4 | `tsl state repin` for skills removed from the plugin during a run | Puneet Singh Nanda |
 | new | Confirm Ring 1 → Ring 2 thresholds and the P1–P4 response targets | TBD by Puneet |
-| new | New error code `E-DEP-01` and `workflow.v1` `status` field | Japman Singh, Yash Khorwal; Abhishek Verma, Ekjot Singh |
+| closed | New error code `E-DEP-01` (added to Doc 4 §5.2) and `workflow.v1` `status` field (added to SDD-02 §3.2), per the [registry](../architecture/registry.md) | Japman Singh, Yash Khorwal; Abhishek Verma, Ekjot Singh |
 | new | Vulnerability scanner and SBOM tool choice (with SEC-01) | Security reviewer, TBD by Puneet |

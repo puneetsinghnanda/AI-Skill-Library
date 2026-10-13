@@ -35,21 +35,23 @@ Oct 6, 2026 · @Puneet Singh Nanda
 | `/truminds:run` | `skills/run` | `<workflow> <ticket>` | `tsl state start <workflow> <ticket> --json` | Starts a run: lock, state, then steps in order | Per step: `tsl next`, the step's skill, the `review` skill, `tsl decide`; at end `tsl pr` |
 | `/truminds:resume` | `skills/resume` | `<run_id>` | `tsl state resume <run_id> --json` | Continues a paused run; refuses if blocking questions are unanswered | Same loop as `run` |
 | `/truminds:status` | `skills/status` | `[run_id]` | `tsl state show [run_id] --json` | Shows the current run(s) and next action | — |
-| `/truminds:eval` | `skills/eval` | `<skill> [version]` | `tsl eval plan <skill> --json` | Runs the skill's eval cases locally, signs the result | `tsl eval record` |
-| `/truminds:improve` | `skills/improve` | `<skill>` | `tsl improve plan <skill> --json` | Skill owner flow: read report, add failing eval case first, propose change | `tsl eval record`, `tsl validate` |
+| `/truminds:eval` | `skills/eval` | `<skill> [version]` | `tsl eval plan <skill> --json` | Runs the skill's eval cases locally, signs the result | `tsl eval run` |
+| `/truminds:improve` | `skills/improve` | `<skill>` | `tsl improve plan <skill> --json` | Skill owner flow: read report, add failing eval case first, propose change | `tsl eval run`, `tsl validate` |
 
 The harness reviewer step is the non-user skill `skills/review` (`context: fork`, `agent: truminds:reviewer`, `user-invocable: false`). It calls `tsl review prepare`, and the main session stores the result with `tsl review record` (SDD-05 §4.4).
 
 ### 2.2 `tsl` CLI
 
+*Updated per the [registry](registry.md) §3.* SDD-04 §6 now owns the full command surface; the rows below use the registry names (renames in registry §3.3, no aliases).
+
 Global flags: `--json` (machine output on stdout, human text on stderr), `--repo <companion path>` (default: walk up from cwd), `-v`.
 
 | Command | Args / flags | Who | Output | Exit codes |
 | --- | --- | --- | --- | --- |
-| `tsl login` | `[--idp-url]` | Anyone | Registers key, prints roles | 0, 10 |
-| `tsl init-context` | `--system <code>` | Tech lead | Creates `tsl.yaml` skeleton + `context/generated/*` | 0, 3 (E-CONS-01, E-AUTH-03) |
-| `tsl context-refresh` | `[--check]` | Engineer | Rebuilds `generated/`; `--check` only reports drift | 0, 2 |
-| `tsl sign-context` | — | Tech lead | Writes `pack.signature.json` | 0, 3 (E-AUTH-04) |
+| `tsl login` | `[--rotate-key]` | Anyone | Registers key, prints roles | 0, 10 |
+| `tsl init` | `--system <code> --product-repo <name>=<url>...` | Tech lead | Creates `tsl.yaml` and the companion template (SDD-12 §5.3) | 0, 3 (E-CONS-01, E-AUTH-04, E-INIT-01/02) |
+| `tsl context build` | `[--check]` | Engineer, tech lead | Builds `context/generated/*`; `--check` only reports drift | 0, 2, 3 (E-CONS-01) |
+| `tsl context sign` | — | Tech lead | Writes `pack.signature.json` | 0, 3 (E-AUTH-04) |
 | `tsl state start` | `<workflow> <ticket>` | Engineer | `run_id`; creates lock and `state.json` | 0, 3 (E-LOCK-01, E-AUTH-03) |
 | `tsl state resume` | `<run_id>` | Run owner | Next step | 0, 2 (E-RUN-03), 3 |
 | `tsl state show` | `[run_id]` | Engineer | State summary | 0 |
@@ -60,9 +62,9 @@ Global flags: `--json` (machine output on stdout, human text on stderr), `--repo
 | `tsl pr` | `<run_id> [--draft]` | Engineer | Branch, commit, PR URL per product repo | 0, 3, 10 |
 | `tsl ci-verify` | `--pr <n> --repo <r>` | CI | Pass/fail with E-CI-\* reasons | 0, 2 |
 | `tsl validate` | `<skill or workflow path>` | Skill author / CI | Validation report | 0, 2 |
-| `tsl eval record` | `<skill> <results.json>` | Skill author | Signed eval file | 0, 2 |
+| `tsl eval run` | `<skill> [--version X.Y.Z]` | Skill author | Scores the cases and writes the signed eval file | 0, 2 |
 | `tsl migrate` | `--to v<N> [--dry-run]` | Tech lead | Branch + PR on companion repo | 0, 2 |
-| `tsl outbox flush` | — | Hook / any | Sent count | 0, 10 |
+| `tsl events flush` | — | Hook / any | Sent count | 0, 10 |
 
 ### 2.3 JSON output envelope (`--json`)
 
@@ -106,7 +108,7 @@ schema: skill-metadata.v1
 id: design                     # req, kebab-case, unique
 version: 1.4.0                 # req, SemVer
 agent: solution-architect      # req
-status: production             # experimental | production | deprecated
+status: production             # draft | pilot | production | deprecated (SDD-01 §7)
 owner: skill-owner-9c          # req
 inputs:  [{name: impact, schema: impact.v1, required: true}, {name: stories, schema: stories.v1, required: true}]
 outputs: [{name: design, schema: design.v1}]
@@ -124,6 +126,7 @@ change_limits: null            # only for skills that edit code
 schema: workflow.v1
 id: brownfield-change
 version: 1.3.0
+status: production             # draft | pilot | production | deprecated (SDD-02 §3.2, OPS-03 §7)
 requires_fresh_pack: true
 steps:
   - {id: req,    skill: requirement-review@^1.2}
@@ -165,7 +168,7 @@ steps:
 {"schema": "run-lock.v1", "run_id": "run_01J9...", "holder": "eng-4f2a", "key_id": "key_01J9...", "created_at": "...", "heartbeat_at": "..."}
 ```
 
-Taken by commit + push to the companion repo; a push rejected because the file already exists = lock held (E-LOCK-01). This uses git as the lock server, so it needs network; offline runs cannot start (they can continue).
+Taken by commit + push to the companion repo; a push rejected because the file already exists = lock held (E-LOCK-01). This uses git as the lock server, so it needs network; offline runs cannot start (E-LOCK-03; they can continue). The push is retried 3 times; if it is still rejected with the network up, E-LOCK-04 (SDD-02 §11.1). There is one lock file; no separate claim file (registry §10).
 
 ### 3.6 Artifact envelope (front matter of every `<artifact>.md`)
 
@@ -306,7 +309,7 @@ The org-level policy ships in the plugin; a system's `policy.yaml` may only **ad
 | POST | `/v1/webhooks/github` | GitHub HMAC (`X-Hub-Signature-256`) | PR events (§6) |
 | GET | `/v1/health` | none | Liveness |
 
-Portal reads the database through a Backstage backend plugin, not through public endpoints.
+The portal reads through the read API (SDD-09, ADR 0001). The full endpoint list is SDD-08 §3.3 and the [registry](registry.md) §4.
 
 ### 5.2 `POST /v1/events` (OpenAPI excerpt)
 
@@ -365,8 +368,8 @@ components:
 | `hook.decision` | hook, decision (allow/deny/feedback), code | hooks |
 | `pr.opened` | repo, number, draft, lowest\_band | `tsl pr` |
 | `ci.verified` | repo, number, result, codes\[\] | `tsl ci-verify` |
-| `context.signed` / `context.drift` | system, age\_days, drift\_files | `tsl sign-context` / `context-refresh` |
-| `eval.recorded` | skill, version, cases, pass\_rate | `tsl eval record` |
+| `context.signed` / `context.drift` | system, age\_days, drift\_files | `tsl context sign` / `tsl context build --check` |
+| `eval.recorded` | skill, version, cases, pass\_rate | `tsl eval run` |
 | `security.abort` | code (E-SEC/E-POL), step | `tsl decide`, hooks |
 
 **Never in any event:** file content, artifact text, prompts, findings text, client names, file paths outside the companion repo layout. Free-text string fields are capped at 200 characters and checked against a deny list in CI (TM-08).

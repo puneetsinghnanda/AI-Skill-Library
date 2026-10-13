@@ -394,7 +394,7 @@ Not shipped as a route. It is a design reference. Its rules are implemented by �
 | Item | Rule |
 | --- | --- |
 | Base | `https://<portal-host>/v1` (same origin as the SPA; no CORS) |
-| Auth | `Authorization: Bearer <Entra access token>`, audience `api://truminds-insights`, scope `Portal.Read` (SDD-08 §9.1). Validation in `app/auth/entra.py` |
+| Auth | `Authorization: Bearer <Entra access token>`, audience = the `truminds-insights-api` application (client) ID (v2 tokens; the SPA requests the scope `api://truminds-insights/Portal.Read`, SDD-07 §9), scope `Portal.Read` (SDD-08 §9.1). Validation in `app/auth/entra.py` |
 | Methods | `GET` only. Every route in the committed `openapi.json`. No hidden, admin or debug routes |
 | Rate limit | 10 requests/s per user, burst 30; `429` + `Retry-After` |
 | Caching | `Cache-Control: private, max-age=60`; catalogue routes add `ETag` (release tag + filters) and honour `If-None-Match` |
@@ -582,7 +582,7 @@ Field types follow the generated OpenAPI. `?` marks a nullable field. Every obje
   "catalogue_release": "v1.6.0?", "service_version": "1.6.0", "behind": false}}
 ```
 
-`behind` is true when the oldest view is more than 20 minutes old, or no event arrived for 2 hours while devices were active (same thresholds as OPS-02 A-09 and A-11). `last_event_received_at` reads `max(received_at)` from `event_ids` through a new index `event_ids (received_at)`.
+`behind` is true when the oldest view is more than 20 minutes old, or no event arrived for 2 hours while devices were active (same thresholds as OPS-02 AL-09 and AL-11). `last_event_received_at` reads `max(received_at)` from `event_ids` through a new index `event_ids (received_at)`.
 
 #### 5.6.3 E03 `GET /v1/catalogue/summary`
 
@@ -608,7 +608,7 @@ Params: `q` (≤ 60 chars; matches id, title, summary, role label, phase, output
   "first_try_pass": 0.83, "first_try_n": 64}]}}
 ```
 
-`status` is the portal vocabulary of SDD-01 §7. Storage today uses SDD-08 values; the API maps `experimental` → `pilot` (Open items).
+`status` uses the SDD-01 §7 words, which SDD-08 also stores; no mapping is needed (registry §10).
 
 #### 5.6.5 E05 `GET /v1/catalogue/skills/{skill_id}`
 
@@ -659,7 +659,7 @@ E08, E09, E10, E11 and E12 return the shapes in SDD-10 §6.6 with these addition
 
 `label` for a skill step is `skills.title`; `who` is the pod agent whose `skills[]` holds the skill, else "<role> skill". `step_id` is omitted for `viewer`-only callers. E11 items use the E21 item shape. E13 returns `{"data": {"pod_id": "...", "status": "pilot", "markdown": "<one-pager.md text>", "metrics": {...E10...}, "internal_only": true}}`; the markdown is rendered with a safe renderer (no raw HTML, SEC-01 §5.11). The text comes from `pod_versions.definition.one_pager_md`, which the catalogue sync must store (≤ 20 KB; change to SDD-08 §6.4).
 
-Pod status vocabulary in the API follows SDD-10 (`draft|pilot|production|deprecated`). SDD-08 stores `available|pilot|preview|retired`; mapping until resolved: `available`→`production`, `pilot`→`pilot`, `preview`→`draft`, `retired`→`deprecated`.
+Pod status vocabulary follows SDD-10 (`draft|pilot|production|deprecated`), which SDD-08 also stores in `pods` and `pod_versions`; no mapping is needed (registry §10).
 
 #### 5.6.9 E14 `GET /v1/capability-map` — see §6.
 
@@ -956,11 +956,11 @@ Gates: `@axe-core/playwright` on every screen in both views with zero serious or
 
 | Item | Ref | Owner |
 | --- | --- | --- |
-| Visibility scope: the brief says engineers see their own **projects**; Doc 2 §2 permission matrix says "own system" for run status and "own runs" for usage. This document implements projects. Confirm | new | Puneet |
-| Name rule: the brief says tech leads see names; Doc 4 §1.2, §6.3 and US-19 say only the team's `eng_lead` (and admin). This document lets `tech_lead` of the system see names, opt-in and audited. Confirm and update Doc 4 / Doc 2 | new | Puneet |
-| Skill status vocabulary: SDD-01 (`draft/pilot/production/deprecated`) vs SDD-08 storage (`experimental/production/deprecated`). API exposes SDD-01 values with a mapping | SDD-01 O-04 | Gaurav Saini, Abhishek Verma, Ekjot Singh |
-| Pod status and table names: SDD-10 §8 (`pod`, `pod_version`, `draft..deprecated`, `kind`) vs SDD-08 (`pods`, `pod_versions`, `available/pilot/preview/retired`). API uses SDD-10 vocabulary with a mapping | new | Gaurav Saini, Abhishek Verma, Ekjot Singh |
-| Question text is not in the cloud (X-06), but the prototype shows it on Home: Engineer and Run detail. The portal links to the companion-repo file instead. Confirm prototype change | new | UI owner TBD by Puneet |
+| Visibility scope: the brief says engineers see their own **projects**; Doc 2 §2 permission matrix says "own system" for run status and "own runs" for usage. This document implements projects. Confirm (registry §11, RD-2) | new | Puneet |
+| Name rule: the brief says tech leads see names; Doc 4 §1.2, §6.3 and US-19 say only the team's `eng_lead` (and admin). This document lets `tech_lead` of the system see names, opt-in and audited. Confirm and update Doc 4 / Doc 2 (registry §11, RD-1) | new | Puneet |
+| Closed (registry §10): SDD-08 stores the SDD-01 skill status words | SDD-01 O-04 | Gaurav Saini, Abhishek Verma, Ekjot Singh |
+| Closed (registry §10): SDD-08 table names (`pods`, `pod_versions`, …) with SDD-10 status values and `kind` | new | Gaurav Saini, Abhishek Verma, Ekjot Singh |
+| Question text is not in the cloud (X-06), but the prototype shows it on Home: Engineer and Run detail. The portal links to the companion-repo file instead. Confirm prototype change (registry §11, RD-3) | new | UI owner TBD by Puneet |
 | Pod builder ships as a static notice only (X-04) | SDD-10 O-05 | Puneet |
 | Official brand colours, logo and fonts | OQ-13 | TBD by Puneet |
 | Entra app registrations (SPA, API scope `Portal.Read`) and group-to-role mapping | ADR 0002, Q30 | Entra admin, TBD by Puneet |

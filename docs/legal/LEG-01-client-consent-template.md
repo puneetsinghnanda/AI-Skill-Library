@@ -34,7 +34,7 @@ No real client is named anywhere in this document, and none may be added to the 
 
 ### 1.3 Ground rule
 
-Truminds does not process any [CLIENT] code, tickets or documents with the AI Skill Library until this consent is signed by both parties and recorded by a Truminds admin (C-04, R-16). The system enforces this: without a recorded consent, `tsl init-context` refuses to set up the system (error E-CONS-01).
+Truminds does not process any [CLIENT] code, tickets or documents with the AI Skill Library until this consent is signed by both parties and recorded by a Truminds admin (C-04, R-16). The system enforces this: without a recorded consent, `tsl init` refuses to set up the system (error E-CONS-01).
 
 ## Part A — Template
 
@@ -179,7 +179,7 @@ flowchart TD
   C -- yes --> D[Both parties sign]
   D --> E[Insights admin records consent\nin portal admin view]
   E --> F[client.consent_ref and\nconsent_recorded_at set]
-  F --> G[Tech lead runs tsl init-context]
+  F --> G[Tech lead runs tsl init]
   G --> H{Consent recorded\nand in scope?}
   H -- no --> X[E-CONS-01, exit 3]
   H -- yes --> I[Companion repo set up;\nwork may start]
@@ -214,8 +214,8 @@ withdrawn_at: null
 
 | Consent field | Enforced by |
 | --- | --- |
-| Consent exists and not withdrawn | `tsl init-context`, `tsl state start` (E-CONS-01) |
-| `systems`, `repos_in_scope` | `tsl init-context` refuses repos not listed |
+| Consent exists and not withdrawn | `tsl init`, `tsl context build`, `tsl state start` (E-CONS-01) |
+| `systems`, `repos_in_scope` | `tsl init` refuses repos not listed |
 | `excluded_paths` | Added to the system's `policy.yaml` as read and write denies (SDD-05 §6.4) |
 | `webhook: false` | GitHub org admin does not install the webhook; the insights service drops webhook deliveries for repos of this client |
 | `tracker_access` | Becomes the pre-mcp classification for that system |
@@ -236,7 +236,7 @@ Complete in order. The engagement lead keeps the checklist with the signed copy.
 | 8 | Create the companion repository in the chosen [HOST ORG], private, with one team for the system | GitHub org admin | ☐ |
 | 9 | Install webhook and CI job only if O-1 and O-5 are "Yes" | GitHub org admin, [CLIENT] repo owner | ☐ |
 | 10 | Confirm every engineer on the system uses a company Claude seat with managed settings (SDD-13) | Claude org admin | ☐ |
-| 11 | Tech lead runs `tsl init-context`; confirm it succeeds | Tech lead | ☐ |
+| 11 | Tech lead runs `tsl init`; confirm it succeeds | Tech lead | ☐ |
 | 12 | At end of engagement or withdrawal: handover/delete per O-3, confirm in writing, record `withdrawn_at` | Engagement lead, insights admin | ☐ |
 
 ## 15. Questions for legal

@@ -16,7 +16,7 @@ How the insights service (`api`, `worker`, `migrate`) and the web portal are wat
 - service level objectives (SLOs) and how they are measured;
 - health endpoints and the internal metrics port;
 - the metrics each process exports, and the log format;
-- alert rules A-01 to A-26, with thresholds, severity and first action;
+- alert rules AL-01 to AL-26, with thresholds, severity and first action;
 - how ingest lag and outbox backlog are detected;
 - the dashboards;
 - who is paged.
@@ -62,7 +62,7 @@ flowchart LR
   RULES --> ROUTER[Alert router]
   ROUTER -- P1, P2 --> PAGE[Pager: Gaurav Saini]
   ROUTER -- P3 --> TICKET[Ticket queue]
-  SCR --> DASH[Dashboards D-1..D-6]
+  SCR --> DASH[Dashboards DSH-1..DSH-6]
   LOG --> DASH
 ```
 
@@ -70,10 +70,10 @@ The product for each box (scraper, log store, alert router, pager) is chosen wit
 
 ```text
 ops/monitoring/
-├─ alerts.yaml           # A-01..A-26 in Prometheus rule format
+├─ alerts.yaml           # AL-01..AL-26 in Prometheus rule format
 ├─ alerts.test.yaml      # promtool unit tests for each rule
 ├─ recording.yaml        # SLI recording rules (§3.2)
-├─ dashboards/           # D-1..D-6 as JSON for the chosen tool
+├─ dashboards/           # DSH-1..DSH-6 as JSON for the chosen tool
 └─ synthetic/probe.yaml  # §4.3 checks
 ```
 
@@ -85,14 +85,14 @@ Window: 30 days, rolling. NFR-05 sets 99.5% availability for the API and the por
 
 | SLO | SLI (good events ÷ valid events) | Target | Error budget per 30 days | Source |
 | --- | --- | --- | --- | --- |
-| S-1 Ingest availability | `POST /v1/events`, `/otel/v1/*`, `/v1/webhooks/github` responses that are not 5xx ÷ all (429 excluded from both) | 99.5% | 0.5% of requests (≈ 3.6 h of full outage) | `insights_http_requests_total` |
-| S-2 Ingest latency | `POST /v1/events` requests answered in ≤ 1 s ÷ all | 95% | 5% | `insights_http_request_duration_seconds` |
-| S-3 Projection freshness | Minutes in which projection lag ≤ 60 s ÷ all minutes | 99% | ≈ 7.2 h | `insights_projection_lag_seconds` |
-| S-4 View freshness | Minutes in which every materialized view is ≤ 10 min old ÷ all minutes | 99% | ≈ 7.2 h | `insights_view_refresh_age_seconds` |
-| S-5 Read availability | `GET /v1/*` read routes not 5xx ÷ all | 99.5% | 0.5% | `insights_http_requests_total` |
-| S-6 Read latency | Read routes answered in ≤ 800 ms ÷ all | 95% | 5% | SDD-08 §11.4 |
-| S-7 Portal availability | Synthetic portal checks that pass ÷ all checks | 99.5% | ≈ 3.6 h | Synthetic prober |
-| S-8 Webhook processing | Webhook deliveries answered 2xx within 10 s ÷ all signed deliveries | 99.5% | 0.5% | `insights_webhook_duration_seconds` |
+| SLO-1 Ingest availability | `POST /v1/events`, `/otel/v1/*`, `/v1/webhooks/github` responses that are not 5xx ÷ all (429 excluded from both) | 99.5% | 0.5% of requests (≈ 3.6 h of full outage) | `insights_http_requests_total` |
+| SLO-2 Ingest latency | `POST /v1/events` requests answered in ≤ 1 s ÷ all | 95% | 5% | `insights_http_request_duration_seconds` |
+| SLO-3 Projection freshness | Minutes in which projection lag ≤ 60 s ÷ all minutes | 99% | ≈ 7.2 h | `insights_projection_lag_seconds` |
+| SLO-4 View freshness | Minutes in which every materialized view is ≤ 10 min old ÷ all minutes | 99% | ≈ 7.2 h | `insights_view_refresh_age_seconds` |
+| SLO-5 Read availability | `GET /v1/*` read routes not 5xx ÷ all | 99.5% | 0.5% | `insights_http_requests_total` |
+| SLO-6 Read latency | Read routes answered in ≤ 800 ms ÷ all | 95% | 5% | SDD-08 §11.4 |
+| SLO-7 Portal availability | Synthetic portal checks that pass ÷ all checks | 99.5% | ≈ 3.6 h | Synthetic prober |
+| SLO-8 Webhook processing | Webhook deliveries answered 2xx within 10 s ÷ all signed deliveries | 99.5% | 0.5% | `insights_webhook_duration_seconds` |
 
 Portal page load (NFR-07, ≤ 3 s p95) is measured in CI and before each release by TC-POR-008, not in production. Release 1 sends no browser telemetry, because that would need a new write endpoint (Open items).
 
@@ -144,7 +144,7 @@ groups:
 | `jwks` | Entra signing keys cached and younger than 24 h | in memory |
 | `static` | `/app/portal/index.html` exists (SDD-09 §10) | in memory |
 
-Readiness never checks the worker. A stopped worker does not take ingest down; it raises A-10.
+Readiness never checks the worker. A stopped worker does not take ingest down; it raises AL-10.
 
 ### 4.3 Synthetic checks
 
@@ -256,32 +256,32 @@ Severities: **P1** pages at any time; **P2** pages during team working hours (ti
 
 | Id | Name | Condition (PromQL-style) | For | Sev | First action |
 | --- | --- | --- | --- | --- | --- |
-| A-01 | API down | `up{job="insights-api"} == 0` for all instances, or SY-2 failing | 3 m | P1 | Check container status and restarts; OPS-04 |
-| A-02 | Not ready | `probe_success{check="SY-2"} == 0` while A-01 is not firing | 5 m | P1 | Read the `checks` body: DB, migration or secrets |
-| A-03 | Ingest error rate | `sli:ingest_errors:rate5m / sli:ingest_requests:rate5m > 0.01` | 10 m | P1 | Logs by `route` and `code`; DB health |
-| A-04 | Read error rate | `sli:read_errors:rate5m / sli:read_requests:rate5m > 0.02` | 10 m | P2 | Logs by `route`; slow queries; view refresh |
-| A-05 | Read latency | `sli:read_slow:ratio5m > 0.05` | 15 m | P2 | Slowest routes on D-3; DB CPU; missing index |
-| A-06 | Ingest latency | p95 of `POST /v1/events` > 1 s | 15 m | P2 | DB write latency; batch size; pool use |
-| A-07 | Projection lag warning | `insights_projection_lag_seconds > 300` | 10 m | P2 | Worker logs; backlog trend; handler errors |
-| A-08 | Projection lag critical | `insights_projection_lag_seconds > 1800` | 5 m | P1 | As A-07; check worker leader (A-10) |
-| A-09 | Ingest silence | `sum(increase(insights_events_received_total[2h])) == 0 and insights_devices_seen{window="1d"} > 0`, working hours only | — | P2 | Check public ingress, Entra token validation (A-17), `tsl` release; §8.2 |
-| A-10 | Worker stalled | `time() - insights_worker_heartbeat_timestamp > 120` or `sum(insights_worker_leader) == 0` | 2 m | P1 | Restart worker; check advisory lock holder |
-| A-11 | Views stale | `max(insights_view_refresh_age_seconds) > 1200` | 5 m | P2 | `refresh_views` job logs; long-running queries |
-| A-12 | Daily job failed | `time() - insights_job_last_success_timestamp{job=~"rollup|retention|partitions"} > 93600` (26 h) | — | P3 | Job logs; rerun job by hand (OPS-04) |
-| A-13 | DB storage high | DB storage used > 75% | 15 m | P3 | Check retention job, table sizes (D-4); plan resize |
-| A-14 | DB storage critical | DB storage used > 90% | 5 m | P1 | Resize storage now; then A-13 actions |
-| A-15 | DB pool saturated | `insights_db_pool_in_use / insights_db_pool_size > 0.9` | 10 m | P2 | Long queries; raise pool or DB connections |
-| A-16 | Outbox backlog on devices | `insights_devices_outbox_stale{age="gt_72h"} >= 3` or `insights_devices_outbox_stale{age="gt_7d"} >= 1` | 30 m | P3 | §8.3; tech lead contacts the engineers by pseudonym lookup (admin only) |
-| A-17 | Auth failure spike | `sum(rate(insights_auth_failures_total[5m])) * 60 > 20` | 10 m | P2 | By `kind`/`reason`: JWKS fetch, audience, expired CI token, or probing |
-| A-18 | Deny-list hit | `increase(insights_events_rejected_total{code="E-ING-04"}[1h]) > 0` | — | P2 | Possible content leak or `tsl` bug. Notify the security reviewer (TBD by Puneet). Rejected events are not stored (SDD-08 §4.3) |
-| A-19 | Catalogue sync problem | `increase(insights_catalogue_items_skipped_total[1h]) > 0` or `insights_catalogue_unsynced_release == 1` for 2 h | — | P3 | Sync job log names the file and schema error; fix in the marketplace repo |
-| A-20 | Partitions missing | `min(insights_partitions_ahead) < 1` | 1 h | P2 | Run `jobs/partitions` by hand; inserts fail when the month rolls over (SDD-08 §11.1) |
-| A-21 | Webhook signature failures | `increase(insights_webhook_signature_failures_total[15m]) > 10` | — | P2 | Secret rotated without update, or forged traffic; check `github_hooks` |
-| A-22 | OTel volume anomaly | `rate(insights_otel_datapoints_total[1h]) > 5 * avg_over_time(rate(insights_otel_datapoints_total[1h])[7d:1h])` | 30 m | P3 | Possible misuse of the shared OTel token (SDD-08 §9.3); rotate if needed |
-| A-23 | Rejected events | `sum(rate(insights_events_rejected_total{code=~"E-ING-0[135]"}[1h])) / sum(rate(insights_events_received_total[1h])) > 0.01` | 1 h | P3 | Likely a `tsl` schema bug; check by `code` and `tsl_version` in logs |
-| A-24 | Certificate expiry | `insights_tls_cert_expiry_seconds < 14 * 86400` | — | P3 | Renew certificate (OPS-01) |
-| A-25 | Portal down | SY-1 failing 3 of the last 3 runs | 3 m | P2 | Image missing `portal/dist`; static route; ingress |
-| A-26 | Error budget burn | Fast: S-1 or S-5 burn rate > 14.4 over 1 h **and** 5 m. Slow: > 6 over 6 h **and** 30 m | — | P1 fast, P2 slow | Treat as A-03/A-04; freeze non-urgent releases until budget recovers |
+| AL-01 | API down | `up{job="insights-api"} == 0` for all instances, or SY-2 failing | 3 m | P1 | Check container status and restarts; OPS-04 |
+| AL-02 | Not ready | `probe_success{check="SY-2"} == 0` while AL-01 is not firing | 5 m | P1 | Read the `checks` body: DB, migration or secrets |
+| AL-03 | Ingest error rate | `sli:ingest_errors:rate5m / sli:ingest_requests:rate5m > 0.01` | 10 m | P1 | Logs by `route` and `code`; DB health |
+| AL-04 | Read error rate | `sli:read_errors:rate5m / sli:read_requests:rate5m > 0.02` | 10 m | P2 | Logs by `route`; slow queries; view refresh |
+| AL-05 | Read latency | `sli:read_slow:ratio5m > 0.05` | 15 m | P2 | Slowest routes on DSH-3; DB CPU; missing index |
+| AL-06 | Ingest latency | p95 of `POST /v1/events` > 1 s | 15 m | P2 | DB write latency; batch size; pool use |
+| AL-07 | Projection lag warning | `insights_projection_lag_seconds > 300` | 10 m | P2 | Worker logs; backlog trend; handler errors |
+| AL-08 | Projection lag critical | `insights_projection_lag_seconds > 1800` | 5 m | P1 | As AL-07; check worker leader (AL-10) |
+| AL-09 | Ingest silence | `sum(increase(insights_events_received_total[2h])) == 0 and insights_devices_seen{window="1d"} > 0`, working hours only | — | P2 | Check public ingress, Entra token validation (AL-17), `tsl` release; §8.2 |
+| AL-10 | Worker stalled | `time() - insights_worker_heartbeat_timestamp > 120` or `sum(insights_worker_leader) == 0` | 2 m | P1 | Restart worker; check advisory lock holder |
+| AL-11 | Views stale | `max(insights_view_refresh_age_seconds) > 1200` | 5 m | P2 | `refresh_views` job logs; long-running queries |
+| AL-12 | Daily job failed | `time() - insights_job_last_success_timestamp{job=~"rollup|retention|partitions"} > 93600` (26 h) | — | P3 | Job logs; rerun job by hand (OPS-04) |
+| AL-13 | DB storage high | DB storage used > 75% | 15 m | P3 | Check retention job, table sizes (DSH-4); plan resize |
+| AL-14 | DB storage critical | DB storage used > 90% | 5 m | P1 | Resize storage now; then AL-13 actions |
+| AL-15 | DB pool saturated | `insights_db_pool_in_use / insights_db_pool_size > 0.9` | 10 m | P2 | Long queries; raise pool or DB connections |
+| AL-16 | Outbox backlog on devices | `insights_devices_outbox_stale{age="gt_72h"} >= 3` or `insights_devices_outbox_stale{age="gt_7d"} >= 1` | 30 m | P3 | §8.3; tech lead contacts the engineers by pseudonym lookup (admin only) |
+| AL-17 | Auth failure spike | `sum(rate(insights_auth_failures_total[5m])) * 60 > 20` | 10 m | P2 | By `kind`/`reason`: JWKS fetch, audience, expired CI token, or probing |
+| AL-18 | Deny-list hit | `increase(insights_events_rejected_total{code="E-ING-04"}[1h]) > 0` | — | P2 | Possible content leak or `tsl` bug. Notify the security reviewer (TBD by Puneet). Rejected events are not stored (SDD-08 §4.3) |
+| AL-19 | Catalogue sync problem | `increase(insights_catalogue_items_skipped_total[1h]) > 0` or `insights_catalogue_unsynced_release == 1` for 2 h | — | P3 | Sync job log names the file and schema error; fix in the marketplace repo |
+| AL-20 | Partitions missing | `min(insights_partitions_ahead) < 1` | 1 h | P2 | Run `jobs/partitions` by hand; inserts fail when the month rolls over (SDD-08 §11.1) |
+| AL-21 | Webhook signature failures | `increase(insights_webhook_signature_failures_total[15m]) > 10` | — | P2 | Secret rotated without update, or forged traffic; check `github_hooks` |
+| AL-22 | OTel volume anomaly | `rate(insights_otel_datapoints_total[1h]) > 5 * avg_over_time(rate(insights_otel_datapoints_total[1h])[7d:1h])` | 30 m | P3 | Possible misuse of the shared OTel token (SDD-08 §9.3); rotate if needed |
+| AL-23 | Rejected events | `sum(rate(insights_events_rejected_total{code=~"E-ING-0[135]"}[1h])) / sum(rate(insights_events_received_total[1h])) > 0.01` | 1 h | P3 | Likely a `tsl` schema bug; check by `code` and `tsl_version` in logs |
+| AL-24 | Certificate expiry | `insights_tls_cert_expiry_seconds < 14 * 86400` | — | P3 | Renew certificate (OPS-01) |
+| AL-25 | Portal down | SY-1 failing 3 of the last 3 runs | 3 m | P2 | Image missing `portal/dist`; static route; ingress |
+| AL-26 | Error budget burn | Fast: SLO-1 or SLO-5 burn rate > 14.4 over 1 h **and** 5 m. Slow: > 6 over 6 h **and** 30 m | — | P1 fast, P2 slow | Treat as AL-03/AL-04; freeze non-urgent releases until budget recovers |
 
 Rule format in `alerts.yaml`:
 
@@ -292,7 +292,7 @@ Rule format in `alerts.yaml`:
   labels: {severity: P1, team: insights}
   annotations:
     summary: "Projection lag {{ $value | humanizeDuration }}; portal numbers are behind"
-    dashboard: "D-2 Ingest pipeline"
+    dashboard: "DSH-2 Ingest pipeline"
     runbook: "docs/operations/OPS-04-failure-runbook.md#a-08"
 ```
 
@@ -312,9 +312,9 @@ flowchart LR
 
 | Delay | Measured by | Normal | Alert | Portal effect |
 | --- | --- | --- | --- | --- |
-| 1 Delivery (outbox) | `insights_event_delivery_delay_seconds`; device-reported `outbox_depth`, `outbox_oldest_at` (§8.3) | Seconds online; up to 7 days offline (NFR-03) | A-16 (devices), A-09 (fleet-wide silence) | Late events land in the right day (aggregations use `occurred_at`, SDD-08 §4.1) |
-| 2 Projection | `insights_projection_lag_seconds`, `insights_projection_backlog_events` | p95 ≤ 60 s (SDD-08 §11.4) | A-07, A-08 | Numbers behind |
-| 3 View refresh | `insights_view_refresh_age_seconds` | ≤ 10 min (5-min cycle) | A-11 | `meta.data_as_of` old; banner at 20 min |
+| 1 Delivery (outbox) | `insights_event_delivery_delay_seconds`; device-reported `outbox_depth`, `outbox_oldest_at` (§8.3) | Seconds online; up to 7 days offline (NFR-03) | AL-16 (devices), AL-09 (fleet-wide silence) | Late events land in the right day (aggregations use `occurred_at`, SDD-08 §4.1) |
+| 2 Projection | `insights_projection_lag_seconds`, `insights_projection_backlog_events` | p95 ≤ 60 s (SDD-08 §11.4) | AL-07, AL-08 | Numbers behind |
+| 3 View refresh | `insights_view_refresh_age_seconds` | ≤ 10 min (5-min cycle) | AL-11 | `meta.data_as_of` old; banner at 20 min |
 | 4 Cache | SPA `staleTime` 60 s (SDD-09 §3.5) | ≤ 60 s | — | — |
 
 ### 8.2 Projection lag
@@ -330,9 +330,9 @@ FROM events_raw
 WHERE projected_at IS NULL;
 ```
 
-Parked events (for example an unknown system code) are excluded from lag so that one bad event does not hold the alert open; they are watched through `insights_projection_parked_events` on D-2 and listed by OPS-04.
+Parked events (for example an unknown system code) are excluded from lag so that one bad event does not hold the alert open; they are watched through `insights_projection_parked_events` on DSH-2 and listed by OPS-04.
 
-Ingest silence (A-09) catches the case where nothing arrives at all: a broken public ingress, an Entra configuration change that makes every token fail, or a bad `tsl` release. It fires only when devices were active in the last day and only in working hours, so quiet weekends do not page.
+Ingest silence (AL-09) catches the case where nothing arrives at all: a broken public ingress, an Entra configuration change that makes every token fail, or a bad `tsl` release. It fires only when devices were active in the last day and only in working hours, so quiet weekends do not page.
 
 ### 8.3 Outbox backlog on devices
 
@@ -351,22 +351,22 @@ WHERE last_seen_at > now() - interval '14 days';
 
 | Pattern | Likely cause | Action |
 | --- | --- | --- |
-| One device, old events, still sending sessions | Events stuck after repeated 4xx (should be in `dead/`) or a `tsl` bug | Tech lead asks the engineer to run `tsl outbox flush` and share the output (no event content) |
-| Many devices at once | Service unreachable from laptops, or an auth change | Check A-09, A-17, public ingress |
-| Device not seen for > 7 days with depth > 0 | Laptop offline or user left | No page; listed on D-5; admin follows up through SDD-13 |
+| One device, old events, still sending sessions | Events stuck after repeated 4xx (should be in `dead/`) or a `tsl` bug | Tech lead asks the engineer to run `tsl events flush` and share the output (no event content) |
+| Many devices at once | Service unreachable from laptops, or an auth change | Check AL-09, AL-17, public ingress |
+| Device not seen for > 7 days with depth > 0 | Laptop offline or user left | No page; listed on DSH-5; admin follows up through SDD-13 |
 
-Limitation: a device that never reaches the service cannot report its outbox. It shows up only as "last seen" ageing on D-5 (Doc 6 L-09). The device list with pseudonyms is an admin-only view (SDD-13); metrics and alerts carry counts only.
+Limitation: a device that never reaches the service cannot report its outbox. It shows up only as "last seen" ageing on DSH-5 (Doc 6 L-09). The device list with pseudonyms is an admin-only view (SDD-13); metrics and alerts carry counts only.
 
 ## 9. Dashboards
 
 | Id | Dashboard | Panels | Audience |
 | --- | --- | --- | --- |
-| D-1 | Service overview | SLO status and remaining error budget for S-1..S-8; requests by `route_group`; 5xx rate; p95 latency; firing alerts | On-call, Puneet |
-| D-2 | Ingest pipeline | Events received by `type` and `source`; duplicates; rejects by `code`; batch size; delivery delay heatmap; projection lag and backlog; parked by `code`; projected by `type`; OTel kept vs dropped by `reason`; webhook deliveries by `result` | On-call |
-| D-3 | Read API and portal | Requests and p95 by read `route`; errors by `code`; scope denials; name reveals; synthetic results SY-1..SY-5; view refresh age and duration per view | On-call, portal owner |
-| D-4 | Database | Storage used and growth per day; largest tables and partitions; connections and pool use; slow statements (from the platform); partitions ahead; job last success; backup status | On-call |
-| D-5 | Fleet and outbox | Devices seen 1 d / 14 d; devices with queued events; stale buckets; oldest outbox age; plugin version spread (count on latest vs others); `tsl` versions (counts) | On-call, tech leads (counts only) |
-| D-6 | Security signals | Auth failures by `kind`/`reason`; HMAC failures; deny-list hits (E-ING-04); OTel volume vs 7-day average; ingest token last-used age by kind; name reveals per day | On-call, security reviewer (TBD by Puneet) |
+| DSH-1 | Service overview | SLO status and remaining error budget for SLO-1..SLO-8; requests by `route_group`; 5xx rate; p95 latency; firing alerts | On-call, Puneet |
+| DSH-2 | Ingest pipeline | Events received by `type` and `source`; duplicates; rejects by `code`; batch size; delivery delay heatmap; projection lag and backlog; parked by `code`; projected by `type`; OTel kept vs dropped by `reason`; webhook deliveries by `result` | On-call |
+| DSH-3 | Read API and portal | Requests and p95 by read `route`; errors by `code`; scope denials; name reveals; synthetic results SY-1..SY-5; view refresh age and duration per view | On-call, portal owner |
+| DSH-4 | Database | Storage used and growth per day; largest tables and partitions; connections and pool use; slow statements (from the platform); partitions ahead; job last success; backup status | On-call |
+| DSH-5 | Fleet and outbox | Devices seen 1 d / 14 d; devices with queued events; stale buckets; oldest outbox age; plugin version spread (count on latest vs others); `tsl` versions (counts) | On-call, tech leads (counts only) |
+| DSH-6 | Security signals | Auth failures by `kind`/`reason`; HMAC failures; deny-list hits (E-ING-04); OTel volume vs 7-day average; ingest token last-used age by kind; name reveals per day | On-call, security reviewer (TBD by Puneet) |
 
 Every alert annotation links to one of these dashboards. Dashboards show no personal data.
 
@@ -393,7 +393,7 @@ flowchart TD
 | Communication | Status note in the AI practice channel for any P1 or any outage over 30 min. Engineers need no action: their events wait in the outbox (NFR-03) |
 | Post-incident | Every P1 gets a written root-cause analysis within 5 working days, stored with OPS-04 |
 | Noise review | Monthly: alerts that fired without action are tuned or removed |
-| Security alerts | A-18, A-21 and A-22 also notify the security reviewer (TBD by Puneet) |
+| Security alerts | AL-18, AL-21 and AL-22 also notify the security reviewer (TBD by Puneet) |
 
 ## 11. Implementation
 
@@ -415,9 +415,9 @@ flowchart TD
 | Log redaction | Request with Bearer token and PR body through the middleware | Neither appears in captured logs |
 | Rule tests | `promtool test rules` with series for each alert, firing and not firing | All pass |
 | Readiness | Stop DB; set migration behind | `/v1/health/ready` 503 with the right check names |
-| Worker stall | In staging, stop the worker | A-10 fires within 3 min; A-07 within 15 min |
-| Ingest silence | In staging, block `/v1/events` at the ingress during a seeded "active" day | A-09 fires |
-| Outbox | Seed `devices` with stale `outbox_oldest_at` values | `insights_devices_outbox_stale` buckets and A-16 match |
+| Worker stall | In staging, stop the worker | AL-10 fires within 3 min; AL-07 within 15 min |
+| Ingest silence | In staging, block `/v1/events` at the ingress during a seeded "active" day | AL-09 fires |
+| Outbox | Seed `devices` with stale `outbox_oldest_at` values | `insights_devices_outbox_stale` buckets and AL-16 match |
 | Paging | Fire a test P1 through the alert router | Gaurav Saini receives it; acknowledgement recorded |
 
 ## 13. Changes this document makes to other documents
@@ -426,19 +426,19 @@ flowchart TD
 | --- | --- |
 | SDD-08 §3.1 | `app/obs/` also holds `probe.py`; worker exposes `/healthz` and `/metrics` on port 9101 |
 | SDD-08 §5.1, SDD-09 | SY-3 and SY-5 rely on `E-API-02` and `E-ING-07` responses without a token (no change in behaviour) |
-| SDD-09 §5.6.2 | `behind` thresholds equal A-09 and A-11 |
+| SDD-09 §5.6.2 | `behind` thresholds equal AL-09 and AL-11 |
 | OPS-01 | Must provide: a Prometheus-compatible scraper, log store with 30-day retention, alert router, pager, synthetic prober, DB and container metrics, and network policy keeping ports 9100/9101 internal |
-| OPS-04 | One runbook entry per alert id A-01..A-26, anchored `#a-nn` |
+| OPS-04 | One runbook entry per alert id AL-01..AL-26, anchored `#al-nn` |
 | TST-01 | Add the tests in §12 as TC-OPS-001..009 |
 
 ## 14. Done criteria
 
 - `/v1/health`, `/v1/health/ready`, worker `/healthz` and both `/metrics` ports work as in §4 in staging.
 - Every metric in §5.2 is exported; label-safety and log-redaction tests pass.
-- `alerts.yaml` holds A-01..A-26 with passing `promtool` tests; every alert links to a dashboard and an OPS-04 entry.
-- Dashboards D-1..D-6 exist in the chosen tool and in `ops/monitoring/dashboards/`.
+- `alerts.yaml` holds AL-01..AL-26 with passing `promtool` tests; every alert links to a dashboard and an OPS-04 entry.
+- Dashboards DSH-1..DSH-6 exist in the chosen tool and in `ops/monitoring/dashboards/`.
 - Staging drills pass: worker stall, ingest silence, readiness failure and a test page to Gaurav Saini.
-- SLO panels show S-1..S-8 for at least one full week of pilot traffic before Release 1 (PLN-01 R1-11).
+- SLO panels show SLO-1..SLO-8 for at least one full week of pilot traffic before Release 1 (PLN-01 R1-11).
 - Gaurav Saini has reviewed this document; Puneet approved it.
 
 ## 15. Open items
@@ -446,10 +446,10 @@ flowchart TD
 | Item | Ref | Owner |
 | --- | --- | --- |
 | Escalation path and secondary on-call | Q33 | TBD by Puneet |
-| Team working hours and time zone for P2 paging and A-09 | new | TBD by Puneet |
+| Team working hours and time zone for P2 paging and AL-09 | new | TBD by Puneet |
 | Monitoring tools (scraper, log store, alert router, pager, prober) follow the hosting choice | OQ-02, OPS-01 | TBD by Puneet |
 | Monitoring identity for SY-4 (Entra app registration with a `viewer` grant). Needs a decision that an app-only token may hold a role grant | ADR 0002, SDD-13 | Entra admin, TBD by Puneet |
 | Log retention (30 days proposed) | OQ-08 | TBD by Puneet |
 | Real-user page-load measurement would need a browser-telemetry endpoint; not in Release 1 | new | Gaurav Saini |
-| Public ingress for GitHub webhooks and CI is not yet designed; A-09 and A-21 depend on it | SDD-08 §15, OPS-01 | TBD by Puneet |
-| Security reviewer to receive A-18, A-21, A-22 | Q28 | TBD by Puneet |
+| Public ingress for GitHub webhooks and CI is not yet designed; AL-09 and AL-21 depend on it | SDD-08 §15, OPS-01 | TBD by Puneet |
+| Security reviewer to receive AL-18, AL-21, AL-22 | Q28 | TBD by Puneet |

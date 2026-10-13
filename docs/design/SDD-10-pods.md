@@ -229,7 +229,7 @@ Pod metrics ("Active pods", "Most-used pods", "Track record", "Active runs of th
 | Assignment | The tech lead lists the pods engaged on a system in `tsl.yaml`: `pods: [brownfield-change-pod@^1.0]` (new key; SDD-12 owns `tsl-config.v1`) |
 | At run start | `tsl state start` finds the pods in `tsl.yaml` whose `workflows` include the run's workflow. Exactly one match: the run is attributed to it. Zero: no pod. More than one: the engineer must pass `--pod <id>` to `/truminds:run`, else E-POD-01 |
 | Recorded where | `state.json` `pinned.pod: "brownfield-change-pod@1.0.0"`; `run.started` event body gains an optional `pod` field (SDD-08) |
-| Database | `run.pod_id`, `run.pod_version` columns (§8.1) |
+| Database | `runs.pod_id`, `runs.pod_version` columns (§8.1, SDD-08 §10.2) |
 
 New error code for SDD-04 and Doc 4 §5.2:
 
@@ -363,41 +363,43 @@ A pod version is published only through a tagged release of the skill-library re
 
 ### 8.1 Tables
 
+SDD-08 owns table names and the DDL (SDD-08 §10.2); this document owns the status and kind values. The tables, as adopted in SDD-08:
+
 ```sql
-CREATE TABLE pod (
+CREATE TABLE pods (
   id text PRIMARY KEY,                         -- brownfield-change-pod
   title text NOT NULL,
   kind text NOT NULL CHECK (kind IN ('brownfield','greenfield','quality','ux')),
-  owner_id uuid REFERENCES app_user);
-CREATE TABLE pod_version (
-  pod_id text REFERENCES pod, version text NOT NULL,
+  status text NOT NULL CHECK (status IN ('draft','pilot','production','deprecated')),   -- of current_version
+  owner_pseudonym text,
+  current_version text);
+CREATE TABLE pod_versions (
+  pod_id text NOT NULL REFERENCES pods, version text NOT NULL,
   status text NOT NULL CHECK (status IN ('draft','pilot','production','deprecated')),
   definition jsonb NOT NULL,                   -- the validated pod.yaml
   source_sha text NOT NULL,                    -- skill-library commit of the release tag
-  published_at timestamptz NOT NULL,
+  published_at timestamptz,
   PRIMARY KEY (pod_id, version));
-CREATE TABLE pod_agent (
-  pod_id text, version text, agent_key text,
+CREATE TABLE pod_agents (
+  pod_id text NOT NULL, version text NOT NULL, agent_key text NOT NULL,
   role text NOT NULL, display_name text NOT NULL, engineers int NOT NULL,
   PRIMARY KEY (pod_id, version, agent_key),
-  FOREIGN KEY (pod_id, version) REFERENCES pod_version);
-CREATE TABLE pod_agent_skill (
-  pod_id text, version text, agent_key text, skill_id text REFERENCES skill,
+  FOREIGN KEY (pod_id, version) REFERENCES pod_versions);
+CREATE TABLE pod_agent_skills (
+  pod_id text NOT NULL, version text NOT NULL, agent_key text NOT NULL, skill_id text NOT NULL REFERENCES skills,
   skill_range text NOT NULL, cross_role boolean NOT NULL DEFAULT false,
   PRIMARY KEY (pod_id, version, agent_key, skill_id),
-  FOREIGN KEY (pod_id, version, agent_key) REFERENCES pod_agent);
-CREATE TABLE pod_workflow (
-  pod_id text, version text, workflow text NOT NULL, workflow_range text NOT NULL,
-  PRIMARY KEY (pod_id, version, workflow),
-  FOREIGN KEY (pod_id, version) REFERENCES pod_version);
-ALTER TABLE run ADD COLUMN pod_id text, ADD COLUMN pod_version text,
-  ADD FOREIGN KEY (pod_id, pod_version) REFERENCES pod_version;
-CREATE INDEX ON run (pod_id, started_at);
+  FOREIGN KEY (pod_id, version, agent_key) REFERENCES pod_agents);
+CREATE TABLE pod_workflows (
+  pod_id text NOT NULL, version text NOT NULL, workflow_id text NOT NULL, workflow_range text NOT NULL,
+  PRIMARY KEY (pod_id, version, workflow_id),
+  FOREIGN KEY (pod_id, version) REFERENCES pod_versions);
+-- runs.pod_id and runs.pod_version are columns of SDD-08's runs table; index runs (pod_id, started_at).
 ```
 
 ### 8.2 Sync
 
-The catalogue sync job (SDD-08) reads `pods/*/pod.yaml` at each release tag, re-validates, and inserts a `pod_version` row per new version. It never edits an existing row. It writes no file content other than the validated definition, which holds no client data by POD-V12.
+The catalogue sync job (SDD-08) reads `pods/*/pod.yaml` at each release tag, re-validates, and inserts a `pod_versions` row per new version. It never edits an existing row. It writes no file content other than the validated definition, which holds no client data by POD-V12.
 
 ## 9. Validation rules (`tsl validate pods/<id>`)
 
@@ -494,7 +496,7 @@ Doc 4 §2.0 lists the builder as a portal screen. Under X-04 this document limit
 | # | Item | Reference | Owner |
 | --- | --- | --- | --- |
 | O-01 | Sign off the R1 pod list and each pod's composition (§4) | OQ-16 | Puneet |
-| O-02 | Pod ownership role: Doc 2 grants `skill_owner` at scope `skill`; `role_grant.scope_type` has no `pod`. Proposal: add scope `pod`, or let any skill owner of a pod's skills own the pod | new | Puneet; Gaurav Saini (DDL) |
+| O-02 | Pod ownership role: Doc 2 grants `skill_owner` at scope `skill`; `role_grants.scope_type` has no `pod`. Proposal: add scope `pod`, or let any skill owner of a pod's skills own the pod | new | Puneet; Gaurav Saini (DDL) |
 | O-03 | Workflows for the Quality and Security Pod (`quality-uplift`, `security-review`, `pipeline-check`, `deploy-failure`) do not exist in Doc 3 §7.1; their entry inputs on a codebase with no upstream stories or design are undefined | new | Abhishek Verma, Ekjot Singh; Shubham Bansal (SDD-02) |
 | O-04 | Workflow names differ between Doc 1 FR-WFL-03 and Doc 3 §7.1; pods here use the Doc 3 names | new | Puneet |
 | O-05 | Doc 4 §2.0 lists the pod builder as a portal screen; X-04 forbids building it in Release 1. This document ships only a static card. Confirm | X-04 | Puneet |

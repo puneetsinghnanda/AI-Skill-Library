@@ -96,7 +96,7 @@ Claude supports every owner. It drafts specs, schemas and code for the owner to 
 
 - **Per-artifact body schemas.** We have the envelope for `design.v1`, `intent.v1` and so on, but not the required sections and fields inside each one.
 - **The skill content.** Not one SKILL.md, scoring checklist (rubric) or eval case has been written.
-- **The context extractors.** Nothing defines how `tsl init-context` builds `module-map.json` or `api-inventory.json` for Java, Node, Python or C.
+- **The context extractors.** Nothing defines how `tsl init-context` (now `tsl context build`) builds `module-map.json` or `api-inventory.json` for Java, Node, Python or C.
 - **The portal read API** (see Q10).
 - **The orchestrator** (see Q3).
 - **Exact tsl behaviour** for each flag and edge case: Doc 5 is a summary, not a spec.
@@ -112,7 +112,7 @@ Claude supports every owner. It drafts specs, schemas and code for the owner to 
 
 - The `skill-metadata.v1` example (Doc 5 §3.2).
 - `tsl validate`, `/truminds:eval` and the publish story US-15.
-- Status values (experimental, production, deprecated).
+- Status values (now `draft`, `pilot`, `production`, `deprecated`, SDD-01 §7).
 - Version rules.
 - The rule that an improvement must start with a failing eval case.
 

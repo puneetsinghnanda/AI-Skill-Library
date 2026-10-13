@@ -40,7 +40,7 @@ Oct 6, 2026 · @Puneet Singh Nanda
 | Interactive prototype + all screens (canvas) | [Truminds AI Skill Library — Web UI](prototype/README.md) | 13 screens + persona map; Business/Engineer switch works in Play |
 | Figma file | [Figma: Web UI (UX design)](https://www.figma.com/design/bMcqK99UQTiGOIf4G6PT4Z) | Brand variables, top-nav component, 3 screens (Home ×2, How it works). Paused: View seat hit the Figma tool-call limit |
 
-**Screens:** Home (Business), Home (Engineer), How it works, Skill catalogue (search + role filter), Skill detail, Get started (GitHub + plugin install), Pod catalogue, Pod detail, Pod builder (Phase 3 preview), Insights: Business impact + capability map, Insights: Engineering monitoring (runs, skill performance, usage, health), Run detail, Persona map.
+**Screens:** Home (Business), Home (Engineer), How it works, Skill catalogue (search + role filter), Skill detail, Get started (prerequisites, `tsl` install, `tsl login`, first run), Pod catalogue, Pod detail, Pod builder (Phase 3 preview), Insights: Business impact + capability map, Insights: Engineering monitoring (runs, skill performance, usage, health), Run detail, Persona map.
 
 **Persona rules:** Business never sees run ids, tickets, repos, engineer or client names. Engineers see only their projects; other engineers appear as pseudonyms unless the viewer leads the team. Run detail is engineers-only.
 
@@ -87,11 +87,11 @@ flowchart LR
 | Screen | Purpose | Business unit sees | Engineers see | Main actions |
 | --- | --- | --- | --- | --- |
 | **Home: Business** | Explain the library and what to sell | Hero ("Reusable AI skills that deliver the whole SDLC, with proof at every step") with a sample checked-step card; 4 impact numbers; 4 building blocks (Skills, Workflows, Pods, Quality harness); search; 8 role tiles with skill counts; domain chips; 3 featured pods; call to action band | n/a (Engineers land on Home: Engineer) | See how it works · Explore pods · Role tile → Skills · View pod · Open capability map · Request a pilot |
-| **Home: Engineer** | Daily work view | n/a | Header with Install plugin, Open GitHub repo and a copyable run command; 4 personal numbers (active runs, waiting on me, first-try pass, PRs); My runs table; skills for my role; Waiting on me (questions, approvals); What's new (skill and plugin releases); My systems (context pack fresh or stale) | Install plugin → Get started · Run id → Run detail · Skill card → Skill detail · All runs → Insights |
-| **How it works** | One story for everyone | Flow strip of 7 steps; 7 step cards, each with "For the client" text; the six harness outcomes; where things live (laptop, companion repo, portal) | Same, but each step card shows the command it uses (`tsl init-context`, `/truminds:run`, `/truminds:resume`, `tsl pr`, `/truminds:improve`) | None (reading page) |
+| **Home: Engineer** | Daily work view | n/a | Header with Get set up, Open GitHub repo and a copyable run command; 4 personal numbers (active runs, waiting on me, first-try pass, PRs); My runs table; skills for my role; Waiting on me (questions, approvals); What's new (skill and plugin releases); My systems (context pack fresh or stale) | Get set up → Get started · Run id → Run detail · Skill card → Skill detail · All runs → Insights |
+| **How it works** | One story for everyone | Flow strip of 7 steps; 7 step cards, each with "For the client" text; the six harness outcomes; where things live (laptop, companion repo, portal) | Same, but each step card shows the command it uses (`tsl init` and `tsl context build`, `/truminds:run`, `/truminds:resume`, `tsl pr`, `/truminds:improve`) | None (reading page) |
 | **Skills** | Find a skill | Search box and role filter chips (live filtering); cards with role, status, title, what it delivers, phase, output | Same cards plus skill id, version and first-try pass rate; "View source on GitHub" | Type to filter · Role chip · Card → Skill detail · Empty state "No skills match" |
-| **Skill detail** (example: Threat model) | Decide to use or offer a skill | Summary, 4 quality numbers, "Why clients care", "What the client receives", pods that include it, one-pager | Run command, SKILL.md on GitHub, Install plugin; tabs: Inputs and outputs, Quality (top failure causes), Versions, Used in workflows | Back to Skills · See the pod · Install plugin · Tabs |
-| **Get started** | Start using the library | 4 steps: share capability map, propose a pod, get written consent, hand over to delivery | 5 steps with commands: add marketplace, install plugin, `tsl login`, clone companion repo, first run; "Before you start" checklist (company seat, Claude Code desktop, SSO, Docker, consent) | Open on GitHub · copy commands |
+| **Skill detail** (example: Threat model) | Decide to use or offer a skill | Summary, 4 quality numbers, "Why clients care", "What the client receives", pods that include it, one-pager | Run command, SKILL.md on GitHub, Get set up; tabs: Inputs and outputs, Quality (top failure causes), Versions, Used in workflows | Back to Skills · See the pod · Get set up · Tabs |
+| **Get started** | Start using the library | 4 steps: share capability map, propose a pod, get written consent, hand over to delivery | Steps with commands (SDD-13 §3): install `tsl` from the hash-checked wheel, open a Local session, `tsl login`, `tsl doctor`, clone the companion repo, first run. The plugin is **not** installed by hand: managed settings install and force-enable it on every company seat (SDD-05 §6.2), and the page only shows how to confirm it is enabled. Manual "add marketplace, install plugin" steps appear only in a collapsed "Development seats only" note (DEV-01 §5). "Before you start" checklist (company seat, Claude Code desktop, SSO, Docker, consent) | Open on GitHub · copy commands |
 
 #### 2.0.3 Pods
 
@@ -400,14 +400,14 @@ Icons are paired with words so meaning never relies on symbol or colour alone.
 | --- | --- | --- | --- |
 | E-AUTH-01 | 10 | Not logged in to Truminds. | Run `tsl login` |
 | E-AUTH-02 | 10 | Your signing key is revoked or unknown. | Run `tsl login` to register a new key; contact admin if it repeats |
-| E-AUTH-03 | 3 | You do not have the engineer role for project `<code>`. | Ask your tech lead or admin for access |
-| E-AUTH-04 | 3 | Only a tech lead can sign the context pack. | Ask the system's tech lead to run `tsl sign-context` |
+| E-AUTH-03 | 3 | You do not have the engineer role for system `<code>`. | Ask your tech lead or admin for access |
+| E-AUTH-04 | 3 | Only a tech lead of this system can do this (`<action>`: sign the pack, `init`, `state unlock`). | Ask the system's tech lead, for example to run `tsl context sign` |
 | E-AUTH-05 | 3 | Approver lacks role `<role>` for gate `<gate>`. | Ask someone with that role to approve |
 | E-AUTH-06 | 3 | You cannot approve a gate on a step you generated. | Ask another tech lead |
 | E-CONS-01 | 3 | No client consent recorded for `<client code>`. | Admin records consent in the portal |
-| E-CTX-01 | 3 | Context pack missing. | Tech lead runs `tsl init-context` then `tsl sign-context` |
-| E-CTX-02 | 0 (warn) | Context pack is stale (drift `<n>` files / age `<d>` days). Band capped at Medium. | `tsl context-refresh` then re-sign |
-| E-CTX-03 | 3 | Pack signature does not verify. | Re-sign with `tsl sign-context` |
+| E-CTX-01 | 3 | Context pack missing. | Tech lead runs `tsl context build`, reviews, then `tsl context sign` |
+| E-CTX-02 | 0 (warn) | Context pack is stale (drift `<n>` files / age `<d>` days). Band capped at Medium. | `tsl context build` then re-sign with `tsl context sign` |
+| E-CTX-03 | 3 | Pack signature does not verify. | Re-sign with `tsl context sign` |
 | E-LOCK-01 | 3 | `<ticket>` / `<workflow>` is locked by `<user>` in `<run_id>`. | Resume if yours; else ask a tech lead to release (`tsl state unlock`) |
 | E-IN-01 | 2 | Required input `<name>` missing for skill `<skill>`. | Provide it or run the upstream step |
 | E-IN-02 | 2 | Input `<artifact>` is stale (H6). | Re-running upstream step `<step>` |
@@ -424,8 +424,24 @@ Icons are paired with words so meaning never relies on symbol or colour alone.
 | E-CI-01 | 2 | PR has code changes but no verification records for run `<id>`. | Run the change through `/truminds:run` |
 | E-CI-02 | 2 | Record signature invalid or signer lacked role at signing time. | Re-run the step |
 | E-CI-03 | 2 | CI re-run of code checks differs from laptop result. | Investigate; re-run the step |
+| E-HOOK-01 | deny (hook) | Write blocked: `tsl` is missing, the wrong version, or did not answer while a run is active. | Run the shown command: `uv tool install "truminds-tsl @ <wheel URL>"`; then `tsl doctor` |
+| E-DEP-01 | 0 (warn) | `<thing>` is deprecated and will be removed in `<version>`. | Use `<replacement>` |
+| E-AUTH-08 | 3 / 403 | Your account has no Truminds app role, or it is deactivated. | Ask your manager to request access (SDD-13 §3.2) |
+| E-KEY-03 | 409 | Key id already registered with another public key. | Repeat `tsl login` (a new id is generated) |
+| E-KEY-04 | 404 | Key not found, or not yours. | `tsl keys list` |
+| E-KEY-05 | 10 | Your signing key expired. | `tsl keys rotate` |
+| E-KEY-06 | 422 | `compromised_since` is outside the key's life, or later than the stored value. | Correct the time |
+| E-ADM-01 | 403 | An admin cannot grant a role to themselves. | Ask another admin |
+| E-API-01 | 400 | Invalid filter or parameter. | Reset filters |
+| E-API-02 | 401 | Your sign-in expired. | Sign in again (automatic refresh first) |
+| E-API-03 | 403 | You do not have access to this view. | Ask an admin for the role |
+| E-API-04 | 404 | Not found. | Back to the list |
+| E-API-05 | 429 | Too many requests. | Wait and retry (`Retry-After`) |
+| E-API-06 | 503 | Insights are temporarily unavailable. | Retry later; quote the request id |
 
-Exit codes: 0 ok · 1 usage · 2 check failed (fed back to Claude) · 3 blocked/auth · 4 paused · 5 abort · 10 auth/network.
+Exit codes: 0 ok · 1 usage · 2 check failed (fed back to Claude) · 3 blocked/auth · 4 paused · 5 abort · 10 auth/network. Codes with an HTTP status come from the insights service and are shown by `tsl` or the portal. "deny (hook)" means the hook returns a deny decision to Claude Code.
+
+This table holds the codes users meet most often. The full catalogue, with every code, its owner and its exit or HTTP status, is the [registry](../architecture/registry.md) §2; `tsl/errors.py` must match it.
 
 ## 6. Design tokens, accessibility and content rules
 

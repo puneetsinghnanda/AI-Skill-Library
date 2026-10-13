@@ -116,6 +116,38 @@ services/insights/
 
 The api never blocks on projection. A request is done once the raw row is committed.
 
+### 3.3 Endpoint list (complete)
+
+This is the full list of routes the service serves. Write routes are specified in this document; other rows point to the owning document. The [registry](../architecture/registry.md) §4 is canonical. Token audience for every Entra route is the `truminds-insights-api` application (client) ID (v2 tokens, SDD-07 §9).
+
+| Method | Path | Auth scope / credential | Roles | Spec |
+| --- | --- | --- | --- | --- |
+| POST | `/v1/events` | `Events.Write`; CI ingest token (`ci.verified` only) | App role Engineer, TechLead or Admin | §4 |
+| POST | `/otel/v1/metrics`, `/otel/v1/logs` | OTel ingest token | — | §5 |
+| POST | `/v1/webhooks/github` | GitHub HMAC | — | §6.1 |
+| POST | `/v1/keys` | `Events.Write` | App role Engineer, TechLead or Admin | §6.2, SDD-07 §5.2 |
+| GET | `/v1/keys/{key_id}?at=&system=` | `Events.Write` or CI ingest token | Any | §6.2 |
+| POST | `/v1/keys/{key_id}/revoke` | `Events.Write` or `Portal.Write` | Key owner; `admin` | SDD-07 §5.6 |
+| GET | `/v1/me/keys` | `Events.Write` or `Portal.Read` | Own keys | SDD-07 §5.5 |
+| POST | `/v1/signatures/verify` | CI ingest token or `Events.Write` | Any | SDD-07 §7.2 |
+| GET | `/v1/me` | `Events.Write` or `Portal.Read` | Any | §3.1; fields SDD-09 §5.6.1 |
+| GET | `/v1/systems/{code}` | `Events.Write` | `engineer` or `tech_lead` on the system; `admin` | SDD-12 §5.3 |
+| GET | `/v1/policy/denylist` | `Events.Write` or CI ingest token | Any | SEC-01 §7.4 |
+| GET | `/v1/health`, `/v1/health/ready` | none | — | §11.1, OPS-02 §4 |
+| GET | `/v1/status` | `Portal.Read` | Any | SDD-09 E02 |
+| GET | `/v1/catalogue/summary`, `/v1/catalogue/skills`, `/v1/catalogue/skills/{skill_id}`, `/v1/catalogue/releases`, `/v1/catalogue/pods` | `Portal.Read` | Any (class A) | SDD-09 E03–E05, E07, E08 |
+| GET | `/v1/catalogue/skills/{skill_id}/quality` | `Portal.Read` | Engineer family (scope); skill owners | SDD-09 E06 |
+| GET | `/v1/pods/{pod_id}`, `/metrics`, `/one-pager` | `Portal.Read` | Any (fields by role) | SDD-09 E09, E10, E13 |
+| GET | `/v1/pods/{pod_id}/runs`, `/v1/pods/{pod_id}/fit` | `Portal.Read` | Engineer family (scope) | SDD-09 E11, E12 |
+| GET | `/v1/capability-map` | `Portal.Read` | Any (class A) | SDD-09 E14 |
+| GET | `/v1/insights/business` | `Portal.Read` | Any (class A) | SDD-09 E15 |
+| GET | `/v1/me/home` | `Portal.Read` | Engineer family (own) | SDD-09 E16 |
+| GET | `/v1/insights/engineering/runs`, `/skills`, `/usage`, `/health` | `Portal.Read` | Engineer family (scope) | SDD-09 E17–E20 |
+| GET | `/v1/runs`, `/v1/runs/{run_id}` | `Portal.Read` | Engineer family (scope) | SDD-09 E21, E22 |
+| GET | `/v1/improvement/flags`, `/v1/improvement/skills/{skill_id}` | `Portal.Read` | `skill_owner` (own), `eng_lead`, `admin` | SDD-11 §5.4 |
+| PATCH | `/v1/improvement/flags/{flag_id}` | `Portal.Write` | `skill_owner` of the skill | SDD-11 §5.4 |
+| POST | `/v1/admin/clients`, `/v1/admin/clients/{code}/consent`, `/v1/admin/projects`, `/v1/admin/systems`, `/v1/admin/role-grants`, `/v1/admin/role-grants/{id}/revoke`, `/v1/admin/users/{pseudonym}/deactivate` | `Portal.Write` | `admin` | SDD-13 §7.2 |
+
 ## 4. `POST /v1/events`
 
 ### 4.1 Request and response
@@ -124,7 +156,7 @@ Envelope and response are exactly Doc 5 §5.2: up to 500 events, `202` with `Bat
 
 | Item | Rule |
 | --- | --- |
-| Auth | `Authorization: Bearer <Entra access token>` (from `tsl login`, ADR 0002), audience `api://truminds-insights`, scope `Events.Write`; or a CI ingest token (§9.3) that may send only `ci.verified` |
+| Auth | `Authorization: Bearer <Entra access token>` (from `tsl login`, ADR 0002), audience = the `truminds-insights-api` application (client) ID, because the API accepts v2 tokens (`api://truminds-insights/Events.Write` is only the scope string the client requests; SDD-07 §9), scope `Events.Write`; or a CI ingest token (§9.3) that may send only `ci.verified` |
 | Size | Max 500 events and 1 MiB body, else `413` |
 | Rate | 20 requests/s per user, burst 40; `429` with `Retry-After` |
 | User | Set from the token's `oid`. A `user` key anywhere in the event is rejected (`E-ING-03`) |
@@ -136,7 +168,7 @@ Envelope and response are exactly Doc 5 §5.2: up to 500 events, `202` with `Bat
 ```mermaid
 sequenceDiagram
   autonumber
-  participant T as tsl outbox flush
+  participant T as tsl events flush
   participant A as api /v1/events
   participant DB as PostgreSQL
   T->>A: POST batch (≤500), Bearer
@@ -159,7 +191,7 @@ A duplicate counts as success, so the client deletes it from the outbox (Doc 5 R
 | E-ING-01 | per event | Envelope or body fails its JSON Schema | Move to `dead/` |
 | E-ING-02 | per event | Unknown `schema_version` for this type (Doc 3 §9.2: service reads N and N-1) | Keep queued; upgrade `tsl` |
 | E-ING-03 | per event | Forbidden field (`user`, `email`, `name`) present | Move to `dead/`; bug in `tsl` |
-| E-ING-04 | per event | Free-text field failed the deny-list (§4.4) | Move to `dead/`; raises alert A-18 in OPS-02 |
+| E-ING-04 | per event | Free-text field failed the deny-list (§4.4) | Move to `dead/`; raises alert AL-18 in OPS-02 |
 | E-ING-05 | per event | Token kind not allowed to send this type (for example a CI token sending `run.started`) | Move to `dead/` |
 | E-ING-06 | 400 | Batch is not JSON, or `events` missing | Client bug |
 | E-ING-07 | 401 | Token invalid, expired, wrong audience or tenant | `tsl login` (E-AUTH-01 on the client) |
@@ -181,7 +213,7 @@ All bodies are closed objects. **New** marks a field or type that Doc 5 §5.3 do
 
 | Type | Body fields (type; R = required) | Sent by |
 | --- | --- | --- |
-| `session.started` **new** | `session_id` str R · `device_id` str R (`dev_` + 16 hex, a hash `tsl` derives from the OS machine id and the user; never the raw id) · `plugin_version` semver R · `tsl_version` semver R · `os` enum `macos\|windows\|linux` R · `outbox_depth` int R · `outbox_oldest_at` date-time or null R | session-start hook |
+| `session.started` **new** | `session_id` str R · `device_id` str R (`dev_<ULID>`, created by `tsl` at first login and stored in `config.toml`, SDD-04 §7.1; never an OS machine id) · `plugin_version` semver R · `tsl_version` semver R · `os` enum `macos\|windows\|linux` R · `outbox_depth` int R · `outbox_oldest_at` date-time or null R | session-start hook |
 | `session.ended` | `session_id` R · `device_id` R · `outbox_depth` int R · `outbox_oldest_at` R · `active_run` bool | session-end hook (SDD-05 §5.3) |
 | `run.started` | `workflow` R · `workflow_version` R · `ticket_ref` R · `system` (code) R · `plugin_version` R · `pinned_skills` object `{skill: version}` R · `session_id` **new** · `pod` (pod id) **new** · `pack_fresh` bool **new** | `tsl state start` |
 | `run.status_changed` | `from` R · `to` R (run states, Doc 3 §4.1) · `reason_code` R (`answered`, `approved`, `completed`, `aborted`, or an error code such as `E-SEC-01`) · `gate` **new** · `step` **new** · `session_id` **new** | `tsl state` |
@@ -189,14 +221,19 @@ All bodies are closed objects. **New** marks a field or type that Doc 5 §5.3 do
 | `step.decided` | Doc 5 fields: `step`, `skill`, `skill_version`, `attempt`, `outcome`, `band`, `signals`, `caps[]`, `gate_failures[]`, `findings_count{blocker,major,minor}`, `duration_ms`, `verification_sha256` (all R) · plus **new**: `seq` int R · `reasons[]` enum codes R (§6.3 cause codes) · `findings_dropped[]` finding ids only · `key_id` R · `decided_by` (`tsl@x.y.z`) R · `session_id` | `tsl decide` |
 | `question.created` | `step` R · `question_id` R · `blocking` bool R · `ask_role` enum `product_owner\|tech_lead\|sme\|client` R · `evidence_ref` **new** | `tsl decide` |
 | `question.answered` | `step` R · `question_id` R · `age_s` int R · `accepted_default` bool | `tsl state resume` |
-| `approval.recorded` | `gate` R · `decision` enum `approve\|reject\|changes` R · `approver_role` R · `step` **new** | `tsl approve` |
+| `approval.recorded` | `gate` R · `decision` enum `approve\|reject\|changes` R · `approver_role` R · `step` **new** · `signature_block_sha256` **new** R · `key_id` **new** R (SDD-07 §7.2) | `tsl approve` |
 | `hook.decision` | `hook` enum `session-start\|pre-tool\|pre-mcp\|post-write\|session-end` R · `decision` enum `allow\|deny\|feedback` R · `code` (error code or null) R · `tool_kind` **new** enum `write\|edit\|bash\|mcp_read\|mcp_write\|other` · `session_id` | hooks |
 | `pr.opened` | `repo` (tsl.yaml product repo name) R · `number` R · `draft` R · `lowest_band` R | `tsl pr` |
 | `ci.verified` | `repo` R · `number` R · `result` enum `pass\|fail` R · `codes[]` R · `head_sha` **new** R | `tsl ci-verify` (CI token) |
-| `context.signed` | `system` R · `age_days` R · `drift_files` R · `status` **new** enum `fresh\|stale` R | `tsl sign-context` |
-| `context.drift` | same as `context.signed` | `tsl context-refresh` |
-| `eval.recorded` | `skill` R · `version` R · `cases` R · `pass_rate` R · `key_id` **new** R | `tsl eval record` |
+| `context.signed` | `system` R · `age_days` R · `drift_files` R · `status` **new** enum `fresh\|stale` R · `signature_sha256` **new** R · `key_id` **new** R (SDD-07 §7.2) | `tsl context sign` |
+| `context.drift` | `system` R · `age_days` R · `drift_files` R · `status` R | `tsl context build --check` |
+| `eval.recorded` | `skill` R · `version` R · `cases` R · `pass_rate` R · `key_id` **new** R · `result_sha256` **new** R (SDD-07 §7.2) | `tsl eval run` |
 | `security.abort` | `code` R · `step` R | `tsl decide`, hooks |
+| `step.invalidated` **new** | `step` R · `cause_step` R · `reason` R | `tsl next` (SDD-02 §12) |
+| `audit.recorded` **new** | `step` R · `verdict` enum `deserved\|miss` R · `reason_code` R | `tsl` calibration audit (SDD-03 §16.3) |
+| `companion.lifecycle` **new** | `system` R · `from` R · `to` R · `reason_code` R | `tsl init`, `tsl companion archive` (SDD-12 §9) |
+| `companion.policy_violation` **new** | `system` R · `code` R (E-COMP-*) | companion CI (SDD-12 §6.4) |
+| `improvement.proposed` **new** | `improvement_id` R · `skill` R · `from_version` R · `to_version` R · `flag_ids[]` R · `before_pass_rate` R · `after_pass_rate` R · `cases_added` R | `tsl improve pr` (SDD-11 §10) |
 
 `hook.decision` and `session.*` events may have no `run_id`. All others with a run carry it in the envelope.
 
@@ -276,19 +313,22 @@ SDD-07 owns the key lifecycle. This is the wire contract the service implements.
   "key_id": "key_01J9ZK...",            // client-made ULID
   "algorithm": "Ed25519",
   "public_key": "base64url(32 bytes)",
-  "device_id": "dev_4f2a9c0e11b2d3aa",
+  "device_id": "dev_01J9ZK2M4Q8X7T3B5N6R0VWYCE", // dev_<ULID> (SDD-04 §7.1)
+  "device_label": "laptop-4f2a",         // optional, ≤ 40 chars, not in the proof (SDD-07 §5.2)
+  "iat": "2026-01-01T09:00:00Z",         // signing time of the proof; must be within 5 minutes of server time
   "proof": "base64url(signature)"       // Ed25519 over JCS({key_id, public_key, device_id, sub: <token oid>, iat})
 }
 ```
 
 | Response | When |
 | --- | --- |
-| `201 {key_id, pseudonym, roles[]}` | New key. Any earlier active key of the same user and device gets `revoked_at=now()`, `revoked_reason='replaced'` (R-06) |
+| `201 {key_id, pseudonym, roles[], expires_at}` | New key. Any earlier active key of the same user and device gets `revoked_at=now()`, `revoked_reason='replaced'` (R-06) |
 | `200` same body | Same `key_id` and same public key already stored (idempotent retry) |
-| `409 E-KEY-01` | Same `key_id`, different public key |
+| `409 E-KEY-03` | Same `key_id`, different public key (E-KEY-01 is the `tsl` keychain error, SDD-04 §5) |
 | `400 E-KEY-02` | Proof does not verify, or `iat` older than 5 minutes |
+| `403 E-AUTH-08` | No Truminds app role, or user inactive (SDD-07 §5.2) |
 
-`GET /v1/keys/{key_id}?at=<date-time>&system=<code>` (Bearer or CI token) returns `{key_id, public_key, user_pseudonym, created_at, revoked_at, roles_at: [...]}`. `roles_at` lists the roles the key's user held on that system at `at`, read from `role_grants` history, so `tsl ci-verify` can apply Doc 5 R-07.
+`GET /v1/keys/{key_id}?at=<date-time>&system=<code>` (Bearer or CI token) returns `{key_id, public_key, user_pseudonym, created_at, expires_at, revoked_at, revoked_reason, compromised_since, roles_at: [...]}`. `roles_at` lists the roles the key's user held on that system at `at`, read from `role_grants` history, so `tsl ci-verify` can apply Doc 5 R-07.
 
 ### 6.3 Failure-cause codes
 
@@ -310,8 +350,8 @@ SDD-07 owns the key lifecycle. This is the wire contract the service implements.
 Tracker Q10 asked whether the portal reads the marketplace repo directly or syncs it. **Decision: sync into the database.** The read API then needs no GitHub token, and catalogue rows can be joined to run data.
 
 - Trigger: `release` webhook (action `published`) from the marketplace repo, plus an hourly poll of the latest `vX.Y.Z` tag as a fallback.
-- Source: the release tag's tree, read with a read-only token: `plugins/truminds/skills/*/skill-metadata.yaml`, `plugins/truminds/workflows/*.yaml`, `pods/*.yaml` (SDD-10) and `CHANGELOG.md`.
-- Each file is validated against its schema. A bad file skips that item and raises alert A-19 (OPS-02); the rest still sync.
+- Source: the release tag's tree, read with a read-only token: `plugins/truminds/skills/*/skill.yaml` (schema `skill-metadata.v1`), `plugins/truminds/workflows/*.yaml`, `pods/*.yaml` (SDD-10) and `CHANGELOG.md`.
+- Each file is validated against its schema. A bad file skips that item and raises alert AL-19 (OPS-02); the rest still sync.
 - Writes `catalogue_releases`, `skills`, `skill_versions`, `workflows`, `workflow_versions`, `workflow_steps`, `pods`, `pod_versions` in one transaction. Old versions are kept.
 
 The portal needs fields that `skill-metadata.v1` does not have yet: `title`, `summary`, `phase`, `domains[]`, and a `portal` block (`why_clients_care[]`, `client_receives[]`). SDD-01 must add them (§13).
@@ -436,10 +476,10 @@ Retention of signed records in companion repos is NFR-16 and is not affected.
 
 | Caller | Credential | Allowed |
 | --- | --- | --- |
-| `tsl` (engineer laptop) | Entra access token from the device-code flow (ADR 0002), scope `Events.Write` | `POST /v1/events`, `POST /v1/keys`, `GET /v1/keys/*`, `GET /v1/me` |
-| Portal (browser) | Entra access token from auth code + PKCE, scope `Portal.Read` | Read API (SDD-09) and `GET /v1/me` |
+| `tsl` (engineer laptop) | Entra access token from the device-code flow (ADR 0002), scope `Events.Write` | `POST /v1/events`, `POST /v1/keys`, `GET /v1/keys/*`, `POST /v1/keys/{key_id}/revoke`, `GET /v1/me`, `GET /v1/me/keys`, `POST /v1/signatures/verify`, `GET /v1/systems/{code}`, `GET /v1/policy/denylist` |
+| Portal (browser) | Entra access token from auth code + PKCE, scope `Portal.Read`; `Portal.Write` for the few write routes | Read API (SDD-09) and `GET /v1/me` with `Portal.Read`; `PATCH /v1/improvement/flags/{flag_id}`, `POST /v1/keys/{key_id}/revoke` and `/v1/admin/*` with `Portal.Write` (§3.3) |
 | Claude Code OTel exporter | OTel ingest token | `/otel/v1/*` only |
-| `tsl-ci-verify` action | CI ingest token | `POST /v1/events` with `ci.verified` only; `GET /v1/keys/*` |
+| `tsl-ci-verify` action | CI ingest token | `POST /v1/events` with `ci.verified` only; `GET /v1/keys/*`; `POST /v1/signatures/verify`; `GET /v1/policy/denylist` |
 | GitHub | HMAC secret per hook | `/v1/webhooks/github` only |
 
 Token validation uses Microsoft's published OIDC metadata and JWKS through a maintained JWT library (PyJWT). No custom crypto and no local passwords (C-05, X-07). There are no admin, debug or bypass endpoints. Every endpoint is in the published OpenAPI file, apart from the OTLP paths (protocol-defined, listed in §5.1) and `/metrics` on the internal port (OPS-02 §4).
@@ -471,6 +511,9 @@ Token validation uses Microsoft's published OIDC metadata and JWKS through a mai
 | `insights_owner` | DDL; used only by the `migrate` job |
 | `insights_app` | DML on all tables; used by `api` ingest routes and `worker` |
 | `insights_read` | `SELECT` on core tables, counter tables and views; **no** access to `events_raw`, `otel_events`, `ingest_tokens`, `github_hooks`, or the encrypted user columns. Used by read-API routes |
+| `insights_reveal` | `SELECT (id, display_name_enc, enc_key_id, erased_at) ON users` only. Used for the audited name reveal (SDD-09 §5.3) |
+
+`audit_log` is append-only: `insights_app` has `INSERT` and `SELECT` on it, never `UPDATE` or `DELETE` (SEC-01 §10, SEC-T-28).
 
 ## 10. Database (PostgreSQL 16)
 
@@ -517,6 +560,9 @@ CREATE TABLE users (
   pseudonym        text NOT NULL UNIQUE CHECK (pseudonym ~ '^eng-[0-9a-f]{4,8}$'),
   display_name_enc bytea, email_enc bytea, email_hmac bytea, enc_key_id text,
   agent_role       text,                                   -- e.g. developer; drives "Skills for your role"
+  app_roles        text[] NOT NULL DEFAULT '{}',           -- Entra app roles from the last token (SDD-07 §3.4)
+  roles_synced_at  timestamptz,                            -- last app-role sync, at most every 10 min (SDD-07 §3.4)
+  github_login     text,                                   -- later phase: automated GitHub team sync (SDD-13 §7.3)
   active           boolean NOT NULL DEFAULT true,
   created_at       timestamptz NOT NULL DEFAULT now(),
   erased_at        timestamptz,
@@ -527,6 +573,8 @@ CREATE TABLE clients (
   code text NOT NULL UNIQUE CHECK (code ~ '^CL-[0-9A-Z]{2,8}$'),
   display_name_enc bytea NOT NULL,                         -- admin views only
   consent_ref text, consent_recorded_at timestamptz,
+  consent_scope text[] NOT NULL DEFAULT '{}',              -- e.g. code_processing, companion_storage, product_prs, ci_webhook (SDD-12 §7)
+  consent_withdrawn_at timestamptz,                        -- SDD-13 §7.2
   created_at timestamptz NOT NULL DEFAULT now());
 
 CREATE TABLE projects (
@@ -543,6 +591,8 @@ CREATE TABLE systems (
   pack_status text NOT NULL DEFAULT 'missing' CHECK (pack_status IN ('fresh','stale','missing')),
   pack_signed_at timestamptz, pack_signed_by uuid REFERENCES users,
   pack_drift_files int, pack_status_at timestamptz,
+  lifecycle_state text NOT NULL DEFAULT 'PROVISIONED',    -- values owned by SDD-12 §9.1
+  archived_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now());
 
 CREATE TABLE system_repos (
@@ -567,9 +617,24 @@ CREATE UNIQUE INDEX role_grants_active ON role_grants (user_id, role, scope_type
 CREATE TABLE keys (
   key_id text PRIMARY KEY CHECK (key_id ~ '^key_[0-9A-HJKMNP-TV-Z]{26}$'),
   user_id uuid NOT NULL REFERENCES users,
-  device_id text NOT NULL, public_key bytea NOT NULL CHECK (octet_length(public_key) = 32),
-  created_at timestamptz NOT NULL DEFAULT now(), revoked_at timestamptz, revoked_reason text);
+  device_id text NOT NULL CHECK (device_id ~ '^dev_[0-9A-HJKMNP-TV-Z]{26}$'),
+  device_label text CHECK (char_length(device_label) <= 40),          -- SDD-07 §5.2
+  public_key bytea NOT NULL CHECK (octet_length(public_key) = 32),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz NOT NULL,                                     -- created_at + max age (SDD-07 §5.1)
+  revoked_at timestamptz,
+  revoked_reason text CHECK (revoked_reason IN ('replaced','user_request','offboarded','admin_other','lost_device','compromised')),
+  compromised_since timestamptz,                                       -- may only move earlier (SDD-07 §5.6)
+  revoked_by uuid REFERENCES users,
+  revoke_note text CHECK (char_length(revoke_note) <= 200));
 CREATE UNIQUE INDEX keys_one_active ON keys (user_id, device_id) WHERE revoked_at IS NULL;  -- R-06
+
+CREATE TABLE signature_anchors (                           -- SDD-07 §7.2: server time for each signed object
+  sha256      text PRIMARY KEY CHECK (sha256 ~ '^[0-9a-f]{64}$'),
+  kind        text NOT NULL CHECK (kind IN ('verification','approval','pack','eval')),
+  key_id      text NOT NULL REFERENCES keys,
+  event_id    text NOT NULL,
+  anchored_at timestamptz NOT NULL);                       -- received_at of the first event carrying it
 
 CREATE TABLE devices (
   device_id text PRIMARY KEY, user_id uuid NOT NULL REFERENCES users,
@@ -606,7 +671,7 @@ CREATE TABLE skills (
 
 CREATE TABLE skill_versions (
   skill_id text NOT NULL REFERENCES skills, version text NOT NULL,
-  status text NOT NULL CHECK (status IN ('experimental','production','deprecated')),   -- portal label: experimental = "Pilot"
+  status text NOT NULL CHECK (status IN ('draft','pilot','production','deprecated')),   -- SDD-01 §7 lifecycle words
   inputs jsonb NOT NULL, outputs jsonb NOT NULL, context_sections jsonb NOT NULL DEFAULT '[]',
   size_budget_tokens int, allowed_tools text[] NOT NULL DEFAULT '{}',
   portal jsonb NOT NULL DEFAULT '{}',                      -- why_clients_care[], client_receives[]
@@ -627,24 +692,42 @@ CREATE TABLE workflow_steps (
   PRIMARY KEY (workflow_id, version, seq),
   FOREIGN KEY (workflow_id, version) REFERENCES workflow_versions);
 
-CREATE TABLE pods (
+CREATE TABLE pods (                                        -- table names: this document; values: SDD-10 §3
   id text PRIMARY KEY, title text NOT NULL,
-  status text NOT NULL CHECK (status IN ('available','pilot','preview','retired')),
+  kind text NOT NULL CHECK (kind IN ('brownfield','greenfield','quality','ux')),
+  status text NOT NULL CHECK (status IN ('draft','pilot','production','deprecated')),   -- status of current_version
+  owner_pseudonym text,
   current_version text);
 CREATE TABLE pod_versions (
   pod_id text NOT NULL REFERENCES pods, version text NOT NULL,
-  definition jsonb NOT NULL,      -- pod.v1 (SDD-10): agents[{role,count,job,skills[]}], workflows[], people_accountable[],
-                                  -- best_for, good_fit[], client_gets[], one_pager_path
+  status text NOT NULL CHECK (status IN ('draft','pilot','production','deprecated')),
+  definition jsonb NOT NULL,      -- the validated pod.yaml (pod.v1, SDD-10 §3) plus one_pager_md (≤ 20 KB, SDD-09 §12)
+  source_sha text NOT NULL,       -- skill-library commit of the release tag
   published_at timestamptz, PRIMARY KEY (pod_id, version));
+CREATE TABLE pod_agents (
+  pod_id text NOT NULL, version text NOT NULL, agent_key text NOT NULL,
+  role text NOT NULL, display_name text NOT NULL, engineers int NOT NULL,
+  PRIMARY KEY (pod_id, version, agent_key),
+  FOREIGN KEY (pod_id, version) REFERENCES pod_versions);
+CREATE TABLE pod_agent_skills (
+  pod_id text NOT NULL, version text NOT NULL, agent_key text NOT NULL, skill_id text NOT NULL REFERENCES skills,
+  skill_range text NOT NULL, cross_role boolean NOT NULL DEFAULT false,
+  PRIMARY KEY (pod_id, version, agent_key, skill_id),
+  FOREIGN KEY (pod_id, version, agent_key) REFERENCES pod_agents);
+CREATE TABLE pod_workflows (
+  pod_id text NOT NULL, version text NOT NULL, workflow_id text NOT NULL, workflow_range text NOT NULL,
+  PRIMARY KEY (pod_id, version, workflow_id),
+  FOREIGN KEY (pod_id, version) REFERENCES pod_versions);
 
 -- ===== Runs (projected from events) =====
 CREATE TABLE runs (
   id text PRIMARY KEY CHECK (id ~ '^run_[0-9A-HJKMNP-TV-Z]{26}$'),
   system_id uuid REFERENCES systems, project_id uuid REFERENCES projects,   -- project denormalised for filters
-  workflow_id text, workflow_version text, pod_id text REFERENCES pods,
+  workflow_id text, workflow_version text, pod_id text REFERENCES pods, pod_version text,   -- pod pinned at start (SDD-10 §5)
   ticket_ref text, user_id uuid REFERENCES users,
   status text CHECK (status IN ('RUNNING','PAUSED_INPUT','PAUSED_APPROVAL','COMPLETED')),
-  end_reason text CHECK (end_reason IN ('completed','aborted')), end_code text,
+  end_reason text CHECK (end_reason IN ('pr_opened','completed','aborted','rejected','cancelled','lock_released','archived')),  -- SDD-02 §5.1, SDD-12 §8.2
+  end_code text,
   current_step_id text, current_seq int, lowest_band text CHECK (lowest_band IN ('High','Medium','Low')),
   plugin_version text, pack_fresh boolean,
   started_at timestamptz, status_changed_at timestamptz, completed_at timestamptz, updated_at timestamptz,
@@ -663,6 +746,7 @@ CREATE INDEX ON run_sessions (session_id);
 CREATE TABLE steps (
   run_id text NOT NULL REFERENCES runs, step_id text NOT NULL, attempt int NOT NULL CHECK (attempt >= 1),
   seq int, skill_id text, skill_version text,
+  attempt_cause text,                                      -- from step.decided.cause (SDD-02 §5.3; used by SDD-11)
   started_at timestamptz, decided_at timestamptz,
   outcome text CHECK (outcome IN ('PASS','PASS-WITH-FINDINGS','RETRY','NEEDS-INPUT','ESCALATE','ABORT')),
   band text CHECK (band IN ('High','Medium','Low')),
@@ -725,6 +809,7 @@ CREATE TABLE run_usage (                                   -- from OTel, attribu
 
 -- ===== Raw intake =====
 CREATE TABLE event_ids (event_id text PRIMARY KEY, received_at timestamptz NOT NULL);  -- idempotency key (R-05)
+CREATE INDEX ON event_ids (received_at);                   -- "last event received" for GET /v1/status (SDD-09 §5.6.2)
 
 CREATE TABLE events_raw (
   event_id text NOT NULL, received_at timestamptz NOT NULL DEFAULT now(),
@@ -770,10 +855,12 @@ CREATE TABLE agg_user_month (month date, user_id uuid, PRIMARY KEY (month, user_
 -- ===== Support =====
 CREATE TABLE cause_labels (code text PRIMARY KEY, label text NOT NULL);   -- seeded from §6.3
 CREATE TABLE view_refresh_log (view_name text PRIMARY KEY, refreshed_at timestamptz NOT NULL, duration_ms int NOT NULL);
-CREATE TABLE audit_log (
+CREATE TABLE audit_log (                                   -- the one admin and security action log (SEC-01 §10 calls it audit_log too)
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, at timestamptz NOT NULL DEFAULT now(),
-  actor_user_id uuid NOT NULL, action text NOT NULL,       -- reveal_names, token_create, token_revoke, erase_user
-  target text, detail jsonb NOT NULL DEFAULT '{}');
+  actor_user_id uuid NOT NULL, action text NOT NULL,       -- values: registry §7 (reveal_names, key_revoke, role_grant, ...)
+  target_type text, target text,                           -- e.g. 'key', 'key_01J9...'
+  before jsonb, after jsonb, reason text,                  -- SEC-01 §10, SDD-07 §5.6
+  detail jsonb NOT NULL DEFAULT '{}');
 ```
 
 Composite primary keys that include nullable columns (`agg_monthly`, `hook_daily`) use the sentinel `''` (text) or the nil UUID instead of NULL.
@@ -785,7 +872,7 @@ Refreshed by `jobs/refresh_views` every 5 minutes with `REFRESH MATERIALIZED VIE
 ```sql
 -- Step decisions by day, project, system and skill version.
 CREATE MATERIALIZED VIEW mv_skill_daily AS
-SELECT s.decided_at::date AS day, r.project_id, r.system_id, s.skill_id, s.skill_version,
+SELECT s.decided_at::date AS day, r.project_id, r.system_id, coalesce(r.pod_id,'') AS pod_id, s.skill_id, s.skill_version,
   count(*)                                                     AS decisions,
   count(*) FILTER (WHERE s.attempt = 1)                        AS first_attempts,
   count(*) FILTER (WHERE s.attempt = 1 AND s.outcome IN ('PASS','PASS-WITH-FINDINGS')) AS first_try_pass,
@@ -801,8 +888,8 @@ SELECT s.decided_at::date AS day, r.project_id, r.system_id, s.skill_id, s.skill
   count(DISTINCT (s.run_id, s.step_id))                        AS step_instances
 FROM steps s JOIN runs r ON r.id = s.run_id
 WHERE s.decided_at IS NOT NULL AND s.skill_id IS NOT NULL
-GROUP BY 1,2,3,4,5;
-CREATE UNIQUE INDEX ON mv_skill_daily (day, project_id, system_id, skill_id, skill_version);
+GROUP BY 1,2,3,4,5,6;
+CREATE UNIQUE INDEX ON mv_skill_daily (day, project_id, system_id, pod_id, skill_id, skill_version);   -- pod_id: SDD-09 §12
 
 -- First-attempt failure causes (Quality tab, top failure cause).
 CREATE MATERIALIZED VIEW mv_cause_daily AS
@@ -828,7 +915,7 @@ CREATE UNIQUE INDEX ON mv_override_daily (day, project_id, system_id, skill_id, 
 CREATE MATERIALIZED VIEW mv_run_daily AS
 SELECT r.started_at::date AS day, r.project_id, r.system_id, r.workflow_id,
   coalesce(r.pod_id,'') AS pod_id, count(*) AS runs_started,
-  count(*) FILTER (WHERE r.end_reason = 'completed') AS runs_completed,
+  count(*) FILTER (WHERE r.end_reason IN ('pr_opened','completed')) AS runs_completed,
   count(*) FILTER (WHERE r.end_reason = 'aborted')   AS runs_aborted
 FROM runs r WHERE r.started_at IS NOT NULL
 GROUP BY 1,2,3,4,5;
@@ -873,7 +960,7 @@ CREATE UNIQUE INDEX ON mv_pod_engagement (pod_id, system_id);
 CREATE VIEW v_capability_map AS
 SELECT k.agent_role, k.phase, k.id AS skill_id, k.title, v.status
 FROM skills k JOIN skill_versions v ON v.skill_id = k.id AND v.version = k.current_version
-WHERE v.status IN ('production','experimental');
+WHERE v.status IN ('production','pilot');
 
 CREATE VIEW v_run_waiting AS                               -- "Waiting on me", "oldest waiting"
 SELECT r.id AS run_id, r.system_id, r.user_id, 'question' AS kind, q.question_id AS item, q.created_at AS since, q.ask_role AS needs_role
@@ -901,7 +988,7 @@ SDD-09 refers to these ids. "Period" is the filter the screen applies. Every rat
 | M-08 | Engineers using the library | Distinct `user_id` with `runs_started > 0` | `user_daily`, `agg_user_month` |
 | M-09 | Active pods | Distinct `(pod_id, system_id)` with `last_activity_at` in period | `mv_pod_engagement` |
 | M-10 | Most-used pods | M-09 grouped by `pod_id` | `mv_pod_engagement` |
-| M-11 | Ready-made pods | Pods with `status IN ('available','pilot')` | `pods` |
+| M-11 | Ready-made pods | Pods with `status IN ('production','pilot')` | `pods` |
 | M-12 | Runs by status | Count of runs per `status`; aborted = `end_reason='aborted'`, broken down by `end_code` label | `runs` |
 | M-13 | Oldest wait | `now() - min(since)` over `v_run_waiting` where kind = question | `v_run_waiting` |
 | M-14 | Step outcomes | Σ `o_*` ÷ Σ`decisions`; total = Σ`decisions` ("harness decisions") | `mv_skill_daily` |
@@ -924,6 +1011,18 @@ SDD-09 refers to these ids. "Period" is the filter the screen applies. Every rat
 | M-31 | My PRs this month | Merged PRs of my runs in the current calendar month (viewer's time zone) | `pull_requests` |
 | M-32 | Tokens and cost per run | `run_usage` per run; average per workflow | `run_usage` |
 
+### 10.5 Tables specified in other documents
+
+These use the names below, which this document owns, and are created in the same Alembic chain. The owning document specifies the columns.
+
+| Name | Kind | Columns specified in | Migration |
+| --- | --- | --- | --- |
+| `skill_flags`, `improvement_reports`, `improvements` | Tables | SDD-11 §4.5 (written there with singular names; use these) | `0004_improvement` |
+| `skill_window_stats` | Materialized view | SDD-11 §4.5 | `0004_improvement` |
+| `client_denylist` (`version int PRIMARY KEY, salt bytea NOT NULL, hashes text[] NOT NULL, created_at timestamptz NOT NULL`) | Table | SEC-01 §7.4; served by `GET /v1/policy/denylist` | `0005_denylist` |
+
+Seed data adds the system user `svc-entra-sync` (used as `role_grants.granted_by` for automatic sync, SDD-07 §3.4).
+
 ## 11. Migrations, seed data and load
 
 ### 11.1 Alembic
@@ -934,7 +1033,7 @@ SDD-09 refers to these ids. "Period" is the filter the screen applies. Every rat
 | Naming | `NNNN_<slug>.py`: `0001_initial`, `0002_views`, `0003_seed_reference` (cause labels, roles) |
 | Order | `migrate` job runs `alembic upgrade head` before the new `api`/`worker` start; the old version must work with the new schema (expand, then contract in a later release) |
 | Views | A change to a materialized view is `DROP` + `CREATE` + first `REFRESH` in the migration |
-| Partitions | Not in migrations. `jobs/partitions` keeps the current and next 2 months of `events_raw` and `otel_events`; alert A-20 if missing |
+| Partitions | Not in migrations. `jobs/partitions` keeps the current and next 2 months of `events_raw` and `otel_events`; alert AL-20 if missing |
 | CI | Every PR: migrate an empty DB to head, then run the test suite; diff `openapi.json`; `alembic check` for model drift |
 | Readiness | `/v1/health/ready` fails if the DB revision is not head |
 
@@ -987,7 +1086,7 @@ Admin steps, in order: create `otel` token (§9.3) → put it in managed setting
 | Doc 3 §9.2 | Unknown event version is a per-event `E-ING-02` in a `202`, not HTTP 422 |
 | Doc 5 §5.1 | Add `/otel/v1/metrics`, `/otel/v1/logs`, `GET /v1/health/ready`; `GET /v1/keys/{key_id}` gains `?at=&system=`; remove "Portal reads through a Backstage backend plugin" (ADR 0001) |
 | Doc 5 §5.3 | New types `session.started`, `step.started`; new fields listed in §4.5 |
-| Doc 4 §5.2 | Add E-ING-01..07, E-KEY-01..02 |
+| Doc 4 §5.2 | Add E-ING-01..07, E-KEY-02, E-KEY-03 (the 409 is E-KEY-03; E-KEY-01 is SDD-04's keychain error) |
 | SDD-01 | Add `title`, `summary`, `phase`, `domains[]`, `portal{}` to `skill-metadata.v1` |
 | SDD-04 | `tsl` sends `session.*`, `step.started`, new fields; keeps E-ING-02 events queued; derives `device_id` |
 | SDD-05 | New spike S-10 (OTel names and attributes) |
@@ -1013,7 +1112,7 @@ Admin steps, in order: create `otel` token (§9.3) → put it in managed setting
 | OTel metric and event names and attributes (unverified) | new, spike S-10 | Shubham Bansal |
 | Whether `session_id` reaches `tsl` (U-06) | SDD-05 S-08 | Shubham Bansal |
 | PRD §5 "first-pass acceptance" uses `artifact_edited.changed_ratio`, which no event carries; PRD and stories use event names (`run_started`, `skill_finished`) that differ from Doc 5 (`run.started`, `step.decided`) | new | TBD by Puneet |
-| Skill status vocabulary: Doc 5 `experimental/production/deprecated`, PRD `draft/pilot/production/deprecated`, prototype "Pilot". This document stores Doc 5 values and labels `experimental` as "Pilot" | new | Abhishek Verma, Ekjot Singh |
+| Closed by the [registry](../architecture/registry.md) §10: skill and pod status use SDD-01 / SDD-10 words `draft/pilot/production/deprecated`; pod tables use this document's names | new | Abhishek Verma, Ekjot Singh |
 | How a run is tagged with a pod (`tsl.yaml` default or a run flag) | OQ-16 | Abhishek Verma, Ekjot Singh |
 | Who creates `systems`, `system_repos` and role grants (admin flow) | Q30 | TBD by Puneet (SDD-13) |
 | Postgres row-level security as a second guard behind app-level scope filtering | new | Gaurav Saini |

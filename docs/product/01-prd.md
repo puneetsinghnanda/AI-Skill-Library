@@ -158,7 +158,7 @@ Each requirement states what must be true; exact formats are in document 5 and a
 
 | ID | Requirement | Pri | Stories |
 | --- | --- | --- | --- |
-| FR-CTX-01 | `tsl init-context` extracts facts from the product repo into the companion repo; the tech lead adds judgement and signs | P0 | US-06 |
+| FR-CTX-01 | `tsl context build` extracts facts from the product repo into the companion repo; the tech lead adds judgement and signs | P0 | US-06 |
 | FR-CTX-02 | A context pack is fresh only if its facts match the product repo's current commit and its judgement files were verified within 90 days | P0 | US-06 |
 | FR-CTX-03 | Without a fresh context pack, brownfield results are capped at band Medium and labelled | P0 | US-02 |
 | FR-DOM-01 | One domain pack, for the first pilot's domain, with an eval set; domain packs are optional for every workflow | P1 | US-17 |
@@ -190,8 +190,8 @@ Metrics are fixed now; numeric targets are set after pilot teams record a baseli
 
 | Goal | Metric | Definition | Source |
 | --- | --- | --- | --- |
-| G1 | Weekly active engineers | Distinct users with at least one `run_started` in the week | Telemetry |
-| G1 | Runs per week | Count of `run_started` | Telemetry |
+| G1 | Weekly active engineers | Distinct users with at least one `run.started` in the week | Telemetry |
+| G1 | Runs per week | Count of `run.started` | Telemetry |
 | G2 | First-pass acceptance | Share of artifacts with `artifact_edited.changed_ratio` below 0.10 | Telemetry |
 | G2 | Changes requested | Share of Truminds PRs with at least one "changes requested" review | GitHub webhook |
 | G2 | Escaped defects | Defects linked to a ticket after its PR merged, versus baseline | Jira |
@@ -221,7 +221,7 @@ flowchart LR
 | Phase | Scope | Exit gate |
 | --- | --- | --- |
 | 0 Foundations | Schemas in document 5; plugin, hooks and reviewer-subagent spike in the Claude Code desktop app; `tsl` skeleton; telemetry event schema; companion repo template; context-pack spec; reference-system scope; Backstage catalogue model; repo, CI, SSO, private marketplace | **G0:** spike proves hooks, subagent and managed settings work in the desktop app; schemas reviewed; owners named; hosting decided (OQ-02) |
-| 1 Core chain | `tsl` run, resume, verify, decide, pr, init-context; harness L0 to L3; signing; first 8 skills; 3 agents; Node and React verifier containers; Jira and GitHub MCP; reference system with context pack; telemetry service with core events; CI checks | **G1:** `brownfield-feature` and `defect-triage` run end to end on the reference system to a merged PR; every hard gate blocks a seeded bad output; events visible in the service |
+| 1 Core chain | `tsl` state start, resume, verify, decide, pr, init, context build; harness L0 to L3; signing; first 8 skills; 3 agents; Node and React verifier containers; Jira and GitHub MCP; reference system with context pack; telemetry service with core events; CI checks | **G1:** `brownfield-feature` and `defect-triage` run end to end on the reference system to a merged PR; every hard gate blocks a seeded bad output; events visible in the service |
 | 2 First release | All 8 agents and the Release-1 skill catalogue; `greenfield-architecture`, `greenfield-bootstrap`; Java, Python, Android and iOS verifier containers; first domain pack; Backstage run status, usage and skill-performance dashboards; capability map; improvement report and `/truminds:improve`, `/truminds:eval`; 3 pilot teams | **G2:** 3 teams use it weekly for 4 consecutive weeks; per-skill acceptance reported; no open security finding |
 | 3 Scale | 25 to 40 skills; second domain pack; pod builder; Tier C embedded verifier | **G3:** measured uplift against baseline on at least 2 metrics |
 

@@ -79,7 +79,7 @@ flowchart TB
 | Portal | `portal/` | End-to-end UI | Playwright (Chromium; Firefox and WebKit on release) with the API mocked at the network layer | Navigation map, Business/Engineer switch, Run detail is engineers-only, accessibility checks (axe) for WCAG 2.1 AA (NFR-15) | CI |
 | Plugin | `plugins/truminds/`, `.claude-plugin/marketplace.json` | Structural validation | `tsl validate` + JSON Schema checks | Manifest, marketplace file, `hooks.json`, every skill and workflow folder, policy add-only rule | CI |
 | Sample system | `examples/sample-system/` | Own tests + defect canaries | Node test runner (Jest or Vitest), PostgreSQL testcontainer | The app builds and runs; seeded defects are still present (§4.5) | CI |
-| Skills | `plugins/truminds/skills/*/evals/` | AI eval | `/truminds:eval` on a seat; `tsl eval record` | Skill output passes code checks and expected-finding rules on each case | Seat; CI checks the signed record |
+| Skills | `plugins/truminds/skills/*/evals/` | AI eval | `/truminds:eval` on a seat; `tsl eval run` | Skill output passes code checks and expected-finding rules on each case | Seat; CI checks the signed record |
 | Reviewer | `plugins/truminds/skills/review/evals/` | AI eval | Same | Reviewer finds planted defects and does not invent findings | Seat; CI checks the signed record |
 | Whole chain | `examples/sample-system/` + throwaway companion repo | End-to-end | Manual-assisted script on a seat | Workflows run to a PR; every hard gate blocks a seeded bad output | Seat, before each release (OPS-03) |
 
@@ -201,7 +201,7 @@ sequenceDiagram
     CC->>T: tsl verify + review + tsl decide (normal harness)
     T->>T: compare with case expectations
   end
-  CC->>T: tsl eval record <skill> results.json
+  CC->>T: tsl eval run <skill>
   T->>R: evals/results/<version>.eval-result.json (signed)
   A->>R: open PR
   CI->>CI: verify signature, skill version, case hash, pass rate ≥ min
@@ -217,7 +217,7 @@ sequenceDiagram
 | Mix per skill | At least 6 normal cases, 2 cases that must end NEEDS-INPUT (ambiguous or missing input), 1 case with an injection attempt in an input file, 1 case that must hit a hard gate |
 | Pass rule per case | All `expect.yaml` assertions hold. Free text is never compared; only gates, outcome, band floor, finding presence by citation target and required sections |
 | Run count | Each case runs once for the pass rate. Release candidates re-run a skill's failed cases twice; a case that passes 2 of 3 is marked `flaky` and reported, not counted as a pass |
-| Signing | `tsl eval record` writes `eval-result.v1` signed by the author's key (Doc 3 §8.1) with the skill version and the SHA-256 of every case folder |
+| Signing | `tsl eval run` writes `eval-result.v1` signed by the author's key (Doc 3 §8.1) with the skill version and the SHA-256 of every case folder |
 | CI check | Signature valid; skill version in the record equals the version in the PR; case hashes match; pass rate ≥ `min_pass_rate`. No LLM |
 | Improvement rule | Every change from `/truminds:improve` adds a failing case first (US-16, X-11) |
 | Portability check | Skills with domain-neutral claims run at least 2 cases on a second sample system once it exists (C-10, open item) |
@@ -272,11 +272,11 @@ Harness accuracy asks: when the harness says High, was it right?
 **Calibration audit procedure (proposal; owners Japman Singh and Yash Khorwal, rate TBD by Puneet, OQ-11):**
 
 1. Each week, the insights service selects a random sample of High-band `step.decided` events per skill: 1 in 10 during the pilot, then 1 in 25 (tracker Q27 proposal).
-2. The system's tech lead reviews the artifact and records `agree` or `miss` with a one-line reason in the companion repo, under `audits/<run_id>__<step>.md` (new path, to be added to SDD-12).
+2. The system's tech lead reviews the artifact and records `deserved` or `miss` with a reason code in the companion repo, as the signed `audits/<run_id>/<step>.audit.json` (`audit.v1`, SDD-03 §16.3; path in the registry §8).
 3. One miss for a skill → add an eval case reproducing it. Two misses for a skill in its last 20 audits → raise that skill's S1 and S3 thresholds by one step and re-run its evals. The trigger counts are proposals.
 4. High-band precision per skill is shown on the Skill performance tab (SDD-09).
 
-Audit records are companion-repo files, so they never leave the client boundary; only `agree`/`miss` counts go to telemetry (new event type `audit.recorded`, to be added to SDD-08).
+Audit records are companion-repo files, so they never leave the client boundary; only `deserved`/`miss` counts go to telemetry (event type `audit.recorded`, SDD-08 §4.5).
 
 ## 4. Sample brownfield system
 
@@ -405,7 +405,7 @@ examples/
    └─ canary/                  # defect canary tests
 ```
 
-A throwaway companion repo for the sample system is created per test run by `tsl init-context` against a local bare git remote, so lock and push behaviour is real without network.
+A throwaway companion repo for the sample system is created per test run by `tsl init` against a local bare git remote, so lock and push behaviour is real without network.
 
 ## 5. Test case catalogue
 
@@ -576,7 +576,7 @@ All targets are proposals for Puneet to confirm. Coverage is measured in CI and 
 | new | Owner of the sample system and its answer key | TBD by Puneet |
 | new | Second sample system in another language, for the C-10 portability check | TBD by Puneet |
 | new | A Figma file with invented designs, so `ux-flow-review` and `accessibility-review` can be evaluated (SD-07) | TBD by Puneet |
-| new | Add `audit.recorded` event (SDD-08) and `audits/` companion-repo path (SDD-12) | Gaurav Saini; SDD-12 owner TBD by Puneet |
+| closed | `audit.recorded` event added to SDD-08 §4.5; `audits/<run_id>/<step>.audit.json` path in the [registry](../architecture/registry.md) §8 | Gaurav Saini; SDD-12 owner TBD by Puneet |
 | new | Secrets scanner and SAST tools for `ci-security.yml` (SEC-01) | Security reviewer TBD by Puneet |
 | new | Where the client name deny list for the data-guard job is held and who maintains it | TBD by Puneet |
 | new | Doc 3 NFR-13 lists WSL2; C-17 and SDD-05 V-18 exclude WSL. Doc 3 needs the change | TBD by Puneet |

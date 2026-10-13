@@ -85,19 +85,21 @@ flowchart LR
 │  └─ generated/*.json
 ├─ artifacts/
 │  └─ <ticket>/<run_id>/
-│     └─ <step>.md                   # artifact with YAML envelope (Doc 5 §3.6)
+│     ├─ <step>.md                   # artifact with YAML envelope (Doc 5 §3.6)
+│     ├─ <step>.checks.json          # checks.v1 (latest attempt)
+│     ├─ <step>.review.json          # review.v1
+│     ├─ <step>.verification.json    # verification.v1, signed
+│     └─ history/<step>/a<N>/        # earlier attempts, moved by tsl verify, never edited (SDD-03 §2.1)
 └─ runs/
    ├─ active/
-   │  └─ <ticket>__<workflow>.claim  # one line: run_id. The mutual-exclusion key (§3.3)
+   │  └─ <ticket>__<workflow>.lock   # run-lock.v1: run_id, holder, key_id, heartbeat. The mutual-exclusion key (§3.3)
    └─ <run_id>/
       ├─ state.json                  # run-state.v1
-      ├─ lock                        # run-lock.v1: holder, key_id, heartbeat (removed at COMPLETED)
+      ├─ workflow.snapshot.yaml      # SDD-02 §3.1
       ├─ open-questions.md           # open-questions.v1, when NEEDS-INPUT happened
       ├─ approvals.md                # approvals.v1, when a gate or ESCALATE happened
-      └─ records/
-         ├─ <step>.<attempt>.checks.json        # checks.v1
-         ├─ <step>.<attempt>.review.json        # review.v1
-         └─ <step>.<attempt>.verification.json  # verification.v1, signed
+      ├─ feedback/<step>.a<N>.json   # feedback.v1 (SDD-02 §8.2)
+      └─ tool-log.jsonl              # tool-log.v1 (SDD-03 §2.1)
 ```
 
 ### 3.2 Who writes what
@@ -108,38 +110,33 @@ flowchart LR
 | `context/**` except signature | `tsl context build`, `/truminds:context-draft`, tech lead edits | Pull request on branch `tsl/context/<short-sha>` | Tech lead (CODEOWNERS) |
 | `context/pack.signature.json` | `tsl context sign` only | Inside the same context pull request, as its last commit | — (it is the signature) |
 | `artifacts/<ticket>/<run_id>/**` | Claude during a run (allowed by `policy.yaml` write scope); committed by `tsl` | Direct push by `tsl` | None at this point. Each artifact has a signed record; humans review through the product PR |
-| `runs/<run_id>/state.json`, `lock`, `records/**` | `tsl` only | Direct push by `tsl` | Records are signed |
+| `runs/<run_id>/state.json`, `artifacts/<ticket>/<run_id>/*.checks.json`, `*.review.json`, `*.verification.json`, `history/**` | `tsl` only | Direct push by `tsl` | Records are signed |
 | `runs/<run_id>/open-questions.md` answers | Engineer, or anyone with write access (OQ-14) | Direct commit; `tsl state resume` checks answers | Named decider in the file (US-04) |
 | `runs/<run_id>/approvals.md` signature blocks | `tsl approve` | Direct push by `tsl` | Signed by the approver |
-| `runs/active/*.claim` | `tsl state start`, removed at COMPLETED or by `tsl state unlock` | Direct push by `tsl` | — |
+| `runs/active/*.lock` | `tsl state start`, removed at COMPLETED or by `tsl state unlock` | Direct push by `tsl` | — |
 | `.github/workflows/**` | Platform admin | Pull request | Admin (CODEOWNERS) |
 
-### 3.3 Locks: claim plus lock body
+### 3.3 Locks
 
-The required layout puts the lock at `runs/<run_id>/lock`. A lock under a run id cannot stop a second run on the same ticket, because the second run would have a new run id and a different path. So the design keeps two files:
+**Registry decision** ([registry](../architecture/registry.md) §10, row 9): there is one lock file per ticket and workflow, `runs/active/<ticket>__<workflow>.lock`, holding `run-lock.v1` (Doc 5 §3.5, SDD-02 §11.1). An earlier draft of this document split it into a `.claim` file plus `runs/<run_id>/lock`. That split is not needed: the lock's path is fixed per ticket and workflow, so a second laptop's `git push` of the same path fails, which is the multi-laptop guarantee. The heartbeat lives in the same file. SDD-02 owns the protocol; this section keeps the push loop it uses.
 
-| File | Purpose | Content |
-| --- | --- | --- |
-| `runs/active/<ticket>__<workflow>.claim` | Mutual exclusion: one active run per ticket and workflow (R-11). Its fixed path is what makes a second `git push` fail | `run_<ULID>` and nothing else |
-| `runs/<run_id>/lock` | The lock body: holder, key, heartbeat; used for stale-lock checks (DEF-06) | `run-lock.v1` JSON (Doc 5 §3.5) |
-
-Claim algorithm in `tsl state start`:
+Lock algorithm in `tsl state start`:
 
 ```python
-def take_claim(repo, ticket, workflow, run_id):
-    claim = f"runs/active/{safe(ticket)}__{workflow}.claim"
-    git_fetch(repo); git_rebase_onto_origin_main(repo)
-    if exists_at("origin/main", claim):
-        raise LockHeld(read_at("origin/main", claim))         # E-LOCK-01
-    write(claim, run_id); write(f"runs/{run_id}/lock", lock_body()); write(f"runs/{run_id}/state.json", state())
-    git_commit([claim, f"runs/{run_id}/"], f"tsl({run_id}): start {workflow} {ticket}")
+def take_lock(repo, ticket, workflow, run_id):
+    lock = f"runs/active/{safe(ticket)}__{workflow}.lock"
+    git_fetch(repo); git_rebase_onto_origin_main(repo)       # offline: E-LOCK-03, exit 10
+    if exists_at("origin/main", lock):
+        raise LockHeld(read_at("origin/main", lock))          # E-LOCK-01
+    write(lock, lock_body(run_id)); write(f"runs/{run_id}/state.json", state())
+    git_commit([lock, f"runs/{run_id}/"], f"tsl({run_id}): start {workflow} {ticket}")
     for attempt in range(3):
         if git_push(repo, "main"): return
         git_fetch(repo)
-        if exists_at("origin/main", claim):                  # someone else won the race
-            git_reset_soft_drop_last_commit(repo); raise LockHeld(read_at("origin/main", claim))
+        if exists_at("origin/main", lock):                    # someone else won the race
+            git_reset_soft_drop_last_commit(repo); raise LockHeld(read_at("origin/main", lock))
         git_rebase_onto_origin_main(repo)                     # unrelated paths: always clean
-    raise NetworkError("E-LOCK-02")                           # new: could not push the claim
+    raise NetworkError("E-LOCK-04")                           # push still rejected with the network up
 ```
 
 Ticket ids are made path-safe by `safe()`: upper-case letters, digits and `-` are kept; anything else becomes `_`. A run that cannot reach the remote cannot start (L-08) but can continue.
@@ -215,12 +212,12 @@ flowchart TB
 
 `tsl pr <run_id> [--draft]` per product repo with changes:
 
-1. Checks every step of the run has a verification record that ends in PASS or PASS-WITH-FINDINGS, and that every record is pushed to the companion repo. Otherwise exit 3 (E-PR-01, new).
+1. Checks every step of the run has a verification record that ends in PASS or PASS-WITH-FINDINGS, or an approved ESCALATE (else exit 3, E-RUN-05, SDD-04 §6.12), and that every record is pushed to the companion repo (else exit 3, E-PR-01, new).
 2. Creates the branch from `origin/<default_branch>` in the local clone, commits the run's changes with the `Tsl-Run` trailer, and pushes the branch. `tsl` is exempt from the Bash network deny (Doc 5 §4.3).
 3. Opens the PR with the Doc 4 §4.1 body and the `<!-- tsl:run_id=... -->` marker. Draft when the lowest band in the run is below `pr.draft_below`.
 4. Records the PR number and URL in `runs/<run_id>/state.json` (`prs[]`), pushes the companion repo, and sends `pr.opened`.
 
-A multi-repo run opens one PR per changed repo; all carry the same run id and link to the same `runs/<run_id>/records/` folder (Doc 3 §3.1).
+A multi-repo run opens one PR per changed repo; all carry the same run id and link to the same `artifacts/<ticket>/<run_id>/` folder (Doc 3 §3.1).
 
 Opening a PR on a client-owned product repo is a write to a client system. It happens only under the client consent (§7) and the autonomy table (Doc 3 §5.5). If a client's consent does not cover opening PRs, `tsl pr` stops with E-CONS-02 (new) and prints the patch path for a person to submit.
 
@@ -256,7 +253,7 @@ sequenceDiagram
   TL->>T: tsl init --system SYS-SMP --product-repo sample-system=<url>
   T->>S: GET /v1/systems/SYS-SMP (consent, state, repo name) + GET /v1/me (role)
   alt no consent / wrong role / repo not registered
-    T-->>TL: E-CONS-01 / E-AUTH-03 / E-INIT-01, exit 3, nothing written
+    T-->>TL: E-CONS-01 / E-AUTH-04 / E-INIT-01, exit 3, nothing written
   else ok
     T->>G: clone empty repo
     T->>T: copy template, write tsl.yaml, .tsl/local.yaml, CODEOWNERS, CI workflow
@@ -274,7 +271,7 @@ sequenceDiagram
 | Who | `tech_lead` on the system |
 | Pre-conditions | System registered; consent recorded (§7); companion repo name recorded on the system; the remote repo exists and is empty |
 | Writes | The template files, `tsl.yaml` with the product repos, `.tsl/local.yaml`, CODEOWNERS with the two team names |
-| Exit codes | 0 · 3 (E-CONS-01, E-AUTH-03, E-INIT-01 repo not registered, E-INIT-02 remote repo not empty) · 10 (network, login) |
+| Exit codes | 0 · 3 (E-CONS-01, E-AUTH-04 not a tech lead, E-INIT-01 repo not registered, E-INIT-02 remote repo not empty) · 10 (network, login) |
 | Does not | Create the GitHub repo or teams (admin task, needs org rights a tech lead should not hold), build the context pack, or touch the product repo |
 
 `GET /v1/systems/{code}` (new, owned by SDD-08) returns:
@@ -333,7 +330,7 @@ Runs in `.github/workflows/tsl-companion-check.yml` on every push and pull reque
 | Schemas | Any file with a `schema:` key fails its JSON Schema |
 | Path ownership | A direct push changed a path in the PR-required list (§6.2) |
 | Run isolation | One commit changes files in more than one `runs/<run_id>/` or `artifacts/<ticket>/<run_id>/` folder (except `runs/active/`) |
-| Append-only records | A file under `runs/*/records/` was modified or deleted after it was first committed |
+| Append-only records | A `*.checks.json`, `*.review.json` or `*.verification.json` file, or anything under `artifacts/*/*/history/`, was modified or deleted after it was first committed (a move into `history/` by `tsl verify` is allowed) |
 | Forbidden content | Secret, PII or deny-term detectors (SDD-06 §9) hit any file; excluded file patterns (SDD-06 §9.1) are present |
 | Size | Any file over 5 MB, or the repo over the archive threshold (§8) |
 | Pack state | Informational only: prints `tsl context status` |
@@ -370,11 +367,11 @@ Consent wording is for Legal to write (OQ-06). The scope names above are the mac
 
 `tsl companion archive [--reason <code>] [--json]`, run by an admin from a clean clone.
 
-1. Refuses if any run is RUNNING or PAUSED (E-COMP-06, new), unless `--abandon-runs`, which marks each `COMPLETED` with `end_reason: archived` and removes claims.
+1. Refuses if any run is RUNNING or PAUSED (E-COMP-06, new), unless `--abandon-runs`, which marks each `COMPLETED` with `end_reason: archived` and removes their lock files.
 2. Runs `tsl companion check` and refuses if it fails.
 3. Writes `ARCHIVE.json` (`companion-archive.v1`): system code, last commit SHA, count of runs and records, a SHA-256 over the sorted list of all record file hashes, `archived_by`, signed by the admin's key (SDD-07).
 4. Commits and pushes it, tags `archive/final`, then archives the GitHub repo (read-only).
-5. Sends `companion.lifecycle` (ACTIVE or SUSPENDED → ARCHIVED). The insights service updates `system.lifecycle_state`.
+5. Sends `companion.lifecycle` (ACTIVE or SUSPENDED → ARCHIVED). The insights service updates `systems.lifecycle_state`.
 
 ### 8.3 Deletion or return
 
@@ -385,7 +382,7 @@ At the end of the retention period, or on a valid deletion request:
 | Optional: hand the client a bundle (`git bundle` of the repo plus `ARCHIVE.json`) | Admin, if the contract asks for return |
 | Delete the GitHub repo | Admin |
 | Remove local clones: `tsl doctor` lists clones of systems in ARCHIVED or DELETED state, and engineers are told to delete them | Engineers; confirmed by the system's tech lead |
-| Set `system.lifecycle_state = DELETED`; keep metadata rows (runs, steps, verification hashes) per OQ-08 retention, without content | Admin, in the portal |
+| Set `systems.lifecycle_state = DELETED`; keep metadata rows (runs, steps, verification hashes) per OQ-08 retention, without content | Admin, in the portal |
 
 Telemetry and the insights database never held content (NFR-10), so deleting the repo removes all client-derived content Truminds holds, apart from laptop clones.
 
@@ -410,7 +407,7 @@ stateDiagram-v2
 
 | State | Runs | Context build and sign | `tsl pr` | Who moves it on | Recorded in |
 | --- | --- | --- | --- | --- | --- |
-| PROVISIONED | No | No | No | Tech lead (`tsl init`) | `system.lifecycle_state` |
+| PROVISIONED | No | No | No | Tech lead (`tsl init`) | `systems.lifecycle_state` |
 | INITIALISED | No | Yes | No | First `tsl context build` | Same |
 | ONBOARDING | Greenfield only | Yes | Greenfield only | First `tsl context sign` | Same |
 | ACTIVE | Yes (stale pack caps band, SDD-06) | Yes | Yes | Admin | Same |
@@ -444,8 +441,8 @@ stateDiagram-v2
 | E-INIT-01 (new) | 3 | System `<code>` has no companion repo registered. | Admin registers it (SDD-13) |
 | E-INIT-02 (new) | 3 | Companion repo `<name>` is not empty. | Use the existing repo, or ask the admin |
 | E-LOCK-01 | 3 | `<ticket>` / `<workflow>` is locked by `<user>` in `<run_id>`. | Resume if yours; else ask a tech lead to release |
-| E-LOCK-02 (new) | 10 | Could not push the run claim to the companion repo. | Check network and access; retry |
-| E-PR-01 (new) | 3 | Run `<run_id>` has steps without a passing, pushed record. | Finish or resume the run |
+| E-LOCK-04 (new; registry §2) | 10 | Could not push the run lock to the companion repo after 3 retries. | Check write access (`-engineers` team, §6.1); retry |
+| E-PR-01 (new) | 3 | Run `<run_id>` has records that are not pushed to the companion repo. | Reconnect; the next `tsl` call pushes them |
 | E-COMP-01 to 05 (new) | 2 | Companion check failed (§6.4). | Fix the listed files |
 | E-COMP-06 (new) | 3 | Cannot archive: `<n>` runs are not completed. | Finish them or use `--abandon-runs` |
 | E-COMP-07 (new) | 3 | System `<code>` is archived. | None; read-only |
@@ -465,7 +462,7 @@ stateDiagram-v2
 | Spike | Proves | Pass condition | Fallback |
 | --- | --- | --- | --- |
 | CR-01 | GitHub can require PRs for some paths while allowing direct pushes to others on `main` | A direct push to `context/x.md` is refused and a push to `runs/x` is accepted | `tsl companion check` detects and alerts (§6.2) |
-| CR-02 | Claim race: two laptops start the same ticket at once | Exactly one succeeds; the other gets E-LOCK-01 | — (design bug if it fails) |
+| CR-02 | Lock race: two laptops start the same ticket at once | Exactly one succeeds; the other gets E-LOCK-01 | — (design bug if it fails) |
 | CR-03 | 20 parallel runs pushing to one companion repo | All pushes land within 3 retries | Raise retries; batch commits per step |
 
 ### 11.4 Test plan
@@ -484,23 +481,23 @@ stateDiagram-v2
 
 | Document | Change |
 | --- | --- |
-| Doc 3 §3 | Layout per §3.1: records move from `artifacts/<ticket>/<run_id>/` to `runs/<run_id>/records/`; lock split into `runs/active/<ticket>__<workflow>.claim` and `runs/<run_id>/lock`; add `policy.yaml`, `CODEOWNERS`, `.tsl/` |
+| Doc 3 §3 | Layout per §3.1: records stay next to the artifact; one lock file `runs/active/<ticket>__<workflow>.lock`; add `policy.yaml`, `CODEOWNERS`, `.tsl/` |
 | Doc 5 §2.2 | Add `tsl init`, `tsl companion check`, `tsl companion archive`; `tsl pr` gains E-PR-01 and E-CONS-02 |
 | Doc 5 §3.1 | `tsl-config.v1` additions: `companion`, `default_branch`, `pr` per product repo |
-| Doc 5 §3.4 | `state.json` gains `prs[]` and `unpushed`; record paths in the example change to `runs/<run_id>/records/` |
-| Doc 5 §3.5 | Lock file path and claim file |
+| Doc 5 §3.4 | `state.json` gains `prs[]` and `unpushed` |
+| Doc 5 §3.5 | Push loop and E-LOCK-04 (§3.3) |
 | Doc 5 §5.1, §5.3 | New endpoint `GET /v1/systems/{code}`; new events `companion.lifecycle`, `companion.policy_violation` |
-| Doc 3 §9.1 | `system` gains `lifecycle_state`, `archived_at`; uniqueness of system code within a client; `client` gains `consent_scope` |
+| Doc 3 §9.1 / SDD-08 §10.2 | `systems` gains `lifecycle_state`, `archived_at`; uniqueness of system code within a client; `clients` gains `consent_scope` (done in SDD-08 §10.2) |
 | Doc 2 §2 | Replace the `truminds/acme-orders-service-tsl` example with the code-only naming rule |
-| Doc 4 §5.2 | Add E-CONS-02, E-INIT-01/02, E-LOCK-02, E-PR-01, E-COMP-01 to 07 |
-| SDD-02, SDD-04 | Own the claim algorithm and commit protocol implementation |
+| Doc 4 §5.2 | Add E-CONS-02, E-INIT-01/02, E-LOCK-04, E-PR-01, E-COMP-01 to 07 |
+| SDD-02, SDD-04 | Own the lock algorithm and commit protocol implementation |
 | SDD-13 | Admin steps: register system, create repo and teams, record consent scope, team sync |
 | LEG-01 | Map consent clauses to the scope keys in §7 |
 
 ## 13. Done criteria
 
 - `truminds-companion-template` exists with the §3.1 files, `.gitignore`, `.gitattributes`, CODEOWNERS template and the CI workflow.
-- `tsl init`, `tsl companion check`, `tsl companion archive` and the claim algorithm are implemented with the tests in §11.4.
+- `tsl init`, `tsl companion check`, `tsl companion archive` and the lock algorithm are implemented with the tests in §11.4.
 - Spikes CR-01 to CR-03 are recorded, and the CR-01 fallback is built if needed.
 - `GET /v1/systems/{code}` and the `companion.lifecycle` event are in SDD-08's OpenAPI and event schemas.
 - The full lifecycle runs on the sample system in a test org.
@@ -518,4 +515,4 @@ stateDiagram-v2
 | CI read token: GitHub App or fine-grained token | new | OPS-01 owner, TBD by Puneet |
 | Automated sync of role grants to GitHub teams | new | SDD-13 owner, TBD by Puneet |
 | Confirm GitHub encryption at rest meets the org rule | new | Security reviewer TBD by Puneet |
-| Confirm the claim plus lock-body split with SDD-02 and SDD-04 owners | new | Abhishek Verma, Ekjot Singh; Japman Singh, Yash Khorwal |
+| Closed: one lock file, no claim file (registry §10, row 9) | new | Abhishek Verma, Ekjot Singh; Japman Singh, Yash Khorwal |

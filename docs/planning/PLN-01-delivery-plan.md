@@ -69,7 +69,7 @@ flowchart LR
 | Phase | Goal | Scope (features) | Exit gate |
 | --- | --- | --- | --- |
 | **0 Foundations** | Prove the platform and fix the contracts before code depends on them | Spikes S-01 to S-09 (§6); all schema files in `schemas/` with valid and invalid samples (Q20); `tsl` skeleton (JSON envelope, exit codes, `tsl doctor`); plugin and marketplace skeleton; managed-settings template; companion repo template; context-pack spec (SDD-06); telemetry event schemas; sample system scope (ADR 0004); repo, CI, CODEOWNERS (GOV-01); Entra app registrations requested (ADR 0002) | G0 (§3.1) |
-| **1 Core chain** | One real chain runs end to end on the sample system, checked by the harness, to a pull request | `tsl state`, `next`, `verify`, `review prepare/record`, `decide`, `pr`, `init-context`, `sign-context`, `login`, `approve`, `hook`, `validate`, `outbox flush`; harness H1–H7 and S1–S6; Ed25519 signing; command skills `/truminds:run`, `resume`, `status`; reviewer subagent; hooks; policy.v2; Node and React verifier containers; JavaScript/TypeScript context extractor; the 10 Phase 1 skills (§2.3); workflows `brownfield-change` and `defect-fix`; Jira and GitHub MCP (read; writes need approval); sample system with signed context pack; insights service with `POST /v1/events`, `/v1/keys`, webhook; `tsl ci-verify` GitHub Action; portal shell on mock data | G1 (§3.2) |
+| **1 Core chain** | One real chain runs end to end on the sample system, checked by the harness, to a pull request | `tsl state`, `next`, `verify`, `review prepare/record`, `decide`, `pr`, `init`, `context build`, `context sign`, `login`, `approve`, `hook`, `validate`, `events flush`; harness H1–H7 and S1–S6; Ed25519 signing; command skills `/truminds:run`, `resume`, `status`; reviewer subagent; hooks; policy.v2; Node and React verifier containers; JavaScript/TypeScript context extractor; the 10 Phase 1 skills (§2.3); workflows `brownfield-change` and `defect-fix`; Jira and GitHub MCP (read; writes need approval); sample system with signed context pack; insights service with `POST /v1/events`, `/v1/keys`, webhook; `tsl ci-verify` GitHub Action; portal shell on mock data | G1 (§3.2) |
 | **2 First release** | All eight roles served; three pilot teams use it weekly | Remaining Release-1 skills and workflows (§2.3); all 8 agents (D-07); Java and Python verifier containers; Android and iOS verifier containers (see PLN-OI-04); first domain pack (FR-DOM-01); portal read API and all Release-1 screens (Business and Engineer personas); capability map; Release-1 pods and pod pages (OQ-16); weekly improvement report; `/truminds:eval`, `/truminds:improve`; onboarding guides; OPS-01 to OPS-04 live; security review and consent template signed off | **G2 = Release 1 done** (§3.3) |
 | **3 Scale** | Grow the catalogue and prove uplift | 25 to 40 skills; second domain pack; pod builder (US-22, X-04); Tier C embedded verifier; portability adapter design (tracker Q15) | G3 (§3.4) |
 
@@ -379,7 +379,7 @@ flowchart LR
 | ST-02.1 | `tsl` package skeleton (Typer, Pydantic), `--json` envelope, exit codes, `tsl --version` = plugin version | HX | ST-01.2 | 0 |
 | ST-02.2 | `tsl doctor` (Python 3.12, uv, git, Docker, login) | HX | ST-02.1 | 0 |
 | ST-02.3 | `tsl state start/resume/show/unlock`, git-push lock, ULID run ids, stale lock (DEF-06) | HX | ST-02.1 | 1 |
-| ST-02.4 | Offline outbox and `tsl outbox flush` (R-04, R-05) | HX | ST-02.1, ST-01.8 | 1 |
+| ST-02.4 | Offline outbox and `tsl events flush` (R-04, R-05) | HX | ST-02.1, ST-01.8 | 1 |
 | ST-02.5 | `tsl validate` for skills, workflows and system `policy.yaml` (add-only rule) | HX | ST-01.3, ST-01.7 | 1 |
 | ST-02.6 | `tsl hook <event>` entry point with the SDD-05 §5.4 failure rules | HX | ST-02.1, ST-01.7 | 1 |
 | ST-02.7 | `tsl migrate` (N to N+1) | HX | ST-02.3 | 2 |
@@ -416,9 +416,9 @@ flowchart LR
 | ST-06.8 | Verifier containers: Java, Python; Android, iOS per PLN-OI-04 | HX | ST-06.2 | 2 |
 | ST-06.9 | Calibration audit procedure (OQ-11) | HX | ST-06.4 | 2 |
 | **EP-07** | | | | |
-| ST-07.1 | `tsl init-context` with JavaScript/TypeScript extractor (`module-map.json`, `api-inventory.json`, `dependency-graph.json`); consent check E-CONS-01 | UA | ST-01.6, ST-15.1 | 1 |
-| ST-07.2 | `tsl context-refresh --check` drift (DEF-03) and freshness (DEF-01) | UA | ST-07.1 | 1 |
-| ST-07.3 | `tsl sign-context` | UA | ST-07.1, ST-08.2 | 1 |
+| ST-07.1 | `tsl init` and `tsl context build` with JavaScript/TypeScript extractor (`module-map.json`, `api-inventory.json`, `dependency-graph.json`); consent check E-CONS-01 | UA | ST-01.6, ST-15.1 | 1 |
+| ST-07.2 | `tsl context build --check` drift (DEF-03) and freshness (DEF-01) | UA | ST-07.1 | 1 |
+| ST-07.3 | `tsl context sign` | UA | ST-07.1, ST-08.2 | 1 |
 | ST-07.4 | Extractors for Java and Python | UA | ST-07.2 | 2 |
 | **EP-08** | | | | |
 | ST-08.1 | `tsl login` with Entra device-code (ADR 0002) | UA | ST-02.1, ST-09.1 | 1 |
@@ -444,7 +444,7 @@ flowchart LR
 | ST-11.2 | Release-1 pod files (OQ-16) | SK | ST-11.1, ST-04.5 | 2 |
 | ST-11.3 | Pod builder (US-22, X-04) | SK, TL | G2 | 3 |
 | **EP-12** | | | | |
-| ST-12.1 | `/truminds:eval` with `tsl eval plan` and `tsl eval record` | SK, CC | ST-05.1, ST-08.2 | 1 |
+| ST-12.1 | `/truminds:eval` with `tsl eval plan` and `tsl eval run` | SK, CC | ST-05.1, ST-08.2 | 1 |
 | ST-12.2 | Weekly improvement report job (plain code) | TL | ST-09.5 | 2 |
 | ST-12.3 | `/truminds:improve` with `tsl improve plan` | SK, CC | ST-12.1, ST-12.2 | 2 |
 | **EP-13** | | | | |

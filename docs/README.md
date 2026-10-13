@@ -14,6 +14,7 @@ Every document lives here and changes by pull request (GOV-01). The earlier Clau
 | --- | --- | --- |
 | 3 | System Architecture and Tech Stack | [architecture/03-architecture.md](architecture/03-architecture.md) |
 | 5 | API Specifications and Rules | [architecture/05-api-and-rules.md](architecture/05-api-and-rules.md) |
+| REG-01 | Canonical registry: error codes, commands, endpoints, events, schemas, tables, paths, ID series (wins over any other doc) | [architecture/registry.md](architecture/registry.md) |
 
 ## UX
 | # | Document | Path |

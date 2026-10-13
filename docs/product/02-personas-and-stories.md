@@ -88,7 +88,7 @@ A system has one companion repo and one or more product repos (multi-repo system
 | --- | --- |
 | Companion repo and product repo access | GitHub team permissions, one team per system |
 | Skill approval and promotion | CODEOWNERS in the skills repo |
-| Starting a run | `tsl run` asks the telemetry service for the user's role on the system (cached 24 hours for offline use) |
+| Starting a run | `tsl state start` (called by `/truminds:run`) asks the telemetry service for the user's role on the system (cached 24 hours for offline use) |
 | Portal views and API reads | Telemetry service authorises each request from the SSO token's roles |
 
 ## 3. User stories US-01 to US-11
@@ -99,7 +99,7 @@ Every P0 story is testable from its acceptance criteria alone; file names, exit 
 
 As a developer, I want to run `brownfield-feature` on my Jira ticket, so that I get a tested change grounded in the real system.
 
-- **AC1** Given the system has a fresh signed context pack and I have role `engineer` on it, when I run `/truminds:run brownfield-feature SW-123`, then `runs/<run_id>/state.json` is created with `status: RUNNING`, a lock `runs/active/SW-123__brownfield-feature.lock` is pushed, and a `run_started` event is queued.
+- **AC1** Given the system has a fresh signed context pack and I have role `engineer` on it, when I run `/truminds:run brownfield-feature SW-123`, then `runs/<run_id>/state.json` is created with `status: RUNNING`, a lock `runs/active/SW-123__brownfield-feature.lock` is pushed, and a `run.started` event is queued.
 - **AC2** Given every step ends PASS or PASS-WITH-FINDINGS, when the last step finishes, then one pull request per changed product repo is opened using the PR template (document 4 §4) with the run ID in its body, and `state.json` shows `status: COMPLETED`.
 - **AC3** Given I do not have role `engineer` on the system, when I start the run, then it is refused with error `E-AUTH-03`, exit code 3, and nothing is written.
 
@@ -109,16 +109,16 @@ As an engineer, I want every artifact checked automatically, so that I never bui
 
 - **AC1** Given a skill writes an artifact under `artifacts/`, when the hook fires, then `tsl verify` completes the code checks within 30 seconds and writes `<artifact>.checks.json`.
 - **AC2** Given a code check fails, then the hook exits with code 2 and the reasons, Claude fixes and rewrites the artifact; after 2 failed retries the outcome is ESCALATE and the run pauses.
-- **AC3** Given code checks pass and the reviewer writes `<artifact>.review.json`, when `tsl decide` runs, then a signed `<artifact>.verification.json` is written with band and outcome computed per document 3 §5, and `skill_finished` is queued.
-- **AC4** Given the context pack is not fresh, then the band is at most Medium and the record contains `context_status: stale`.
+- **AC3** Given code checks pass and the reviewer writes `<artifact>.review.json`, when `tsl decide` runs, then a signed `<artifact>.verification.json` is written with band and outcome computed per document 3 §5, and `step.decided` is queued.
+- **AC4** Given the context pack is not fresh, then the band is at most Medium and the record contains `signals.S5: stale`.
 
 ### US-03 · Pause for open questions and resume (P0 · all engineers)
 
 As an engineer, I want the run to stop and list exactly what it needs, so that I can get answers and continue later.
 
-- **AC1** Given the outcome is NEEDS-INPUT, then `runs/<run_id>/open-questions.md` is written in the template of document 4 §3, `status` becomes `PAUSED_INPUT`, and `run_paused` is queued.
+- **AC1** Given the outcome is NEEDS-INPUT, then `runs/<run_id>/open-questions.md` is written in the template of document 4 §3, `status` becomes `PAUSED_INPUT`, and `run.status_changed` (to `PAUSED_INPUT`) is queued.
 - **AC2** Given a blocking question has no answer or no `Answered by`, when I run `/truminds:resume <run_id>`, then it is refused with exit code 4 and lists the unanswered IDs.
-- **AC3** Given every blocking question is answered, when I resume, then `answers_recorded` is queued and the paused step re-runs with the answers as input.
+- **AC3** Given every blocking question is answered, when I resume, then `question.answered` is queued for each answer and the paused step re-runs with the answers as input.
 
 ### US-04 · Record who decided (P0 · P-01, P-03, product owner)
 
@@ -140,10 +140,10 @@ As a reviewer, I want the code, test results, decisions and verification in the 
 
 As a tech lead, I want to onboard my system once and keep it fresh automatically, so that every skill knows it.
 
-- **AC1** Given a companion repo exists, when I run `tsl init-context --system orders-service`, then `context/generated/` is created from each product repo at its current commit, with `manifest.json` recording the commit SHAs.
+- **AC1** Given a companion repo exists, when I run `tsl context build` for system `SYS-ORD`, then `context/generated/` is created from each product repo at its current commit, with `manifest.json` recording the commit SHAs.
 - **AC2** Then judgement files are created from templates, each with `Owner:` and `Verified:` lines.
-- **AC3** Given I have role `tech_lead`, when I run `tsl sign-context`, then `context/pack.signature.json` is written; any other role is refused with `E-AUTH-04`.
-- **AC4** Given a product repo commit changes facts, when CI runs `tsl context-refresh`, then generated facts are rebuilt and the pack shows `stale` until re-signed if judgement files reference changed items.
+- **AC3** Given I have role `tech_lead`, when I run `tsl context sign`, then `context/pack.signature.json` is written; any other role is refused with `E-AUTH-04`.
+- **AC4** Given a product repo commit changes facts, when CI runs `tsl context build --check`, then generated facts are rebuilt and the pack shows `stale` until re-signed if judgement files reference changed items.
 
 ### US-07 · Approve a design gate (P0 · P-10)
 
@@ -246,7 +246,7 @@ As a sales lead, I want a capability map of production skills so that I can show
 - **Given** skills with status `production` in the catalogue
 - **When** I open the capability map in the portal
 - **Then** I see skills grouped by SDLC phase, agent and domain, with aggregate metrics (runs, pass rate)
-- **And** experimental or deprecated skills are hidden
+- **And** draft, pilot and deprecated skills are hidden
 - **And** no client names, ticket ids or repo names appear anywhere on the page
 
 ### US-18 Admin onboards an engineer and a client (P-13 Admin)
@@ -257,7 +257,7 @@ As an admin, I want a repeatable onboarding so that every engineer runs with the
 - **When** the admin assigns the seat, applies managed settings (required marketplace, hooks, permissions) and grants a role
 - **And** the engineer runs `tsl login`
 - **Then** SSO completes, an Ed25519 key pair is created locally and the public key is registered against the user
-- **And** for a client, the admin records written consent before any companion repo is created; without consent `tsl init-context` exits with code 3
+- **And** for a client, the admin records written consent before any companion repo is created; without consent `tsl init` exits with code 3
 
 ### US-19 Engineering lead sees usage and performance (P-09 Engineering Lead)
 

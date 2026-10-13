@@ -172,7 +172,7 @@ pre-commit install               # ruff, mypy, eslint, prettier, commit message,
 | `tsl` | `tsl/` | `uv sync` | `uv run tsl --help`; to use it from Claude Code: `uv tool install --editable ./tsl --force` | `uv run pytest` |
 | Schemas | `schemas/` | Uses the `tsl` environment | — | `uv run --project tsl pytest ../schemas` (fixtures, TST-01 §2.2) |
 | Hooks | `plugins/truminds/hooks/`, `bin/` | Needs `tsl` installed with `uv tool install --editable` | Fired by Claude Code | `uv run --project tsl pytest tests/hooks` |
-| Insights service | `services/insights/` | `uv sync`; `docker compose -f compose.dev.yml up -d postgres`; `uv run alembic upgrade head`; `uv run python -m insights.seed` (invented seed data) | `uv run uvicorn insights.main:app --reload --port 8000` | `uv run pytest` (starts its own PostgreSQL testcontainer) |
+| Insights service | `services/insights/` | `uv sync`; `docker compose -f compose.dev.yml up -d postgres`; `uv run alembic upgrade head`; `uv run python seed/generate.py` (invented seed data, SDD-08 §11.3) | `uv run uvicorn app.main:app --reload --port 8000` (service layout: SDD-08 §3.1) | `uv run pytest` (starts its own PostgreSQL testcontainer) |
 | Portal | `portal/` | `nvm use` (Node 20); `npm ci` | `npm run dev` (port 5173, proxies `/v1` to port 8000) | `npm test` (Vitest); `npx playwright install --with-deps chromium`; `npm run e2e` |
 | Sample system | `examples/sample-system/` | — | `docker compose up` (db 5433, api 3000, web 5174 on loopback) | `docker compose run --rm api npm test` |
 | Plugin | `plugins/truminds/` | `tsl` installed (editable) | §5 | `uv run tsl validate plugins/truminds` |
@@ -221,14 +221,14 @@ Create the password file once with a random value: `mkdir -p ~/.truminds-dev && 
 | --- | --- | --- |
 | ruff (lint) | `pyproject.toml` `[tool.ruff]`, rule sets `E,F,W,I,B,UP,S,SIM,RUF`, line length 100 | Zero warnings |
 | ruff (format) | Same | `ruff format --check` clean |
-| mypy | `strict = true` for `tsl` and `insights` packages | Zero errors; `# type: ignore` needs a reason comment |
+| mypy | `strict = true` for the `tsl` package and the insights service `app` package | Zero errors; `# type: ignore` needs a reason comment |
 | pytest | `pyproject.toml` `[tool.pytest.ini_options]` | Coverage gates from TST-01 §8 |
 
 Further rules:
 
 - Typer for CLI commands; every command supports `--json` and returns the Doc 5 §2.3 envelope.
 - Pydantic v2 models for every file format; the model and the JSON Schema in `schemas/` must agree (a test compares them).
-- Error codes are constants in one module (`tsl/errors.py`), matching the catalogue in Doc 4 §5.2. Never invent a code in place; add it to the catalogue in the same PR.
+- Error codes are constants in one module (`tsl/errors.py`), matching the canonical list in the [registry](../architecture/registry.md) §2 (Doc 4 §5.2 shows the user-facing subset). Never invent a code in place; add it to the registry in the same PR.
 - No network call from `tsl` except telemetry, key registration, `git` and GitHub for `tsl pr`.
 - Never log file contents, prompts or tokens.
 
@@ -285,11 +285,11 @@ SDD-01 owns the skill format and SDD-02 owns the workflow format; this section i
 ```text
 plugins/truminds/skills/<skill-id>/
 ├─ SKILL.md                  # frontmatter + body (SDD-01 template)
-├─ skill-metadata.yaml       # skill-metadata.v1 (Doc 5 §3.2); file name confirmed by SDD-01
+├─ skill.yaml                # skill-metadata.v1 (Doc 5 §3.2); file name from SDD-01 §4
 ├─ rubric.md                 # what the reviewer scores against
 └─ evals/
    ├─ cases/<case-id>/       # input files + expect.yaml (TST-01 §3.1)
-   └─ results/               # signed eval-result.v1 files from tsl eval record
+   └─ results/               # signed eval-result.v1 files from tsl eval run
 schemas/artifacts/<output>.v1.json   # body schema for the artifact this skill writes
 ```
 
@@ -302,20 +302,20 @@ flowchart LR
   E --> F[/truminds:eval <id> on a seat/]
   F --> G{pass rate ≥ min?}
   G -- no --> D
-  G -- yes --> H[tsl eval record → signed result]
+  G -- yes --> H[tsl eval run → signed result]
   H --> I[PR: CODEOWNERS skills + harness]
-  I --> J[Status experimental until a stage approver promotes it]
+  I --> J[Status draft, then pilot; a stage approver promotes it to production]
 ```
 
 Steps:
 
 1. Choose an id in kebab-case that is unique in `skills/`, and an agent from Doc 3 §7.
-2. Write the artifact body schema in `schemas/artifacts/` with valid and invalid fixtures (TST-01 §2.2).
+2. Write the artifact body schema as `schemas/<name>.v1.json` (SDD-01 §2) with valid and invalid fixtures (TST-01 §2.2).
 3. Write the eval cases before the skill. Use the sample system only; no client material (TST-01 §9).
 4. Write `SKILL.md` from the SDD-01 template. Its body must start with the input check `` !`tsl verify --inputs ...` `` (SDD-05 §5.1) and must declare `allowed_tools` in metadata (H7).
 5. Run `uv run tsl validate plugins/truminds/skills/<id>`.
-6. Run `/truminds:eval <id>` in a local session, then `tsl eval record <id> <results.json>`.
-7. Open the PR with status `experimental`. Promotion to `production` is a separate PR approved by the stage approver (Doc 2 §2, OQ-07).
+6. Run `/truminds:eval <id>` in a local session; it ends with `tsl eval run <id>`, which scores and signs the result.
+7. Open the PR with status `draft` (SDD-01 §7). Promotion to `pilot` and then to `production` are separate PRs; the stage approver approves `production` (Doc 2 §2, OQ-07).
 
 **Changing an existing skill:**
 

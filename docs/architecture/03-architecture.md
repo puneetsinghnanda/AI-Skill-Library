@@ -74,7 +74,7 @@ flowchart TB
       ST[state: run state, locks]
       PR[pr: PR body + records]
       SG[sign: Ed25519]
-      OB[outbox flush]
+      OB[events flush]
     end
     HK[Hooks: SessionStart, PreToolUse policy,\nPostToolUse artifact write,\nSessionEnd flush]
     VC[Verifier containers\nDocker per stack]
@@ -107,7 +107,7 @@ One companion repo per client **system** (D-13). It is Truminds-owned and which 
 │  ├─ system-baseline.md         # human-curated: architecture, modules, conventions
 │  ├─ intent-baseline.md         # human-curated: goals, NFRs, constraints
 │  ├─ glossary.md
-│  ├─ generated/                 # tsl init-context / context-refresh output
+│  ├─ generated/                 # tsl context build output
 │  │  ├─ module-map.json
 │  │  ├─ api-inventory.json
 │  │  └─ dependency-graph.json
@@ -323,7 +323,7 @@ Every value below is a **default** in `tsl.yaml`; a tech lead can tighten it per
 | --- | --- | --- | --- |
 | DEF-01 | **Fresh pack** | `pack.signature.json` verifies, AND its recorded source SHA for every product repo equals that repo's current default-branch head OR the drift since then is below the drift limit (DEF-03), AND it was signed within the age limit | Age limit 30 days |
 | DEF-02 | **Stale input** | An upstream artifact whose content hash differs from the hash recorded when the downstream artifact consumed it, or whose verification record is older than its own source | — |
-| DEF-03 | **Drift** | Files changed on the product repo default branch since the pack's source SHA, inside paths the pack covers, counted by `tsl context-refresh --check` | Drift limit: 50 files or any change to a path marked `critical` in `tsl.yaml` |
+| DEF-03 | **Drift** | Files changed on the product repo default branch since the pack's source SHA, inside paths the pack covers, counted by `tsl context build --check` | Drift limit: 50 files or any change to a path marked `critical` in `tsl.yaml` |
 | DEF-04 | **Size budget** | Max tokens of context a skill may load (pack sections + inputs). Over budget → the skill must load section by section via the pack index, never the whole pack | Declared per skill in `skill-metadata.v1` |
 | DEF-05 | **Change risk limit** | Per skill: max diff lines, max files touched, and a list of sensitive path globs (auth, crypto, payments, migrations, CI config) | 400 lines, 15 files; any sensitive path → S6 over limit |
 | DEF-06 | **Stale lock** | A lock file whose run has had no state change for longer than the lock timeout and whose owner is not the current user | 24 hours of inactivity |
@@ -377,7 +377,7 @@ Which workflows are in the pilot is open (OQ-04 in Doc 1).
 | Signed thing | Signed by | Proves | Does not prove |
 | --- | --- | --- | --- |
 | `artifact.verification.json` | Engineer's key (via `tsl decide`) | This user ran the harness on this artifact hash with this outcome | That the reviewer's judgment was right |
-| `pack.signature.json` | Tech lead's key (`tsl sign-context`) | A tech lead approved this pack at these source SHAs | That the pack is complete |
+| `pack.signature.json` | Tech lead's key (`tsl context sign`) | A tech lead approved this pack at these source SHAs | That the pack is complete |
 | Eval result | Skill author's key | These eval cases ran on this skill version with this pass rate | That evals cover every case |
 | `approvals.md` entry | Approver's key | This person, holding this role, approved this gate | — |
 
@@ -440,6 +440,8 @@ erDiagram
 
 ### 9.1 DDL (PostgreSQL 16)
 
+*Superseded by [SDD-08](../design/SDD-08-telemetry-insights.md) §10.2, which owns every table name (plural) and column; see the [registry](registry.md) §7. Kept here as the original sketch.*
+
 ```sql
 CREATE TABLE client   (id uuid PRIMARY KEY, code text UNIQUE NOT NULL,  -- code, never the name, outside admin views
                        display_name text NOT NULL, consent_recorded_at timestamptz, consent_ref text);
@@ -458,7 +460,7 @@ CREATE TABLE signing_key (key_id text PRIMARY KEY, user_id uuid REFERENCES app_u
                        created_at timestamptz NOT NULL, revoked_at timestamptz);
 CREATE TABLE skill    (id text PRIMARY KEY, agent text NOT NULL, owner_id uuid REFERENCES app_user);
 CREATE TABLE skill_version (skill_id text REFERENCES skill, version text NOT NULL,
-                       status text CHECK (status IN ('experimental','production','deprecated')),
+                       status text CHECK (status IN ('draft','pilot','production','deprecated')),
                        eval_pass_rate numeric, eval_signed_by text REFERENCES signing_key, published_at timestamptz,
                        PRIMARY KEY (skill_id, version));
 CREATE TABLE run      (id text PRIMARY KEY,                      -- run_<ULID>
@@ -565,7 +567,7 @@ Numbers are **proposed** until Puneet confirms them (OQ-09 in Doc 1). Each NFR h
 | `tsl pr`, `tsl ci-verify` GitHub Action | Shubham | PR body from template; CI rejects missing/forged/revoked records; re-run checks match laptop (NFR-14) |
 | Verifier containers | Shubham | One profile per pilot stack builds and runs tests in Docker, same result laptop and CI |
 | Harness (`verify`, `decide`), rubrics, citation verifier | Japman | Golden-file suite covers every outcome and cap; H1–H7 each have a failing fixture |
-| Evals + context extractors (`init-context`, `context-refresh`) | Japman | Extractors produce `generated/` for the sample systems; drift check (DEF-03) tested; eval runner signs results |
+| Evals + context extractors (`tsl context build`) | Japman | Extractors produce `generated/` for the sample systems; drift check (DEF-03) tested; eval runner signs results |
 | Backstage catalogue + capability map | Ekjot | Skills/workflows listed from marketplace; production-only filter; no client names (automated check); WCAG 2.1 AA |
 | Dashboards, templates, pod builder UI (Phase 3) | Gaurav | Run status, usage, skill performance pages from DB; pseudonyms by default; open-questions/PR/approvals templates validated by schema |
 

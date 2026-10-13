@@ -337,7 +337,7 @@ checks:
 ```
 
 ```yaml
-# skills/design/skill-metadata.yaml (additive block)
+# skills/design/skill.yaml (skill-metadata.v1, additive block)
 harness:
   checks: checks.yaml
   trace_required: true
@@ -679,7 +679,7 @@ These are the Doc 3 §5.3 values and stay **proposals until pilot data exists** 
 2. Skill: `skill-metadata.v1` `harness.bands` (skill owner).
 3. System: `tsl.yaml` `harness.bands.<skill>` (tech lead).
 
-Levels 2 and 3 may only **tighten**: `S1_min`, `S2_min`, `S3_min` may only rise; `S6_max_ratio` and retry limits may only fall. `S4 = 0` is fixed. `tsl validate` rejects a loosening (E-VAL-07, SDD-04). The record stores `thresholds_sha256` of the effective set.
+Levels 2 and 3 may only **tighten**: `S1_min`, `S2_min`, `S3_min` may only rise; `S6_max_ratio` and retry limits may only fall. `S4 = 0` is fixed. `tsl validate` rejects a loosening (E-CFG-01, SDD-04 §7.2). The record stores `thresholds_sha256` of the effective set.
 
 ### 10.3 Caps
 
@@ -830,7 +830,7 @@ Each record names the records it consumed by hash, so changing any upstream file
 | 2 | Companion repo checkout (read-only token) and key registry reachable. Fail closed if not | E-CI-06 |
 | 3 | `runs/<run_id>/state.json` exists; every step the pinned workflow requires for this repo has a final-attempt record | E-CI-05 |
 | 4 | Every record validates against its schema (N or N-1) | E-SCH-01 |
-| 5 | Every signature verifies; key not revoked at `decided_at`; signer held `engineer` on the project at `decided_at` (R-07) | E-CI-02 |
+| 5 | Every signature verifies; key not revoked at `decided_at`; signer held `engineer` or `tech_lead` on the system at `decided_at` (R-07; role scope is the system, because one companion repo serves one client system) | E-CI-02 |
 | 6 | `artifact_sha256`, `checks_sha256`, `review_sha256` match the files in the companion repo | E-CI-02 (as Doc 5 §6.2) |
 | 7 | Chain: every `inputs[].verification_sha256` matches the upstream record file; every final outcome is PASS or PASS-WITH-FINDINGS, or ESCALATE with a signed approval by an allowed role that is not the generator (TM-13). Any ABORT in the run → fail | E-CI-05 |
 | 8 | Code binding: for this repo, the last code-producing record's `tree_sha` equals the PR head tree, `base_sha` is an ancestor of the PR base, and `diff_sha256` equals the recomputed diff | E-CI-04 |
@@ -975,7 +975,7 @@ expect:
 | Citation false-drop rate | valid cites dropped / valid cites | CI |
 | Fabrication catch rate | fabricated cites dropped / fabricated cites | CI |
 | Decide accuracy | cases with expected outcome and band / decide cases | CI (golden files) |
-| Reviewer recall | planted defects matched by a kept finding / planted defects (blocker + major; minor separately) | Seat, `/truminds:eval review`, signed with `tsl eval record` |
+| Reviewer recall | planted defects matched by a kept finding / planted defects (blocker + major; minor separately) | Seat, `/truminds:eval review`, signed with `tsl eval run` |
 | Reviewer precision | kept findings that match a planted defect / kept findings | Seat |
 | High-band audit miss rate | audited High results judged "not High-worthy" / audited High results | Pilot, from audits (§16.3) |
 
@@ -1051,7 +1051,7 @@ All targets are **proposed, needs Puneet decision** (OQ-09, OQ-11).
 | Doc 5 §5.3 | New event `audit.recorded` (run_id, step, verdict, reason_code); `step.decided` gains `claims{total, verified}` and `findings_dropped` count |
 | SDD-04 | `tsl verify` flags `--fast`, `--gates`, `--detach`, `--status`, `--ci`; `tsl harness eval`; `tsl review prepare/record` behaviour from §7 |
 | SDD-05 | Hooks write `runs/<run_id>/tool-log.jsonl` (`tool-log.v1`) |
-| SDD-07 / SDD-08 | `GET /v1/keys/{key_id}` must also return the signer's role grants at a given time (`?at=<ts>&project=<code>`) for CI check 5 |
+| SDD-07 / SDD-08 | `GET /v1/keys/{key_id}` must also return the signer's role grants at a given time (`?at=<ts>&system=<code>`) for CI check 5 |
 | SDD-01 | Body schemas carry `x-required-sections`, `x-trace`, `x-acceptance-criteria`, `x-claims-required`, `x-max-bytes`; rubric items carry ids `R-n` and weights; claims put named elements in backticks |
 | SDD-06 | Symbol index in `module-map.json` (name, file, start and end line) for `sym:` anchors |
 

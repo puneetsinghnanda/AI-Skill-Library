@@ -197,7 +197,7 @@ An unexpected exception prints `E-INT-01` (exit 1) with a log reference (`log_id
 
 ## 5. Error codes
 
-Doc 4 §5.2 is the catalogue. This document keeps every existing code and adds the codes below. Doc 4 §5.2 must add them (§13).
+Doc 4 §5.2 is the catalogue. This document keeps every existing code and adds the codes below. Doc 4 §5.2 must add them (§13). The canonical list of every code, with its owner, is the [registry](../architecture/registry.md) §2.
 
 | Code | Exit | Message | Next | Raised by |
 | --- | --- | --- | --- | --- |
@@ -210,13 +210,13 @@ Doc 4 §5.2 is the catalogue. This document keeps every existing code and adds t
 | E-RUN-04 | 3 | Run `<run_id>` not found | `tsl state show` | Run-bound commands |
 | E-RUN-05 | 3 | Run is `<status>`; `<command>` needs `<status>` | Shown per case | `approve`, `pr`, `next` |
 | E-RUN-06 | 3 | Run `<run_id>` belongs to `<pseudonym>` | Ask the owner, or a tech lead to unlock | `state resume` |
-| E-REV-01 | 2 | Reviewer output is not valid review.v1: `<pointer>` | Re-run the review skill | `review record` |
+| E-REV-02 | 2 | Reviewer output is not valid review.v1: `<pointer>` (meaning owned by SDD-03 §14; E-REV-01 is "cannot prepare review") | Re-run the review skill | `review record` |
 | E-EVAL-01 | 2 | Eval pass rate `<r>` below `<min>` or fewer than `<n>` cases | Fix the skill or add cases | `eval run` |
 | E-GIT-01 | 10 | Git `<op>` failed: `<detail>` | Check network and access, then repeat | `state`, `approve`, `pr` |
 | E-NET-02 | 10 | Insights service unreachable | Retry; offline-safe commands still work | Online-only commands |
 | E-KEY-01 | 10 | No usable OS keychain backend | See `tsl doctor` | `login`, signing |
 | E-AUTH-07 | 10 | Role cache older than 24 h and service unreachable | Reconnect, then repeat | Role-checked commands offline |
-| E-CI-04 | 2 | Key registry unreachable; cannot verify signers | Re-run the CI job | `ci-verify` |
+| E-CI-06 | 2 | Companion repo or key registry unreachable; failing closed (meaning owned by SDD-03 §14; E-CI-04 is "PR code differs") | Re-run the CI job | `ci-verify` |
 
 ## 6. Command reference
 
@@ -243,7 +243,7 @@ Notation: `<arg>` required, `[arg]` optional. "Network" says whether the command
 
 ### 6.2 `tsl keys list | rotate | revoke`
 
-Defined in SDD-07 §5.5. `list` → `data.keys[{key_id, device_id, device_label, created_at, revoked_at, reason}]`. `rotate` → new `key_id`, old key revoked as `superseded`. `revoke <key_id> [--compromised-since <ts>]` → own keys only; admins revoke others in the portal. Exit 0 or 10.
+Defined in SDD-07 §5.5. `list` → `data.keys[{key_id, device_id, device_label, created_at, revoked_at, reason}]`. `rotate` → new `key_id`, old key revoked as `replaced` (SDD-07 §5.6). `revoke <key_id> [--compromised-since <ts>]` → own keys only; admins revoke others in the portal. Exit 0 or 10.
 
 ### 6.3 `tsl doctor`
 
@@ -267,15 +267,15 @@ Defined in SDD-07 §5.5. `list` → `data.keys[{key_id, device_id, device_label,
 
 ### 6.4 `tsl init`
 
-`tsl init --system <code> --project <code> --client <code> --companion <org/repo> [--product-repo <name>=<git-url>[@<profile>]]... [--dir PATH]`
+`tsl init --system <code> --product-repo <name>=<url>[,path=<p>][,branch=<b>][,verifier=<profile>] ... [--clone-dir <dir>] [--json]` (signature owned by SDD-12 §5.3; project, client and companion repo come from `GET /v1/systems/{code}`)
 
 - **Who:** tech lead on the system (grant `tech_lead@system`), else `E-AUTH-04`.
-- **Network:** S (role and consent).
-- **Pre-checks:** `GET /v1/systems/{code}` returns `consent: true`, else `E-CONS-01`. `--dir` (default cwd) must be an empty git clone, else `E-USE-01`.
-- **Writes:** `tsl.yaml` (§7.2), `policy.yaml` (empty additions), `.gitattributes` (`* text=auto eol=lf`), `context/system-baseline.md`, `context/intent-baseline.md`, `context/glossary.md` (templates), `runs/active/.gitkeep`, `artifacts/.gitkeep`, `README.md`. It commits locally and does not push.
-- **Does not:** create the GitHub repo (SDD-12) or run extractors (`tsl context build`).
+- **Network:** S (role, consent, system record) and G (the companion remote).
+- **Pre-checks:** `GET /v1/systems/{code}` returns `consent.recorded: true`, else `E-CONS-01`; a companion repo is registered, else `E-INIT-01`; the remote repo is empty, else `E-INIT-02`.
+- **Writes:** the SDD-12 §3.1 template files, `tsl.yaml` (§7.2), `policy.yaml` (empty additions), `.gitattributes` (`* text=auto eol=lf`), the context section templates, `.tsl/local.yaml`, `runs/active/.gitkeep`, `artifacts/.gitkeep`, `README.md`.
+- **Does not:** create the GitHub repo or teams (SDD-12, SDD-13) or run extractors (`tsl context build`).
 - **Data:** `{"files": ["tsl.yaml", "..."], "commit": "<sha>"}`.
-- **Exits:** 0; 1 (E-USE-01); 3 (E-AUTH-04, E-CONS-01); 10.
+- **Exits:** 0; 1 (E-USE-01); 3 (E-AUTH-04, E-CONS-01, E-INIT-01, E-INIT-02); 10.
 
 This replaces Doc 5 `tsl init-context`, which is split into `init` and `context build`.
 
@@ -283,7 +283,7 @@ This replaces Doc 5 `tsl init-context`, which is split into `init` and `context 
 
 `tsl validate <path>... [--lock]`. Network: none.
 
-Detects the schema from the file's `schema:` field, or from the folder (a skill folder has `skill-metadata.yaml`). Checks are:
+Detects the schema from the file's `schema:` field, or from the folder (a skill folder has `skill.yaml`, schema `skill-metadata.v1`). Checks are:
 
 - JSON Schema validity;
 - skill folder completeness (SDD-01);
@@ -321,7 +321,7 @@ Inputs form: `data.inputs[{name, path, sha256, present, stale}]`. Exit 0, or 2 w
 
 | Command | Args | Network | Data | Exit codes |
 | --- | --- | --- | --- | --- |
-| `state start` | `<workflow> <ticket> [--system <code>]` | S, G (lock push) | `{run_id, status, lock_path, pinned{plugin,tsl,workflow,skills{}}, pack{fresh, signed_at}, first_step}` | 0; 3 (E-LOCK-01, E-AUTH-03, E-CONS-01, E-CTX-01, E-VER-01, E-ENV-01); 10 (E-GIT-01, E-AUTH-07) |
+| `state start` | `<workflow> <ticket> [--system <code>] [--pod <id>]` | S, G (lock push) | `{run_id, status, lock_path, pinned{plugin,tsl,workflow,skills{}}, pack{fresh, signed_at}, first_step}` | 0; 3 (E-LOCK-01, E-AUTH-03, E-CONS-01, E-CTX-01, E-VER-01, E-ENV-01, E-POD-01, E-COMP-07); 10 (E-GIT-01, E-AUTH-07, E-LOCK-03, E-LOCK-04) |
 | `state resume` | `<run_id>` | G | `{run_id, status, next_step, answered[], approvals[]}` | 0; 2 (E-RUN-03); 3 (E-RUN-04, E-RUN-06, E-AUTH-05, E-VER-01) |
 | `state show` | `[run_id] [--all]` | — | `{runs[{run_id, ticket, workflow, status, step, attempt, updated_at, waiting_on}]}` | 0; 3 (E-RUN-04) |
 | `state unlock` | `<ticket> <workflow> --reason <text>` | S, G | `{released_lock, run_id, previous_holder}` | 0; 3 (E-AUTH-04 if not tech lead; E-RUN-05 if the lock is not stale under DEF-06) |
@@ -353,8 +353,8 @@ Inputs form: `data.inputs[{name, path, sha256, present, stale}]`. Exit 0, or 2 w
 
 | Command | Args | Data | Exit codes |
 | --- | --- | --- | --- |
-| `review prepare` | `<artifact>` | `{artifact_path, artifact_sha256, rubric_path, rubric_sha256, context_sections[{path, anchor, sha256}], output_schema: "review.v1", instructions}` | 0; 2 (E-CHK-01 if `checks.json` is missing or failing); 3 (E-RUN-04) |
-| `review record` | `<artifact> [--file PATH \| --unavailable <reason>]` (default: stdin) | `{review_path, findings: {blocker, major, minor}, rubric_score}` | 0; 2 (E-REV-01) |
+| `review prepare` | `<artifact>` | `{artifact_path, artifact_sha256, rubric_path, rubric_sha256, context_sections[{path, anchor, sha256}], output_schema: "review.v1", instructions}` | 0; 3 (E-REV-01 if `checks.json` is missing or failing, SDD-03 §14; E-RUN-04) |
+| `review record` | `<artifact> [--file PATH \| --unavailable <reason>]` (default: stdin) | `{review_path, findings: {blocker, major, minor}, rubric_score}` | 0; 2 (E-REV-02, E-REV-03) |
 
 `prepare` prints the package that the forked reviewer reads (SDD-05 §4.4). It lists section paths and anchors, not file contents, so the reviewer reads them itself with Read, Grep and Glob.
 
@@ -376,7 +376,7 @@ It runs citation verification and the signals, band and outcome logic (SDD-03). 
 ```json
 "data": {"outcome": "RETRY", "band": null, "action": "retry", "attempt": 1, "retries_left": 1,
          "signals": {"S1": 0.71, "S2": 1.0, "S3": 3.4, "S4": 0, "S5": "fresh", "S6": {"lines": 0, "files": 0, "sensitive": false}},
-         "caps": [], "findings_dropped": ["F-3"], "retry_input": "artifacts/ABC-142/run_01J9.../design.findings.json",
+         "caps": [], "findings_dropped": ["F-3"], "retry_input": "runs/run_01J9.../feedback/design.a1.json",
          "verification_path": "artifacts/ABC-142/run_01J9.../design.verification.json", "key_id": "key_01J9..."}
 ```
 
@@ -428,7 +428,7 @@ GitHub authentication uses the engineer's existing git credential (`git credenti
 
 1. Read the PR body. If there is no `tsl:run_id` marker and the diff changes code, fail with E-CI-01.
 2. Load every `*.verification.json` and `approvals.md` signature block for the run, plus `context/pack.signature.json`, from the companion checkout.
-3. Verify each signature. Call `POST /v1/signatures/verify` for key status, role at signing time and anchoring (SDD-07 §7.2). If the registry cannot be reached, fail with E-CI-04 (fail closed).
+3. Verify each signature. Call `POST /v1/signatures/verify` for key status, role at signing time and anchoring (SDD-07 §7.2). If the registry cannot be reached, fail with E-CI-06 (fail closed).
 4. Recompute artifact hashes, which must match the records (E-CI-02).
 5. Re-run the code checks and the verifier profile at `--head`. They must give the same pass/fail (E-CI-03, NFR-14).
 6. Write a markdown summary to `$GITHUB_STEP_SUMMARY` and queue `ci.verified` when a telemetry token is present.
@@ -483,7 +483,7 @@ The flow (`/truminds:eval`, SDD-05 §4.1) works in three parts:
 
 1. `plan` lays out a work folder.
 2. Claude runs the skill once per case on the seat and writes each output to its `output_path`.
-3. `run` scores each output with code only: the H1–H7 checks plus the case's expected checks (SDD-01). It then signs `eval-result.v1` and writes it to `skills/<skill>/evals/results/<version>.json`.
+3. `run` scores each output with code only: the H1–H7 checks plus the case's expected checks (SDD-01). It then signs `eval-result.v1` and writes it to `skills/<skill>/evals/results/<version>.eval-result.json` (SDD-01 §2).
 
 `run` queues `eval.recorded`. It replaces Doc 5 `tsl eval record`.
 
@@ -519,6 +519,25 @@ The `/truminds:improve` skill must add a failing eval case before it proposes a 
 | Approval | `approve` | Exit 10; the signature stays committed locally |
 | Completion, unlock | `pr`, `state unlock` | Exit 10 |
 | Session end | `hook session-end` | Silent; retried next time |
+
+### 6.21 Commands defined in other documents
+
+These commands follow the envelope, exit codes and global options of this document. Their arguments and logic are owned by the listed document. The [registry](../architecture/registry.md) §3 is the full list.
+
+| Command | Args (summary) | Owner | Exit codes |
+| --- | --- | --- | --- |
+| `tsl state cancel` | `<run_id> --reason <text>` (run owner or tech lead) | SDD-02 §12 | 0; 3 (E-RUN-04, E-RUN-06); 10 |
+| `tsl state repair` | `<run_id>` | SDD-02 §11.3 | 0; 3 (E-RUN-04) |
+| `tsl state repin` | `<run_id>` | SDD-02 §11.4 | 0; 3 (E-RUN-04, E-RUN-05) |
+| `tsl state resume --take-over` | `<run_id> --take-over` | SDD-02 §11.2 | As `state resume` |
+| `tsl context status` | `[--deep]` | SDD-06 §6.1 | 0; 3 (E-CTX-01, E-CTX-03) |
+| `tsl context draft-prepare` | `<section>` | SDD-06 §6.4 | 0; 3 (E-CTX-01) |
+| `tsl context deny-term` | `"<name>"` | SDD-06 §9.4 | 0 |
+| `tsl eval check` | `<skill> --case <id>` (one case, unsigned) | SDD-01 §10.2 | 0; 2 |
+| `tsl improve case \| check \| pr` | `<skill>` | SDD-11 §5.1 | 0; 2 (E-IMP-01 to 05); 3; 10 |
+| `tsl harness eval` | `[--code-only]` | SDD-03 §16 | 0; 2 |
+| `tsl companion check` | — | SDD-12 §6.4 | 0; 2 (E-COMP-01 to 05) |
+| `tsl companion archive` | `[--reason <code>] [--abandon-runs]` | SDD-12 §8.2 | 0; 3 (E-COMP-06); 10 |
 
 ## 7. Configuration files
 
@@ -560,7 +579,7 @@ color = "auto"                                  # auto | always | never
 | `logging.level`, `max_mb`, `backups` | enum, int, int | no | warning, 10, 3 |
 | `ui.color` | enum | no | auto |
 
-**Identity and endpoint values are not in this file.** These are the tenant id, the client ids, the API scope, the authority and the service URL. They ship inside the wheel as `tsl/_org.toml`, set at release build time. A user or a companion repo cannot point `tsl` at another identity provider or service, which blocks token theft through a changed endpoint (SDD-07 TM-17). A test build uses a different wheel with test-tenant values; there is no runtime switch.
+**Identity and endpoint values are not in this file.** These are the tenant id, the client ids, the API scope, the authority and the service URL. They ship inside the wheel as `tsl/_org.toml`, set at release build time. A user or a companion repo cannot point `tsl` at another identity provider or service, which blocks token theft through a changed endpoint (SDD-07 TM-26). A test build uses a different wheel with test-tenant values; there is no runtime switch.
 
 ### 7.2 `tsl.yaml` (tsl-config.v1, per companion repo)
 
@@ -799,7 +818,7 @@ sequenceDiagram
 | Id | Item | Owner | Ref |
 | --- | --- | --- | --- |
 | OI-01 | Confirm SQLite outbox and the `dead` status change with SDD-08 | Gaurav Saini | new |
-| OI-02 | Confirm the rename of Doc 5 commands (no aliases, since nothing is released yet) | Puneet Singh Nanda | new |
+| OI-02 | Confirm the rename of Doc 5 commands (no aliases, since nothing is released yet). The [registry](../architecture/registry.md) §3.3 adopts it and SDD-06 drops its alias plan | Puneet Singh Nanda | new |
 | OI-03 | R-08 says runs use pinned versions after an upgrade, but only one `tsl` is installed per laptop. Proposed: same major continues, a different major blocks with E-VER-01. This is a rule conflict, flagged rather than worked around | Puneet Singh Nanda | R-08 |
 | OI-04 | `tsl pr` GitHub auth for engineers who use SSH only (no credential helper token) | Japman Singh, Yash Khorwal | new |
 | OI-05 | Add `truststore`: confirm whether Truminds laptops use TLS inspection | TBD by Puneet | new |

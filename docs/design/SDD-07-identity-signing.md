@@ -712,7 +712,7 @@ The refresh token issued to an SPA has a short life set by Entra (about 24 hours
 | --- | --- |
 | Algorithm | `RS256` only; `alg: none` and HS* refused (SEC-T-02) |
 | Issuer | `https://login.microsoftonline.com/<tenant>/v2.0` |
-| Audience | The `truminds-insights-api` application (client) id. With `accessTokenAcceptedVersion: 2`, Entra puts the client id GUID in `aud`, not the App ID URI. SDD-08 §4.1 writes "audience `api://truminds-insights`"; the configured value is the GUID (OI-07-16) |
+| Audience | The `truminds-insights-api` application (client) id. With `accessTokenAcceptedVersion: 2`, Entra puts the client id GUID in `aud`, not the App ID URI. SDD-08 §4.1 and SDD-09 §5.1.1 now say the same. `api://truminds-insights/<scope>` is only the scope string clients request; it is never compared with `aud` (OI-07-16, closed) |
 | Tenant | `tid` equals the Truminds tenant |
 | Time | `exp`, `nbf` with 60 s leeway |
 | Client and scope pairing | `azp` = `truminds-tsl` client id requires `scp` ∋ `Events.Write`; `azp` = `truminds-portal` client id requires `Portal.Read` or `Portal.Write`. Any other `azp` → 401 |
@@ -822,17 +822,17 @@ Fakes: a fake MSAL client and an in-memory `keyring` backend injected in tests (
 | OI-07-03 | Confirm the Entra ID licence allows group assignment to enterprise apps (P1 or higher) | new | Entra app admin, TBD by Puneet |
 | OI-07-04 | Confirm refresh-token lifetime and Conditional Access sign-in frequency for `truminds-tsl` | new | Entra app admin |
 | OI-07-05 | Conditional Access policy for the device-code flow (block outside managed devices) | SEC-OI-04 | Entra app admin |
-| OI-07-06 | Conflict: SDD-04 cites "SDD-07 TM-17"; SEC-01 uses TM-17 for seat limits. This document uses TM-26 | new | Japman Singh, Yash Khorwal |
-| OI-07-07 | Conflict: registry-unreachable code is E-CI-06 in SDD-03 and E-CI-04 in SDD-04 (E-CI-04 is code binding in SDD-03) | new | Japman Singh, Yash Khorwal |
-| OI-07-08 | Conflict: SDD-04 and SDD-08 both define E-KEY-01. Proposed: SDD-04 keeps it; SDD-08's 409 becomes E-KEY-03 | new | Gaurav Saini |
+| OI-07-06 | Closed by the [registry](../architecture/registry.md) §10. Conflict: SDD-04 cites "SDD-07 TM-17"; SEC-01 uses TM-17 for seat limits. This document uses TM-26 | new | Japman Singh, Yash Khorwal |
+| OI-07-07 | Closed by the [registry](../architecture/registry.md) §10. Conflict: registry-unreachable code is E-CI-06 in SDD-03 and E-CI-04 in SDD-04 (E-CI-04 is code binding in SDD-03) | new | Japman Singh, Yash Khorwal |
+| OI-07-08 | Closed by the [registry](../architecture/registry.md) §10. Conflict: SDD-04 and SDD-08 both define E-KEY-01. Proposed: SDD-04 keeps it; SDD-08's 409 becomes E-KEY-03 | new | Gaurav Saini |
 | OI-07-09 | Confirm key maximum age (180 days proposed) | new | Puneet Singh Nanda |
 | OI-07-10 | SDD-08 adopts the endpoints, columns, table, scope and event fields in §13 | SDD-04 OI-07 | Gaurav Saini |
 | OI-07-11 | Optional Graph reconciliation of app-role assignments (needs a Graph application permission) | new | TBD by Puneet |
 | OI-07-12 | Confirm the ceiling for `eng_lead` (`TechLead` or `Admin`) | new | Puneet Singh Nanda |
-| OI-07-13 | Device id format: SDD-04 uses `dev_<ULID>`, the SDD-08 example uses hex. This document follows SDD-04 | new | Gaurav Saini |
+| OI-07-13 | Closed by the [registry](../architecture/registry.md) §10. Device id format: SDD-04 uses `dev_<ULID>`, the SDD-08 example uses hex. This document follows SDD-04 | new | Gaurav Saini |
 | OI-07-14 | Reword Doc 5 R-06 per §4.3 | new | Puneet Singh Nanda |
 | OI-07-15 | Portal token cache: `memoryStorage` (one redirect per reload) or `sessionStorage` (survives reload, readable by same-origin script) | SEC-01 §5.11 | Security reviewer, TBD by Puneet |
-| OI-07-16 | SDD-08 §4.1 audience text: configured value is the API client id GUID for v2 tokens | new | Gaurav Saini |
-| OI-07-17 | Role scope for CI `roles_at`: system (SDD-08, Doc 2) vs project (SDD-03 §13.2) | new | Japman Singh, Yash Khorwal |
-| OI-07-18 | Admin action log name: SDD-08 `audit_log` vs SEC-01 `admin_audit`. This document writes to `audit_log` | new | Gaurav Saini |
+| OI-07-16 | Closed by the [registry](../architecture/registry.md) §10. SDD-08 §4.1 audience text: configured value is the API client id GUID for v2 tokens | new | Gaurav Saini |
+| OI-07-17 | Closed by the [registry](../architecture/registry.md) §10. System scope. Role scope for CI `roles_at`: system (SDD-08, Doc 2) vs project (SDD-03 §13.2) | new | Japman Singh, Yash Khorwal |
+| OI-07-18 | Closed by the [registry](../architecture/registry.md) §10. Admin action log name: SDD-08 `audit_log` vs SEC-01 `admin_audit`. This document writes to `audit_log` | new | Gaurav Saini |
 | OI-07-19 | Instruction was to store tokens in the keychain through `keyring`; the keychain holds the cache key, not the cache, because of the Windows size limit (§4.3). Confirm | new | Puneet Singh Nanda |

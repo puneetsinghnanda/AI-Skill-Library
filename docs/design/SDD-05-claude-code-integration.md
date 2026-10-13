@@ -167,6 +167,8 @@ claude plugin install truminds@truminds-skill-library
 
 A plugin release is a git tag `vX.Y.Z` on `main`, after CI passes `tsl validate` on every skill and workflow. Engineers should only get reviewed releases. Whether managed settings can pin a marketplace to a tag or branch is not yet verified (U-05, spike S-07). Until it is, \`main\` only ever receives tagged, CI-passed merges.
 
+**Release channels:** engineers install from the `channel/pilot` and `channel/stable` branches defined in [OPS-03 §4.2](../operations/OPS-03-release-rollout-support.md), never from `main`. That mechanism depends on S-07; if S-07 fails, OPS-03 §4.2 falls back to one distribution repo per channel.
+
 ## 4. User commands and the reviewer subagent
 
 ### 4.1 Commands are skills
@@ -459,6 +461,17 @@ These come from V-18 and become new constraints in Doc 6:
 | S-08 | U-06: env passing | SessionStart writes `TSL_SESSION_ID`; read it from `` !`env` `` in a skill and from a Bash call | Visible in both |  |
 | S-09 | End to end | `/truminds:run demo T-1` with stub `tsl`: skill writes an artifact; post-write hook runs; `review` forks `truminds:reviewer`; returns JSON | Whole loop works; pre-tool ≤ 500 ms; post-write overhead ≤ 1 s with the stub |  |
 
+Spikes raised by other documents. Ids come from the [registry](../architecture/registry.md) §9; never reuse one.
+
+| Spike | Proves | Raised by | Run by | Result |
+| --- | --- | --- | --- | --- |
+| S-10 | OTel metric and event names and attribute keys for the SDD-08 allowlist | SDD-08 §5.3 | Shubham Bansal |  |
+| S-11 | Seat usage (tokens) of one full workflow run | SDD-13 §8.3 | Claude org admin (TBD by Puneet) with Shubham Bansal |  |
+| S-12 | Whether the admin console can apply managed settings to a subset or group of users | SDD-13 §6.2, OPS-03 §4.3 | Shubham Bansal with the Claude admin |  |
+| S-13 | Managed deny-rule syntax for `WebFetch` and `WebSearch` | SEC-01 §6.3 | Shubham Bansal |  |
+| S-14 | When Claude Code updates a force-enabled plugin after its marketplace changes | OPS-03 §4.1 | Shubham Bansal |  |
+| S-15 | What Claude Code does when a hook's own `timeout` fires | OPS-04 §4.5 | Shubham Bansal |  |
+
 ### 8.2 Done criteria for the SDD-05 build
 
 - Plugin and marketplace install from the repo on clean macOS and Windows (native) machines.
@@ -490,4 +503,4 @@ I will apply these once Shubham validates this document.
 | Final GitHub org and repo name for the marketplace (OQ-10) | TBD by Puneet |
 | Telemetry collector host and ingest token (depends on hosting, OQ-02) | Gaurav Saini, after hosting choice |
 | Docker Desktop licensing for Windows and macOS engineers | TBD by Puneet |
-| Spike results S-01 to S-09 | Shubham Bansal |
+| Spike results S-01 to S-15 (S-11 and S-12 with the Claude admin) | Shubham Bansal |

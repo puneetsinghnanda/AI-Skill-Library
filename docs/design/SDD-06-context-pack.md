@@ -345,7 +345,7 @@ Both are additions to the Doc 3 §11 stack. They are listed in Open items for SD
 
 ## 6. Commands
 
-These replace `tsl init-context`, `tsl context-refresh` and `tsl sign-context` in Doc 5 §2.2. The old names stay as hidden aliases for one minor version, then go (§12).
+These replace `tsl init-context`, `tsl context-refresh` and `tsl sign-context` in Doc 5 §2.2. The old names are not kept as aliases: SDD-04 §1.3 forbids hidden commands and nothing has been released yet ([registry](../architecture/registry.md) §3.3).
 
 ### 6.1 Signatures
 

@@ -78,7 +78,7 @@ plugins/truminds/skills/requirement-review/
 | `skill.yaml` | Yes | `tsl`, marketplace CI, catalogue sync | Identity, version, status, inputs, outputs, limits |
 | `rubric.md` | Yes | `tsl review prepare` → `truminds:reviewer` | Criteria the reviewer scores 1–5 (signal S3) |
 | `checks.yaml` | Yes | `tsl verify` | Which library checks run, with parameters and gate mapping |
-| `evals/` | Yes, ≥ 10 cases | `/truminds:eval`, `tsl eval record`, CI | Proof the skill works on invented data |
+| `evals/` | Yes, ≥ 10 cases | `/truminds:eval`, `tsl eval run`, CI | Proof the skill works on invented data |
 | `examples/` | Yes, ≥ 1 good and ≥ 1 bad | `tsl validate`, CI | Golden files for the checks, no LLM needed |
 | `CHANGELOG.md` | Yes | Humans, portal Versions tab | What changed and why |
 
@@ -448,12 +448,12 @@ flowchart LR
   F --> G[tsl eval check: compare with expect]
   G --> H{more cases?}
   H -- yes --> C
-  H -- no --> I[tsl eval record: sign results.json]
+  H -- no --> I[tsl eval run: score all cases, sign the result]
   I --> J[evals/results/version.eval-result.json + eval.recorded event]
 ```
 
 - Scratch companions live in `~/.truminds/eval/<skill>/<case>/` and are deleted after recording. They never touch a real companion repo.
-- `tsl eval check` is a new command (SDD-04).
+- `tsl eval check` scores one case without signing; `tsl eval run` scores every case and signs (SDD-04 §6.16, §6.21).
 - `eval-result.v1` records skill id, version, content hash, case ids with pass/fail, pass rate, `tsl` version, key id and signature (Doc 3 §8.1).
 
 ### 10.3 Required case mix (minimum 10)
@@ -744,7 +744,7 @@ flowchart TD
   D --> E[/truminds:eval id/ on own seat]
   E -- pass rate < 0.9 --> B
   E -- pass --> F[Smoke run on the sample system: /truminds:run workflow SAMPLE-n]
-  F --> G[tsl eval record: signed result]
+  F --> G[tsl eval run: signed result]
   G --> H[PR to marketplace repo; CI: validate, signature, pass rate, examples]
   H --> I[Skill owner approves: status pilot]
 ```
@@ -754,7 +754,7 @@ flowchart TD
 | 1 | `tsl validate plugins/truminds/skills/<id>` | Files, names, schema, version bump, examples behave as labelled |
 | 2 | `/truminds:eval <id>` | The skill meets its eval set on this seat |
 | 3 | `/truminds:run <workflow> SAMPLE-<n>` in the sample system's companion repo | The skill works inside a real run with hooks and the reviewer |
-| 4 | `tsl eval record <id> <results.json>` | Signed eval result bound to the content hash |
+| 4 | `tsl eval run <id>` | Signed eval result bound to the content hash |
 | 5 | Push branch, open PR | CI repeats steps 1 and checks the signature; no LLM in CI |
 
 **Loading an unreleased skill.** Managed settings set `disableSideloadFlags: true` and an allowlist of one marketplace ([SDD-05 §6.2](SDD-05-claude-code-integration.md)). That blocks `--plugin-dir` and any second marketplace on every company seat, including skill authors. Authors therefore cannot load a skill version that is not yet on `main`. This is a rule conflict; it is not worked around here. See O-02.

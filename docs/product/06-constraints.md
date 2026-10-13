@@ -20,7 +20,7 @@ Oct 6, 2026 · @Puneet Singh Nanda
 | C-01 | All LLM execution is local in the Claude Code desktop app with the Truminds plugin | Decision D-10 | No server-side agents; harness decisions in local `tsl` |
 | C-02 | No Claude API is used anywhere (including CI and reports) | D-11 | CI re-runs code checks only; improvement report is plain code; evals run on seats |
 | C-03 | Company Claude seats only; personal accounts never used for client code | Org rule | Managed settings; seat assignment in onboarding (US-18) |
-| C-04 | Client code processed only with written client consent | Org rule | `tsl init-context` blocked without consent record (E-CONS-01) |
+| C-04 | Client code processed only with written client consent | Org rule | `tsl init` and `tsl context build` blocked without consent record (E-CONS-01) |
 | C-05 | Company SSO only; no custom auth | Org rule | OIDC for `tsl login` and portal |
 | C-06 | No secrets in code or config; data encrypted at rest | Org rule | Secrets via CI secrets/keychain; DB and backups encrypted (NFR-08) |
 | C-07 | Data residency: where the telemetry service and database may be hosted is not decided | OQ-02, OQ-03 | Hosting choice must allow region pinning; metadata-only events reduce exposure |

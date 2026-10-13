@@ -86,6 +86,7 @@ Doc 5 §3.3 shows the short form. This is the full form. All additions are addit
 | `inputs` | map | Yes | Run-level inputs. Release 1 supports `ticket: {required: true}` only |
 | `defaults.retry` | object | No | `{checks: 2, review: 2, verifier: 3}`. These are the org maximums (R-01, R-02); a workflow may lower them, never raise them |
 | `defaults.max_rework` | int | No (default 2) | Max human-requested reworks per step (gate `changes` or `reject`) before the gate allows only `approve` or `abort` |
+| `status` | `draft` \| `pilot` \| `production` \| `deprecated` | Yes | Lifecycle, same words as skills (SDD-01 §7). `deprecated` makes `tsl state start` print an E-DEP-01 warning (OPS-03 §7) |
 | `steps` | list | Yes | Ordered list. The order is the tie-break for `tsl next` (§6.2) |
 
 **Step: common fields**
@@ -144,13 +145,14 @@ How an output binds to a later input was the main gap in Q3. **Decision: bind by
 $schema: https://json-schema.org/draft/2020-12/schema
 $id: workflow.v1
 type: object
-required: [schema, id, version, title, description, owner, kind, inputs, steps]
+required: [schema, id, version, title, description, owner, kind, status, inputs, steps]
 additionalProperties: false
 properties:
   schema: {const: workflow.v1}
   id: {type: string, pattern: '^[a-z][a-z0-9-]{2,40}$'}
   version: {type: string, pattern: '^\d+\.\d+\.\d+$'}
   kind: {enum: [delivery, read_only]}
+  status: {enum: [draft, pilot, production, deprecated]}
   requires_fresh_pack: {type: boolean, default: true}
   inputs: {type: object, properties: {ticket: {type: object, properties: {required: {const: true}}}}}
   defaults:
@@ -391,8 +393,8 @@ New fields are additive to Doc 5 §3.4.
     {"id": "impact", "kind": "skill", "status": "DONE", "budget_used": {"checks": 1, "review": 0, "verifier": 0, "rework": 0},
      "attempts": [
        {"n": 1, "cause": "first", "skill": "impact-analysis@1.1.2", "outcome": "RETRY", "band": null,
-        "artifact": "artifacts/ABC-142/run_01J9ZK2M4Q8X7T3B5N6R0VWYCD/history/impact/1/impact.md", "artifact_sha256": "77aa...",
-        "record": "artifacts/ABC-142/run_01J9ZK2M4Q8X7T3B5N6R0VWYCD/history/impact/1/impact.verification.json",
+        "artifact": "artifacts/ABC-142/run_01J9ZK2M4Q8X7T3B5N6R0VWYCD/history/impact/a1/impact.md", "artifact_sha256": "77aa...",
+        "record": "artifacts/ABC-142/run_01J9ZK2M4Q8X7T3B5N6R0VWYCD/history/impact/a1/impact.verification.json",
         "inputs": [{"name": "intent", "step": "req", "sha256": "12ef..."}], "feedback": null, "answers_sha256": null},
        {"n": 2, "cause": "retry_checks", "skill": "impact-analysis@1.1.2", "outcome": "PASS", "band": "High",
         "artifact": "artifacts/ABC-142/run_01J9ZK2M4Q8X7T3B5N6R0VWYCD/impact.md", "artifact_sha256": "9be1...",
@@ -430,7 +432,7 @@ runs/<run_id>/
 └─ .local.lock                   # new: machine-local, listed in .gitignore
 artifacts/<ticket>/<run_id>/
 ├─ <step>.md + .checks.json + .review.json + .verification.json   # latest attempt
-└─ history/<step>/<n>/...        # new: earlier attempts, moved here, never edited (R-03)
+└─ history/<step>/a<n>/...       # new: earlier attempts, moved here by tsl verify, never edited (R-03; folder form from SDD-03 §2.1)
 ```
 
 ## 6. `tsl next`
@@ -461,7 +463,7 @@ The text after the `--json` envelope's `next` field is always a literal instruct
 ```mermaid
 flowchart TD
   A[tsl next run_id] --> L{local lock and lock file\nheld by this run?}
-  L -- no --> X1[E-LOCK-02 / E-RUN-06, exit 3]
+  L -- no --> X1[E-LOCK-02 / E-RUN-11, exit 3]
   L -- yes --> S{status}
   S -- COMPLETED --> D1[action done / stopped]
   S -- PAUSED_INPUT --> P1[action pause_input]
@@ -482,7 +484,7 @@ flowchart TD
 def next_action(run_id):
     st = load_state(run_id); wf = load_snapshot(run_id)
     assert_lock_held(st)                      # §11.1, E-LOCK-02
-    assert_session(st)                        # §11.2, E-RUN-06
+    assert_session(st)                        # §11.2, E-RUN-11
     if st.status == "COMPLETED": return done_or_stopped(st)
     if st.status == "PAUSED_INPUT": return pause_input(st)
     if st.status == "PAUSED_APPROVAL": return pause_approval(st)
@@ -737,7 +739,7 @@ sequenceDiagram
     T->>G: git push
     alt push rejected (someone pushed first)
       T->>G: fetch, rebase
-      T->>T: lock now exists? yes: E-LOCK-01 / no: retry (max 3)
+      T->>T: lock now exists? yes: E-LOCK-01 / no: retry (max 3), then E-LOCK-04, exit 10
     else network down
       T-->>T: E-LOCK-03, exit 10 (runs cannot start offline, L-08)
     else ok
@@ -762,11 +764,13 @@ sequenceDiagram
 
 Per-run folders mean the only shared file is the lock (Doc 3 §3), so a rebase never conflicts on run data.
 
+**One lock file (registry decision).** The lock is the single file `runs/active/<ticket>__<workflow>.lock` (`run-lock.v1`). Its fixed path is what makes a second laptop's `git push` fail, so it gives multi-laptop safety on its own. SDD-12's separate `.claim` file and `runs/<run_id>/lock` body are not used. From SDD-12 §3.3 this protocol keeps: fetch and rebase before writing, up to 3 push retries, dropping the local start commit when another run won, and E-LOCK-04 when pushes keep failing with the network up ([registry](../architecture/registry.md) §10, row 9).
+
 ### 11.2 Two sessions on one run
 
-- **Same machine:** `runs/<run_id>/.local.lock` is created with exclusive-create (`O_CREAT|O_EXCL`) and holds the pid. A second `tsl` process on the same run waits up to 5 s, then fails with E-RUN-06. A lock whose pid is dead is removed.
-- **Same run, two Claude sessions:** `state.json` `active_session` holds the session id from `TSL_SESSION_ID` (SDD-05 §5.5). If another session calls `tsl next` and the holder's heartbeat is newer than 15 minutes, `tsl` fails with E-RUN-06. `tsl state resume --take-over` moves the run to the new session. Passing the session id to `tsl` is unverified (U-06, spike S-08); without it, only the machine-local lock applies.
-- **Optimistic writes:** every write re-reads `rev`, applies the change and writes `rev+1`. Writes are atomic: temp file, fsync, rename. A `rev` mismatch means another writer won; `tsl` re-reads and re-applies once, then fails with E-RUN-06.
+- **Same machine:** `runs/<run_id>/.local.lock` is created with exclusive-create (`O_CREAT|O_EXCL`) and holds the pid. A second `tsl` process on the same run waits up to 5 s, then fails with E-RUN-11. A lock whose pid is dead is removed.
+- **Same run, two Claude sessions:** `state.json` `active_session` holds the session id from `TSL_SESSION_ID` (SDD-05 §5.5). If another session calls `tsl next` and the holder's heartbeat is newer than 15 minutes, `tsl` fails with E-RUN-11. `tsl state resume --take-over` moves the run to the new session. Passing the session id to `tsl` is unverified (U-06, spike S-08); without it, only the machine-local lock applies.
+- **Optimistic writes:** every write re-reads `rev`, applies the change and writes `rev+1`. Writes are atomic: temp file, fsync, rename. A `rev` mismatch means another writer won; `tsl` re-reads and re-applies once, then fails with E-RUN-11.
 
 ### 11.3 Crash cases
 
@@ -786,7 +790,7 @@ Per-run folders mean the only shared file is the lock (Doc 3 §3), so a rebase n
 The workflow is pinned through the snapshot. Skills are a gap: the plugin holds only one version of each skill, so a run cannot always use its pinned skill version after an upgrade (R-08). Proposed rule:
 
 - `tsl state resume` and `tsl next` compare `pinned.skills` with the installed versions.
-- **Same major:** `tsl next` fails with E-RUN-05 and offers `tsl state repin <run_id>`. Repin records the new versions; steps already decided keep their records; open and future steps use the new version (cause `repin`).
+- **Same major:** `tsl next` fails with E-RUN-10 and offers `tsl state repin <run_id>`. Repin records the new versions; steps already decided keep their records; open and future steps use the new version (cause `repin`).
 - **Different major:** repin also marks every step that used that skill STALE, because its output schema may differ (R-10).
 
 This needs Puneet's decision (open item 1).
@@ -804,10 +808,10 @@ This needs Puneet's decision (open item 1).
 | Schema (additive) | `run-state.v1` fields (§5.3); envelope `questions[]`, `resolves[]`, `code[]`; `verification.v1` `inputs[]` | Doc 5 §3.4, §3.6, §3.7; SDD-03 |
 | Event | `step.invalidated {step, cause_step, reason}` | Doc 5 §5.3, SDD-08 |
 | Event field (additive) | `step.decided.cause`; `run.status_changed.reason_code` values = `end_reason` values plus `paused_input`, `paused_approval`, `resumed` | Doc 5 §5.3, SDD-08 |
-| Error codes | E-WFL-01 to E-WFL-05 (exit 2); E-RUN-04 step is not the next step (3); E-RUN-05 pinned skill version not installed (3); E-RUN-06 run busy in another process or session (3); E-RUN-07 answers changed after resume (2); E-RUN-08 approval does not match artifact (3); E-LOCK-02 lock lost or released (3); E-LOCK-03 cannot take lock offline (10) | Doc 4 §5.2 |
+| Error codes | E-WFL-01 to E-WFL-05 (exit 2); E-RUN-09 step is not the open step (3); E-RUN-10 pinned skill version not installed (3); E-RUN-11 run busy in another process or session (3); E-RUN-04 to E-RUN-06 keep their SDD-04 §5 meanings (registry §2); E-RUN-07 answers changed after resume (2); E-RUN-08 approval does not match artifact (3); E-LOCK-02 lock lost or released (3); E-LOCK-03 cannot take lock offline (10); E-LOCK-04 lock push still rejected after 3 retries with the network up (10) | Doc 4 §5.2 |
 | Workflow example | `tplan` after `G-design`; gate fields | Doc 5 §3.3 |
 
-E-RUN-04 is how FR-RUN-02 is enforced now: the skill's `` !`tsl verify --inputs` `` check fails when the skill is not the open attempt of the active run.
+E-RUN-09 is how FR-RUN-02 is enforced now: the skill's `` !`tsl verify --inputs` `` check fails when the skill is not the open attempt of the active run.
 
 ## 13. Error handling and security
 
@@ -825,7 +829,7 @@ E-RUN-04 is how FR-RUN-02 is enforced now: the skill's `` !`tsl verify --inputs`
 | Golden-file | `tsl next` on stored state + snapshot fixtures gives the stored action, one fixture per action |
 | Contract | `workflow.v1`, `next-action.v1`, `feedback.v1`, `run-state.v1` validate against samples; invalid samples fail with the right E-WFL code |
 | Lock | Two clones race `tsl state start` against a local bare remote: exactly one wins; offline start fails E-LOCK-03; stale unlock then owner touch gives E-LOCK-02 |
-| Crash | Kill `tsl decide` between temp write and rename; corrupt `state.json` then `tsl state repair`; second process gets E-RUN-06 |
+| Crash | Kill `tsl decide` between temp write and rename; corrupt `state.json` then `tsl state repair`; second process gets E-RUN-11 |
 | Pause | Resume refused with an empty blocking answer (E-RUN-03); refused after editing a frozen answer (E-RUN-07); non-blocking default recorded |
 | Gate | Approve, changes, reject (to `req` and to `abort`), self-approval refused, role missing, artifact changed after approval (E-RUN-08) |
 | Chain | Reject at G-design marks `split`, `impact`, `design` STALE; identical re-run output marks nothing stale; CI rejects a broken record chain |

@@ -575,5 +575,5 @@ Done once per environment, before the first real data arrives:
 | SDD-12 | Companion read token for CI: GitHub App (proposal) or fine-grained token | TBD by Puneet |
 | SDD-04 OI-07 | `POST /v1/signatures/verify` is not yet in SDD-08; it must be on the public edge under E1 | Gaurav Saini |
 | new | `app.entry` dispatcher and `deploy/` folder are new paths; SDD-08 §3.1 and DEV-01 §2.1 should list them | Gaurav Saini; DEV-01 owner TBD by Puneet |
-| new | DEV-01 §3.3 runs `insights.main:app`; SDD-08 §3.2 uses `app.main:app`. This document follows SDD-08 | Gaurav Saini |
+| closed | DEV-01 §3.3 now runs `app.main:app`, as SDD-08 §3.2 ([registry](../architecture/registry.md) §10) | Gaurav Saini |
 | new | Service operator (runs deploys, restores, rotations) | TBD by Puneet |

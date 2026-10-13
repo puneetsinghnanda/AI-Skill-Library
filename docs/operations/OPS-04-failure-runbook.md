@@ -72,8 +72,10 @@ flowchart TD
 | E-AUTH-07, E-KEY-01 | SDD-04 §5 | 4.2 |
 | E-ING-07 | SDD-08 §4.3 | 4.2 |
 | E-LOCK-01, E-AUTH-04 | Doc 4 §5.2 | 4.3 |
-| E-LOCK-02, E-LOCK-03 | SDD-02 §12, SDD-12 §11.1 (definitions differ, §8) | 4.3, 4.10 |
+| E-LOCK-02, E-LOCK-03 | SDD-02 §12 | 4.3, 4.10 |
+| E-LOCK-04 | SDD-12 §3.3 | 4.3 |
 | E-RUN-04, E-RUN-05, E-RUN-06 | SDD-04 §5 | 4.3, 4.4 |
+| E-RUN-09, E-RUN-10, E-RUN-11 | SDD-02 §11–§12 | 4.3, 4.4, 4.9 |
 | E-RUN-07, E-RUN-08 | SDD-02 §12 | 4.4, 4.10 |
 | E-DEC-01, E-DEC-02 | SDD-03 §14 | 4.4, 4.5 |
 | E-CHK-01 | Doc 4 §5.2 | 4.5, 4.12 |
@@ -81,12 +83,12 @@ flowchart TD
 | E-NET-02 | SDD-04 §5 | 4.6 |
 | E-ING-01 to E-ING-06 | SDD-08 §4.3 | 4.6 |
 | E-H3-01 to E-H3-07 | SDD-03 §14 | 4.7 |
-| E-REV-01 | SDD-04 §5 (invalid review.v1); SDD-03 §14 (cannot prepare) — conflict, §8 | 4.8 |
+| E-REV-01 | SDD-03 §14 (cannot prepare) | 4.8 |
 | E-REV-02, E-REV-03, E-REV-04 | SDD-03 §14 | 4.8 |
 | E-GIT-01 | SDD-04 §5 | 4.3, 4.10 |
 | E-COMP-01 to E-COMP-05 | SDD-12 §6.4 | 4.10 |
 | E-CI-01, E-CI-02, E-CI-03 | Doc 4 §5.2 | 4.11 |
-| E-CI-04 | SDD-04 §5 (registry unreachable); SDD-03 §14 (PR code differs) — conflict, §8 | 4.11 |
+| E-CI-04 | SDD-03 §14 (PR code differs) | 4.11 |
 | E-CI-05, E-CI-06 | SDD-03 §14 | 4.11 |
 | E-CTX-01, E-CTX-02, E-CTX-03 | Doc 4 §5.2 | 4.12 |
 | E-RUN-01, E-RUN-02, E-RUN-03 | Doc 4 §5.2 | 4.12 |
@@ -130,7 +132,7 @@ flowchart TD
 
 **Who:** the run owner first; a tech lead for a forced release.
 
-A lock is the claim file pushed to the companion repo when a run starts (Doc 5 §3.5, SDD-12 §3.3). It is released at COMPLETED. A lock is **stale** after 24 h with no state change and an owner who is not you (DEF-06).
+A lock is the file `runs/active/<ticket>__<workflow>.lock` pushed to the companion repo when a run starts (Doc 5 §3.5, SDD-02 §11.1). It is released at COMPLETED. A lock is **stale** after 24 h with no state change and an owner who is not you (DEF-06).
 
 | Symptom | Cause | Fix | Code |
 | --- | --- | --- | --- |
@@ -138,10 +140,10 @@ A lock is the claim file pushed to the companion repo when a run starts (Doc 5 �
 | Same, the holder is someone else and they are active | One active run per ticket + workflow (R-11) | Coordinate with the holder; do not start a second run | E-LOCK-01 |
 | Same, the holder left or the laptop was lost | Lock never released | Tech lead: `tsl state unlock <ticket> <workflow> --reason "<text>"` once stale. The old owner's `tsl` then closes their run with `end_reason: lock_released` | E-LOCK-01 → unlock |
 | `state unlock` refused | Lock not stale yet (DEF-06), or caller is not a tech lead | Wait until stale, or ask the holder to finish or cancel; ask a tech lead | E-RUN-05, E-AUTH-04 |
-| Old owner's next command fails "lock lost or released" | A tech lead released the lock | Start a new run if still needed. Records already pushed stay valid | E-LOCK-02 (SDD-02 meaning) |
+| Old owner's next command fails "lock lost or released" | A tech lead released the lock | Start a new run if still needed. Records already pushed stay valid | E-LOCK-02 |
 | `state start` fails offline | Git is the lock server; runs cannot start offline (L-08) | Reconnect and retry | E-LOCK-03, E-GIT-01 |
-| `state start` fails after 3 push retries, network fine | Push rejected for access reasons, or a busy companion repo (many parallel runs) | Check write access (`-engineers` team, SDD-12 §6.1). Retry. Report if it repeats (spike CR-03) | E-LOCK-02 (SDD-12 meaning), E-GIT-01 |
-| `tsl` says "run busy in another process or session" | A second `tsl` process or a second Claude session on the same run (SDD-02 §11.2) | Close the other session, or `tsl state resume <run_id> --take-over` | E-RUN-06 |
+| `state start` fails after 3 push retries, network fine | Push rejected for access reasons, or a busy companion repo (many parallel runs) | Check write access (`-engineers` team, SDD-12 §6.1). Retry. Report if it repeats (spike CR-03) | E-LOCK-04, E-GIT-01 |
+| `tsl` says "run busy in another process or session" | A second `tsl` process or a second Claude session on the same run (SDD-02 §11.2) | Close the other session, or `tsl state resume <run_id> --take-over` | E-RUN-11 |
 | `state show` says "lock release pending" | Run completed offline | Nothing; the next online `tsl` call pushes the release | — |
 
 ### 4.4 A run that crashed mid-step
@@ -158,7 +160,7 @@ Records are the source of truth; `state.json` can be rebuilt from them (SDD-02 �
 | `tsl decide` refuses: "Gate `<id>` still pending" | Detached H3 run still in progress | `tsl verify --status`, wait, then decide | E-DEC-01 |
 | `.review.json` exists, no verification record | Crash between review and decide | Resume; `tsl next` returns `run_decide` | — |
 | `state.json` damaged or missing | Disk or editor damage | `tsl state repair <run_id>` (SDD-02 §12) rebuilds from the snapshot, signed records and `approvals.md` | — |
-| `tsl next` fails: pinned skill version not installed | Plugin upgraded mid-run (SDD-02 §11.4) | `tsl state repin <run_id>` once Puneet approves the rule (open item); otherwise finish on the old plugin | E-RUN-05 |
+| `tsl next` fails: pinned skill version not installed | Plugin upgraded mid-run (SDD-02 §11.4) | `tsl state repin <run_id>` once Puneet approves the rule (open item); otherwise finish on the old plugin | E-RUN-10 |
 | Resume refused: "answers changed after resume" | Someone edited a frozen answer in `open-questions.md` | Restore the frozen answer from git history, or add a new question via the tech lead | E-RUN-07 |
 | Resume refused: "approval does not match artifact" | Artifact changed after the approval was signed | Re-run the step and request a new approval | E-RUN-08 |
 | Laptop lost mid-run | Unpushed work since the last sync point is gone | Revoke the lost device's key (§5); `tsl login` on the new device; `/truminds:resume`. Steps after the last push are re-run | E-AUTH-02 for old records only if back-dated revocation applies |
@@ -170,7 +172,7 @@ Records are the source of truth; `state.json` can be rebuilt from them (SDD-02 �
 
 Timeouts in `hooks.json`: session-start 15 s, pre-tool 10 s, pre-mcp 10 s, post-write 90 s, session-end 15 s (SDD-05 §5.2). Budgets are much lower (NFR-02: 500 ms p95).
 
-**Not verified:** what Claude Code does when **its own** hook `timeout` fires (allow, deny or error). SDD-05 §2 documents exit codes but not the timeout outcome. Fail-closed therefore must come from `bin/tsl-hook` itself: it should stop `tsl` and print the deny JSON before Claude Code's timeout (proposal: an internal deadline of 8 s for pre-tool and pre-mcp). This needs a spike (new, for the SDD-05 list).
+**Not verified:** what Claude Code does when **its own** hook `timeout` fires (allow, deny or error). SDD-05 §2 documents exit codes but not the timeout outcome. Fail-closed therefore must come from `bin/tsl-hook` itself: it should stop `tsl` and print the deny JSON before Claude Code's timeout (proposal: an internal deadline of 8 s for pre-tool and pre-mcp). This needs a spike (S-15, SDD-05 §8.1).
 
 | Symptom | Cause | Fix | Code |
 | --- | --- | --- | --- |
@@ -234,10 +236,10 @@ The `review` skill forks `truminds:reviewer` (Read, Grep, Glob only). The main s
 
 | Symptom | Cause | Fix | Code |
 | --- | --- | --- | --- |
-| `review record` rejects: "not valid review.v1: `<pointer>`" | The reviewer returned prose, markdown fences, or a broken field | The skill runs `review` again, max 2 times (SDD-03 §14.2) | E-REV-02 (SDD-03), E-REV-01 (SDD-04) |
+| `review record` rejects: "not valid review.v1: `<pointer>`" | The reviewer returned prose, markdown fences, or a broken field | The skill runs `review` again, max 2 times (SDD-03 §14.2) | E-REV-02 |
 | Still invalid after 2 tries | Reviewer cannot produce valid output for this artifact (size, prompt, model) | Skill records `tsl review record <artifact> --unavailable <reason>`. S3 is absent, band capped at Low, `decide` escalates | E-REV-04 → E-RUN-02 |
 | `review record` rejects: review is for an older artifact | Artifact changed after `review prepare` | Run the review step again | E-REV-03 |
-| `review prepare` refuses | `checks.json` missing or failing | `tsl verify <artifact>` and fix gates first | E-REV-01 (SDD-03 meaning), E-CHK-01 |
+| `review prepare` refuses | `checks.json` missing or failing | `tsl verify <artifact>` and fix gates first | E-REV-01 |
 | Many findings dropped at decide | Citations do not verify (R-13) | Not a JSON error; counts against S1. Skill owner checks the rubric and context sections | — |
 | Pattern across many runs of one skill | Rubric or reviewer prompt issue | Skill owner adds a reviewer eval case (TST-01 §3.2) and fixes the rubric in a new skill version | — |
 
@@ -250,7 +252,7 @@ The company seat has usage limits. A long workflow can hit one mid-run. `tsl` ha
 | Symptom | Cause | Fix | Code |
 | --- | --- | --- | --- |
 | Claude Code shows a usage-limit message mid-step | Seat limit reached | Stop. Later, `/truminds:resume <run_id>`. The run stays RUNNING, the lock stays held; the heartbeat keeps it from going stale for 24 h | — |
-| Resume in a new session within 15 min refused | Old session still recorded as active | `tsl state resume <run_id> --take-over` | E-RUN-06 |
+| Resume in a new session within 15 min refused | Old session still recorded as active | `tsl state resume <run_id> --take-over` | E-RUN-11 |
 | Limit will outlast 24 h | Lock may become stale and a tech lead may release it | Tell the tech lead; or `tsl state cancel` and restart later | E-LOCK-02 if released |
 | Limits hit often | Workflows too large for the plan | Report to the support owner with run ids; feed Q38 | — |
 
@@ -258,7 +260,7 @@ The company seat has usage limits. A long workflow can hit one mid-run. `tsl` ha
 
 **Who:** `tsl` handles most cases; the engineer or tech lead for the rest.
 
-Each run writes only its own folders; the only shared files are lock claims, so rebases on run data are always clean (SDD-02 §11.1). `tsl` pushes fast-forward only, rebases and retries 3 times, and never force-pushes (SDD-12 §3.4). Real conflicts happen only when **people** edit the same file as `tsl`.
+Each run writes only its own folders; the only shared files are the lock files, so rebases on run data are always clean (SDD-02 §11.1). `tsl` pushes fast-forward only, rebases and retries 3 times, and never force-pushes (SDD-12 §3.4). Real conflicts happen only when **people** edit the same file as `tsl`.
 
 | Symptom | Cause | Fix | Code |
 | --- | --- | --- | --- |
@@ -280,8 +282,8 @@ Each run writes only its own folders; the only shared files are lock claims, so 
 | "PR has code changes but no verification records" | PR not opened by `tsl pr`, or the `<!-- tsl:run_id=… -->` marker removed from the body | Run the change through `/truminds:run`. Do not paste a marker by hand: signatures and hashes are then checked and will fail | E-CI-01 |
 | "Record signature invalid or signer lacked role" | Key revoked, signer lost the role, or a record edited | Re-run the step with a valid key and role. If records were edited, treat as §5 | E-CI-02 |
 | "CI re-run of code checks differs from laptop result" | Different verifier digest, environment-dependent test, unpinned dependency, or a laptop `checks.json` that does not match | Re-run the job once. If it repeats, harness owners compare `checks.json` with the CI summary; fix the profile or the flaky test; the engineer re-runs the step | E-CI-03 |
-| "Key registry unreachable" | Service down or blocked from GitHub (OPS-01 §3) | Fix the service or exposure; re-run the job. CI fails closed by design | E-CI-04 (SDD-04 meaning), E-CI-06 |
-| "PR code differs from the verified change" | Commits pushed to the PR branch after `tsl pr` | Resume the run so the code step is re-verified, or remove the extra commits | E-CI-04 (SDD-03 meaning) |
+| "Key registry unreachable" | Service down or blocked from GitHub (OPS-01 §3) | Fix the service or exposure; re-run the job. CI fails closed by design | E-CI-06 |
+| "PR code differs from the verified change" | Commits pushed to the PR branch after `tsl pr` | Resume the run so the code step is re-verified, or remove the extra commits | E-CI-04 |
 | "Record chain incomplete" | A step not finished, not pushed, or ESCALATE without approval | Finish or resume the run; push; re-run the job | E-CI-05 |
 | "Companion repo unreachable" | `TSL_COMPANION_READ_TOKEN` expired or lacks access | Platform admin rotates the token (OPS-01 §7.4); re-run the job | E-CI-06 |
 | Check passes but no data reaches the portal | `TSL_CI_TOKEN` missing (optional) or revoked | Platform admin issues a CI token (SDD-08 §9.3) | E-ING-05 if the token kind is wrong |
@@ -306,7 +308,7 @@ TST-01 §9 refers to this section for client data reaching `main`. The security 
 | Secret or PII in an artifact | E-SEC-01, E-SEC-02, `security.abort` event | Run is aborted. Engineer does not copy the artifact anywhere. Tech lead checks whether it was pushed to the companion repo; if so, treat as "data in a repo" below |
 | Policy abort | E-POL-01 to E-POL-05 | Tech lead reads `hook.log` and the tool log; checks whether the attempt came from prompt injection in repo or ticket text (SEC-01). E-POL-05 (tool log altered) goes straight to the security reviewer |
 | Client data, names or credentials in a Truminds repo (`main` or companion) | Data-guard job (TC-DATA-001), E-COMP-04, review | Stop merges to the affected path. Remove in a new commit. Rotate any credential at once. History rewrite only with Puneet's approval (TST-01 §9) |
-| Deny-list hit at ingest | E-ING-04, alert A-18 (SDD-08) | Telemetry owner finds the sending `tsl` version and field; fix in a patch release; the event is already dead (not stored) |
+| Deny-list hit at ingest | E-ING-04, alert AL-18 (OPS-02) | Telemetry owner finds the sending `tsl` version and field; fix in a patch release; the event is already dead (not stored) |
 | Laptop lost or key compromised | — | Platform admin revokes the device key with a back-dated `revoked_at` (SDD-07; SEC-01 RR-08). Records signed after that time fail CI (E-CI-02). Affected runs are re-run |
 | Ingest, CI, webhook or companion token leaked | — | Revoke and reissue (SDD-08 §9.3; OPS-01 §7.3). Check `last_used_at` and webhook signature failure counts |
 | Unexpected write to Jira, Confluence or a client system | E-POL-03 should have blocked it | Treat as P1 (OPS-03 §6.3). Never "fix" by writing to the client system without approval; the delivery manager informs the client per contract |
@@ -352,14 +354,14 @@ sequenceDiagram
 
 | Ref | Item | Owner |
 | --- | --- | --- |
-| new | **Code conflict:** `E-REV-01` means "invalid review.v1" in SDD-04 §5 but "cannot prepare review" in SDD-03 §14, where invalid JSON is `E-REV-02` | Japman Singh, Yash Khorwal |
-| new | **Code conflict:** `E-CI-04` means "key registry unreachable" in SDD-04 §5 but "PR code differs from the verified change" in SDD-03 §14 (which uses `E-CI-06` for unreachable) | Japman Singh, Yash Khorwal |
-| new | **Code conflict:** `E-LOCK-02` is "lock lost or released" (exit 3) in SDD-02 but "could not push the run claim" (exit 10) in SDD-12 | Abhishek Verma, Ekjot Singh; SDD-12 owner TBD by Puneet |
-| new | **Code conflict:** `E-KEY-01` is "no usable OS keychain" (exit 10) in SDD-04 but "same key id, different public key" (409) in SDD-08 §6.2 | Gaurav Saini; SDD-07 owner TBD by Puneet |
-| new | Lock path differs: `runs/active/<ticket>__<workflow>.lock` (Doc 5 §3.5, SDD-02) vs `.claim` plus `runs/<run_id>/lock` (SDD-12 §3.3). This runbook says "claim" generically | SDD-12 owner TBD by Puneet |
-| new | `E-HOOK-01` is used by Doc 5 and SDD-05 but is missing from the Doc 4 §5.2 catalogue | Shubham Bansal |
-| new | Spike: what Claude Code does when a hook's own `timeout` fires; add a launcher deadline if needed | Shubham Bansal |
-| new | `tsl state cancel`, `state repair`, `state repin` and `resume --take-over` (SDD-02) are not yet in the SDD-04 command reference | Japman Singh, Yash Khorwal |
+| closed | Resolved by the [registry](../architecture/registry.md) §10: **Code conflict:** `E-REV-01` means "invalid review.v1" in SDD-04 §5 but "cannot prepare review" in SDD-03 §14, where invalid JSON is `E-REV-02` | Japman Singh, Yash Khorwal |
+| closed | Resolved by the [registry](../architecture/registry.md) §10: **Code conflict:** `E-CI-04` means "key registry unreachable" in SDD-04 §5 but "PR code differs from the verified change" in SDD-03 §14 (which uses `E-CI-06` for unreachable) | Japman Singh, Yash Khorwal |
+| closed | Resolved by the [registry](../architecture/registry.md) §10: SDD-12's case is now E-LOCK-04. **Code conflict:** `E-LOCK-02` is "lock lost or released" (exit 3) in SDD-02 but "could not push the run claim" (exit 10) in SDD-12 | Abhishek Verma, Ekjot Singh; SDD-12 owner TBD by Puneet |
+| closed | Resolved by the [registry](../architecture/registry.md) §10: SDD-08's 409 is now E-KEY-03. **Code conflict:** `E-KEY-01` is "no usable OS keychain" (exit 10) in SDD-04 but "same key id, different public key" (409) in SDD-08 §6.2 | Gaurav Saini; SDD-07 owner TBD by Puneet |
+| closed | Resolved by the [registry](../architecture/registry.md) §10: one lock file `runs/active/<ticket>__<workflow>.lock`. Lock path differed: `runs/active/<ticket>__<workflow>.lock` (Doc 5 §3.5, SDD-02) vs `.claim` plus `runs/<run_id>/lock` (SDD-12 §3.3). This runbook says "claim" generically | SDD-12 owner TBD by Puneet |
+| closed | Resolved by the [registry](../architecture/registry.md) §10: added to Doc 4 §5.2. `E-HOOK-01` is used by Doc 5 and SDD-05 but was missing from the Doc 4 §5.2 catalogue | Shubham Bansal |
+| S-15 | Spike S-15 (SDD-05 §8.1): what Claude Code does when a hook's own `timeout` fires; add a launcher deadline if needed | Shubham Bansal |
+| closed | Resolved by the [registry](../architecture/registry.md) §10: listed in SDD-04 §6.21. `tsl state cancel`, `state repair`, `state repin` and `resume --take-over` (SDD-02) were not in the SDD-04 command reference | Japman Singh, Yash Khorwal |
 | Q38 | Seat usage of a full workflow and limit behaviour; no `tsl` code exists for it | Claude admin, TBD by Puneet |
 | SDD-02 §11.4 | Repin rule for skill versions removed mid-run | Puneet Singh Nanda |
 | new | Security reviewer, service operator, platform admin and Claude admin names | TBD by Puneet |

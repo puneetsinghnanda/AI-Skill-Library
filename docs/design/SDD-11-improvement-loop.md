@@ -45,7 +45,7 @@ flowchart LR
   R[Runs on engineer laptops] -->|step.decided, approval.recorded,\nquestion.*, ci.verified| S[(Insights DB)]
   GH[GitHub webhook] --> S
   S --> J[Weekly report job\nplain code]
-  J --> F[skill_flag rows\n+ improvement report]
+  J --> F[skill_flags rows\n+ improvement report]
   F --> P[Portal: Skill performance\nImprovement report]
   P --> O[Skill owner]
   O -->|/truminds:improve skill| I[tsl improve plan\nnew eval case, invented data]
@@ -66,7 +66,7 @@ flowchart LR
 
 Each signal is computed per **skill version** over a rolling window. The default window is 28 days. Each signal has a minimum sample: below it, the signal shows "not enough data" and raises no flag.
 
-Terms: a **step** is one `(run_id, seq)` pair; an **attempt** is one `step` table row. `cause` comes from SDD-02 §5.3.
+Terms: a **step** is one `(run_id, seq)` pair; an **attempt** is one `steps` table row. `cause` comes from SDD-02 §5.3.
 
 | Id | Signal | Formula | Flag when (proposed) | Min sample |
 | --- | --- | --- | --- | --- |
@@ -121,8 +121,8 @@ sequenceDiagram
   J->>DB: refresh skill_window_stats (materialized view)
   J->>DB: compute IS-1..IS-10 per skill_version
   J->>DB: compute failure signatures and clusters
-  J->>DB: upsert skill_flag (open new, keep existing, close cleared)
-  J->>DB: insert improvement_report (one per skill, per week)
+  J->>DB: upsert skill_flags (open new, keep existing, close cleared)
+  J->>DB: insert improvement_reports (one per skill, per week)
   J-->>SCH: done, counts
 ```
 
@@ -132,13 +132,13 @@ All of this is metadata already defined in Doc 3 §9 and Doc 5 §5.3. Items mark
 
 | Source | Fields used | Needs |
 | --- | --- | --- |
-| `step` table | `run_id, seq, skill_id, skill_version, attempt, outcome, band, signals, duration_ms` | Column `attempt_cause` (from `step.decided.cause`, SDD-02 §5.3) |
+| `steps` table | `run_id, seq, skill_id, skill_version, attempt, outcome, band, signals, duration_ms` | Column `attempt_cause` (from `step.decided.cause`, SDD-02 §5.3) |
 | `step.decided` event body | `gate_failures[]`, `findings_count{blocker, major, minor}`, `caps`, `outcome` | Fields `findings_dropped_count`, `cause`, `escalate_reason` (`band_low` \| `budget_exhausted` \| `blocker` \| `critical`) |
 | `approval.recorded` event body | `gate`, `decision`, `approver_role` | Fields `gate_kind` (workflow \| escalate), `step`, `skill`, `skill_version`, `harness_outcome`, `harness_band` |
 | `question.created` / `question.answered` | `step`, `blocking`, `age_s` | Field `default_overridden` (bool) on `question.answered` |
-| `run` table | `workflow`, `workflow_version`, `system_id` | — |
-| `pull_request` table and review webhook | `review_comments`, review state | — |
-| Calibration audits (SDD-03) | `run_id, seq, attempt, verdict (ok \| miss)` | An `audit.recorded` event or table, owned by SDD-03 |
+| `runs` table | `workflow`, `workflow_version`, `system_id` | — |
+| `pull_requests` table and review webhook | `review_comments`, review state | — |
+| Calibration audits (SDD-03) | `run_id, seq, attempt, verdict (deserved \| miss)` | An `audit.recorded` event or table, owned by SDD-03 |
 | `skill_version` table | `status`, `eval_pass_rate`, `published_at` | — |
 
 **Never read:** artifact files, findings text, question text, comment text, file paths, client names. These are not in the database (X-06), so the job cannot read them even by mistake.
@@ -180,7 +180,7 @@ erDiagram
 
 ```sql
 CREATE MATERIALIZED VIEW skill_window_stats AS ...;      -- IS-1..IS-10 inputs per skill_version and window
-CREATE TABLE skill_flag (
+CREATE TABLE skill_flags (                                -- names owned by SDD-08 (§10.5 there)
   id text PRIMARY KEY,                                    -- flg_<ULID>
   skill_id text NOT NULL, skill_version text NOT NULL,
   signal text NOT NULL CHECK (signal ~ '^IS-[0-9]+$'),
@@ -188,14 +188,14 @@ CREATE TABLE skill_flag (
   status text NOT NULL CHECK (status IN ('OPEN','IN_PROGRESS','PROPOSED','RELEASED','VERIFIED','REOPENED','DISMISSED')),
   dismissed_reason text CHECK (char_length(dismissed_reason) <= 200),
   opened_at timestamptz NOT NULL, updated_at timestamptz NOT NULL,
-  FOREIGN KEY (skill_id, skill_version) REFERENCES skill_version);
-CREATE TABLE improvement_report (
+  FOREIGN KEY (skill_id, skill_version) REFERENCES skill_versions);
+CREATE TABLE improvement_reports (
   skill_id text, skill_version text, window_end date, body jsonb NOT NULL,  -- metadata only
   PRIMARY KEY (skill_id, skill_version, window_end));
-CREATE TABLE improvement (
+CREATE TABLE improvements (
   id text PRIMARY KEY,                                    -- imp_<ULID>
   skill_id text NOT NULL, from_version text NOT NULL, to_version text,
-  flag_ids text[] NOT NULL, owner_id uuid REFERENCES app_user,
+  flag_ids text[] NOT NULL, owner_id uuid REFERENCES users,
   before_pass_rate numeric, after_pass_rate numeric, cases_added int,
   pr_repo text, pr_number int, state text NOT NULL CHECK (state IN ('planned','proposed','merged','released','abandoned')),
   created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL);
@@ -210,7 +210,7 @@ CREATE TABLE improvement (
 | `/truminds:improve <skill>` | Skill owner or engineer (Doc 2 §2 matrix) | Skill (SDD-05 §4.1) that runs `` !`tsl improve plan $0 --json` `` and guides the steps below | — |
 | `tsl improve plan <skill> [--flag <flg_id>] [--offline]` | Same | Fetches the report and open flags; checks the working copy; creates branch `improve/<skill>/<imp_ULID>` in the skill-library clone; writes `improve/<imp_id>/plan.json`; sends nothing to Jira | 0, 2, 3, 10 |
 | `tsl improve case <skill> --id <case-id>` | Same | Scaffolds a new eval case from the SDD-01 template with `provenance: invented` and the attestation block | 0, 2 |
-| `tsl eval plan` / `tsl eval record` | Same | Existing (SDD-05 §4.1, Doc 5 §2.2): list cases, sign results | — |
+| `tsl eval plan` / `tsl eval run` | Same | Existing (SDD-04 §6.16): list cases, score and sign results | — |
 | `tsl improve check <skill>` | Author and CI | Compares the signed before and after results; writes `improvement.v1` | 0, 2 |
 | `tsl improve pr <skill>` | Author | Pushes the branch and opens a PR on the skill-library repo with the evidence; sends `improvement.proposed` | 0, 3, 10 |
 
@@ -322,7 +322,7 @@ Regressions: none
 <!-- tsl:improvement=imp_01JA2C... -->
 ```
 
-The hidden marker lets the GitHub webhook join the PR to the `improvement` row (G6 "promoted versions").
+The hidden marker lets the GitHub webhook join the PR to the `improvements` row (G6 "promoted versions").
 
 ## 7. Guardrails: invented data only
 
@@ -372,7 +372,7 @@ A failure blocks the PR. It is reported to the author with the file and line, ne
 | Major version (schema change) | Skill owner + workflow owners (Abhishek Verma, Ekjot Singh), because workflows pin ranges such as `^1.1` | CODEOWNERS on `workflows/` |
 | Reviewer agent, `review` skill, rubric format or thresholds | Harness owners (Japman Singh, Yash Khorwal) | CODEOWNERS |
 | Loosening a threshold | Harness owners + Puneet, with audit data attached | PR checklist |
-| Promote `experimental` → `production` | Stage approver (OQ-07) | CODEOWNERS on `status` field changes |
+| Promote `pilot` → `production` (SDD-01 §7) | Stage approver (OQ-07) | CODEOWNERS on `status` field changes |
 | Dismiss a flag | Skill owner, with a reason | Read API role check |
 | Change `improvement_thresholds.yaml` | Gaurav Saini + Puneet | CODEOWNERS on the insights repo |
 
@@ -402,7 +402,7 @@ stateDiagram-v2
 | --- | --- | --- |
 | Commands | `tsl improve plan`, `tsl improve case`, `tsl improve check`, `tsl improve pr` | SDD-04, Doc 5 §2.2 |
 | Endpoints | `GET /v1/improvement/flags`, `GET /v1/improvement/skills/{skill_id}`, `PATCH /v1/improvement/flags/{flag_id}` | SDD-09 |
-| Tables | `skill_window_stats` (view), `skill_flag`, `improvement_report`, `improvement`; column `step.attempt_cause` | SDD-08 |
+| Tables | `skill_window_stats` (view), `skill_flags`, `improvement_reports`, `improvements`; column `steps.attempt_cause` | SDD-08 (adopted in §10.2, §10.5) |
 | Event | `improvement.proposed {improvement_id, skill, from_version, to_version, flag_ids, before_pass_rate, after_pass_rate, cases_added}`, sent by `tsl improve pr` | Doc 5 §5.3, SDD-08 |
 | Event fields (additive) | `step.decided`: `cause`, `findings_dropped_count`, `escalate_reason`. `approval.recorded`: `gate_kind`, `step`, `skill`, `skill_version`, `harness_outcome`, `harness_band`. `question.answered`: `default_overridden` | Doc 5 §5.3, SDD-08 |
 | Event (dependency) | `audit.recorded` or an audit table for calibration audits | SDD-03 |
@@ -434,7 +434,7 @@ All seed data is invented (T-01).
 
 ## 13. Done criteria
 
-- Report job, `skill_window_stats`, `skill_flag`, `improvement_report` and `improvement` built, with the unit and golden-file tests passing on seed data.
+- Report job, `skill_window_stats`, `skill_flags`, `improvement_reports` and `improvements` built, with the unit and golden-file tests passing on seed data.
 - The additive event fields in §10 are accepted by the events API (SDD-08) and sent by `tsl`.
 - `tsl improve plan|case|check|pr` implemented; `improve` skill written; the end-to-end test in §12 passes.
 - Marketplace CI runs `tsl improve check` and the forbidden-content scan on every skill PR.

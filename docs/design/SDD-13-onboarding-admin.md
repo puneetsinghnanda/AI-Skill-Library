@@ -71,7 +71,7 @@ flowchart TB
 | # | Item | Check | Owner of the fix |
 | --- | --- | --- | --- |
 | P-01 | Company-managed laptop: macOS, or Windows used natively (not WSL) | IT asset record | IT |
-| P-02 | Full-disk encryption on (FileVault, BitLocker) | `tsl doctor` warns E-ENV-07 when it cannot confirm (SEC-01 §9) | IT |
+| P-02 | Full-disk encryption on (FileVault, BitLocker) | `tsl doctor` warns E-ENV-02 when it cannot confirm (SEC-01 §9) | IT |
 | P-03 | Company Entra account with MFA | Sign-in works | IT |
 | P-04 | Member of `TSL-Engineers` (or `TSL-TechLeads`) | `tsl login` succeeds without E-AUTH-08 | Entra app admin |
 | P-05 | Company Claude seat with Claude Code; signed in to the desktop app with the company account, never a personal one | Desktop app shows the org | Claude org admin |
@@ -158,7 +158,7 @@ All checks of SDD-04 §6.3 must be `pass`; `warn` is allowed for `key` near expi
 | `keychain` | Disallowed backend | See §3.5 |
 | `login`, `key` | Token expired or key revoked | `tsl login` |
 | `service` | No intranet route | VPN |
-| Disk encryption (E-ENV-07) | Cannot confirm | IT confirms; warning only |
+| Disk encryption (E-ENV-02) | Cannot confirm | IT confirms; warning only |
 
 ### 3.7 First run on the sample system
 
@@ -282,7 +282,7 @@ flowchart LR
 
 ### 6.2 Scope of a rollout — unverified
 
-Whether the admin console can apply managed settings to a **subset** of users is not in SDD-05 §2 and is **unverified** (spike S-12, new). If it cannot, a rollout reaches every Claude Code user in the organisation at once, including people who never use the library. They would get the plugin, the deny rules and the OTel export to the Truminds collector. That needs a privacy notice to all seat holders (DPDP purpose notice, Doc 6 §3.2) and a decision by Puneet (OI-13-03).
+Whether the admin console can apply managed settings to a **subset** of users is not in SDD-05 §2 and is **unverified** (spike S-12; OPS-03 §4.3 asks the same question and uses this spike). If it cannot, a rollout reaches every Claude Code user in the organisation at once, including people who never use the library. They would get the plugin, the deny rules and the OTel export to the Truminds collector. That needs a privacy notice to all seat holders (DPDP purpose notice, Doc 6 §3.2) and a decision by Puneet (OI-13-03).
 
 ### 6.3 Verification after each change
 
@@ -507,4 +507,4 @@ Records the key signed and anchored before T stay valid (SDD-07 §7.3). This is 
 | OI-13-12 | Docker Desktop licensing | SDD-05 §8.4 | TBD by Puneet |
 | OI-13-13 | Full-disk encryption mandatory on engineer laptops | SDD-04 OI-06 | TBD by Puneet |
 | OI-13-14 | Authors cannot load unreleased skills (affects path A1) | SDD-01 O-02 | Puneet, Shubham Bansal |
-| OI-13-15 | Spike id S-10 is used twice (SDD-08 OTel names; SEC-01 WebFetch deny syntax). This document starts at S-11 | new | Shubham Bansal |
+| OI-13-15 | Closed by the [registry](../architecture/registry.md) §9: SDD-08 keeps S-10, SEC-01's spike is S-13 | new | Shubham Bansal |
