@@ -59,13 +59,15 @@ flowchart LR
 
 ### 2.2 Components inside the execution plane
 
+*Updated per SDD-05 §8.3.*
+
 ```mermaid
 flowchart TB
   subgraph Laptop[Engineer laptop]
-    CMD[/truminds:run, resume, status, eval, improve/]
-    ORC[Orchestrator agent\nreads workflow.yaml]
-    SK[Skill executor\nSKILL.md per step]
-    REV[Reviewer subagent\nmeaning check with citations]
+    CMD[/truminds:run, resume, status, eval, improve\ncommand skills, disable-model-invocation/]
+    ORC[Orchestrator loop in the run skill\ntsl next picks the step, SDD-02]
+    SK[Skill executor\nSKILL.md per step\ninput check: tsl verify --inputs inside the skill]
+    REV[review skill, context: fork\n-> truminds:reviewer subagent\nRead/Grep/Glob, cited findings]
     subgraph TSL[tsl Python CLI]
       V[verify: code checks]
       D[decide: band + outcome]
@@ -74,7 +76,7 @@ flowchart TB
       SG[sign: Ed25519]
       OB[outbox flush]
     end
-    HK[Hooks: PreToolUse policy,\nPostToolUse artifact write,\nSessionEnd flush]
+    HK[Hooks: SessionStart, PreToolUse policy,\nPostToolUse artifact write,\nSessionEnd flush]
     VC[Verifier containers\nDocker per stack]
   end
   CMD --> ORC --> SK --> HK --> V
@@ -87,6 +89,12 @@ flowchart TB
 ```
 
 **Rule of thumb:** code decides, the LLM proposes. Every PASS/RETRY/ESCALATE decision is made by `tsl decide`, never by the model.
+
+**How the parts plug into Claude Code** (SDD-05 §4, §5):
+
+- **Commands are skills.** Each `/truminds:*` command is a skill folder in the plugin with `disable-model-invocation: true`, so only a person starts a run.
+- **Input check is inside each skill.** A skill runs `` !`tsl verify --inputs` `` as code before Claude reads it. There is no PreToolUse hook on the `Skill` tool.
+- **Reviewer through the `review` skill.** The `review` skill has `context: fork` and `agent: truminds:reviewer`, so the reviewer runs in a fresh context with Read, Grep and Glob only. `tsl review record` stores its JSON; `tsl decide` re-checks every citation.
 
 ## 3. Companion repo layout
 

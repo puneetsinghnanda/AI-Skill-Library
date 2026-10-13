@@ -32,6 +32,11 @@ Oct 6, 2026 · @Puneet Singh Nanda
 | C-13 | Seats are org-wide; per-client model choice or per-client model settings are not available | Claude seat model | One model policy for all clients; recorded in consent |
 | C-14 | Merge, deploy and infrastructure changes are always human | Autonomy matrix | Policy blocks merge/deploy tools |
 | C-15 | Rules conflicts are flagged, never worked around | Org rule | R-17 |
+| C-16 | Runs happen only in **local** sessions of the Claude Code desktop app (Code tab, "Local") or the Claude Code CLI. Not in cloud sessions, and not in the Cowork tab | SDD-05 §7.3 (V-18): plugins are not loaded in cloud sessions; Cowork takes its plugins from claude.ai, not the managed marketplace | Engineers start runs only from local sessions; onboarding says so |
+| C-17 | On Windows, engineers run Claude Code natively, not inside WSL | SDD-05 §7.3 (V-18): plugins are not available in WSL sessions | `tsl`, hooks and `bin/tsl-hook` must work on native Windows |
+| C-18 | The laptop needs Python 3.12, uv or pipx, git and Docker | SDD-05 §7.3: `tsl`, hooks and verifier containers run locally | Checked by `tsl doctor` (SDD-05 §7.1) |
+
+*C-16 to C-18 updated per SDD-05 §8.3.*
 
 ## 3. Assumptions and compliance
 

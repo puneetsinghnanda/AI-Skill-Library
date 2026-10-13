@@ -28,13 +28,17 @@ Oct 6, 2026 · @Puneet Singh Nanda
 
 ### 2.1 Plugin slash commands (in Claude Code)
 
-| Command | Args | What it does | Calls |
-| --- | --- | --- | --- |
-| `/truminds:run` | `<workflow> <ticket> [--system <code>]` | Starts a run: lock, state, then steps in order | `tsl state start`, per step: `tsl verify`, reviewer, `tsl decide`; at end `tsl pr` |
-| `/truminds:resume` | `<run_id>` | Continues a paused run | `tsl state resume` |
-| `/truminds:status` | `[run_id]` | Shows the current run(s) and next action | `tsl state show` |
-| `/truminds:eval` | `<skill> [--version]` | Runs the skill's eval cases locally, signs the result | `tsl eval record` |
-| `/truminds:improve` | `<skill>` | Skill owner flow: read report, add failing eval case first, propose change | `tsl eval record`, `tsl validate` |
+*Updated per SDD-05 §8.3.* Each command is a **skill** in the plugin (`plugins/truminds/skills/<name>/SKILL.md`), not a command file. Every command skill sets `disable-model-invocation: true`, so Claude never starts one on its own. The first `tsl` call runs as code through `` !`...` `` before Claude reads the skill; if it returns `"ok": false`, the skill shows `message` and `next` and stops. Full design: SDD-05 §4.
+
+| Command | Skill folder | Args | First call (as code) | What it does | Then calls |
+| --- | --- | --- | --- | --- | --- |
+| `/truminds:run` | `skills/run` | `<workflow> <ticket>` | `tsl state start <workflow> <ticket> --json` | Starts a run: lock, state, then steps in order | Per step: `tsl next`, the step's skill, the `review` skill, `tsl decide`; at end `tsl pr` |
+| `/truminds:resume` | `skills/resume` | `<run_id>` | `tsl state resume <run_id> --json` | Continues a paused run; refuses if blocking questions are unanswered | Same loop as `run` |
+| `/truminds:status` | `skills/status` | `[run_id]` | `tsl state show [run_id] --json` | Shows the current run(s) and next action | — |
+| `/truminds:eval` | `skills/eval` | `<skill> [version]` | `tsl eval plan <skill> --json` | Runs the skill's eval cases locally, signs the result | `tsl eval record` |
+| `/truminds:improve` | `skills/improve` | `<skill>` | `tsl improve plan <skill> --json` | Skill owner flow: read report, add failing eval case first, propose change | `tsl eval record`, `tsl validate` |
+
+The harness reviewer step is the non-user skill `skills/review` (`context: fork`, `agent: truminds:reviewer`, `user-invocable: false`). It calls `tsl review prepare`, and the main session stores the result with `tsl review record` (SDD-05 §4.4).
 
 ### 2.2 `tsl` CLI
 
@@ -208,16 +212,21 @@ Other schemas: `open-questions.v1` and `approvals.v1` (Doc 4 §3–4), `pack-sig
 
 ## 4. Hook contracts and policy
 
-Hooks ship inside the plugin (`hooks/hooks.json`) and call `tsl hook <event>`. Claude Code passes a JSON object on stdin with at least `session_id`, `cwd`, `hook_event_name`, and for tool events `tool_name`, `tool_input` (plus `tool_response` after the tool runs).
+*Updated per SDD-05 §8.3.* This section is now a summary. The hook design in [SDD-05](../design/SDD-05-claude-code-integration.md) §5 replaces the earlier hook list, and `policy.v1` is replaced by `policy.v2` plus managed permission deny rules (SDD-05 §6).
+
+Hooks ship inside the plugin (`hooks/hooks.json`). Each hook runs `"${CLAUDE_PLUGIN_ROOT}/bin/tsl-hook" <event>`, a small launcher that checks the `tsl` version and calls `tsl hook <event>`. Claude Code passes a JSON object on stdin with at least `session_id`, `cwd`, `hook_event_name`, and for tool events `tool_name`, `tool_input`. The name of the tool-result field after a tool runs is not yet verified (SDD-05 U-02, spike S-04).
 
 ### 4.1 Registered hooks
 
-| Event | Matcher | Command | Purpose | Blocks? |
-| --- | --- | --- | --- | --- |
-| PreToolUse | `Write\|Edit\|MultiEdit\|Bash\|Read\|mcp__.*` | `tsl hook pre-tool` | Policy check (§4.3): paths, sensitive files, MCP writes, network commands | Yes (deny) |
-| PreToolUse | `Skill` | `tsl hook pre-skill` | Input check: required inputs exist and are not stale (E-IN-01/02) | Yes (deny) |
-| PostToolUse | `Write\|Edit\|MultiEdit` | `tsl hook post-write` | If the path is an artifact: run `tsl verify`; return failures to Claude | Feedback only |
-| SessionEnd | — | `tsl hook session-end` | Write heartbeat to `state.json`; flush outbox | No |
+| Event | Matcher | Command | Purpose | Blocks? | Timeout |
+| --- | --- | --- | --- | --- | --- |
+| SessionStart | — | `tsl-hook session-start` | Check `tsl` version and login; flush outbox; export `TSL_SESSION_ID`; remind about an unfinished run | No (warns) | 15 s |
+| PreToolUse | `Write\|Edit\|NotebookEdit\|Bash` | `tsl-hook pre-tool` | Only while this session holds a run lock: write paths and run-context Bash patterns (§4.3) | Yes (deny, E-POL-01/02) | 10 s |
+| PreToolUse | `mcp__.*` | `tsl-hook pre-mcp` | Classify MCP tool as read or write; writes need a signed approval in the run's `approvals.md` | Yes (deny, E-POL-03) | 10 s |
+| PostToolUse | `Write\|Edit\|NotebookEdit` | `tsl-hook post-write` | If the path is an artifact: run `tsl verify`; return failures to Claude | Feedback only (`decision: "block"`, E-CHK-01) | 90 s |
+| SessionEnd | — | `tsl-hook session-end` | Write heartbeat to `state.json`; send `session.ended`; flush outbox | No | 15 s |
+
+**Removed:** the PreToolUse hook on the `Skill` tool. Each skill now checks its inputs with `` !`tsl verify --inputs` `` before Claude starts (E-IN-01/02 unchanged). Static read, edit and network blocks moved from the hook into managed deny rules (§4.3).
 
 ### 4.2 Hook I/O
 
@@ -239,24 +248,40 @@ Hooks ship inside the plugin (`hooks/hooks.json`) and call `tsl hook <event>`. C
 {"decision": "block", "reason": "E-CHK-01 H2 failed: section 'Unknown' missing in design.md. Add it and write again."}
 ```
 
-The `reason` is shown to Claude, which fixes and rewrites; this counts toward the RETRY limit. A hook that crashes must **fail closed** for pre-tool (deny with `E-HOOK-01`) and **fail open** for post-write and session-end (log locally, never lose the user's work). Every hook writes one line to `~/.truminds/hook.log` and one event to the outbox (`hook.decision`). Time budget: NFR-02.
+The `reason` is shown to Claude, which fixes and rewrites; this counts toward the RETRY limit. Every hook writes one line to `~/.truminds/hook.log` and one event to the outbox (`hook.decision`). Time budget: NFR-02.
 
-### 4.3 Policy file (`policy.v1`)
+**Failure rules** (SDD-05 §5.4):
+
+| Situation | pre-tool / pre-mcp | post-write | session-start / session-end |
+| --- | --- | --- | --- |
+| `tsl` missing or wrong version | Inside a run: deny `E-HOOK-01`. Outside a run: allow | Allow, warn | Warn |
+| `tsl` crashes or times out | Inside a run: deny (fail closed) | Allow, warn (fail open; never lose the user's work) | Ignore, log locally |
+| Telemetry service unreachable | Not affected | Not affected | Events stay in the outbox (R-04) |
+
+### 4.3 Policy: managed deny rules plus `policy.v2`
+
+Policy now has two parts (SDD-05 §6):
+
+1. **Static blocks** sit in the managed settings that IT delivers, as permission deny rules, for example `Read(**/.env)`, `Read(**/*.pem)`, `Edit(**/*.key)`, `Bash(curl *)`, `Bash(git push --force*)`, `Bash(gh pr merge*)`. Claude Code enforces them natively; an engineer's allow rule cannot override a deny. Template: `managed-settings/` in the repo (SDD-05 §6.2). The exact glob syntax is confirmed by spikes S-01 and S-02.
+2. **Run-dependent rules** sit in `policy.yaml` (`policy.v2`), shipped in the plugin and read by the `pre-tool` and `pre-mcp` hooks:
 
 ```yaml
-schema: policy.v1
-write:
-  allow: ["artifacts/**", "runs/**", "<product_repos>/**"]   # expanded from tsl.yaml
-  deny:  ["context/pack.signature.json", ".github/workflows/**"]
-read:
-  deny:  ["**/.env*", "**/*.pem", "**/*.key", "**/id_rsa*", "**/*dump*.sql", "**/secrets/**"]
-bash:
-  deny_patterns: ["curl ", "wget ", "ssh ", "scp ", "git push --force", "rm -rf /"]
-  allow_network: false        # tsl itself is exempt (telemetry, git push of companion repo)
+schema: policy.v2
+write_scope:                     # applies only while this session holds a run lock
+  allow:
+    - "<companion>/artifacts/**"
+    - "<companion>/runs/<run_id>/**"
+    - "<product_repos>/**"       # expanded from tsl.yaml of the system
+  deny:
+    - "<companion>/context/pack.signature.json"
+    - "**/.github/workflows/**"
+bash_in_run:
+  deny_patterns: ["git push", "git commit --amend", "rm -rf"]   # tsl pr does pushes, not Claude
 mcp:
-  read_only_default: true
-  write_tools_need_approval: ["mcp__jira__*create*", "mcp__jira__*update*", "mcp__confluence__*", "mcp__figma__*write*", "mcp__github__*merge*"]
-merge_and_deploy: never       # no tool may merge PRs or deploy
+  read_tools: ["*__get*", "*__search*", "*__list*", "*__fetch*"]
+  write_tools_need_approval: ["*__create*", "*__update*", "*__edit*", "*__add*", "*__transition*", "*__delete*"]
+  unknown_tools: deny            # anything not classified is treated as a write
+merge_and_deploy: never
 ```
 
 The org-level policy ships in the plugin; a system's `policy.yaml` may only **add** denies, never remove them (checked by `tsl validate`).
@@ -264,6 +289,8 @@ The org-level policy ships in the plugin; a system's `policy.yaml` may only **ad
 ### 4.4 Limits of hooks (also in Doc 6)
 
 - Hooks run only when the plugin is installed and enabled; plain Claude use elsewhere is not intercepted. CI catches it: code changes without records fail (E-CI-01).
+- Under `allowManagedHooksOnly`, plugin hooks run only if the plugin is force-enabled in managed `enabledPlugins` (SDD-05 V-08). Behaviour in the desktop app is confirmed by spike S-06.
+- Plugins load only in local sessions, not in cloud or WSL sessions (C-16, C-17).
 - Bash pattern matching is best-effort, not a sandbox.
 
 ## 5. Telemetry API and events
