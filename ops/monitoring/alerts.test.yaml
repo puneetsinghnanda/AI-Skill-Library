@@ -1,0 +1,658 @@
+# promtool unit tests for AL-01..AL-26 (OPS-02 §11, §12): one firing and one quiet case per alert.
+# Run: promtool test rules alerts.test.yaml   (generated case table; edit the cases, not the order)
+rule_files:
+- recording.yaml
+- alerts.yaml
+evaluation_interval: 1m
+tests:
+- name: 'AL-01 fires: all api instances down'
+  interval: 1m
+  input_series:
+  - series: up{job="insights-api",instance="api-1"}
+    values: '0x10'
+  - series: up{job="insights-api",instance="api-2"}
+    values: '0x10'
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-01_ApiDown",alertstate="firing"}
+    eval_time: 5m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-01_ApiDown",alertstate="firing",severity="P1",team="insights",alert_id="AL-01"}
+      value: 1
+- name: 'AL-01 quiet: one instance up'
+  interval: 1m
+  input_series:
+  - series: up{job="insights-api",instance="api-1"}
+    values: '0x10'
+  - series: up{job="insights-api",instance="api-2"}
+    values: 1x10
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-01_ApiDown",alertstate="firing"}
+    eval_time: 5m
+    exp_samples: []
+- name: 'AL-02 fires: ready failing while up'
+  interval: 1m
+  input_series:
+  - series: up{job="insights-api",instance="api-1"}
+    values: 1x10
+  - series: probe_success{check="SY-2"}
+    values: '0x10'
+  - series: probe_http_status_code{check="SY-2"}
+    values: 503x10
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-02_NotReady",alertstate="firing"}
+    eval_time: 6m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-02_NotReady",alertstate="firing",severity="P1",team="insights",alert_id="AL-02"}
+      value: 1
+- name: 'AL-02 quiet: suppressed while AL-01 condition holds'
+  interval: 1m
+  input_series:
+  - series: up{job="insights-api",instance="api-1"}
+    values: '0x10'
+  - series: probe_success{check="SY-2"}
+    values: '0x10'
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-02_NotReady",alertstate="firing"}
+    eval_time: 6m
+    exp_samples: []
+- name: 'AL-03 fires: 5 percent ingest 5xx'
+  interval: 1m
+  input_series:
+  - series: insights_http_requests_total{route_group="ingest",status_class="2xx",method="POST"}
+    values: 0+100x30
+  - series: insights_http_requests_total{route_group="ingest",status_class="5xx",method="POST"}
+    values: 0+5x30
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-03_IngestErrorRate",alertstate="firing"}
+    eval_time: 20m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-03_IngestErrorRate",alertstate="firing",severity="P1",team="insights",alert_id="AL-03"}
+      value: 1
+- name: 'AL-03 quiet: no ingest 5xx'
+  interval: 1m
+  input_series:
+  - series: insights_http_requests_total{route_group="ingest",status_class="2xx",method="POST"}
+    values: 0+100x30
+  - series: insights_http_requests_total{route_group="ingest",status_class="5xx",method="POST"}
+    values: 0+0x30
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-03_IngestErrorRate",alertstate="firing"}
+    eval_time: 20m
+    exp_samples: []
+- name: 'AL-04 fires: 5 percent read 5xx'
+  interval: 1m
+  input_series:
+  - series: insights_http_requests_total{route_group="read",status_class="2xx",method="POST"}
+    values: 0+100x30
+  - series: insights_http_requests_total{route_group="read",status_class="5xx",method="POST"}
+    values: 0+5x30
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-04_ReadErrorRate",alertstate="firing"}
+    eval_time: 20m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-04_ReadErrorRate",alertstate="firing",severity="P2",team="insights",alert_id="AL-04"}
+      value: 1
+- name: 'AL-04 quiet: 1 percent read 5xx'
+  interval: 1m
+  input_series:
+  - series: insights_http_requests_total{route_group="read",status_class="2xx",method="POST"}
+    values: 0+100x30
+  - series: insights_http_requests_total{route_group="read",status_class="5xx",method="POST"}
+    values: 0+1x30
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-04_ReadErrorRate",alertstate="firing"}
+    eval_time: 20m
+    exp_samples: []
+- name: 'AL-05 fires: half the reads slow'
+  interval: 1m
+  input_series:
+  - series: insights_http_request_duration_seconds_bucket{route_group="read",le="0.8"}
+    values: 0+50x40
+  - series: insights_http_request_duration_seconds_count{route_group="read"}
+    values: 0+100x40
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-05_ReadLatency",alertstate="firing"}
+    eval_time: 25m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-05_ReadLatency",alertstate="firing",severity="P2",team="insights",alert_id="AL-05"}
+      value: 1
+- name: 'AL-05 quiet: all reads fast'
+  interval: 1m
+  input_series:
+  - series: insights_http_request_duration_seconds_bucket{route_group="read",le="0.8"}
+    values: 0+100x40
+  - series: insights_http_request_duration_seconds_count{route_group="read"}
+    values: 0+100x40
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-05_ReadLatency",alertstate="firing"}
+    eval_time: 25m
+    exp_samples: []
+- name: 'AL-06 fires: p95 between 1 and 2 s'
+  interval: 1m
+  input_series:
+  - series: insights_http_request_duration_seconds_bucket{route="/v1/events",method="POST",le="1"}
+    values: 0+10x40
+  - series: insights_http_request_duration_seconds_bucket{route="/v1/events",method="POST",le="2"}
+    values: 0+100x40
+  - series: insights_http_request_duration_seconds_bucket{route="/v1/events",method="POST",le="+Inf"}
+    values: 0+100x40
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-06_IngestLatency",alertstate="firing"}
+    eval_time: 25m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-06_IngestLatency",alertstate="firing",severity="P2",team="insights",alert_id="AL-06"}
+      value: 1
+- name: 'AL-06 quiet: p95 under 1 s'
+  interval: 1m
+  input_series:
+  - series: insights_http_request_duration_seconds_bucket{route="/v1/events",method="POST",le="1"}
+    values: 0+100x40
+  - series: insights_http_request_duration_seconds_bucket{route="/v1/events",method="POST",le="+Inf"}
+    values: 0+100x40
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-06_IngestLatency",alertstate="firing"}
+    eval_time: 25m
+    exp_samples: []
+- name: 'AL-07 fires: lag 400 s'
+  interval: 1m
+  input_series:
+  - series: insights_projection_lag_seconds
+    values: 400x20
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-07_ProjectionLagWarning",alertstate="firing"}
+    eval_time: 15m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-07_ProjectionLagWarning",alertstate="firing",severity="P2",team="insights",alert_id="AL-07"}
+      value: 1
+- name: 'AL-07 quiet: lag 100 s'
+  interval: 1m
+  input_series:
+  - series: insights_projection_lag_seconds
+    values: 100x20
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-07_ProjectionLagWarning",alertstate="firing"}
+    eval_time: 15m
+    exp_samples: []
+- name: 'AL-08 fires: lag 2000 s'
+  interval: 1m
+  input_series:
+  - series: insights_projection_lag_seconds
+    values: 2000x20
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-08_ProjectionLagCritical",alertstate="firing"}
+    eval_time: 10m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-08_ProjectionLagCritical",alertstate="firing",severity="P1",team="insights",alert_id="AL-08"}
+      value: 1
+- name: 'AL-08 quiet: lag 400 s'
+  interval: 1m
+  input_series:
+  - series: insights_projection_lag_seconds
+    values: 400x20
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-08_ProjectionLagCritical",alertstate="firing"}
+    eval_time: 10m
+    exp_samples: []
+- name: 'AL-09 fires: silent in working hours (Thu 10:00 UTC)'
+  interval: 1m
+  input_series:
+  - series: insights_events_received_total{type="run.started",source="tsl"}
+    values: 5x700
+  - series: insights_devices_seen{window="1d"}
+    values: 3x700
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-09_IngestSilence",alertstate="firing"}
+    eval_time: 10h
+    exp_samples:
+    - labels: ALERTS{alertname="AL-09_IngestSilence",alertstate="firing",severity="P2",team="insights",alert_id="AL-09"}
+      value: 1
+- name: 'AL-09 quiet: silent outside working hours (03:00)'
+  interval: 1m
+  input_series:
+  - series: insights_events_received_total{type="run.started",source="tsl"}
+    values: 5x700
+  - series: insights_devices_seen{window="1d"}
+    values: 3x700
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-09_IngestSilence",alertstate="firing"}
+    eval_time: 3h
+    exp_samples: []
+- name: 'AL-09 quiet: events flowing'
+  interval: 1m
+  input_series:
+  - series: insights_events_received_total{type="run.started",source="tsl"}
+    values: 0+5x700
+  - series: insights_devices_seen{window="1d"}
+    values: 3x700
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-09_IngestSilence",alertstate="firing"}
+    eval_time: 10h
+    exp_samples: []
+- name: 'AL-10 fires: heartbeat stopped'
+  interval: 1m
+  input_series:
+  - series: insights_worker_heartbeat_timestamp
+    values: '0x10'
+  - series: insights_worker_leader
+    values: 1x10
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-10_WorkerStalled",alertstate="firing"}
+    eval_time: 5m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-10_WorkerStalled",alertstate="firing",severity="P1",team="insights",alert_id="AL-10"}
+      value: 1
+- name: 'AL-10 fires: no leader'
+  interval: 1m
+  input_series:
+  - series: insights_worker_heartbeat_timestamp
+    values: 0+60x10
+  - series: insights_worker_leader
+    values: '0x10'
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-10_WorkerStalled",alertstate="firing"}
+    eval_time: 5m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-10_WorkerStalled",alertstate="firing",severity="P1",team="insights",alert_id="AL-10"}
+      value: 1
+- name: 'AL-10 quiet: healthy worker'
+  interval: 1m
+  input_series:
+  - series: insights_worker_heartbeat_timestamp
+    values: 0+60x10
+  - series: insights_worker_leader
+    values: 1x10
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-10_WorkerStalled",alertstate="firing"}
+    eval_time: 5m
+    exp_samples: []
+- name: 'AL-11 fires: view 25 min old'
+  interval: 1m
+  input_series:
+  - series: insights_view_refresh_age_seconds{view="mv_run_daily"}
+    values: 1500x20
+  - series: insights_view_refresh_age_seconds{view="mv_pr_daily"}
+    values: 60x20
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-11_ViewsStale",alertstate="firing"}
+    eval_time: 10m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-11_ViewsStale",alertstate="firing",severity="P2",team="insights",alert_id="AL-11"}
+      value: 1
+- name: 'AL-11 quiet: views fresh'
+  interval: 1m
+  input_series:
+  - series: insights_view_refresh_age_seconds{view="mv_run_daily"}
+    values: 300x20
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-11_ViewsStale",alertstate="firing"}
+    eval_time: 10m
+    exp_samples: []
+- name: 'AL-12 fires: retention not run for 26 h'
+  interval: 1m
+  input_series:
+  - series: insights_job_last_success_timestamp{job="retention"}
+    values: '0x1700'
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-12_DailyJobFailed",alertstate="firing"}
+    eval_time: 1600m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-12_DailyJobFailed",alertstate="firing",severity="P3",team="insights",alert_id="AL-12",job="retention"}
+      value: 1
+- name: 'AL-12 quiet: 5-minute jobs are not daily jobs'
+  interval: 1m
+  input_series:
+  - series: insights_job_last_success_timestamp{job="refresh_views"}
+    values: '0x1700'
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-12_DailyJobFailed",alertstate="firing"}
+    eval_time: 1600m
+    exp_samples: []
+- name: 'AL-13 fires: volume 80 percent used'
+  interval: 1m
+  input_series:
+  - series: node_filesystem_avail_bytes{mountpoint="/srv/truminds/pgdata"}
+    values: 20x30
+  - series: node_filesystem_size_bytes{mountpoint="/srv/truminds/pgdata"}
+    values: 100x30
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-13_DbStorageHigh",alertstate="firing"}
+    eval_time: 20m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-13_DbStorageHigh",alertstate="firing",severity="P3",team="insights",alert_id="AL-13",mountpoint="/srv/truminds/pgdata"}
+      value: 1
+- name: 'AL-14 quiet: 80 percent is not critical'
+  interval: 1m
+  input_series:
+  - series: node_filesystem_avail_bytes{mountpoint="/srv/truminds/pgdata"}
+    values: 20x30
+  - series: node_filesystem_size_bytes{mountpoint="/srv/truminds/pgdata"}
+    values: 100x30
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-14_DbStorageCritical",alertstate="firing"}
+    eval_time: 20m
+    exp_samples: []
+- name: 'AL-14 fires: volume 95 percent used'
+  interval: 1m
+  input_series:
+  - series: node_filesystem_avail_bytes{mountpoint="/srv/truminds/pgdata"}
+    values: 5x30
+  - series: node_filesystem_size_bytes{mountpoint="/srv/truminds/pgdata"}
+    values: 100x30
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-14_DbStorageCritical",alertstate="firing"}
+    eval_time: 10m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-14_DbStorageCritical",alertstate="firing",severity="P1",team="insights",alert_id="AL-14",mountpoint="/srv/truminds/pgdata"}
+      value: 1
+- name: 'AL-15 fires: api pool full'
+  interval: 1m
+  input_series:
+  - series: insights_db_pool_in_use{process="api"}
+    values: 5x20
+  - series: insights_db_pool_size{process="api"}
+    values: 5x20
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-15_DbPoolSaturated",alertstate="firing"}
+    eval_time: 15m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-15_DbPoolSaturated",alertstate="firing",severity="P2",team="insights",alert_id="AL-15",process="api"}
+      value: 1
+- name: 'AL-15 quiet: pool 40 percent'
+  interval: 1m
+  input_series:
+  - series: insights_db_pool_in_use{process="api"}
+    values: 2x20
+  - series: insights_db_pool_size{process="api"}
+    values: 5x20
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-15_DbPoolSaturated",alertstate="firing"}
+    eval_time: 15m
+    exp_samples: []
+- name: 'AL-16 fires: three devices older than 72 h'
+  interval: 1m
+  input_series:
+  - series: insights_devices_outbox_stale{age="gt_72h"}
+    values: 3x40
+  - series: insights_devices_outbox_stale{age="gt_7d"}
+    values: '0x40'
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-16_OutboxBacklogOnDevices",alertstate="firing"}
+    eval_time: 35m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-16_OutboxBacklogOnDevices",alertstate="firing",severity="P3",team="insights",alert_id="AL-16"}
+      value: 1
+- name: 'AL-16 fires: one device older than 7 d'
+  interval: 1m
+  input_series:
+  - series: insights_devices_outbox_stale{age="gt_72h"}
+    values: 1x40
+  - series: insights_devices_outbox_stale{age="gt_7d"}
+    values: 1x40
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-16_OutboxBacklogOnDevices",alertstate="firing"}
+    eval_time: 35m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-16_OutboxBacklogOnDevices",alertstate="firing",severity="P3",team="insights",alert_id="AL-16"}
+      value: 1
+- name: 'AL-16 quiet: two devices older than 72 h'
+  interval: 1m
+  input_series:
+  - series: insights_devices_outbox_stale{age="gt_72h"}
+    values: 2x40
+  - series: insights_devices_outbox_stale{age="gt_7d"}
+    values: '0x40'
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-16_OutboxBacklogOnDevices",alertstate="firing"}
+    eval_time: 35m
+    exp_samples: []
+- name: 'AL-17 fires: 30 failures per minute'
+  interval: 1m
+  input_series:
+  - series: insights_auth_failures_total{kind="entra",reason="expired"}
+    values: 0+30x30
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-17_AuthFailureSpike",alertstate="firing"}
+    eval_time: 20m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-17_AuthFailureSpike",alertstate="firing",severity="P2",team="insights",alert_id="AL-17"}
+      value: 1
+- name: 'AL-17 quiet: 5 failures per minute'
+  interval: 1m
+  input_series:
+  - series: insights_auth_failures_total{kind="entra",reason="expired"}
+    values: 0+5x30
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-17_AuthFailureSpike",alertstate="firing"}
+    eval_time: 20m
+    exp_samples: []
+- name: 'AL-18 fires: one deny-list reject'
+  interval: 1m
+  input_series:
+  - series: insights_events_rejected_total{code="E-ING-04"}
+    values: 0 0 1 1 1 1 1 1 1 1
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-18_DenyListHit",alertstate="firing"}
+    eval_time: 5m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-18_DenyListHit",alertstate="firing",severity="P2",team="insights",alert_id="AL-18",notify="security"}
+      value: 1
+- name: 'AL-18 quiet: schema rejects are not deny-list hits'
+  interval: 1m
+  input_series:
+  - series: insights_events_rejected_total{code="E-ING-01"}
+    values: 0 0 1 1 1 1 1 1 1 1
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-18_DenyListHit",alertstate="firing"}
+    eval_time: 5m
+    exp_samples: []
+- name: 'AL-19 fires: release unsynced for 2 h'
+  interval: 1m
+  input_series:
+  - series: insights_catalogue_unsynced_release
+    values: 1x200
+  - series: insights_catalogue_items_skipped_total{kind="skill"}
+    values: '0x200'
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-19_CatalogueSyncProblem",alertstate="firing"}
+    eval_time: 130m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-19_CatalogueSyncProblem",alertstate="firing",severity="P3",team="insights",alert_id="AL-19"}
+      value: 1
+- name: 'AL-19 fires: skipped catalogue file'
+  interval: 1m
+  input_series:
+  - series: insights_catalogue_unsynced_release
+    values: '0x200'
+  - series: insights_catalogue_items_skipped_total{kind="pod"}
+    values: 0 0 0 1 1 1 1 1 1 1
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-19_CatalogueSyncProblem",alertstate="firing"}
+    eval_time: 6m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-19_CatalogueSyncProblem",alertstate="firing",severity="P3",team="insights",alert_id="AL-19"}
+      value: 1
+- name: 'AL-19 quiet: in sync'
+  interval: 1m
+  input_series:
+  - series: insights_catalogue_unsynced_release
+    values: '0x200'
+  - series: insights_catalogue_items_skipped_total{kind="skill"}
+    values: '0x200'
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-19_CatalogueSyncProblem",alertstate="firing"}
+    eval_time: 130m
+    exp_samples: []
+- name: 'AL-20 fires: no future partition'
+  interval: 1m
+  input_series:
+  - series: insights_partitions_ahead{table="events_raw"}
+    values: '0x100'
+  - series: insights_partitions_ahead{table="otel_events"}
+    values: 2x100
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-20_PartitionsMissing",alertstate="firing"}
+    eval_time: 70m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-20_PartitionsMissing",alertstate="firing",severity="P2",team="insights",alert_id="AL-20"}
+      value: 1
+- name: 'AL-20 quiet: partitions ahead'
+  interval: 1m
+  input_series:
+  - series: insights_partitions_ahead{table="events_raw"}
+    values: 2x100
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-20_PartitionsMissing",alertstate="firing"}
+    eval_time: 70m
+    exp_samples: []
+- name: 'AL-21 fires: 30 bad signatures in 15 min'
+  interval: 1m
+  input_series:
+  - series: insights_webhook_signature_failures_total
+    values: 0+2x30
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-21_WebhookSignatureFailures",alertstate="firing"}
+    eval_time: 20m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-21_WebhookSignatureFailures",alertstate="firing",severity="P2",team="insights",alert_id="AL-21",notify="security"}
+      value: 1
+- name: 'AL-21 quiet: 5 bad signatures in 15 min'
+  interval: 1m
+  input_series:
+  - series: insights_webhook_signature_failures_total
+    values: 0 0 0 0 0 0 0 0 0 0 1 2 3 4 5 5 5 5 5 5 5 5
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-21_WebhookSignatureFailures",alertstate="firing"}
+    eval_time: 20m
+    exp_samples: []
+- name: 'AL-22 fires: 100x the weekly average'
+  interval: 15m
+  input_series:
+  - series: insights_otel_datapoints_total{signal="metrics"}
+    values: 0+25x760 19025+2500x80
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-22_OtelVolumeAnomaly",alertstate="firing"}
+    eval_time: 205h
+    exp_samples:
+    - labels: ALERTS{alertname="AL-22_OtelVolumeAnomaly",alertstate="firing",severity="P3",team="insights",alert_id="AL-22",notify="security"}
+      value: 1
+- name: 'AL-22 quiet: steady volume'
+  interval: 15m
+  input_series:
+  - series: insights_otel_datapoints_total{signal="metrics"}
+    values: 0+25x840
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-22_OtelVolumeAnomaly",alertstate="firing"}
+    eval_time: 205h
+    exp_samples: []
+- name: 'AL-23 fires: 5 percent schema rejects'
+  interval: 1m
+  input_series:
+  - series: insights_events_rejected_total{code="E-ING-01"}
+    values: 0+5x130
+  - series: insights_events_received_total{type="step.decided",source="tsl"}
+    values: 0+100x130
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-23_RejectedEvents",alertstate="firing"}
+    eval_time: 125m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-23_RejectedEvents",alertstate="firing",severity="P3",team="insights",alert_id="AL-23"}
+      value: 1
+- name: 'AL-23 quiet: E-ING-02 is kept queued, not counted'
+  interval: 1m
+  input_series:
+  - series: insights_events_rejected_total{code="E-ING-02"}
+    values: 0+5x130
+  - series: insights_events_received_total{type="step.decided",source="tsl"}
+    values: 0+100x130
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-23_RejectedEvents",alertstate="firing"}
+    eval_time: 125m
+    exp_samples: []
+- name: 'AL-24 fires: certificate expires in 1 day'
+  interval: 1m
+  input_series:
+  - series: insights_tls_cert_expiry_seconds{host="edge"}
+    values: 86400x5
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-24_CertificateExpiry",alertstate="firing"}
+    eval_time: 2m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-24_CertificateExpiry",alertstate="firing",severity="P3",team="insights",alert_id="AL-24"}
+      value: 1
+- name: 'AL-24 quiet: certificate valid 60 days'
+  interval: 1m
+  input_series:
+  - series: insights_tls_cert_expiry_seconds{host="edge"}
+    values: 5184000x5
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-24_CertificateExpiry",alertstate="firing"}
+    eval_time: 2m
+    exp_samples: []
+- name: 'AL-25 fires: portal shell failing'
+  interval: 1m
+  input_series:
+  - series: probe_success{check="SY-1"}
+    values: '0x10'
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-25_PortalDown",alertstate="firing"}
+    eval_time: 7m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-25_PortalDown",alertstate="firing",severity="P2",team="insights",alert_id="AL-25",check="SY-1"}
+      value: 1
+- name: 'AL-25 quiet: portal shell passing'
+  interval: 1m
+  input_series:
+  - series: probe_success{check="SY-1"}
+    values: 1x10
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-25_PortalDown",alertstate="firing"}
+    eval_time: 7m
+    exp_samples: []
+- name: 'AL-26 fires: 10 percent ingest errors'
+  interval: 1m
+  input_series:
+  - series: insights_http_requests_total{route_group="ingest",status_class="2xx",method="POST"}
+    values: 0+90x120
+  - series: insights_http_requests_total{route_group="ingest",status_class="5xx",method="POST"}
+    values: 0+10x120
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-26_ErrorBudgetBurnFast",alertstate="firing"}
+    eval_time: 70m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-26_ErrorBudgetBurnFast",alertstate="firing",severity="P1",team="insights",alert_id="AL-26"}
+      value: 1
+- name: 'AL-26 quiet: 4 percent is a slow burn only'
+  interval: 1m
+  input_series:
+  - series: insights_http_requests_total{route_group="ingest",status_class="2xx",method="POST"}
+    values: 0+96x420
+  - series: insights_http_requests_total{route_group="ingest",status_class="5xx",method="POST"}
+    values: 0+4x420
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-26_ErrorBudgetBurnFast",alertstate="firing"}
+    eval_time: 400m
+    exp_samples: []
+- name: 'AL-26 fires: 4 percent read errors for 6 h'
+  interval: 1m
+  input_series:
+  - series: insights_http_requests_total{route_group="read",status_class="2xx",method="POST"}
+    values: 0+96x420
+  - series: insights_http_requests_total{route_group="read",status_class="5xx",method="POST"}
+    values: 0+4x420
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-26_ErrorBudgetBurnSlow",alertstate="firing"}
+    eval_time: 400m
+    exp_samples:
+    - labels: ALERTS{alertname="AL-26_ErrorBudgetBurnSlow",alertstate="firing",severity="P2",team="insights",alert_id="AL-26"}
+      value: 1
+- name: 'AL-26 quiet: 1 percent errors'
+  interval: 1m
+  input_series:
+  - series: insights_http_requests_total{route_group="read",status_class="2xx",method="POST"}
+    values: 0+99x420
+  - series: insights_http_requests_total{route_group="read",status_class="5xx",method="POST"}
+    values: 0+1x420
+  promql_expr_test:
+  - expr: ALERTS{alertname="AL-26_ErrorBudgetBurnSlow",alertstate="firing"}
+    eval_time: 400m
+    exp_samples: []

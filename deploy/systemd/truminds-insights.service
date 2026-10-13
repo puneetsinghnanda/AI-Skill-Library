@@ -1,0 +1,16 @@
+# Insights stack on the single VM (OPS-01 §6). Install to /etc/systemd/system/.
+[Unit]
+Description=Truminds insights stack (docker compose)
+Requires=docker.service truminds-secrets.service
+After=docker.service truminds-secrets.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/truminds/deploy/compose
+ExecStart=/usr/bin/docker compose -f compose.prod.yml --env-file /etc/truminds/compose.env up -d --remove-orphans
+ExecStop=/usr/bin/docker compose -f compose.prod.yml --env-file /etc/truminds/compose.env down
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

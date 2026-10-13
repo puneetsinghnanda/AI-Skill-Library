@@ -1,0 +1,288 @@
+# Alert rules AL-01..AL-26 (OPS-02 §7; ids from registry §9, renamed from A-nn by registry §10 #29).
+# Severity: P1 pages any time; P2 pages in working hours, ticket otherwise; P3 ticket only.
+# Alert text holds counts and durations only: never pseudonyms, system codes, run ids or repo names.
+# Every alert links a dashboard (DSH-n, ops/monitoring/dashboards/) and an OPS-04 entry (#al-nn).
+groups:
+  - name: insights-availability
+    rules:
+      - alert: AL-01_ApiDown
+        expr: |
+          (sum(up{job="insights-api"}) == 0)
+          or absent(up{job="insights-api"})
+          or (max(probe_http_status_code{check="SY-2"}) == 0)
+        for: 3m
+        labels: {severity: P1, team: insights, alert_id: AL-01}
+        annotations:
+          summary: "Insights API is down: no instance is scraped or the ready probe gets no HTTP answer"
+          dashboard: "DSH-1 Service overview"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-01"
+
+      - alert: AL-02_NotReady
+        expr: |
+          (min(probe_success{check="SY-2"}) == 0)
+          unless on() (sum(up{job="insights-api"}) == 0)
+        for: 5m
+        labels: {severity: P1, team: insights, alert_id: AL-02}
+        annotations:
+          summary: "/v1/health/ready failing while the API is up; read the checks body (db, migration, secrets, jwks)"
+          dashboard: "DSH-1 Service overview"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-02"
+
+      - alert: AL-03_IngestErrorRate
+        expr: sli:ingest_errors:rate5m / sli:ingest_requests:rate5m > 0.01
+        for: 10m
+        labels: {severity: P1, team: insights, alert_id: AL-03}
+        annotations:
+          summary: "Ingest 5xx ratio {{ $value | humanizePercentage }} over 5 minutes"
+          dashboard: "DSH-2 Ingest pipeline"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-03"
+
+      - alert: AL-04_ReadErrorRate
+        expr: sli:read_errors:rate5m / sli:read_requests:rate5m > 0.02
+        for: 10m
+        labels: {severity: P2, team: insights, alert_id: AL-04}
+        annotations:
+          summary: "Read API 5xx ratio {{ $value | humanizePercentage }} over 5 minutes"
+          dashboard: "DSH-3 Read API and portal"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-04"
+
+      - alert: AL-05_ReadLatency
+        expr: sli:read_slow:ratio5m > 0.05
+        for: 15m
+        labels: {severity: P2, team: insights, alert_id: AL-05}
+        annotations:
+          summary: "{{ $value | humanizePercentage }} of read requests slower than 800 ms"
+          dashboard: "DSH-3 Read API and portal"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-05"
+
+      - alert: AL-06_IngestLatency
+        expr: sli:events_latency_seconds:p95_5m > 1
+        for: 15m
+        labels: {severity: P2, team: insights, alert_id: AL-06}
+        annotations:
+          summary: "p95 of POST /v1/events is {{ $value | humanizeDuration }}"
+          dashboard: "DSH-2 Ingest pipeline"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-06"
+
+  - name: insights-pipeline
+    rules:
+      - alert: AL-07_ProjectionLagWarning
+        expr: max(insights_projection_lag_seconds) > 300
+        for: 10m
+        labels: {severity: P2, team: insights, alert_id: AL-07}
+        annotations:
+          summary: "Projection lag {{ $value | humanizeDuration }}; portal numbers are behind"
+          dashboard: "DSH-2 Ingest pipeline"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-07"
+
+      - alert: AL-08_ProjectionLagCritical
+        expr: max(insights_projection_lag_seconds) > 1800
+        for: 5m
+        labels: {severity: P1, team: insights, alert_id: AL-08}
+        annotations:
+          summary: "Projection lag {{ $value | humanizeDuration }}; portal numbers are behind"
+          dashboard: "DSH-2 Ingest pipeline"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-08"
+
+      - alert: AL-09_IngestSilence
+        expr: |
+          ((sum(increase(insights_events_received_total[2h])) or vector(0)) == 0)
+          and on() (max(insights_devices_seen{window="1d"}) > 0)
+          and on() (ops:working_hours == 1)
+        labels: {severity: P2, team: insights, alert_id: AL-09}
+        annotations:
+          summary: "No events received for 2 hours while devices were active in the last day"
+          dashboard: "DSH-2 Ingest pipeline"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-09"
+
+      - alert: AL-10_WorkerStalled
+        expr: |
+          (time() - max(insights_worker_heartbeat_timestamp) > 120)
+          or (sum(insights_worker_leader) == 0)
+          or absent(insights_worker_heartbeat_timestamp)
+        for: 2m
+        labels: {severity: P1, team: insights, alert_id: AL-10}
+        annotations:
+          summary: "Worker main loop has not ticked, or no worker holds the leader lock"
+          dashboard: "DSH-2 Ingest pipeline"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-10"
+
+      - alert: AL-11_ViewsStale
+        expr: max(insights_view_refresh_age_seconds) > 1200
+        for: 5m
+        labels: {severity: P2, team: insights, alert_id: AL-11}
+        annotations:
+          summary: "Oldest materialized view is {{ $value | humanizeDuration }} old"
+          dashboard: "DSH-3 Read API and portal"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-11"
+
+      - alert: AL-12_DailyJobFailed
+        expr: time() - insights_job_last_success_timestamp{job=~"rollup|retention|partitions"} > 93600
+        labels: {severity: P3, team: insights, alert_id: AL-12}
+        annotations:
+          summary: "Job {{ $labels.job }} has not succeeded for {{ $value | humanizeDuration }}"
+          dashboard: "DSH-4 Database"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-12"
+
+  - name: insights-database
+    rules:
+      # DB storage comes from the hosting platform (OPS-01). Under H1 this is node_exporter on the
+      # encrypted data volume; under H3 replace it with the provider's storage metric.
+      - alert: AL-13_DbStorageHigh
+        expr: |
+          1 - (node_filesystem_avail_bytes{mountpoint="/srv/truminds/pgdata"}
+               / node_filesystem_size_bytes{mountpoint="/srv/truminds/pgdata"}) > 0.75
+        for: 15m
+        labels: {severity: P3, team: insights, alert_id: AL-13}
+        annotations:
+          summary: "Database volume {{ $value | humanizePercentage }} used"
+          dashboard: "DSH-4 Database"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-13"
+
+      - alert: AL-14_DbStorageCritical
+        expr: |
+          1 - (node_filesystem_avail_bytes{mountpoint="/srv/truminds/pgdata"}
+               / node_filesystem_size_bytes{mountpoint="/srv/truminds/pgdata"}) > 0.90
+        for: 5m
+        labels: {severity: P1, team: insights, alert_id: AL-14}
+        annotations:
+          summary: "Database volume {{ $value | humanizePercentage }} used; resize now"
+          dashboard: "DSH-4 Database"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-14"
+
+      - alert: AL-15_DbPoolSaturated
+        expr: |
+          sum by (process) (insights_db_pool_in_use)
+          / sum by (process) (insights_db_pool_size) > 0.9
+        for: 10m
+        labels: {severity: P2, team: insights, alert_id: AL-15}
+        annotations:
+          summary: "Connection pool of {{ $labels.process }} {{ $value | humanizePercentage }} in use"
+          dashboard: "DSH-4 Database"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-15"
+
+      - alert: AL-20_PartitionsMissing
+        expr: min(insights_partitions_ahead) < 1
+        for: 1h
+        labels: {severity: P2, team: insights, alert_id: AL-20}
+        annotations:
+          summary: "A partitioned table has no future monthly partition"
+          dashboard: "DSH-4 Database"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-20"
+
+  - name: insights-fleet
+    rules:
+      - alert: AL-16_OutboxBacklogOnDevices
+        expr: |
+          (max(insights_devices_outbox_stale{age="gt_72h"}) >= 3)
+          or (max(insights_devices_outbox_stale{age="gt_7d"}) >= 1)
+        for: 30m
+        labels: {severity: P3, team: insights, alert_id: AL-16}
+        annotations:
+          summary: "{{ $value }} devices hold events older than the threshold in their outbox"
+          dashboard: "DSH-5 Fleet and outbox"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-16"
+
+      - alert: AL-19_CatalogueSyncProblem
+        expr: |
+          (sum(increase(insights_catalogue_items_skipped_total[1h])) > 0)
+          or (max_over_time(insights_catalogue_unsynced_release[2h]) == 1
+              and min_over_time(insights_catalogue_unsynced_release[2h]) == 1)
+        labels: {severity: P3, team: insights, alert_id: AL-19}
+        annotations:
+          summary: "Catalogue sync skipped files, or the latest release tag is unsynced for 2 hours"
+          dashboard: "DSH-4 Database"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-19"
+
+      - alert: AL-24_CertificateExpiry
+        expr: min(insights_tls_cert_expiry_seconds) < 14 * 86400
+        labels: {severity: P3, team: insights, alert_id: AL-24}
+        annotations:
+          summary: "A TLS certificate expires in {{ $value | humanizeDuration }}"
+          dashboard: "DSH-1 Service overview"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-24"
+
+      - alert: AL-25_PortalDown
+        expr: |
+          max_over_time(probe_success{check="SY-1"}[3m]) == 0
+          and count_over_time(probe_success{check="SY-1"}[3m]) >= 3
+        for: 3m
+        labels: {severity: P2, team: insights, alert_id: AL-25}
+        annotations:
+          summary: "Portal shell check SY-1 failed its last 3 runs"
+          dashboard: "DSH-3 Read API and portal"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-25"
+
+  - name: insights-security
+    rules:
+      - alert: AL-17_AuthFailureSpike
+        expr: sum(rate(insights_auth_failures_total[5m])) * 60 > 20
+        for: 10m
+        labels: {severity: P2, team: insights, alert_id: AL-17}
+        annotations:
+          summary: "{{ $value | humanize }} authentication failures per minute"
+          dashboard: "DSH-6 Security signals"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-17"
+
+      - alert: AL-18_DenyListHit
+        expr: sum(increase(insights_events_rejected_total{code="E-ING-04"}[1h])) > 0
+        labels: {severity: P2, team: insights, alert_id: AL-18, notify: security}
+        annotations:
+          summary: "{{ $value | humanize }} events rejected by the deny-list (E-ING-04) in the last hour"
+          dashboard: "DSH-6 Security signals"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-18"
+
+      - alert: AL-21_WebhookSignatureFailures
+        expr: sum(increase(insights_webhook_signature_failures_total[15m])) > 10
+        labels: {severity: P2, team: insights, alert_id: AL-21, notify: security}
+        annotations:
+          summary: "{{ $value | humanize }} GitHub webhook signature failures in 15 minutes"
+          dashboard: "DSH-6 Security signals"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-21"
+
+      - alert: AL-22_OtelVolumeAnomaly
+        expr: |
+          sum(rate(insights_otel_datapoints_total[1h]))
+          > 5 * avg_over_time(sum(rate(insights_otel_datapoints_total[1h]))[7d:1h])
+        for: 30m
+        labels: {severity: P3, team: insights, alert_id: AL-22, notify: security}
+        annotations:
+          summary: "OTel data points {{ $value | humanize }}/s, over 5x the 7-day average"
+          dashboard: "DSH-6 Security signals"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-22"
+
+      - alert: AL-23_RejectedEvents
+        expr: |
+          sum(rate(insights_events_rejected_total{code=~"E-ING-0[135]"}[1h]))
+          / sum(rate(insights_events_received_total[1h])) > 0.01
+        for: 1h
+        labels: {severity: P3, team: insights, alert_id: AL-23}
+        annotations:
+          summary: "{{ $value | humanizePercentage }} of events rejected (schema, forbidden field or token kind)"
+          dashboard: "DSH-2 Ingest pipeline"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-23"
+
+  - name: insights-error-budget
+    rules:
+      # Multi-window burn rate on SLO-1 and SLO-5 (99.5%, budget 0.005). 14.4x => 0.072; 6x => 0.03.
+      - alert: AL-26_ErrorBudgetBurnFast
+        expr: |
+          (slo:ingest_error_ratio:rate1h > 14.4 * 0.005 and slo:ingest_error_ratio:rate5m > 14.4 * 0.005)
+          or
+          (slo:read_error_ratio:rate1h > 14.4 * 0.005 and slo:read_error_ratio:rate5m > 14.4 * 0.005)
+        labels: {severity: P1, team: insights, alert_id: AL-26}
+        annotations:
+          summary: "Error budget burning over 14.4x (1 h and 5 m windows)"
+          dashboard: "DSH-1 Service overview"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-26"
+
+      - alert: AL-26_ErrorBudgetBurnSlow
+        expr: |
+          (slo:ingest_error_ratio:rate6h > 6 * 0.005 and slo:ingest_error_ratio:rate30m > 6 * 0.005)
+          or
+          (slo:read_error_ratio:rate6h > 6 * 0.005 and slo:read_error_ratio:rate30m > 6 * 0.005)
+        labels: {severity: P2, team: insights, alert_id: AL-26}
+        annotations:
+          summary: "Error budget burning over 6x (6 h and 30 m windows)"
+          dashboard: "DSH-1 Service overview"
+          runbook: "docs/operations/OPS-04-failure-runbook.md#al-26"

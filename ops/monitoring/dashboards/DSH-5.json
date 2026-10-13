@@ -1,0 +1,241 @@
+{
+  "uid": "dsh-5",
+  "title": "DSH-5 Fleet and outbox",
+  "description": "OPS-02 \u00a79 DSH-5. Audience: On-call, tech leads (counts only). No personal data.",
+  "tags": [
+    "truminds",
+    "insights",
+    "DSH-5"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "timezone": "utc",
+  "refresh": "1m",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "label": "Data source"
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "OPS-02",
+      "url": "docs/operations/OPS-02-monitoring-alerting.md",
+      "type": "link"
+    }
+  ],
+  "panels": [
+    {
+      "title": "Devices seen",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "max by (window) (insights_devices_seen)",
+          "legendFormat": "{{window}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "id": 1
+    },
+    {
+      "title": "Devices with queued events",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "max(insights_devices_outbox_nonempty)",
+          "legendFormat": "devices",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "id": 2
+    },
+    {
+      "title": "Queued events on devices",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "max(insights_devices_outbox_events)",
+          "legendFormat": "events",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "id": 3
+    },
+    {
+      "title": "Stale outboxes by age bucket",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "max by (age) (insights_devices_outbox_stale)",
+          "legendFormat": "{{age}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 12,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "description": "AL-16: gt_72h >= 3 or gt_7d >= 1",
+      "id": 4
+    },
+    {
+      "title": "Oldest outbox age",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "max(insights_devices_outbox_oldest_age_seconds)",
+          "legendFormat": "oldest",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 6,
+        "h": 4,
+        "x": 0,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 5
+    },
+    {
+      "title": "Delivery delay p95",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(insights_event_delivery_delay_seconds_bucket[1h])))",
+          "legendFormat": "p95",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 6,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 6
+    },
+    {
+      "title": "Plugin and tsl versions (counts)",
+      "type": "text",
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 0,
+        "y": 24
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "OPS-02 \u00a79 lists a version-spread panel, but OPS-02 \u00a75.2 defines no metric for it. Until one is added (registry row first), use the admin device list (SDD-13). Counts only, never pseudonyms."
+      },
+      "id": 7
+    }
+  ]
+}

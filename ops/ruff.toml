@@ -1,0 +1,5 @@
+# Lint settings for the Python checks under ops/: the insights service rules, plus the test ignores.
+extend = "../services/insights/pyproject.toml"
+
+[lint.per-file-ignores]
+"**/tests/**" = ["S101", "S105", "S106", "S108", "S311", "S603", "S607", "E501"]

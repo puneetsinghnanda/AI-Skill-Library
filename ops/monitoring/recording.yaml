@@ -1,0 +1,76 @@
+# SLI recording rules (OPS-02 §3.2). Metric names and labels: OPS-02 §5.2, services/insights/app/obs/metrics.py.
+# route_group is one of ingest | read | write | health | static (fixed route table in app/obs/metrics.py).
+groups:
+  - name: insights-sli
+    interval: 30s
+    rules:
+      # ---- SLO-1 ingest availability (429 excluded from both sides)
+      - record: sli:ingest_requests:rate5m
+        expr: sum(rate(insights_http_requests_total{route_group="ingest",status_class!="429"}[5m]))
+      - record: sli:ingest_errors:rate5m
+        expr: sum(rate(insights_http_requests_total{route_group="ingest",status_class="5xx"}[5m]))
+      # ---- SLO-5 read availability
+      - record: sli:read_requests:rate5m
+        expr: sum(rate(insights_http_requests_total{route_group="read",status_class!="429"}[5m]))
+      - record: sli:read_errors:rate5m
+        expr: sum(rate(insights_http_requests_total{route_group="read",status_class="5xx"}[5m]))
+      # ---- SLO-6 read latency (<= 800 ms)
+      - record: sli:read_slow:ratio5m
+        expr: |
+          1 - (
+            sum(rate(insights_http_request_duration_seconds_bucket{route_group="read",le="0.8"}[5m]))
+            /
+            sum(rate(insights_http_request_duration_seconds_count{route_group="read"}[5m]))
+          )
+      # ---- SLO-2 ingest latency: p95 of POST /v1/events (AL-06)
+      - record: sli:events_latency_seconds:p95_5m
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(insights_http_request_duration_seconds_bucket{route="/v1/events",method="POST"}[5m])))
+
+  # Error ratios over the multi-window burn-rate windows (AL-26). Budget for SLO-1 and SLO-5: 0.5%.
+  - name: insights-slo-burn
+    interval: 1m
+    rules:
+      - record: slo:ingest_error_ratio:rate5m
+        expr: |
+          sum(rate(insights_http_requests_total{route_group="ingest",status_class="5xx"}[5m]))
+          / sum(rate(insights_http_requests_total{route_group="ingest",status_class!="429"}[5m]))
+      - record: slo:ingest_error_ratio:rate30m
+        expr: |
+          sum(rate(insights_http_requests_total{route_group="ingest",status_class="5xx"}[30m]))
+          / sum(rate(insights_http_requests_total{route_group="ingest",status_class!="429"}[30m]))
+      - record: slo:ingest_error_ratio:rate1h
+        expr: |
+          sum(rate(insights_http_requests_total{route_group="ingest",status_class="5xx"}[1h]))
+          / sum(rate(insights_http_requests_total{route_group="ingest",status_class!="429"}[1h]))
+      - record: slo:ingest_error_ratio:rate6h
+        expr: |
+          sum(rate(insights_http_requests_total{route_group="ingest",status_class="5xx"}[6h]))
+          / sum(rate(insights_http_requests_total{route_group="ingest",status_class!="429"}[6h]))
+      - record: slo:read_error_ratio:rate5m
+        expr: |
+          sum(rate(insights_http_requests_total{route_group="read",status_class="5xx"}[5m]))
+          / sum(rate(insights_http_requests_total{route_group="read",status_class!="429"}[5m]))
+      - record: slo:read_error_ratio:rate30m
+        expr: |
+          sum(rate(insights_http_requests_total{route_group="read",status_class="5xx"}[30m]))
+          / sum(rate(insights_http_requests_total{route_group="read",status_class!="429"}[30m]))
+      - record: slo:read_error_ratio:rate1h
+        expr: |
+          sum(rate(insights_http_requests_total{route_group="read",status_class="5xx"}[1h]))
+          / sum(rate(insights_http_requests_total{route_group="read",status_class!="429"}[1h]))
+      - record: slo:read_error_ratio:rate6h
+        expr: |
+          sum(rate(insights_http_requests_total{route_group="read",status_class="5xx"}[6h]))
+          / sum(rate(insights_http_requests_total{route_group="read",status_class!="429"}[6h]))
+
+  # Working-hours gate for P2 paging and AL-09 (OPS-02 §7). Hours and time zone are TBD by Puneet
+  # (OPS-02 §15); the placeholder is Monday-Friday 09:00-18:00 UTC. Change only these two lines.
+  - name: insights-calendar
+    interval: 1m
+    rules:
+      - record: ops:working_hours
+        expr: |
+          (vector(1) and on() (hour() >= 9 and hour() < 18))
+          and on() (day_of_week() >= 1 and day_of_week() <= 5)

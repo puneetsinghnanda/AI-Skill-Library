@@ -1,0 +1,17 @@
+# OTel names and attributes kept by the receiver (SDD-08 §5.2, §5.3).
+# The exact Claude Code metric and event names are unverified (SDD-05 §2). They are filled in only
+# after spike S-10 records a real session. Until then the allowlist is empty: the receiver stores
+# nothing and only counts what it dropped (insights_otel_dropped_total).
+#
+# Shape:
+# metrics:
+#   - name: "<metric name>"
+#     keep_attrs: [session.id, "<attr>"]
+#     unit: tokens            # tokens | usd | s | "1"
+#     usage:                  # optional: add the value to run_usage (SDD-08 §5.4)
+#       - {field: tokens_in, when: {"<attr>": "<value>"}}
+# logs:
+#   - event: "<event name>"
+#     keep_attrs: [session.id, "<attr>"]
+metrics: []
+logs: []

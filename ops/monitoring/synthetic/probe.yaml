@@ -1,0 +1,49 @@
+# Synthetic checks SY-1..SY-5 (OPS-02 §4.3) in Prometheus blackbox_exporter format.
+# The prober product follows the hosting choice (OPS-01, OQ-02); these modules port to any HTTP prober.
+# Targets and their check="SY-n" labels are in ../scrape.yaml (job `synthetic`); alerts AL-01, AL-02
+# and AL-25 select on that label. SY-4 stays out of scrape.yaml until its identity exists.
+# skills.example.internal is a placeholder host name; the real one is set on the monitoring host.
+modules:
+  sy1_portal_shell:          # SY-1: GET / 200 within 2 s and the build-id meta tag present
+    prober: http
+    timeout: 2s
+    http:
+      method: GET
+      valid_status_codes: [200]
+      fail_if_body_not_matches_regexp: ['<meta name="build-id"']
+      preferred_ip_protocol: ip4
+  sy1_portal_asset:          # SY-1 (second half): one hashed JS asset 200
+    prober: http
+    timeout: 2s
+    http: {method: GET, valid_status_codes: [200], preferred_ip_protocol: ip4}
+  sy2_ready:                 # SY-2: /v1/health/ready 200 within 1 s (internal network only)
+    prober: http
+    timeout: 1s
+    http: {method: GET, valid_status_codes: [200], preferred_ip_protocol: ip4}
+  sy3_read_auth_path:        # SY-3: /v1/status without a token -> 401 E-API-02
+    prober: http
+    timeout: 1s
+    http:
+      method: GET
+      valid_status_codes: [401]
+      fail_if_body_not_matches_regexp: ['"E-API-02"']
+      preferred_ip_protocol: ip4
+  sy4_authenticated_read:    # SY-4: off until the monitoring identity exists (OPS-02 §15)
+    prober: http
+    timeout: 2s
+    http:
+      method: GET
+      valid_status_codes: [200]
+      # bearer_token_file is supplied by the prober host's secret store; never committed.
+      preferred_ip_protocol: ip4
+  sy5_ingest_path:           # SY-5: POST /v1/events, empty batch, no token -> 401 E-ING-07. Writes nothing.
+    prober: http
+    timeout: 1s
+    http:
+      method: POST
+      headers: {Content-Type: application/json}
+      body: '{"events":[]}'
+      valid_status_codes: [401]
+      fail_if_body_not_matches_regexp: ['"E-ING-07"']
+      preferred_ip_protocol: ip4
+

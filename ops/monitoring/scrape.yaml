@@ -1,0 +1,35 @@
+# Prometheus scrape configuration for the single-VM baseline (OPS-01 §6, OPS-02 §2).
+# The scraper joins the compose `app` network; ports 9100 (api) and 9101 (worker) are never routed by
+# the edge. Rule files are evaluated every 30 s.
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+rule_files:
+  - recording.yaml
+  - alerts.yaml
+
+scrape_configs:
+  - job_name: insights-api
+    dns_sd_configs:                  # one A record per api replica on the compose network
+      - names: [api]
+        type: A
+        port: 9100
+  - job_name: insights-worker
+    static_configs:
+      - targets: ["worker:9101"]
+  - job_name: node                   # host metrics, incl. the encrypted pgdata volume (AL-13, AL-14)
+    static_configs:
+      - targets: ["host.docker.internal:9100"]
+  - job_name: synthetic              # SY-1..SY-5 through blackbox_exporter (synthetic/probe.yaml)
+    metrics_path: /probe
+    scrape_interval: 1m
+    static_configs:
+      - {targets: ["https://skills.example.internal/"], labels: {check: SY-1, module: sy1_portal_shell}}
+      - {targets: ["http://api:8000/v1/health/ready"], labels: {check: SY-2, module: sy2_ready}}
+      - {targets: ["https://skills.example.internal/v1/status"], labels: {check: SY-3, module: sy3_read_auth_path}}
+      - {targets: ["https://skills.example.internal/v1/events"], labels: {check: SY-5, module: sy5_ingest_path}}
+    relabel_configs:
+      - {source_labels: [__address__], target_label: __param_target}
+      - {source_labels: [module], target_label: __param_module}
+      - {target_label: __address__, replacement: "blackbox:9115"}

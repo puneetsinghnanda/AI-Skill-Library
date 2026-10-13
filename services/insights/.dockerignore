@@ -1,0 +1,8 @@
+# Used when the build context is this folder; the release build uses the repository root.
+.venv
+**/__pycache__
+tests
+seed
+.env
+.env.*
+!.env.example

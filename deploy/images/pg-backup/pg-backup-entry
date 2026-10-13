@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Entry point of truminds/pg-backup (OPS-01 §9).
+#
+#   schedule              stanza-create (idempotent), then full weekly (Sunday), differential daily,
+#                         expire after each run; WAL is pushed continuously by archive_command
+#   backup full|diff|incr one backup now (OPS-01 §8.3: on-demand backup before a migration)
+#   info | check          pgbackrest info / check
+#   restore <args>        pgbackrest restore (OPS-01 §9.3; postgres must be stopped)
+#   anything else         passed to the upstream postgres entrypoint (the image doubles as the DB server)
+set -euo pipefail
+
+BACKUP_HOUR_UTC="${BACKUP_HOUR_UTC:-02}"   # daily run hour (UTC)
+FULL_WEEKDAY="${FULL_WEEKDAY:-7}"          # ISO weekday of the full backup (7 = Sunday)
+
+log() { printf '{"ts":"%s","service":"backup","msg":"%s"}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
+
+run_backup() {
+  local type="$1"
+  log "backup start type=${type}"
+  if pgbr --type="${type}" backup; then
+    log "backup ok type=${type}"
+    pgbr expire && log "expire ok"
+  else
+    log "backup failed type=${type}"
+    return 1
+  fi
+}
+
+schedule() {
+  until pg_isready -q -h /var/run/postgresql -U postgres; do sleep 5; done
+  pgbr stanza-create || pgbr stanza-upgrade
+  pgbr check
+  local last_day=""
+  while true; do
+    local day hour weekday
+    day="$(date -u +%F)"; hour="$(date -u +%H)"; weekday="$(date -u +%u)"
+    if [[ "$hour" == "$BACKUP_HOUR_UTC" && "$day" != "$last_day" ]]; then
+      if [[ "$weekday" == "$FULL_WEEKDAY" ]]; then run_backup full || true; else run_backup diff || true; fi
+      last_day="$day"
+    fi
+    sleep 300
+  done
+}
+
+case "${1:-}" in
+  schedule) schedule ;;
+  backup) shift; run_backup "${1:-full}" ;;
+  info) shift; exec pgbr info "$@" ;;
+  check) shift; exec pgbr check "$@" ;;
+  restore) shift; exec pgbr restore "$@" ;;
+  *) exec docker-entrypoint.sh "$@" ;;
+esac

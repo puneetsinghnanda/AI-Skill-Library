@@ -1,0 +1,269 @@
+{
+  "uid": "dsh-6",
+  "title": "DSH-6 Security signals",
+  "description": "OPS-02 \u00a79 DSH-6. Audience: On-call, security reviewer. No personal data.",
+  "tags": [
+    "truminds",
+    "insights",
+    "DSH-6"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "timezone": "utc",
+  "refresh": "1m",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "label": "Data source"
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "OPS-02",
+      "url": "docs/operations/OPS-02-monitoring-alerting.md",
+      "type": "link"
+    }
+  ],
+  "panels": [
+    {
+      "title": "Auth failures by kind and reason",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (kind, reason) (rate(insights_auth_failures_total[5m])) * 60",
+          "legendFormat": "{{kind}} {{reason}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "description": "AL-17 at 20 per minute",
+      "id": 1
+    },
+    {
+      "title": "Webhook HMAC failures",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(increase(insights_webhook_signature_failures_total[15m]))",
+          "legendFormat": "per 15 min",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "description": "AL-21 at 10 per 15 min",
+      "id": 2
+    },
+    {
+      "title": "Deny-list hits (E-ING-04)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(increase(insights_events_rejected_total{code=\"E-ING-04\"}[1h]))",
+          "legendFormat": "per hour",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "description": "AL-18 on any hit",
+      "id": 3
+    },
+    {
+      "title": "OTel volume vs 7-day average",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(insights_otel_datapoints_total[1h]))",
+          "legendFormat": "now",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        },
+        {
+          "expr": "avg_over_time(sum(rate(insights_otel_datapoints_total[1h]))[7d:1h])",
+          "legendFormat": "7-day average",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 12,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "description": "AL-22 at 5x",
+      "id": 4
+    },
+    {
+      "title": "Ingest token last used age by kind",
+      "type": "table",
+      "targets": [
+        {
+          "expr": "max by (kind) (insights_ingest_token_last_used_age_seconds)",
+          "legendFormat": "{{kind}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 0,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 5
+    },
+    {
+      "title": "Name reveals per day",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(increase(insights_name_reveals_total[1d]))",
+          "legendFormat": "reveals",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 12,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "id": 6
+    },
+    {
+      "title": "Rate limited by route group",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (route_group) (rate(insights_rate_limited_total[5m]))",
+          "legendFormat": "{{route_group}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 0,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 7
+    }
+  ]
+}

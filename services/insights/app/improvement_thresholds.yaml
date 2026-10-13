@@ -1,0 +1,10 @@
+# Improvement signal thresholds (SDD-11 §3.1). Proposals until pilot data exists (OQ-12);
+# they change by pull request, never in code.
+window_days: 28
+signals:
+  IS-1: {op: lt, threshold: 0.80, min_sample: 10}    # first-try pass rate
+  IS-2: {op: gt, threshold: 0.50, min_sample: 10}    # retries per step
+  IS-5: {op: gt, threshold: 0.15, min_sample: 10}    # unverified claims: 1 - mean S1 on PASS path
+  IS-7: {op: gt, threshold: 0.10, min_sample: 10}    # human override rate
+  IS-8: {op: gt, threshold: 0.30, min_sample: 10}    # input-pause rate (informational)
+  IS-10: {op: lt, threshold: -0.10, min_sample: 10}  # version regression of IS-1

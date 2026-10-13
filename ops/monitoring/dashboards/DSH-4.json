@@ -1,0 +1,365 @@
+{
+  "uid": "dsh-4",
+  "title": "DSH-4 Database",
+  "description": "OPS-02 \u00a79 DSH-4. Audience: On-call. No personal data.",
+  "tags": [
+    "truminds",
+    "insights",
+    "DSH-4"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "timezone": "utc",
+  "refresh": "1m",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "label": "Data source"
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "OPS-02",
+      "url": "docs/operations/OPS-02-monitoring-alerting.md",
+      "type": "link"
+    }
+  ],
+  "panels": [
+    {
+      "title": "Database size",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "max(insights_db_size_bytes)",
+          "legendFormat": "size",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 1
+    },
+    {
+      "title": "Growth per day",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "max(deriv(insights_db_size_bytes[1d])) * 86400",
+          "legendFormat": "bytes/day",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 2
+    },
+    {
+      "title": "Volume used (H1)",
+      "type": "gauge",
+      "targets": [
+        {
+          "expr": "1 - node_filesystem_avail_bytes{mountpoint=\"/srv/truminds/pgdata\"} / node_filesystem_size_bytes{mountpoint=\"/srv/truminds/pgdata\"}",
+          "legendFormat": "used",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 6,
+        "h": 8,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "description": "AL-13 at 75%, AL-14 at 90%",
+      "id": 3
+    },
+    {
+      "title": "Largest tables",
+      "type": "bargauge",
+      "targets": [
+        {
+          "expr": "topk(10, max by (table) (insights_db_table_bytes))",
+          "legendFormat": "{{table}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 6,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 4
+    },
+    {
+      "title": "Pool use by process",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (process) (insights_db_pool_in_use) / sum by (process) (insights_db_pool_size)",
+          "legendFormat": "{{process}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 0,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 5
+    },
+    {
+      "title": "Partitions ahead",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "min by (table) (insights_partitions_ahead)",
+          "legendFormat": "{{table}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 6,
+        "h": 4,
+        "x": 12,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "id": 6
+    },
+    {
+      "title": "Job last success age",
+      "type": "table",
+      "targets": [
+        {
+          "expr": "time() - max by (job) (insights_job_last_success_timestamp)",
+          "legendFormat": "{{job}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 0,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 7
+    },
+    {
+      "title": "Job failures",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (job) (increase(insights_job_failures_total[1h]))",
+          "legendFormat": "{{job}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 12,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "id": 8
+    },
+    {
+      "title": "Catalogue sync",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "time() - max(insights_catalogue_last_sync_timestamp)",
+          "legendFormat": "age",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        },
+        {
+          "expr": "max(insights_catalogue_unsynced_release)",
+          "legendFormat": "unsynced release",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 6,
+        "h": 4,
+        "x": 0,
+        "y": 32
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "id": 9
+    },
+    {
+      "title": "Backup status (platform)",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "max(pgbackrest_backup_since_last_completion_seconds)",
+          "legendFormat": "since last backup",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 6,
+        "h": 4,
+        "x": 6,
+        "y": 32
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "description": "From the pg-backup exporter or the provider (OPS-01 \u00a79); empty until wired",
+      "id": 10
+    }
+  ]
+}

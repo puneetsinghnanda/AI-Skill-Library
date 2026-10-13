@@ -1,0 +1,16 @@
+# Invented names for tests only; the production allowlist stays empty until spike S-10.
+metrics:
+  - name: test.token.usage
+    keep_attrs: [session.id, token.type, model]
+    unit: tokens
+    usage:
+      - {field: tokens_in, when: {token.type: input}}
+      - {field: tokens_out, when: {token.type: output}}
+  - name: test.cost.usage
+    keep_attrs: [session.id]
+    unit: usd
+    usage:
+      - {field: cost_usd}
+logs:
+  - event: test.tool_decision
+    keep_attrs: [session.id, tool_name, decision]

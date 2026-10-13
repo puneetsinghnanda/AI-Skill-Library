@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# pgBackRest wrapper: loads the backup secrets from Docker secret files into pgBackRest's environment
+# variables for this one process, then runs pgbackrest for stanza `insights`. Used by archive_command
+# (`pgbr archive-push %p`) and by pg-backup-entry. Secrets never appear on a command line or in a log.
+set -euo pipefail
+
+cipher=/run/secrets/backup_cipher_key
+creds=/run/secrets/backup_store_credentials   # two lines: key=<access key id> and secret=<secret key>
+
+if [[ -s "$cipher" ]]; then
+  PGBACKREST_REPO1_CIPHER_PASS="$(tr -d '\n' < "$cipher")"
+  export PGBACKREST_REPO1_CIPHER_PASS
+fi
+if [[ -s "$creds" ]]; then
+  while IFS='=' read -r k v; do
+    case "$k" in
+      key) export PGBACKREST_REPO1_S3_KEY="$v" ;;
+      secret) export PGBACKREST_REPO1_S3_KEY_SECRET="$v" ;;
+    esac
+  done < "$creds"
+fi
+
+exec pgbackrest --stanza=insights "$@"

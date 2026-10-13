@@ -1,0 +1,195 @@
+# Single-VM baseline, option H1 (OPS-01 §6.2). The same file runs staging and prod; only the host's
+# env file, secrets and DNS name differ (OPS-01 §4.1).
+#
+#   sudo systemctl start truminds-secrets      # fetch-secrets.sh -> /run/truminds-secrets (tmpfs)
+#   docker compose -f compose.prod.yml --env-file /etc/truminds/compose.env up -d
+#
+# Images are referenced by digest only (OPS-03 §3). No secret, host name or credential is in this
+# file: secrets are files on tmpfs written by deploy/scripts/fetch-secrets.sh.
+name: truminds-insights
+
+x-insights: &insights
+  image: ${REGISTRY:?set REGISTRY}/truminds/insights@${INSIGHTS_DIGEST:?set INSIGHTS_DIGEST}
+  env_file: [/etc/truminds/prod.env]
+  read_only: true
+  tmpfs: [/tmp]
+  user: "10001"
+  group_add: ["990"]                               # reads /run/secrets (root:990 0440, fetch-secrets.sh)
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  networks: [app, db]
+  restart: unless-stopped
+  logging: {driver: json-file, options: {max-size: "20m", max-file: "5"}}
+
+services:
+  edge:
+    image: nginx@${NGINX_DIGEST:?set NGINX_DIGEST}
+    ports:
+      - "${EDGE_BIND:-0.0.0.0}:443:8443"          # intranet: portal, read API, tsl, OTel
+      - "${EDGE_BIND:-0.0.0.0}:80:8080"           # redirect to HTTPS only
+      - "${PUBLIC_EDGE_BIND:-127.0.0.1}:8444:9443" # option E1 public allowlist; bind to the DMZ interface only if E1 is chosen
+    volumes:
+      - ./edge/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /run/truminds-secrets/tls:/etc/nginx/tls:ro
+    networks: [edge, app]
+    read_only: true
+    tmpfs: [/tmp, /var/cache/nginx, /var/run]
+    group_add: ["990"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETGID, SETUID]
+    security_opt: ["no-new-privileges:true"]
+    depends_on: [api, portal]
+    restart: unless-stopped
+    logging: {driver: json-file, options: {max-size: "20m", max-file: "5"}}
+
+  api:
+    <<: *insights
+    command: ["api"]
+    deploy: {replicas: 2}
+    networks: [app, db, egress]                    # egress: Entra JWKS only (host firewall)
+    secrets: [db_ca, db_app_password, db_read_password, db_reveal_password, pepper, data_key]
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.entry", "probe", "ready"]
+      interval: 15s
+      timeout: 3s
+      retries: 4
+      start_period: 20s
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+
+  worker:
+    <<: *insights
+    command: ["worker"]
+    networks: [app, db, egress]                    # egress: marketplace repo for catalogue sync
+    secrets: [db_ca, db_app_password, pepper, data_key, catalogue_token]
+    healthcheck:                                   # worker /healthz on the internal port 9101 (OPS-02 §4.1)
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:9101/healthz', timeout=3).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+
+  migrate:                                         # alembic upgrade head + first partitions, owner role
+    <<: *insights
+    command: ["migrate"]
+    secrets: [db_ca, db_owner_password]
+    networks: [db]
+    restart: "no"
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  admin:                                           # on demand: docker compose run --rm admin token create --kind ci --label <org>
+    <<: *insights
+    command: ["admin", "--help"]
+    secrets: [db_ca, db_app_password, db_owner_password, pepper, data_key]
+    networks: [db]
+    restart: "no"
+    profiles: [admin]
+
+  portal:
+    image: ${REGISTRY}/truminds/portal@${PORTAL_DIGEST:?set PORTAL_DIGEST}
+    read_only: true
+    tmpfs: [/tmp, /var/cache/nginx]
+    user: "101"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    networks: [app]
+    restart: unless-stopped
+
+  postgres:                                        # omit under option H3 (managed PostgreSQL 16)
+    # The pg-backup image is postgres:16 (POSTGRES_DIGEST) plus pgBackRest, so archive_command works.
+    image: ${REGISTRY}/truminds/pg-backup@${PGBACKUP_DIGEST:?set PGBACKUP_DIGEST}
+    env_file: [/etc/truminds/backup.env]
+    # Run as the postgres uid from the start (no gosu), so the supplementary group 990 that reads
+    # /run/secrets survives. /srv/truminds/pgdata must be owned by 999:999 (README, host set-up).
+    user: "999:999"
+    group_add: ["990"]
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_superuser_password
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --data-checksums"
+    command:
+      - postgres
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/tls/server.crt
+      - -c
+      - ssl_key_file=/tls/server.key
+      - -c
+      - ssl_min_protocol_version=TLSv1.2
+      - -c
+      - password_encryption=scram-sha-256
+      - -c
+      - max_connections=100
+      - -c
+      - timezone=UTC
+      - -c
+      - log_min_duration_statement=2000
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_command=pgbr archive-push %p
+      - -c
+      - hba_file=/etc/postgresql/pg_hba.conf
+    volumes:
+      - /srv/truminds/pgdata:/var/lib/postgresql/data       # on the LUKS-encrypted volume (OPS-01 §8.2)
+      - /srv/truminds/pgspool:/var/spool/pgbackrest
+      - pgsocket:/var/run/postgresql
+      - /run/truminds-secrets/db-tls:/tls:ro
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+      - ./postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ../images/pg-backup/pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro
+    secrets: [db_superuser_password, db_owner_password, db_app_password, db_read_password, db_reveal_password, backup_cipher_key, backup_store_credentials]
+    networks: [db]
+    shm_size: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+
+  backup:
+    image: ${REGISTRY}/truminds/pg-backup@${PGBACKUP_DIGEST:?set PGBACKUP_DIGEST}
+    command: ["schedule"]                          # full weekly, differential daily, WAL continuous (OPS-01 §9)
+    env_file: [/etc/truminds/backup.env]
+    user: "999:999"                                # the image's postgres uid, owner of PGDATA
+    group_add: ["990"]
+    volumes:
+      - /srv/truminds/pgdata:/var/lib/postgresql/data:ro
+      - /srv/truminds/pgspool:/var/spool/pgbackrest
+      - pgsocket:/var/run/postgresql
+      - ../images/pg-backup/pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro
+    secrets: [db_superuser_password, backup_cipher_key, backup_store_credentials]
+    networks: [db, egress]                         # egress: encrypted backup storage outside the VM
+    read_only: true
+    tmpfs: [/tmp, /var/log/pgbackrest]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: unless-stopped
+
+networks:
+  edge: {}
+  app: {internal: true}
+  db: {internal: true}
+  egress: {}                                       # outbound only; the host firewall allows the Entra login host, the
+                                                   # marketplace repo host and the backup store, nothing else
+
+volumes:
+  pgsocket: {}                                     # unix socket shared by postgres and backup (pgBackRest uses peer auth)
+
+secrets:                                           # written to tmpfs by fetch-secrets.sh; never in git
+  db_ca:                    {file: /run/truminds-secrets/db-tls/ca.crt}   # CA for sslmode=verify-full (not secret, same channel)
+  db_superuser_password:    {file: /run/truminds-secrets/db_superuser_password}
+  db_owner_password:        {file: /run/truminds-secrets/db_owner_password}
+  db_app_password:          {file: /run/truminds-secrets/db_app_password}
+  db_read_password:         {file: /run/truminds-secrets/db_read_password}
+  db_reveal_password:       {file: /run/truminds-secrets/db_reveal_password}
+  pepper:                   {file: /run/truminds-secrets/pepper}
+  data_key:                 {file: /run/truminds-secrets/data_key}
+  catalogue_token:          {file: /run/truminds-secrets/catalogue_token}
+  backup_cipher_key:        {file: /run/truminds-secrets/backup_cipher_key}
+  backup_store_credentials: {file: /run/truminds-secrets/backup_store_credentials}

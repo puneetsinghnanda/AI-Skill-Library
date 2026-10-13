@@ -1,0 +1,519 @@
+{
+  "uid": "dsh-1",
+  "title": "DSH-1 Service overview",
+  "description": "OPS-02 \u00a79 DSH-1. Audience: On-call, Puneet. No personal data.",
+  "tags": [
+    "truminds",
+    "insights",
+    "DSH-1"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "timezone": "utc",
+  "refresh": "1m",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "label": "Data source"
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "OPS-02",
+      "url": "docs/operations/OPS-02-monitoring-alerting.md",
+      "type": "link"
+    }
+  ],
+  "panels": [
+    {
+      "title": "SLO-1 Ingest availability (30 d, target 99.5%)",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "1 - (sum(increase(insights_http_requests_total{route_group=\"ingest\",status_class=\"5xx\"}[30d])) / sum(increase(insights_http_requests_total{route_group=\"ingest\",status_class!=\"429\"}[30d])))",
+          "legendFormat": "SLO-1",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 6,
+        "h": 4,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 1
+    },
+    {
+      "title": "SLO-2 Ingest latency <= 1 s (30 d, target 95%)",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum(increase(insights_http_request_duration_seconds_bucket{route=\"/v1/events\",method=\"POST\",le=\"1\"}[30d])) / sum(increase(insights_http_request_duration_seconds_count{route=\"/v1/events\",method=\"POST\"}[30d]))",
+          "legendFormat": "SLO-2",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 6,
+        "h": 4,
+        "x": 6,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 2
+    },
+    {
+      "title": "SLO-3 Projection freshness (30 d, target 99%)",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "avg_over_time((max(insights_projection_lag_seconds) <= bool 60)[30d:1m])",
+          "legendFormat": "SLO-3",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 6,
+        "h": 4,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 3
+    },
+    {
+      "title": "SLO-4 View freshness (30 d, target 99%)",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "avg_over_time((max(insights_view_refresh_age_seconds) <= bool 600)[30d:1m])",
+          "legendFormat": "SLO-4",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 6,
+        "h": 4,
+        "x": 18,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 4
+    },
+    {
+      "title": "SLO-5 Read availability (30 d, target 99.5%)",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "1 - (sum(increase(insights_http_requests_total{route_group=\"read\",status_class=\"5xx\"}[30d])) / sum(increase(insights_http_requests_total{route_group=\"read\",status_class!=\"429\"}[30d])))",
+          "legendFormat": "SLO-5",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 6,
+        "h": 4,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 5
+    },
+    {
+      "title": "SLO-6 Read latency <= 800 ms (30 d, target 95%)",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum(increase(insights_http_request_duration_seconds_bucket{route_group=\"read\",le=\"0.8\"}[30d])) / sum(increase(insights_http_request_duration_seconds_count{route_group=\"read\"}[30d]))",
+          "legendFormat": "SLO-6",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 6,
+        "h": 4,
+        "x": 6,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 6
+    },
+    {
+      "title": "SLO-7 Portal availability (30 d, target 99.5%)",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "avg_over_time(probe_success{check=\"SY-1\"}[30d])",
+          "legendFormat": "SLO-7",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 6,
+        "h": 4,
+        "x": 12,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 7
+    },
+    {
+      "title": "SLO-8 Webhook processing <= 10 s (30 d, target 99.5%)",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum(increase(insights_webhook_duration_seconds_bucket{le=\"10\"}[30d])) / sum(increase(insights_webhook_duration_seconds_count[30d]))",
+          "legendFormat": "SLO-8",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 6,
+        "h": 4,
+        "x": 18,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 8
+    },
+    {
+      "title": "Error budget left: ingest (SLO-1)",
+      "type": "gauge",
+      "targets": [
+        {
+          "expr": "1 - ((sum(increase(insights_http_requests_total{route_group=\"ingest\",status_class=\"5xx\"}[30d])) / sum(increase(insights_http_requests_total{route_group=\"ingest\",status_class!=\"429\"}[30d]))) / 0.005)",
+          "legendFormat": "ingest",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 6,
+        "h": 8,
+        "x": 0,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 9
+    },
+    {
+      "title": "Error budget left: read (SLO-5)",
+      "type": "gauge",
+      "targets": [
+        {
+          "expr": "1 - ((sum(increase(insights_http_requests_total{route_group=\"read\",status_class=\"5xx\"}[30d])) / sum(increase(insights_http_requests_total{route_group=\"read\",status_class!=\"429\"}[30d]))) / 0.005)",
+          "legendFormat": "read",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 6,
+        "h": 8,
+        "x": 6,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 10
+    },
+    {
+      "title": "Requests by route group",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (route_group) (rate(insights_http_requests_total[5m]))",
+          "legendFormat": "{{route_group}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 12,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 11
+    },
+    {
+      "title": "5xx rate by route group",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (route_group) (rate(insights_http_requests_total{status_class=\"5xx\"}[5m]))",
+          "legendFormat": "{{route_group}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 0,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 12
+    },
+    {
+      "title": "p95 latency by route group",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, route_group) (rate(insights_http_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{route_group}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 12,
+        "y": 24
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 13
+    },
+    {
+      "title": "Firing alerts",
+      "type": "table",
+      "targets": [
+        {
+          "expr": "sum by (alertname, severity) (ALERTS{alertstate=\"firing\",team=\"insights\"})",
+          "legendFormat": "{{alertname}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 12,
+        "h": 8,
+        "x": 0,
+        "y": 32
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {},
+      "id": 14
+    },
+    {
+      "title": "Certificate expiry",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "min(insights_tls_cert_expiry_seconds)",
+          "legendFormat": "min",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "w": 6,
+        "h": 4,
+        "x": 12,
+        "y": 32
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {},
+      "id": 15
+    }
+  ]
+}
