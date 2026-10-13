@@ -1,0 +1,17 @@
+---
+schema: rubric.v1
+skill: requirement-review
+criteria:
+  - {id: RR-R1, name: Completeness, weight: 0.25}
+  - {id: RR-R2, name: Atomic and testable, weight: 0.20}
+  - {id: RR-R3, name: Honest status, weight: 0.25}
+  - {id: RR-R4, name: Conflicts surfaced, weight: 0.15}
+  - {id: RR-R5, name: Question quality, weight: 0.10}
+  - {id: RR-R6, name: Clarity, weight: 0.05}
+severity_triggers:
+  blocker: [A contradiction resolved silently]
+  major: [Invented value marked known]
+  minor: [Wording]
+---
+
+# Rubric (test fixture)

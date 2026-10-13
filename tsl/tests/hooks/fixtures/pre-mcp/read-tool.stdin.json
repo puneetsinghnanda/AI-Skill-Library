@@ -1,0 +1,6 @@
+{
+  "tool_name": "mcp__jira__get_issue",
+  "tool_input": {
+    "issueKey": "ABC-142"
+  }
+}

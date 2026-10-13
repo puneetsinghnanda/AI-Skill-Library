@@ -1,0 +1,11 @@
+{
+  "setup": "run",
+  "exit": 0,
+  "stdout": null,
+  "log_contains": "\"decision\": \"allow\"",
+  "event": {
+    "hook": "pre-tool",
+    "decision": "allow",
+    "code": null
+  }
+}

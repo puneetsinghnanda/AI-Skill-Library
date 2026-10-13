@@ -1,0 +1,7 @@
+{
+  "tool_name": "mcp__jira__add_comment",
+  "tool_input": {
+    "issueKey": "ABC-142",
+    "body": "x"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "setup": "none+logged-out",
+  "exit": 0,
+  "stdout": {
+    "systemMessage": "E-AUTH-01 Not logged in to Truminds. Run: tsl login"
+  },
+  "log_contains": "\"decision\": \"allow\"",
+  "event": {
+    "hook": "session-start",
+    "decision": "allow",
+    "code": null
+  }
+}

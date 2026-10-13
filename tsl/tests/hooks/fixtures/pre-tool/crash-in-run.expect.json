@@ -1,0 +1,17 @@
+{
+  "setup": "run+broken-policy",
+  "exit": 0,
+  "stdout": {
+    "hookSpecificOutput": {
+      "hookEventName": "PreToolUse",
+      "permissionDecision": "deny",
+      "permissionDecisionReason": "E-HOOK-01 Write blocked: tsl did not answer while a run is active. Run tsl doctor"
+    }
+  },
+  "log_contains": "\"decision\": \"deny\"",
+  "event": {
+    "hook": "pre-tool",
+    "decision": "deny",
+    "code": "E-HOOK-01"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "setup": "run",
+  "exit": 0,
+  "stdout": {
+    "hookSpecificOutput": {
+      "hookEventName": "PreToolUse",
+      "permissionDecision": "deny",
+      "permissionDecisionReason": "E-POL-01 Blocked: write outside allowed paths {companion}/context/pack.signature.json"
+    }
+  },
+  "log_contains": "\"decision\": \"deny\"",
+  "event": {
+    "hook": "pre-tool",
+    "decision": "deny",
+    "code": "E-POL-01"
+  }
+}

@@ -1,0 +1,5 @@
+schema: skill-checks.v1
+skill: story-split
+artifact_schema: stories.v1
+checks:
+  - {id: stories.ac-format, kind: regex, gate: H2, select: "$.stories[*].acceptance_criteria[*].text", must: "^Given .+ when .+ then .+"}

@@ -1,0 +1,17 @@
+schema: workflow.v1
+id: code-change
+version: 1.0.0
+title: Code change (test)
+description: Invented test workflow with one code-editing step and a pull request.
+owner: wf-owner-2b
+kind: delivery
+status: pilot
+requires_fresh_pack: true
+inputs:
+  ticket: {required: true}
+steps:
+  - id: impl
+    skill: implement@^1.0
+    inputs: {ticket: run.ticket}
+  - pr: true
+    after: [impl]

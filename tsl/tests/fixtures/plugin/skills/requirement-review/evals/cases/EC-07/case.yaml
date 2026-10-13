@@ -1,0 +1,13 @@
+schema: eval-case.v1
+id: EC-07
+title: Invented case 7 on the sample order-tracking system
+kind: forbidden-content
+inputs:
+  ticket: inputs/ticket.md
+expect:
+  outcome_in: [PASS, PASS-WITH-FINDINGS]
+  gates: {H1: pass, H2: pass, H4: pass}
+  assert:
+    - {path: "requirements[]", count_min: 1}
+provenance: invented
+attestation: {by: skill-owner-3b7e, statement: All data in this case is invented for the sample system.}

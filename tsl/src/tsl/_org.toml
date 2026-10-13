@@ -1,0 +1,11 @@
+# Organisation identity and endpoints (SDD-04 §7.1, SDD-07 §1.3).
+# This development copy holds placeholders only. A release wheel replaces it at
+# build time (hatch_build.py). Nothing at run time can change these values:
+# no flag, no environment variable, no file in ~/.truminds or in a repo.
+configured = false
+tenant_id = "00000000-0000-0000-0000-000000000000"
+tsl_client_id = "00000000-0000-0000-0000-000000000000"
+api_scope = "api://truminds-insights/Events.Write"
+service_url = "https://insights.example.invalid"
+companion_remote_template = "git@github.com:{repo}.git"
+github_api_url = "https://api.github.com"

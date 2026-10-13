@@ -81,6 +81,7 @@ Every code lives in `tsl/src/tsl/core/errors.py` (CLI codes) or the insights ser
 | E-ENV-02 | Full-disk encryption cannot be confirmed (warning) | 0 | `doctor` | SDD-13 §3.6 (was "E-ENV-07") |
 | E-EVAL-01 | Eval pass rate or case count below minimum | 2 | `eval run` | SDD-04 §5 |
 | E-GIT-01 | Git operation failed | 10 | `state`, `approve`, `pr` | SDD-04 §5 |
+| E-HARN-01 | Harness accuracy below its target on the labelled set | 2 | `tsl harness eval` | SDD-03 §16.4 (new; added by the `tsl` build) |
 | E-HOOK-01 | `tsl` missing, wrong version, crashed or timed out while a run is active; the write is denied | deny (hook JSON, process exit 0) | `bin/tsl-hook`, `tsl hook pre-tool`, `pre-mcp` | SDD-05 §5.4 |
 | E-IMP-01 | New eval case does not fail before the change | 2 | `improve check` | SDD-11 §6 |
 | E-IMP-02 | Regression, or cases removed or edited without justification | 2 | `improve check` | SDD-11 §6 |
@@ -334,6 +335,7 @@ Every file schema is `schemas/<name>.v<N>.json` in the skill-library repo (Doc 5
 | `pod.v1` | `schemas/pod.v1.json` | SDD-10 §3 |
 | `improvement.v1` | `schemas/improvement.v1.json` | SDD-11 §6.2 |
 | `consent-record.v1` | `schemas/consent-record.v1.json` | LEG-01 §13.1 |
+| `companion-archive.v1` (`ARCHIVE.json`, signed) | `schemas/companion-archive.v1.json` (not yet published; `tsl companion archive` writes it unvalidated until it is) | SDD-12 §8.2 |
 | `event-envelope.v1` (one event inside a `POST /v1/events` batch) | `schemas/event-envelope.v1.json` | Doc 5 §5.2 |
 | Event bodies (one per type in §5) | `schemas/events/<type>.v<N>.json` | SDD-08 §4.5 |
 

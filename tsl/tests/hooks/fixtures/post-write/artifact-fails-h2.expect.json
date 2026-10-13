@@ -1,0 +1,14 @@
+{
+  "setup": "run+bad-artifact",
+  "exit": 0,
+  "stdout": {
+    "decision": "block",
+    "reason": "E-CHK-01 H2 failed: section 'Unknown' (level 2) missing in req.md; RR-C02: missing sections: unknown. Fix it and write again."
+  },
+  "log_contains": "\"decision\": \"feedback\"",
+  "event": {
+    "hook": "post-write",
+    "decision": "feedback",
+    "code": "E-CHK-01"
+  }
+}

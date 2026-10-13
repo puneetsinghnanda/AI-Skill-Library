@@ -1,0 +1,16 @@
+{
+  "setup": "run",
+  "exit": 0,
+  "stdout": {
+    "hookSpecificOutput": {
+      "hookEventName": "SessionStart",
+      "additionalContext": "Unfinished run {run_id} (ABC-142 / brownfield-change@1.3.0, RUNNING): /truminds:resume {run_id}"
+    }
+  },
+  "log_contains": "\"decision\": \"allow\"",
+  "event": {
+    "hook": "session-start",
+    "decision": "allow",
+    "code": null
+  }
+}

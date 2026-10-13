@@ -1,0 +1,13 @@
+{
+  "setup": "run+good-artifact+broken-state",
+  "exit": 0,
+  "stdout": {
+    "systemMessage": "tsl could not check {companion}/artifacts/ABC-142/{run_id}/req.md (E-CFG-01); the file was kept. Run tsl doctor."
+  },
+  "log_contains": "\"decision\": \"allow\"",
+  "event": {
+    "hook": "post-write",
+    "decision": "allow",
+    "code": "E-CFG-01"
+  }
+}

@@ -1,0 +1,24 @@
+schema: skill-metadata.v1
+id: implement
+version: 1.0.0
+agent: developer
+status: pilot
+owner: skill-owner-3b7e
+title: Implement
+phase: build
+summary: Changes product code for one ticket and records the change (test fixture).
+inputs:
+  - {name: ticket, schema: ticket-snapshot.v1, source: run, required: true}
+outputs:
+  - {name: change, schema: change.v1, file: change.md}
+  - {name: code, kind: code}
+context_sections: [conventions]
+size_budget_tokens: 60000
+rubric: rubric.md
+checks: checks.yaml
+evals: {path: evals/, min_cases: 10, min_pass_rate: 0.9}
+allowed_tools: [Read, Grep, Glob, Write, Edit, "Bash(npm test*)"]
+change_limits: {lines: 400, files: 15}
+deprecated_by: null
+harness:
+  trace_required: false

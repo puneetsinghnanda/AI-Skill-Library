@@ -1,0 +1,17 @@
+{
+  "setup": "none",
+  "exit": 0,
+  "stdout": {
+    "hookSpecificOutput": {
+      "hookEventName": "PreToolUse",
+      "permissionDecision": "deny",
+      "permissionDecisionReason": "E-POL-03 Blocked: MCP write mcp__jira__create_issue without approval"
+    }
+  },
+  "log_contains": "\"decision\": \"deny\"",
+  "event": {
+    "hook": "pre-mcp",
+    "decision": "deny",
+    "code": "E-POL-03"
+  }
+}

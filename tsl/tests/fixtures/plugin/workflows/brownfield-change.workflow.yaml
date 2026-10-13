@@ -1,0 +1,30 @@
+schema: workflow.v1
+id: brownfield-change
+version: 1.3.0
+title: Brownfield change (test subset)
+description: Invented test subset of the brownfield workflow with a requirement step, a gate and a story step.
+owner: wf-owner-2b
+kind: delivery
+status: pilot
+requires_fresh_pack: true
+inputs:
+  ticket: {required: true}
+defaults:
+  retry: {checks: 2, review: 2, verifier: 3}
+  max_rework: 2
+steps:
+  - id: req
+    skill: requirement-review@^1.0
+    inputs: {ticket: run.ticket, baseline: context.intent-baseline}
+  - gate: G-req
+    role: tech_lead
+    after: [req]
+    artifacts: [req]
+    on_reject: req
+    on_changes: req
+  - id: split
+    skill: story-split@^1.0
+    after: [G-req]
+    inputs: {intent: req.intent}
+  - pr: true
+    after: [split]

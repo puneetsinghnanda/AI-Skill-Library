@@ -1,0 +1,4 @@
+schema: skill-checks.v1
+skill: implement
+checks:
+  - {id: impl.verifier, kind: container, gate: soft, profile_step: test}

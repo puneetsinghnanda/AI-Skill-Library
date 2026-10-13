@@ -1,0 +1,12 @@
+schema: verifier-profile.v1
+id: node-20@1
+image: ghcr.io/example-org/tsl-verifier-node20@sha256:0000000000000000000000000000000000000000000000000000000000000000
+workdir: /src
+steps:
+  prepare: {cmd: "npm ci --ignore-scripts", timeout_s: 600, network: registry}
+  build: {cmd: "npm run build --if-present", timeout_s: 300}
+  test: {cmd: "npm test", timeout_s: 600, parse: junit, report: junit.xml}
+  lint: {cmd: "npx eslint . -f sarif -o /out/lint.sarif", timeout_s: 120, parse: sarif}
+  sast: {cmd: "semgrep --sarif -o /out/sast.sarif", timeout_s: 300, parse: sarif}
+  secrets: {cmd: "gitleaks detect --no-git -r /out/secrets.sarif", timeout_s: 60, parse: sarif}
+total_timeout_s: 1800

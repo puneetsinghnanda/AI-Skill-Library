@@ -1,0 +1,17 @@
+{
+  "setup": "run",
+  "exit": 0,
+  "stdout": {
+    "hookSpecificOutput": {
+      "hookEventName": "PreToolUse",
+      "permissionDecision": "deny",
+      "permissionDecisionReason": "E-POL-01 Blocked: 'git push' is not allowed inside a run (tsl pr does pushes)"
+    }
+  },
+  "log_contains": "\"decision\": \"deny\"",
+  "event": {
+    "hook": "pre-tool",
+    "decision": "deny",
+    "code": "E-POL-01"
+  }
+}

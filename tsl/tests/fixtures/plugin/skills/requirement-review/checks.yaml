@@ -1,0 +1,16 @@
+schema: skill-checks.v1
+skill: requirement-review
+artifact_schema: intent.v1
+checks:
+  - {id: RR-C01, uses: schema.valid, gate: H1}
+  - {id: RR-C02, uses: sections.present, gate: H2, with: {sections: [Summary, Requirements, Known, Assumed, Unknown, Open questions, Out of scope]}}
+  - {id: RR-C03, uses: ids.sequence, gate: H2}
+  - {id: RR-C04, uses: ids.consistent, gate: H2}
+  - {id: RR-C05, uses: cites.present, gate: H5}
+  - {id: RR-C06, uses: cites.resolve, soft: true}
+  - {id: RR-C07, uses: values.sourced, gate: H4}
+  - {id: RR-C08, uses: questions.linked, gate: H2}
+  - {id: RR-C09, uses: assumed.basis, gate: H2}
+  - {id: RR-C10, uses: glossary.terms, soft: true}
+  - {id: RR-C11, uses: text.vague_terms, soft: true}
+  - {id: RR-C12, uses: size.limits, soft: true}
