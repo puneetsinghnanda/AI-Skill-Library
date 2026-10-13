@@ -1,0 +1,15 @@
+# SDD-03 §5.2 kind form; check ids follow SDD-03 §5.4. H1, H4, H6 and H7 run for every skill.
+# Container checks carry no gate: H3 applies to every skill with a code output (SDD-03 §4.1).
+schema: skill-checks.v1
+skill: accessibility-review
+artifact_schema: a11y.v1
+checks:
+- id: accessibility-review.wcag-map
+  kind: enum-file
+  gate: H2
+  select: $.findings[*].wcag
+  file: wcag21-aa-criteria.txt
+- id: accessibility-review.node-cited
+  kind: cites-required
+  gate: H2
+  select: $.findings[*]

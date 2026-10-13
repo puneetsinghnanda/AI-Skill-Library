@@ -1,0 +1,37 @@
+# PROPOSED by SDD-10 §4.2 for the Quality and Security Pod (test-plan -> test-automation). Not in Doc 3 §7.1;
+# SDD-02 owns workflow definitions and has not confirmed it (SDD-10 O-03). Kept at draft.
+# req and split are added because test-plan needs stories.v1 and nothing else in the pod produces them.
+schema: workflow.v1
+id: quality-uplift
+version: 1.0.0
+title: Quality uplift
+description: Plan and automate tests for a ticket's acceptance criteria on an existing system and open a pull request with the tests.
+owner: wf-owner-2b
+kind: delivery
+status: draft
+requires_fresh_pack: true
+inputs:
+  ticket: {required: true}
+defaults:
+  retry: {checks: 2, review: 2, verifier: 3}
+  max_rework: 2
+steps:
+  - id: req
+    skill: requirement-review@^1.0
+    inputs: {ticket: run.ticket, intent_baseline: context.intent-baseline}
+  - id: split
+    skill: story-split@^1.0
+    after: [req]
+    inputs: {intent: req.intent}
+  - id: tplan
+    skill: test-plan@^1.0
+    after: [split]
+    inputs: {stories: split.stories}
+  - id: tauto
+    skill: test-automation@^1.0
+    after: [tplan]
+    inputs: {test_plan: tplan.test_plan}
+  - pr: true
+    after: [tauto]
+    draft_when_band: Medium
+    repos: changed

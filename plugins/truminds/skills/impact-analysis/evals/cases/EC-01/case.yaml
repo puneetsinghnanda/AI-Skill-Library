@@ -1,0 +1,27 @@
+schema: eval-case.v1
+id: EC-01
+title: Filter the order list by status touches the orders route, module and table
+kind: normal
+inputs:
+  intent: inputs/intent.md
+  module_map: inputs/module-map.json
+  api_inventory: inputs/api-inventory.json
+  db_schema: inputs/db-schema.json
+  architecture: inputs/architecture.md
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+    H5: pass
+  assert:
+  - path: modules[].id
+    any_matches: ^module:sample-orders:api/src/orders$
+  - path: apis[].id
+    any_matches: ^http:GET:/api/orders$
+provenance: invented
+attestation:
+  by: skill-owner-5e2a
+  statement: All inputs are invented for an invented system; no client material was used.

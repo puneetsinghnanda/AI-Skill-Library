@@ -1,0 +1,26 @@
+schema: eval-case.v1
+id: EC-08
+title: 'Support-ticket system: first response within 2 hours for priority-1 tickets, p95'
+kind: normal
+inputs:
+  ticket: inputs/ticket.md
+  intent_baseline: inputs/intent-baseline.md
+  glossary: inputs/glossary.md
+expect:
+  outcome_in:
+  - PASS
+  gates:
+    H1: pass
+    H2: pass
+    H4: pass
+  assert:
+  - path: requirements[?type=='non-functional'].statement
+    any_matches: 2 hours
+  - path: requirements[?type=='non-functional'].statement
+    any_matches: p95
+  - path: requirements[?type=='non-functional'].cites[]
+    any_matches: ticket\.md#L[0-9]+
+provenance: invented
+attestation:
+  by: skill-owner-3b7e
+  statement: All inputs are invented for an invented system; no client material was used.

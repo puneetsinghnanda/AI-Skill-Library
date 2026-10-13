@@ -1,0 +1,50 @@
+{
+  "schema": "context-facts.v1",
+  "section": "module-map",
+  "extractor": {
+    "name": "js-module",
+    "version": "1.0.0"
+  },
+  "sources": {
+    "sample-orders": "69a28f92e859d61ce734c81b2c3a259f7e65493e"
+  },
+  "empty_reason": null,
+  "facts": [
+    {
+      "id": "module:sample-orders:api/src/orders",
+      "kind": "module",
+      "source": {
+        "repo": "sample-orders",
+        "path": "api/src/orders/index.js",
+        "line": 1
+      }
+    },
+    {
+      "id": "module:sample-orders:api/src/jobs",
+      "kind": "module",
+      "source": {
+        "repo": "sample-orders",
+        "path": "api/src/jobs/index.js",
+        "line": 1
+      }
+    },
+    {
+      "id": "module:sample-orders:api/src/notes",
+      "kind": "module",
+      "source": {
+        "repo": "sample-orders",
+        "path": "api/src/notes/index.js",
+        "line": 1
+      }
+    },
+    {
+      "id": "module:sample-orders:web/src/orders",
+      "kind": "module",
+      "source": {
+        "repo": "sample-orders",
+        "path": "web/src/orders/index.jsx",
+        "line": 1
+      }
+    }
+  ]
+}

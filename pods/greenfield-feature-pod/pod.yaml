@@ -1,0 +1,66 @@
+# SDD-10 §4. Every pod starts at draft.
+schema: pod.v1
+id: greenfield-feature-pod
+version: 1.0.0
+status: draft
+title: Greenfield Feature Pod
+kind: greenfield
+owner: skill-owner-3b7e
+summary: >-
+  New features designed against the client's intent baseline, from ticket to a reviewed pull request.
+client_gets:
+  - A design and threat model before any code is written
+  - Reviewed pull requests with tests and an audit trail
+  - Clear questions instead of guesses
+agents:
+  - key: ba
+    role: business-analyst
+    display_name: Business Analyst
+    engineers: 1
+    job: Turns tickets into numbered requirements and small stories with testable acceptance criteria.
+    skills: [requirement-review@^1.0, story-split@^1.0]
+  - key: sa
+    role: solution-architect
+    display_name: Solution Architect
+    engineers: 1
+    job: Designs the feature against the intent baseline and models its threats.
+    skills: [design@^1.0, threat-model@^1.0]
+    cross_role_skills:
+      - {skill: threat-model, reason: "No Security agent in this pod; the architect runs the threat model on their own design"}
+  - key: dev
+    role: developer
+    display_name: Developer
+    engineers: 2
+    job: Implements the approved design with unit tests and reviews the diff for security issues before PR.
+    skills: [implement@^1.0, unit-test@^1.0, secure-code-review@^1.0]
+    cross_role_skills:
+      - {skill: secure-code-review, reason: "Runs on the developer's own diff before PR; Security reviews findings"}
+  - key: qa
+    role: qa-engineer
+    display_name: QA Engineer
+    engineers: 1
+    job: Plans tests so every acceptance criterion is covered.
+    skills: [test-plan@^1.0]
+workflows:
+  - greenfield-feature@^1.0
+people:
+  - {title: Tech lead, kind: platform, platform_role: tech_lead,
+     duties: [Signs the context pack, Approves the design gate, Decides escalations], gates: [G-design, escalate]}
+  - {title: Product owner, kind: external,
+     duties: [Owns the intent baseline, Answers business questions through the engineer]}
+  - {title: Architect, kind: external,
+     duties: [Reviews the design against the client's target architecture]}
+best_fit:
+  good_fit_when:
+    - The client is building a new feature or module
+    - A product owner can write and own the intent baseline
+    - A client tech lead can approve designs
+  not_a_fit_when:
+    - There is no agreed intent baseline and nobody to own it
+  requires:
+    product_repo_host: github
+    context_pack: signed
+    docker: true
+    figma_mcp: false
+one_pager: one-pager.md
+deprecated_by: null

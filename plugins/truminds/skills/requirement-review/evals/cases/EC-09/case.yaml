@@ -1,0 +1,25 @@
+schema: eval-case.v1
+id: EC-09
+title: 'Support-ticket system: ticket uses the term ''escalation tier'', which is not in the glossary'
+kind: normal
+inputs:
+  ticket: inputs/ticket.md
+  intent_baseline: inputs/intent-baseline.md
+  glossary: inputs/glossary.md
+expect:
+  outcome_in:
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+  assert:
+  - path: glossary[?found==`false`].term
+    any_matches: (?i)escalation tier
+  - path: unknowns
+    count_min: 1
+  - path: questions[?blocking==`false`]
+    count_min: 1
+provenance: invented
+attestation:
+  by: skill-owner-3b7e
+  statement: All inputs are invented for an invented system; no client material was used.

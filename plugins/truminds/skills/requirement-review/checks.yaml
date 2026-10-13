@@ -1,0 +1,64 @@
+schema: skill-checks.v1
+skill: requirement-review
+artifact_schema: intent.v1
+# SDD-01 §13.5. H4 secrets/PII, H6 staleness and H7 permitted tools run for every skill without being declared.
+checks:
+- {id: RR-C01, uses: schema.valid, gate: H1}            # envelope + structured keys valid against intent.v1
+- id: RR-C02                                             # seven headings, in order
+  uses: sections.present
+  gate: H2
+  with:
+    sections: [Summary, Requirements, Known, Assumed, Unknown, Open questions, Out of scope]
+    ordered: true
+- id: RR-C03                                             # REQ-1..n, U-1..n, Q-01..n: no gaps, no duplicates
+  uses: ids.sequence
+  gate: H2
+  with:
+    series:
+    - {path: "requirements[].id", prefix: "REQ-", start: 1}
+    - {path: "unknowns[].id", prefix: "U-", start: 1}
+    - {path: "questions[].id", prefix: "Q-", start: 1, width: 2}
+- id: RR-C04                                             # status lists equal the ids by status; each id appears in its body section
+  uses: ids.consistent
+  gate: H2
+  with:
+    lists:
+    - {list: known, equals: "requirements[?status=='known'].id", section: Known}
+    - {list: assumed, equals: "requirements[?status=='assumed'].id", section: Assumed}
+    - {list: unknown, equals: "unknowns[].id", section: Unknown}
+    - {list: trace, equals: "requirements[].id", section: Requirements}
+- id: RR-C05                                             # every requirement and claim has >= 1 cite inside the declared inputs or context/**
+  uses: cites.present
+  gate: H5
+  with:
+    items: ["requirements[]", "claims[]"]
+    allowed_paths: ["<inputs>", "context/**"]
+- id: RR-C06                                             # signal S1 only: unresolved cites lower S1, never block
+  uses: cites.resolve
+  soft: true
+  with: {signal: S1}
+- id: RR-C07                                             # numbers, durations and units in known statements appear in a cited line
+  uses: values.sourced
+  gate: H4
+  with:
+    fields: ["requirements[].statement"]
+    allow_status: [assumed, unknown]
+- id: RR-C08                                             # every unknown links to a question; questions complete; blocking => default null
+  uses: questions.linked
+  gate: H2
+  with: {require: [ask, why, evidence], blocking_default_null: true}
+- id: RR-C09                                             # every assumed requirement has a basis and a cite
+  uses: assumed.basis
+  gate: H2
+- id: RR-C10                                             # terms marked found exist as headings in context/glossary.md
+  uses: glossary.terms
+  soft: true
+  with: {glossary: context/glossary.md}
+- id: RR-C11                                             # no unqualified vague terms in statements
+  uses: text.vague_terms
+  soft: true
+  with: {terms_file: vague-terms.txt, fields: ["requirements[].statement"]}
+- id: RR-C12                                             # 1 <= requirements <= 60; summary <= 5 sentences
+  uses: size.limits
+  soft: true
+  with: {requirements: {min: 1, max: 60}, summary_sentences: {max: 5}}

@@ -1,0 +1,4 @@
+tsl-spike/bin/*.cmd text eol=crlf
+tsl-spike/bin/log-stdin text eol=lf
+tsl-spike/bin/tsl text eol=lf
+tsl-spike/bin/slow-hook text eol=lf

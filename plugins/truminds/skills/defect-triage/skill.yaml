@@ -1,0 +1,56 @@
+# Skill code: DT (SDD-01 §12). R1 target status: production.
+# evals.min_cases stays 10 (schema minimum); this folder ships 3 starter cases, see README.
+schema: skill-metadata.v1
+id: defect-triage
+version: 1.0.0
+agent: developer
+status: production
+owner: skill-owner-6f3b
+title: Defect triage
+phase: operate
+summary: Ranks the components most likely to cause a reported defect, each with cited evidence.
+inputs:
+- name: ticket
+  schema: ticket-snapshot.v1
+  source: run
+  required: true
+- name: logs
+  source: mcp
+  required: false
+- name: module_map
+  source: context
+  path: context/generated/module-map.json
+  required: true
+- name: architecture
+  source: context
+  path: context/architecture.md
+  required: true
+- name: data_model
+  source: context
+  path: context/data-model.md
+  required: false
+outputs:
+- name: triage
+  schema: triage.v1
+  file: triage.md
+context_sections:
+- architecture
+- data-model
+- module-map
+size_budget_tokens: 60000
+rubric: rubric.md
+checks: checks.yaml
+evals:
+  path: evals/
+  min_cases: 10
+  min_pass_rate: 0.9
+allowed_tools:
+- Read
+- Grep
+- Glob
+- Write
+change_limits: null
+deprecated_by: null
+harness:
+  checks: checks.yaml
+  trace_required: false

@@ -1,0 +1,9 @@
+{
+  "extraKnownMarketplaces": {
+    "truminds-spikes": {
+      "source": { "source": "github", "repo": "<test-org>/<spikes-repo>" }
+    }
+  },
+  "enabledPlugins": { "tsl-spike@truminds-spikes": true },
+  "allowManagedHooksOnly": true
+}

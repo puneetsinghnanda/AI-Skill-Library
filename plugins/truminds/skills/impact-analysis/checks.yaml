@@ -1,0 +1,31 @@
+# SDD-03 §5.2 kind form; check ids follow SDD-03 §5.4. H1, H4, H6 and H7 run for every skill.
+# Container checks carry no gate: H3 applies to every skill with a code output (SDD-03 §4.1).
+schema: skill-checks.v1
+skill: impact-analysis
+artifact_schema: impact.v1
+checks:
+- id: impact-analysis.modules-exist
+  kind: lookup
+  gate: H5
+  select: $.modules[?(@.change!='new')].id
+  in:
+    file: context/generated/module-map.json
+    path: $.facts[*].id
+- id: impact-analysis.apis-exist
+  kind: lookup
+  gate: H5
+  select: $.apis[?(@.change!='new')].id
+  in:
+    file: context/generated/api-inventory.json
+    path: $.facts[*].id
+- id: impact-analysis.tables-exist
+  kind: lookup
+  gate: H5
+  select: $.tables[?(@.change!='new')].id
+  in:
+    file: context/generated/db-schema.json
+    path: $.facts[*].id
+- id: impact-analysis.items-cited
+  kind: cites-required
+  gate: soft
+  select: $.modules[*]

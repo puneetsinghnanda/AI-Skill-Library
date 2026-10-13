@@ -1,0 +1,16 @@
+# PROPOSED by SDD-10 §4.2 (pipeline-review). Not in Doc 3 §7.1; awaiting SDD-02 (SDD-10 O-03). Kept at draft.
+schema: workflow.v1
+id: pipeline-check
+version: 1.0.0
+title: Pipeline check
+description: Review the CI configuration of a system's product repos and report findings by job and step.
+owner: wf-owner-2b
+kind: read_only
+status: draft
+requires_fresh_pack: false
+inputs:
+  ticket: {required: true}
+steps:
+  - id: pipe
+    skill: pipeline-review@^1.0
+    inputs: {ticket: run.ticket}

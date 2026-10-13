@@ -1,0 +1,5 @@
+2026-01-05T10:00:01Z step 1/4 checkout ok
+2026-01-05T10:00:09Z step 2/4 npm ci ok
+2026-01-05T10:01:12Z step 3/4 migrate: error: relation "order_events" already exists
+2026-01-05T10:01:12Z step 3/4 exit code 1
+2026-01-05T10:01:13Z step 4/4 deploy skipped

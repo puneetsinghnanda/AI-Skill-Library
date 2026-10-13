@@ -1,0 +1,15 @@
+#!/bin/sh
+# slow-hook: spike S-15. Only active while ~/.tsl-spike/S-15.on exists. Logs "start", sleeps 30 s (its
+# hooks.json timeout is 3 s), then logs "end" and prints a deny decision. If Claude Code kills the hook at its
+# timeout, "end" never appears; whether the Write went ahead is what the runbook records.
+flag="${HOME}/.tsl-spike/S-15.on"
+[ -f "$flag" ] || { cat > /dev/null; exit 0; }
+dir="${HOME}/.tsl-spike/log"; mkdir -p "$dir"
+cat > /dev/null
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) slow-hook start pid=$$" >> "$dir/s15.log"
+trap 'echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) slow-hook got TERM" >> "$dir/s15.log"; exit 143' TERM
+sleep 30 &
+wait $!
+echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) slow-hook end (was not killed)" >> "$dir/s15.log"
+printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"S-15 late deny"}}'
+exit 0

@@ -1,0 +1,17 @@
+# Vague terms for RR-C11 (one per line, case-insensitive, matched as whole words or phrases)
+fast
+quick
+quickly
+easy
+easily
+user-friendly
+intuitive
+seamless
+robust
+etc.
+as appropriate
+as needed
+and so on
+if possible
+some
+several

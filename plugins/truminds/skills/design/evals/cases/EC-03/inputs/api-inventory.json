@@ -1,0 +1,47 @@
+{
+  "schema": "context-facts.v1",
+  "section": "api-inventory",
+  "extractor": {
+    "name": "js-api",
+    "version": "1.0.0"
+  },
+  "sources": {
+    "sample-orders": "69a28f92e859d61ce734c81b2c3a259f7e65493e"
+  },
+  "empty_reason": null,
+  "facts": [
+    {
+      "id": "http:GET:/api/orders",
+      "kind": "http",
+      "method": "GET",
+      "path": "/api/orders",
+      "source": {
+        "repo": "sample-orders",
+        "path": "api/src/routes/orders.js",
+        "line": 9
+      }
+    },
+    {
+      "id": "http:GET:/api/orders/:id",
+      "kind": "http",
+      "method": "GET",
+      "path": "/api/orders/:id",
+      "source": {
+        "repo": "sample-orders",
+        "path": "api/src/routes/orders.js",
+        "line": 18
+      }
+    },
+    {
+      "id": "http:POST:/api/orders/:id/cancel",
+      "kind": "http",
+      "method": "POST",
+      "path": "/api/orders/:id/cancel",
+      "source": {
+        "repo": "sample-orders",
+        "path": "api/src/routes/orders.js",
+        "line": 31
+      }
+    }
+  ]
+}

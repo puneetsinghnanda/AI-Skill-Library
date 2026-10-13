@@ -1,0 +1,41 @@
+# SDD-10 §4. A tech lead is listed because pod.v1 and POD-V09 need one for the comment gate and escalations.
+schema: pod.v1
+id: ux-review-pod
+version: 1.0.0
+status: draft
+title: UX Review Pod
+kind: ux
+owner: skill-owner-ad7f
+summary: >-
+  Flow and accessibility reviews of a client's design files, with every finding tied to a screen element.
+client_gets:
+  - Flow findings tied to exact screens and elements
+  - Accessibility findings mapped to WCAG 2.1 AA criteria
+agents:
+  - key: ux
+    role: ux-designer
+    display_name: UX Designer
+    engineers: 1
+    job: Reviews user flows and accessibility in the client's design files, read-only.
+    skills: [ux-flow-review@^1.0, accessibility-review@^1.0]
+workflows:
+  - ux-review@^1.0
+people:
+  - {title: Tech lead, kind: platform, platform_role: tech_lead,
+     duties: [Approves findings before they are shared, Decides escalations], gates: [G-ux-comments, escalate]}
+  - {title: UX lead, kind: external,
+     duties: [Decides which findings the design team acts on]}
+  - {title: Product owner, kind: external,
+     duties: [Answers questions about intended flows]}
+best_fit:
+  good_fit_when:
+    - The client keeps its designs in a design tool reachable through a read-only MCP server
+  not_a_fit_when:
+    - Designs exist only as images or slides
+  requires:
+    product_repo_host: github
+    context_pack: none
+    docker: false
+    figma_mcp: true
+one_pager: one-pager.md
+deprecated_by: null

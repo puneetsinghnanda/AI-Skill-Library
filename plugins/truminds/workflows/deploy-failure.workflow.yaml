@@ -1,0 +1,17 @@
+# PROPOSED by SDD-10 §4.2 as the single-step workflow for deployment-failure-analysis. Not in Doc 3 §7.1;
+# awaiting SDD-02 (SDD-10 O-03). Kept at draft.
+schema: workflow.v1
+id: deploy-failure
+version: 1.0.0
+title: Deployment failure
+description: Find the probable cause of a failed deployment job from its stored log.
+owner: wf-owner-2b
+kind: read_only
+status: draft
+requires_fresh_pack: false
+inputs:
+  ticket: {required: true}
+steps:
+  - id: dfa
+    skill: deployment-failure-analysis@^1.0
+    inputs: {ticket: run.ticket}

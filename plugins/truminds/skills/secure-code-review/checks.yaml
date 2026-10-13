@@ -1,0 +1,22 @@
+# SDD-03 §5.2 kind form; check ids follow SDD-03 §5.4. H1, H4, H6 and H7 run for every skill.
+# Container checks carry no gate: H3 applies to every skill with a code output (SDD-03 §4.1).
+schema: skill-checks.v1
+skill: secure-code-review
+artifact_schema: secure-review.v1
+checks:
+- id: secure-code-review.scans-attached
+  kind: lookup
+  gate: H2
+  select: $.scans[*].report_sha256
+  in:
+    file: artifacts/{ticket}/{run_id}/impl.checks.json
+    path: $.verifier.steps[*].reports[*].sha256
+- id: secure-code-review.findings-cited
+  kind: cites-required
+  gate: H2
+  select: $.findings[*]
+- id: secure-code-review.ids
+  kind: regex
+  gate: H2
+  select: $.findings[*].id
+  must: ^SF-[1-9][0-9]*$

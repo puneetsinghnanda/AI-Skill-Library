@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(**/.env)", "Read(**/.env.*)", "Read(**/*.pem)", "Read(**/*.key)",
+      "Read(**/id_rsa*)", "Read(**/secrets/**)",
+      "Edit(**/.env)", "Edit(**/*.pem)", "Edit(**/*.key)",
+      "Bash(curl *)", "Bash(wget *)", "Bash(ssh *)", "Bash(scp *)",
+      "Bash(git push --force*)", "Bash(gh pr merge*)"
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+# SDD-03 §5.2 kind form; check ids follow SDD-03 §5.4. H1, H4, H6 and H7 run for every skill.
+# Container checks carry no gate: H3 applies to every skill with a code output (SDD-03 §4.1).
+schema: skill-checks.v1
+skill: story-split
+artifact_schema: stories.v1
+checks:
+- id: story-split.trace-req
+  kind: coverage
+  gate: H5
+  each: $.trace[*]
+  covered_by: $.stories[*]
+  link: trace
+  min: 1
+- id: story-split.ac-format
+  kind: regex
+  gate: H2
+  select: $.stories[*].acceptance_criteria[*].text
+  must: (?i)^given .+, when .+, then .+$
+- id: story-split.ids
+  kind: regex
+  gate: H2
+  select: $.stories[*].id
+  must: ^S-[1-9][0-9]*$
+- id: story-split.claims-cited
+  kind: cites-required
+  gate: soft
+  select: $.claims[*]

@@ -1,0 +1,5 @@
+schema: eval-set.v1
+skill: accessibility-review
+min_cases: 10
+min_pass_rate: 0.9
+fixture_system: sample-orders

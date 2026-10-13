@@ -1,0 +1,20 @@
+#!/bin/sh
+# log-stdin <label>: append the hook's stdin JSON, with a label and a millisecond timestamp, to
+# ~/.tsl-spike/log/hooks.jsonl. Prints nothing and exits 0, so it never changes what Claude Code does.
+# For session-start it also writes `export TSL_SESSION_ID=<session_id>` to $CLAUDE_ENV_FILE (spike S-08).
+label=${1:-unknown}
+dir="${HOME}/.tsl-spike/log"
+mkdir -p "$dir"
+now_ms() { perl -MTime::HiRes=time -e 'printf "%d", time*1000' 2>/dev/null || printf '%s000' "$(date +%s)"; }
+input=$(cat | tr -d '\n\r')
+[ -n "$input" ] || input=null
+printf '{"ts_ms":%s,"label":"%s","env_file_set":%s,"tsl_session_id_seen":%s,"stdin":%s}\n' \
+  "$(now_ms)" "$label" \
+  "$([ -n "${CLAUDE_ENV_FILE:-}" ] && echo true || echo false)" \
+  "$([ -n "${TSL_SESSION_ID:-}" ] && echo true || echo false)" \
+  "$input" >> "$dir/hooks.jsonl"
+if [ "$label" = "session-start" ] && [ -n "${CLAUDE_ENV_FILE:-}" ]; then
+  sid=$(printf '%s' "$input" | sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  printf 'export TSL_SESSION_ID=%s\n' "$sid" >> "$CLAUDE_ENV_FILE"
+fi
+exit 0

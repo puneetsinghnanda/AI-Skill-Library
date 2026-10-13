@@ -5,16 +5,20 @@ argument-hint: <workflow> <ticket>
 disable-model-invocation: true
 allowed-tools: Bash(tsl *), Read, Grep, Glob, Write, Edit
 ---
-
 Run state from tsl (do not edit):
 !`tsl state start $0 $1 --json`
 
-If the JSON above has "ok": false, show its "message" and "next" to the user and stop.
+If "ok" is false, show "message" and "next" to the user and stop.
 
-Otherwise loop until tsl says the run is finished:
-1. Run `tsl next <run_id> --json`. It names the next skill and its input files.
-2. Use that skill to produce the artifact at the path tsl gives.
-3. Run the `review` skill on the artifact.
-4. Run `tsl decide <artifact> --json` and do exactly what its "next" field says
-   (continue, retry with the findings, pause for input, pause for approval, stop).
-Never decide pass or fail yourself.
+Loop:
+1. Run `tsl next <run_id> --json` and read "data.action".
+2. run_skill: use the skill named in "data.skill". Give it "data.inputs",
+   "data.feedback" and "data.answers". It must write exactly "data.artifact_path".
+   If the post-write hook blocks the write, fix what it says and write again.
+3. Run the `review` skill on "data.artifact_path".
+4. Run `tsl decide <artifact_path> --json`. Show its status line to the user.
+   Then go back to step 1, whatever the outcome.
+5. run_decide: go straight to step 4.
+6. open_pr: run `tsl pr <run_id> --json`, then go back to step 1.
+7. pause_input, pause_approval, done, stopped: show "message" and "next" and stop.
+Never decide pass or fail yourself. Never edit state.json, records or approvals.

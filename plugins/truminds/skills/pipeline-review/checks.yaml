@@ -1,0 +1,17 @@
+# SDD-03 §5.2 kind form; check ids follow SDD-03 §5.4. H1, H4, H6 and H7 run for every skill.
+# Container checks carry no gate: H3 applies to every skill with a code output (SDD-03 §4.1).
+schema: skill-checks.v1
+skill: pipeline-review
+artifact_schema: pipeline-review.v1
+checks:
+- id: pipeline-review.jobs-exist
+  kind: lookup
+  gate: H5
+  select: $.findings[*].job
+  in:
+    file: .github/workflows
+    path: $.jobs.*~
+- id: pipeline-review.findings-cited
+  kind: cites-required
+  gate: H2
+  select: $.findings[*]

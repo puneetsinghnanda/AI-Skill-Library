@@ -1,0 +1,60 @@
+# Skill code: TA (SDD-01 §12). R1 target status: pilot.
+# evals.min_cases stays 10 (schema minimum); this folder ships 3 starter cases, see README.
+schema: skill-metadata.v1
+id: test-automation
+version: 1.0.0
+agent: qa-engineer
+status: pilot
+owner: skill-owner-7a4c
+title: Test automation
+phase: test
+summary: Automates the planned tests and links every result to the acceptance criteria it covers.
+inputs:
+- name: test_plan
+  schema: test-plan.v1
+  source: artifact
+  required: true
+- name: test_strategy
+  source: context
+  path: context/test-strategy.md
+  required: true
+- name: test_layout
+  source: context
+  path: context/generated/test-layout.json
+  required: true
+- name: conventions
+  source: context
+  path: context/conventions.md
+  required: false
+outputs:
+- name: test_result
+  schema: test-result.v1
+  file: test-result.md
+- name: code
+  kind: code
+context_sections:
+- test-strategy
+- conventions
+- test-layout
+size_budget_tokens: 90000
+rubric: rubric.md
+checks: checks.yaml
+evals:
+  path: evals/
+  min_cases: 10
+  min_pass_rate: 0.9
+allowed_tools:
+- Read
+- Grep
+- Glob
+- Write
+- Edit
+change_limits:
+  lines: 400
+  files: 15
+  sensitive_paths:
+  - .github/**
+deprecated_by: null
+harness:
+  checks: checks.yaml
+  trace_required: true

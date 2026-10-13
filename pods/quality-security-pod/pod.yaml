@@ -1,0 +1,64 @@
+# SDD-10 §4 and §4.2. Workflows quality-uplift, security-review, pipeline-check and deploy-failure are the
+# proposals of SDD-10 §4.2 (open item O-03); they exist as draft workflow files.
+# The QA agent also runs requirement-review and story-split, because quality-uplift needs stories.v1 and the
+# pod has no Business Analyst (POD-V05); SDD-10 §4 lists only test-plan and test-automation for QA.
+schema: pod.v1
+id: quality-security-pod
+version: 1.0.0
+status: draft
+title: Quality and Security Pod
+kind: quality
+owner: skill-owner-7a4c
+summary: >-
+  Test, security and pipeline work on an existing client system, run alongside the client's own delivery team.
+client_gets:
+  - Automated tests linked to acceptance criteria
+  - A threat model of the system
+  - Pipeline and deployment findings with exact locations
+agents:
+  - key: qa
+    role: qa-engineer
+    display_name: QA Engineer
+    engineers: 1
+    job: Clarifies requirements, plans tests and automates them in the system's own framework.
+    skills: [test-plan@^1.0, test-automation@^1.0, requirement-review@^1.0, story-split@^1.0]
+    cross_role_skills:
+      - {skill: requirement-review, reason: "No Business Analyst in this pod; quality-uplift needs reviewed requirements"}
+      - {skill: story-split, reason: "No Business Analyst in this pod; test plans need stories"}
+  - key: sec
+    role: security
+    display_name: Security
+    engineers: 1
+    job: Models threats of the system and reviews code changes for security issues.
+    skills: [threat-model@^1.0, secure-code-review@^1.0]
+  - key: devops
+    role: devops
+    display_name: DevOps
+    engineers: 1
+    job: Reviews CI pipelines and analyses failed deployments.
+    skills: [pipeline-review@^1.0, deployment-failure-analysis@^1.0]
+workflows:
+  - quality-uplift@^1.0
+  - security-review@^1.0
+  - pipeline-check@^1.0
+  - deploy-failure@^1.0
+people:
+  - {title: Tech lead, kind: platform, platform_role: tech_lead,
+     duties: [Signs the context pack, Approves the threat review, Decides escalations], gates: [G-threat-review, escalate]}
+  - {title: QA lead, kind: platform, platform_role: engineer,
+     duties: [Owns the test plan and its priorities]}
+  - {title: Security lead, kind: platform, platform_role: engineer,
+     duties: [Owns security findings and their follow-up]}
+best_fit:
+  good_fit_when:
+    - The client has an existing codebase on GitHub and wants stronger tests
+    - Releases fail or need security review
+  not_a_fit_when:
+    - The system has no CI pipeline in its repositories
+  requires:
+    product_repo_host: github
+    context_pack: signed
+    docker: true
+    figma_mcp: false
+one_pager: one-pager.md
+deprecated_by: null

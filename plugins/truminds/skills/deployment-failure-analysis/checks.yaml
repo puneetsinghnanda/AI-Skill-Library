@@ -1,0 +1,15 @@
+# SDD-03 §5.2 kind form; check ids follow SDD-03 §5.4. H1, H4, H6 and H7 run for every skill.
+# Container checks carry no gate: H3 applies to every skill with a code output (SDD-03 §4.1).
+schema: skill-checks.v1
+skill: deployment-failure-analysis
+artifact_schema: deploy-failure.v1
+checks:
+- id: deployment-failure-analysis.log-lines-cited
+  kind: cites-required
+  gate: H2
+  select: $.findings[*]
+- id: deployment-failure-analysis.cites-are-lines
+  kind: regex
+  gate: H2
+  select: $.findings[*].cites[*]
+  must: '#L[0-9]+(-L[0-9]+)?$'

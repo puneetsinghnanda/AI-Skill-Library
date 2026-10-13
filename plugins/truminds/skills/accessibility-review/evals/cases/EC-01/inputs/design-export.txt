@@ -1,0 +1,6 @@
+# Invented design-tool export (read-only MCP fetch), order detail screen
+node 30:1 Frame "Order detail"
+node 30:2 text "Order total" colour #9a9a9a on #ffffff size 12
+node 30:3 icon-button (trash icon) label: none
+node 30:4 input "Note" placeholder "Type a note" label: none
+node 30:5 button "Save note" colour #ffffff on #1a5fb4 size 14

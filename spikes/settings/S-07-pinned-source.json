@@ -1,0 +1,9 @@
+{
+  "_candidates": "Try one source shape at a time; record which keys the app accepts. None of these keys is documented (U-05).",
+  "extraKnownMarketplaces": {
+    "truminds-spikes": {
+      "source": { "source": "github", "repo": "<test-org>/<spikes-repo>", "ref": "v0.0.1" }
+    }
+  },
+  "enabledPlugins": { "tsl-spike@truminds-spikes": true }
+}

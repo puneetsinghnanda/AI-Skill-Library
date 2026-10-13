@@ -1,0 +1,38 @@
+# Skill code: SR (SDD-01 §12). R1 target status: production.
+# evals.min_cases stays 10 (schema minimum); this folder ships 3 starter cases, see README.
+schema: skill-metadata.v1
+id: status-report
+version: 1.0.0
+agent: delivery-manager
+status: production
+owner: skill-owner-be8a
+title: Status report
+phase: operate
+summary: Reports run counts per status for a project, which must equal the state.json files.
+inputs:
+- name: run_states
+  schema: run-state.v1
+  source: run
+  required: true
+outputs:
+- name: status
+  schema: status.v1
+  file: status.md
+context_sections: []
+size_budget_tokens: 30000
+rubric: rubric.md
+checks: checks.yaml
+evals:
+  path: evals/
+  min_cases: 10
+  min_pass_rate: 0.9
+allowed_tools:
+- Read
+- Grep
+- Glob
+- Write
+change_limits: null
+deprecated_by: null
+harness:
+  checks: checks.yaml
+  trace_required: false

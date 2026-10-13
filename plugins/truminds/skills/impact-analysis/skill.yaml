@@ -1,0 +1,63 @@
+# Skill code: IA (SDD-01 §12). R1 target status: production.
+# evals.min_cases stays 10 (schema minimum); this folder ships 3 starter cases, see README.
+schema: skill-metadata.v1
+id: impact-analysis
+version: 1.1.0
+agent: solution-architect
+status: production
+owner: skill-owner-5e2a
+title: Impact analysis
+phase: design
+summary: Lists the modules, APIs and tables a change touches, each looked up in the generated facts.
+inputs:
+- name: intent
+  schema: intent.v1
+  source: artifact
+  required: true
+- name: module_map
+  source: context
+  path: context/generated/module-map.json
+  required: true
+- name: api_inventory
+  source: context
+  path: context/generated/api-inventory.json
+  required: false
+- name: db_schema
+  source: context
+  path: context/generated/db-schema.json
+  required: false
+- name: architecture
+  source: context
+  path: context/architecture.md
+  required: true
+- name: data_model
+  source: context
+  path: context/data-model.md
+  required: false
+outputs:
+- name: impact
+  schema: impact.v1
+  file: impact.md
+context_sections:
+- architecture
+- data-model
+- module-map
+- api-inventory
+- db-schema
+size_budget_tokens: 60000
+rubric: rubric.md
+checks: checks.yaml
+evals:
+  path: evals/
+  min_cases: 10
+  min_pass_rate: 0.9
+allowed_tools:
+- Read
+- Grep
+- Glob
+- Write
+change_limits: null
+deprecated_by: null
+harness:
+  checks: checks.yaml
+  trace_required: true

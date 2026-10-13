@@ -1,0 +1,30 @@
+# Doc 3 §7.1: UX.ux-flow-review -> UX.accessibility-review. Human gate: comment approval.
+# Read-only: the design file is fetched through the design-tool MCP server with read tools only.
+schema: workflow.v1
+id: ux-review
+version: 1.0.0
+title: UX review
+description: Review the user flows and the accessibility of a design file and get the findings approved before they are shared.
+owner: wf-owner-2b
+kind: read_only
+status: pilot
+requires_fresh_pack: false
+inputs:
+  ticket: {required: true}
+defaults:
+  retry: {checks: 2, review: 2, verifier: 3}
+  max_rework: 2
+steps:
+  - id: uxflow
+    skill: ux-flow-review@^1.0
+    inputs: {ticket: run.ticket}
+  - id: a11y
+    skill: accessibility-review@^1.0
+    after: [uxflow]
+    inputs: {ticket: run.ticket}
+  - gate: G-ux-comments
+    role: tech_lead
+    after: [a11y]
+    artifacts: [uxflow, a11y]
+    on_reject: uxflow
+    on_changes: a11y

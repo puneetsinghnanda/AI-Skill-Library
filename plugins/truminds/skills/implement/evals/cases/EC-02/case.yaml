@@ -1,0 +1,22 @@
+schema: eval-case.v1
+id: EC-02
+title: Design needs a database migration, which is a sensitive path
+kind: edge
+inputs:
+  design: inputs/design.md
+  conventions: inputs/conventions.md
+  module_map: inputs/module-map.json
+expect:
+  outcome_in:
+  - NEEDS-INPUT
+  - ESCALATE
+  - PASS-WITH-FINDINGS
+  gates:
+    H5: pass
+  assert:
+  - path: questions[?ask=='tech lead']
+    count_min: 1
+provenance: invented
+attestation:
+  by: skill-owner-6f3b
+  statement: All inputs are invented for an invented system; no client material was used.

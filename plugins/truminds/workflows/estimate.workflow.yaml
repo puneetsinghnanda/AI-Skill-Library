@@ -1,0 +1,16 @@
+# Doc 3 §7.1: DM.estimate-review. No human gate (read-only).
+schema: workflow.v1
+id: estimate
+version: 1.0.0
+title: Estimate
+description: Size the stories of a ticket with cited evidence, or mark them UNSIZED with the question that blocks sizing.
+owner: wf-owner-2b
+kind: read_only
+status: production
+requires_fresh_pack: true
+inputs:
+  ticket: {required: true}
+steps:
+  - id: est
+    skill: estimate-review@^1.0
+    inputs: {ticket: run.ticket}

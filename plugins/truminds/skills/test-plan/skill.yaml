@@ -1,0 +1,52 @@
+# Skill code: TP (SDD-01 §12). R1 target status: production.
+# evals.min_cases stays 10 (schema minimum); this folder ships 3 starter cases, see README.
+schema: skill-metadata.v1
+id: test-plan
+version: 1.0.0
+agent: qa-engineer
+status: production
+owner: skill-owner-7a4c
+title: Test plan
+phase: test
+summary: Plans tests so that every acceptance criterion has at least one test at the right level.
+inputs:
+- name: stories
+  schema: stories.v1
+  source: artifact
+  required: true
+- name: design
+  schema: design.v1
+  source: artifact
+  required: false
+- name: test_strategy
+  source: context
+  path: context/test-strategy.md
+  required: true
+- name: test_layout
+  source: context
+  path: context/generated/test-layout.json
+  required: false
+outputs:
+- name: test_plan
+  schema: test-plan.v1
+  file: test-plan.md
+context_sections:
+- test-strategy
+- test-layout
+size_budget_tokens: 45000
+rubric: rubric.md
+checks: checks.yaml
+evals:
+  path: evals/
+  min_cases: 10
+  min_pass_rate: 0.9
+allowed_tools:
+- Read
+- Grep
+- Glob
+- Write
+change_limits: null
+deprecated_by: null
+harness:
+  checks: checks.yaml
+  trace_required: true

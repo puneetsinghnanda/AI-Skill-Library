@@ -1,0 +1,4 @@
+# Invented design-tool export (read-only MCP fetch), order cancel flow
+node 12:4  Frame "Order detail"        button "Cancel order" -> 12:9
+node 12:9  Frame "Confirm cancel"      text "Are you sure?" buttons "Yes" -> 12:15, "No" -> 12:4
+node 12:15 Frame "Cancelled"           text "Your order is cancelled" (no link back to orders)

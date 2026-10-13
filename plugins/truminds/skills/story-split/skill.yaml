@@ -1,0 +1,44 @@
+# Skill code: SS (SDD-01 §12). R1 target status: production.
+# evals.min_cases stays 10 (schema minimum); this folder ships 3 starter cases, see README.
+schema: skill-metadata.v1
+id: story-split
+version: 1.0.0
+agent: business-analyst
+status: production
+owner: skill-owner-4c1d
+title: Story split
+phase: requirements
+summary: Splits reviewed requirements into small user stories with Given/When/Then acceptance criteria.
+inputs:
+- name: intent
+  schema: intent.v1
+  source: artifact
+  required: true
+- name: glossary
+  source: context
+  path: context/glossary.md
+  required: false
+outputs:
+- name: stories
+  schema: stories.v1
+  file: stories.md
+context_sections:
+- glossary
+size_budget_tokens: 30000
+rubric: rubric.md
+checks: checks.yaml
+evals:
+  path: evals/
+  min_cases: 10
+  min_pass_rate: 0.9
+allowed_tools:
+- Read
+- Grep
+- Glob
+- Write
+change_limits: null
+deprecated_by: null
+harness:
+  checks: checks.yaml
+  trace_required: true
+  trace_coverage: full

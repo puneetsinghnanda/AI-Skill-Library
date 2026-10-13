@@ -1,0 +1,23 @@
+# SDD-03 §5.2 kind form; check ids follow SDD-03 §5.4. H1, H4, H6 and H7 run for every skill.
+# Container checks carry no gate: H3 applies to every skill with a code output (SDD-03 §4.1).
+schema: skill-checks.v1
+skill: test-plan
+artifact_schema: test-plan.v1
+checks:
+- id: test-plan.covers-format
+  kind: regex
+  gate: H2
+  select: $.tests[*].covers[*]
+  must: ^S-[0-9]+/AC[0-9]+$
+- id: test-plan.every-ac-tested
+  kind: coverage
+  gate: H2
+  each: $.inputs.stories.stories[*].acceptance_criteria[*]
+  covered_by: $.tests[*]
+  link: covers
+  min: 1
+- id: test-plan.ids
+  kind: regex
+  gate: H2
+  select: $.tests[*].id
+  must: ^TP-[1-9][0-9]*$

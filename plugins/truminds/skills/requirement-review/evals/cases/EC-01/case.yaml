@@ -1,0 +1,28 @@
+schema: eval-case.v1
+id: EC-01
+title: 'Clear ticket with a matching baseline: order status history, newest first, 20 per page'
+kind: normal
+inputs:
+  ticket: inputs/ticket.md
+  intent_baseline: inputs/intent-baseline.md
+  glossary: inputs/glossary.md
+expect:
+  outcome_in:
+  - PASS
+  gates:
+    H1: pass
+    H2: pass
+    H4: pass
+    H5: pass
+  assert:
+  - path: requirements
+    count_min: 3
+    count_max: 5
+  - path: questions[?blocking==`true`]
+    count_max: 0
+  - path: requirements[?status=='known' && length(cites[?contains(@, 'ticket.md#L')]) == `0`]
+    count_max: 0
+provenance: invented
+attestation:
+  by: skill-owner-3b7e
+  statement: All inputs are invented for an invented system; no client material was used.

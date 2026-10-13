@@ -1,0 +1,24 @@
+schema: eval-case.v1
+id: EC-05
+title: 'Ticket of one line: ''Fix the export'''
+kind: edge
+inputs:
+  ticket: inputs/ticket.md
+  intent_baseline: inputs/intent-baseline.md
+expect:
+  outcome_in:
+  - NEEDS-INPUT
+  gates:
+    H1: pass
+    H2: pass
+  assert:
+  - path: requirements
+    count_max: 1
+  - path: questions[?blocking==`true`]
+    count_min: 1
+  - path: requirements[].statement
+    none_matches: '[0-9]'
+provenance: invented
+attestation:
+  by: skill-owner-3b7e
+  statement: All inputs are invented for an invented system; no client material was used.

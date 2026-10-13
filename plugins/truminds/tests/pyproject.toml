@@ -1,0 +1,31 @@
+[project]
+name = "truminds-plugin-tests"
+version = "0.1.0"
+description = "Structural, denylist and hook-launcher tests for the truminds plugin (TST-01 §2.3, §2.6; TC-PLG-*, TC-HK-007). Test-only; nothing is packaged."
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "jsonschema>=4.23",
+    "rfc3339-validator>=0.1.4",
+    "pyyaml>=6.0.2",
+    "jmespath>=1.0.1",
+    "ruff>=0.6",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["."]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF"]
+ignore = ["S101", "S603", "S607", "RUF001"]

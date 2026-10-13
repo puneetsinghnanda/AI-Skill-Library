@@ -1,0 +1,60 @@
+# Skill code: UT (SDD-01 §12). R1 target status: production.
+# evals.min_cases stays 10 (schema minimum); this folder ships 3 starter cases, see README.
+schema: skill-metadata.v1
+id: unit-test
+version: 1.0.0
+agent: developer
+status: production
+owner: skill-owner-6f3b
+title: Unit tests
+phase: build
+summary: Writes unit tests for a change and reports tests run and coverage against the base.
+inputs:
+- name: change
+  schema: change.v1
+  source: artifact
+  required: true
+- name: stories
+  schema: stories.v1
+  source: artifact
+  required: false
+- name: test_strategy
+  source: context
+  path: context/test-strategy.md
+  required: true
+- name: test_layout
+  source: context
+  path: context/generated/test-layout.json
+  required: true
+outputs:
+- name: ut_result
+  schema: ut-result.v1
+  file: ut-result.md
+- name: code
+  kind: code
+context_sections:
+- test-strategy
+- conventions
+- test-layout
+size_budget_tokens: 90000
+rubric: rubric.md
+checks: checks.yaml
+evals:
+  path: evals/
+  min_cases: 10
+  min_pass_rate: 0.9
+allowed_tools:
+- Read
+- Grep
+- Glob
+- Write
+- Edit
+change_limits:
+  lines: 400
+  files: 15
+  sensitive_paths:
+  - .github/**
+deprecated_by: null
+harness:
+  checks: checks.yaml
+  trace_required: true

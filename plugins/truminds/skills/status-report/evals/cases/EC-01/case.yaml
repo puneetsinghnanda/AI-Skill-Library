@@ -1,0 +1,23 @@
+schema: eval-case.v1
+id: EC-01
+title: Four runs in three statuses are counted exactly
+kind: normal
+inputs:
+  run_states: inputs/runs
+expect:
+  outcome_in:
+  - PASS
+  gates:
+    H1: pass
+    H2: pass
+  assert:
+  - path: counts.runs
+    equals: 4
+  - path: counts.completed
+    equals: 2
+  - path: counts.paused_input
+    equals: 1
+provenance: invented
+attestation:
+  by: skill-owner-be8a
+  statement: All inputs are invented for an invented system; no client material was used.

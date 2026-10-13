@@ -1,0 +1,19 @@
+schema: eval-case.v1
+id: EC-02
+title: Log is cut off before any error
+kind: edge
+inputs:
+  ticket: inputs/ticket.md
+  job_log: inputs/job.log
+expect:
+  outcome_in:
+  - NEEDS-INPUT
+  gates:
+    H1: pass
+  assert:
+  - path: questions[?blocking==`true`]
+    count_min: 1
+provenance: invented
+attestation:
+  by: skill-owner-9c6e
+  statement: All inputs are invented for an invented system; no client material was used.

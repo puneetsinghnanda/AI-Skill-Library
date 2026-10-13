@@ -1,0 +1,213 @@
+#!/bin/sh
+# tsl-hook <event>: thin launcher for the truminds plugin hooks (SDD-05 §5.2, §5.4; SDD-04 §6.14).
+#
+#   1. finds tsl on the machine;
+#   2. checks that `tsl --version` equals the plugin version (plugin.json);
+#   3. pipes the hook JSON from stdin to `tsl hook <event>` and passes its stdout and exit code through;
+#   4. if tsl is missing, has the wrong version, crashes or overruns its time budget, applies SDD-05 §5.4:
+#        pre-tool, pre-mcp     inside a run: deny with E-HOOK-01 (fail closed); outside a run: allow (fail open)
+#        post-write            allow, warn with systemMessage (fail open; never lose the engineer's work)
+#        session-start         missing or wrong version: warn with systemMessage; crash or timeout: ignore, log
+#        session-end           missing or wrong version: warn; crash or timeout: ignore, log
+#
+# "Inside a run" means a run lock file exists (registry §8: runs/active/<ticket>__<workflow>.lock), found either
+# through this session's index ~/.truminds/sessions/<session_id>.json (SDD-04 §6.14) or by walking up from the
+# hook's cwd to the companion repo root (the folder holding tsl.yaml). The walk is deliberately conservative: when
+# tsl cannot decide, any active lock in this companion repo keeps writes closed.
+#
+# POSIX sh only (dash, bash, busybox ash, macOS sh, Git Bash on Windows). No jq, no coreutils `timeout`.
+# There is no switch that turns any check off. TSL_HOOK_BUDGET_S may only lower the time budget (used by tests).
+
+set -u
+
+EVENT=${1:-}
+case "$EVENT" in
+  session-start|pre-tool|pre-mcp|post-write|session-end) ;;
+  *) printf 'tsl-hook: unknown event "%s"\n' "$EVENT" >&2; exit 1 ;;
+esac
+
+SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT:-$(dirname -- "$SCRIPT_DIR")}
+TRUMINDS_DIR="${HOME:-}/.truminds"
+HOOK_LOG="$TRUMINDS_DIR/logs/hook.log"
+REPO_URL="https://github.com/puneetsinghnanda/AI-Skill-Library"
+
+# Time budget per event, a little under the hooks.json timeouts (15, 10, 10, 90, 15 s), so this launcher, not
+# Claude Code, decides what a slow tsl means (what Claude Code does on its own timeout is spike S-15).
+case "$EVENT" in
+  session-start|session-end) BUDGET=12 ;;
+  pre-tool|pre-mcp) BUDGET=8 ;;
+  post-write) BUDGET=85 ;;
+esac
+if [ -n "${TSL_HOOK_BUDGET_S:-}" ]; then
+  case "$TSL_HOOK_BUDGET_S" in
+    *[!0-9]*|'') ;;
+    *) if [ "$TSL_HOOK_BUDGET_S" -ge 1 ] && [ "$TSL_HOOK_BUDGET_S" -lt "$BUDGET" ]; then BUDGET=$TSL_HOOK_BUDGET_S; fi ;;
+  esac
+fi
+
+TMPD=$(mktemp -d "${TMPDIR:-/tmp}/tsl-hook.XXXXXX") || { echo "tsl-hook: cannot create temp dir" >&2; TMPD=''; }
+# shellcheck disable=SC2329  # called through trap
+cleanup() { [ -n "$TMPD" ] && rm -rf "$TMPD"; }
+trap cleanup EXIT
+trap 'cleanup; exit 1' INT TERM HUP
+
+IN="$TMPD/in"; OUT="$TMPD/out"; ERR="$TMPD/err"; MARK="$TMPD/timed-out"
+cat > "$IN"
+
+# ---------------------------------------------------------------------------------------------------- helpers
+log_line() { # decision code detail
+  mkdir -p "$TRUMINDS_DIR/logs" 2>/dev/null || return 0
+  printf '%s tsl-hook event=%s decision=%s code=%s detail=%s\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$EVENT" "$1" "$2" "$3" >> "$HOOK_LOG" 2>/dev/null || true
+}
+
+json_field() { # first string value of "key" in the stdin JSON (hook input is flat for the keys we need)
+  sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$IN" 2>/dev/null | head -n 1
+}
+
+json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
+plugin_version() {
+  sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$PLUGIN_ROOT/.claude-plugin/plugin.json" 2>/dev/null | head -n 1
+}
+
+find_tsl() {
+  if command -v tsl >/dev/null 2>&1; then command -v tsl; return 0; fi
+  for c in "${HOME:-}/.local/bin/tsl" "${HOME:-}/.local/share/uv/tools/truminds-tsl/bin/tsl"; do
+    if [ -x "$c" ]; then printf '%s\n' "$c"; return 0; fi
+  done
+  return 1
+}
+
+# run_bounded <seconds> <cmd...>: runs cmd with $IN on stdin, stdout to $OUT, stderr to $ERR; kills it after the
+# budget and leaves $MARK behind. Returns the command's exit status.
+run_bounded() {
+  limit=$1; shift
+  rm -f "$MARK"
+  "$@" < "$IN" > "$OUT" 2> "$ERR" &
+  cpid=$!
+  (
+    i=0
+    while [ "$i" -lt "$limit" ]; do
+      sleep 1
+      kill -0 "$cpid" 2>/dev/null || exit 0
+      i=$((i + 1))
+    done
+    : > "$MARK"
+    kill -TERM "$cpid" 2>/dev/null
+    sleep 1
+    kill -KILL "$cpid" 2>/dev/null
+  ) </dev/null >/dev/null 2>&1 &
+  wpid=$!
+  wait "$cpid"
+  rc=$?
+  kill "$wpid" 2>/dev/null
+  return "$rc"
+}
+
+lock_exists_in() { # companion root
+  for f in "$1"/runs/active/*.lock; do
+    [ -f "$f" ] && return 0
+  done
+  return 1
+}
+
+run_active() {
+  sid=$(json_field session_id)
+  case "$sid" in
+    ''|*[!A-Za-z0-9_.-]*) ;;
+    *)
+      idx="$TRUMINDS_DIR/sessions/$sid.json"
+      if [ -f "$idx" ]; then
+        comp=$(sed -n 's/.*"companion"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$idx" | head -n 1)
+        lock=$(sed -n 's/.*"lock"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$idx" | head -n 1)
+        if [ -n "$comp" ] && [ -n "$lock" ] && [ -f "$comp/$lock" ]; then return 0; fi
+      fi
+      ;;
+  esac
+  dir=$(json_field cwd)
+  [ -n "$dir" ] && [ -d "$dir" ] || dir=$PWD
+  while [ -n "$dir" ]; do
+    if [ -f "$dir/tsl.yaml" ]; then
+      lock_exists_in "$dir" && return 0
+      return 1
+    fi
+    parent=$(dirname -- "$dir")
+    [ "$parent" = "$dir" ] && break
+    dir=$parent
+  done
+  return 1
+}
+
+install_hint() {
+  printf 'uv tool install "truminds-tsl @ %s/releases/download/v%s/truminds_tsl-%s-py3-none-any.whl"' "$REPO_URL" "$1" "$1"
+}
+
+deny_pre() { # reason
+  r=$(json_escape "E-HOOK-01 $1")
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$r"
+}
+
+system_message() { # text
+  printf '{"systemMessage":"%s"}\n' "$(json_escape "$1")"
+}
+
+# fail <kind: missing|version|crash|timeout> <detail>
+fail() {
+  kind=$1; detail=$2
+  case "$EVENT" in
+    pre-tool|pre-mcp)
+      if run_active; then
+        log_line deny E-HOOK-01 "$kind: $detail"
+        deny_pre "Truminds run is active and the policy hook cannot run ($detail). Writes stay blocked until this is fixed."
+      else
+        log_line allow E-HOOK-01 "$kind (no active run): $detail"
+      fi
+      ;;
+    post-write)
+      log_line allow E-HOOK-01 "$kind (fail open): $detail"
+      system_message "Truminds: artifact checks did not run ($detail). Your file was kept. Fix tsl, then re-run the step's checks."
+      ;;
+    session-start|session-end)
+      case "$kind" in
+        missing|version)
+          log_line warn E-VER-01 "$kind: $detail"
+          system_message "Truminds: $detail"
+          ;;
+        *) log_line ignore E-HOOK-01 "$kind: $detail" ;;
+      esac
+      ;;
+  esac
+  exit 0
+}
+
+# ---------------------------------------------------------------------------------------------------- main
+PV=$(plugin_version)
+[ -n "$PV" ] || PV="unknown"
+
+TSL=$(find_tsl) || fail missing "tsl is not installed. Install tsl $PV: $(install_hint "$PV")"
+
+run_bounded 5 "$TSL" --version
+vrc=$?
+if [ "$vrc" -ne 0 ]; then
+  if [ -f "$MARK" ]; then fail timeout "tsl --version did not answer within 5 s"; fi
+  fail crash "tsl --version exited with status $vrc"
+fi
+TV=$(sed -n 's/^tsl[[:space:]]\{1,\}\([0-9A-Za-z.+-]\{1,\}\).*/\1/p' "$OUT" | head -n 1)
+[ -n "$TV" ] || fail version "tsl did not report a version. Install tsl $PV: $(install_hint "$PV")"
+if [ "$TV" != "$PV" ]; then
+  fail version "tsl $TV does not match plugin $PV (E-VER-01). Install tsl $PV: $(install_hint "$PV")"
+fi
+
+run_bounded "$BUDGET" "$TSL" hook "$EVENT"
+rc=$?
+if [ "$rc" -eq 0 ] && [ ! -f "$MARK" ]; then
+  cat "$ERR" >&2
+  cat "$OUT"
+  exit 0
+fi
+if [ -f "$MARK" ]; then
+  fail timeout "tsl hook $EVENT timed out after $BUDGET s"
+fi
+fail crash "tsl hook $EVENT exited with status $rc"

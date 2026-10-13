@@ -1,0 +1,25 @@
+schema: eval-case.v1
+id: EC-02
+title: Customers can cancel an order before it ships; baseline defines the shipping states
+kind: normal
+inputs:
+  ticket: inputs/ticket.md
+  intent_baseline: inputs/intent-baseline.md
+  glossary: inputs/glossary.md
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+    H4: pass
+  assert:
+  - path: requirements[].cites[]
+    any_matches: intent-baseline\.md#order-states
+  - path: requirements[?status=='known'].statement
+    none_matches: (?i)\b[0-9]+\s*(minute|minutes|hour|hours|day|days)\b
+provenance: invented
+attestation:
+  by: skill-owner-3b7e
+  statement: All inputs are invented for an invented system; no client material was used.

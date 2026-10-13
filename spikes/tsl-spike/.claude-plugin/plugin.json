@@ -1,0 +1,8 @@
+{
+  "name": "tsl-spike",
+  "version": "0.0.1",
+  "description": "Spike plugin: logs hook stdin and drives a stub tsl to test unverified Claude Code behaviour (SDD-05 §8.1). Never install on a production seat.",
+  "author": { "name": "Truminds" },
+  "license": "UNLICENSED",
+  "keywords": ["spike", "truminds"]
+}

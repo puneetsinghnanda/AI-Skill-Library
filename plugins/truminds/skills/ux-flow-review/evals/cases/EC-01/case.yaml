@@ -1,0 +1,21 @@
+schema: eval-case.v1
+id: EC-01
+title: Cancelled screen is a dead end
+kind: normal
+inputs:
+  ticket: inputs/ticket.md
+  design_file: inputs/design-export.txt
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+  assert:
+  - path: findings[].node
+    any_matches: '12:15'
+provenance: invented
+attestation:
+  by: skill-owner-ad7f
+  statement: All inputs are invented for an invented system; no client material was used.

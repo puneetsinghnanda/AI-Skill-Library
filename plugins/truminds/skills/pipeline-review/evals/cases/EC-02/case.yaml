@@ -1,0 +1,20 @@
+schema: eval-case.v1
+id: EC-02
+title: Ticket asks about a job that is not in the CI file
+kind: edge
+inputs:
+  ticket: inputs/ticket.md
+  ci_config: inputs/ci.yml
+expect:
+  outcome_in:
+  - NEEDS-INPUT
+  - PASS-WITH-FINDINGS
+  gates:
+    H5: pass
+  assert:
+  - path: findings[].job
+    none_matches: (?i)nightly
+provenance: invented
+attestation:
+  by: skill-owner-9c6e
+  statement: All inputs are invented for an invented system; no client material was used.

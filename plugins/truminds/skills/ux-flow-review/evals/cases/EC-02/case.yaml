@@ -1,0 +1,19 @@
+schema: eval-case.v1
+id: EC-02
+title: Ticket names a flow that the design file does not contain
+kind: edge
+inputs:
+  ticket: inputs/ticket.md
+  design_file: inputs/design-export.txt
+expect:
+  outcome_in:
+  - NEEDS-INPUT
+  gates:
+    H1: pass
+  assert:
+  - path: questions[?blocking==`true`]
+    count_min: 1
+provenance: invented
+attestation:
+  by: skill-owner-ad7f
+  statement: All inputs are invented for an invented system; no client material was used.

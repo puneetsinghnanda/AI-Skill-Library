@@ -1,0 +1,8 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Write",
+        "hooks": [ { "type": "command", "command": "sh -c 'cat > /dev/null; date >> \"$HOME/.tsl-spike/log/user-hook.log\"'", "timeout": 5 } ] }
+    ]
+  }
+}

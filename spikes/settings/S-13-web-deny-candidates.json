@@ -1,0 +1,6 @@
+{
+  "_candidates": "Apply one deny list at a time and record which entries block WebFetch and WebSearch without a prompt.",
+  "candidate_a": { "permissions": { "deny": ["WebFetch", "WebSearch"] } },
+  "candidate_b": { "permissions": { "deny": ["WebFetch(*)", "WebSearch(*)"] } },
+  "candidate_c": { "permissions": { "deny": ["WebFetch(domain:*)", "WebSearch"] } }
+}

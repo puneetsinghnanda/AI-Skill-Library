@@ -1,0 +1,41 @@
+{
+  "schema": "context-facts.v1",
+  "section": "db-schema",
+  "extractor": {
+    "name": "js-db",
+    "version": "1.0.0"
+  },
+  "sources": {
+    "sample-orders": "69a28f92e859d61ce734c81b2c3a259f7e65493e"
+  },
+  "empty_reason": null,
+  "facts": [
+    {
+      "id": "table:orders",
+      "kind": "table",
+      "source": {
+        "repo": "sample-orders",
+        "path": "db/migrations/001_orders.sql",
+        "line": 1
+      }
+    },
+    {
+      "id": "table:order_events",
+      "kind": "table",
+      "source": {
+        "repo": "sample-orders",
+        "path": "db/migrations/004_add_order_events.sql",
+        "line": 1
+      }
+    },
+    {
+      "id": "column:order_events.created_at",
+      "kind": "column",
+      "source": {
+        "repo": "sample-orders",
+        "path": "db/migrations/004_add_order_events.sql",
+        "line": 6
+      }
+    }
+  ]
+}

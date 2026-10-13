@@ -1,0 +1,66 @@
+# Skill code: DS (SDD-01 §12). R1 target status: production.
+# evals.min_cases stays 10 (schema minimum); this folder ships 3 starter cases, see README.
+schema: skill-metadata.v1
+id: design
+version: 1.4.0
+agent: solution-architect
+status: production
+owner: skill-owner-5e2a
+title: Solution design
+phase: design
+summary: Designs the change on existing modules and endpoints, marking each component new, changed or existing.
+inputs:
+- name: impact
+  schema: impact.v1
+  source: artifact
+  required: false
+- name: stories
+  schema: stories.v1
+  source: artifact
+  required: true
+- name: intent
+  schema: intent.v1
+  source: artifact
+  required: false
+- name: intent_baseline
+  source: context
+  path: context/intent-baseline.md
+  required: false
+- name: architecture
+  source: context
+  path: context/architecture.md
+  required: true
+- name: module_map
+  source: context
+  path: context/generated/module-map.json
+  required: true
+- name: api_inventory
+  source: context
+  path: context/generated/api-inventory.json
+  required: false
+outputs:
+- name: design
+  schema: design.v1
+  file: design.md
+context_sections:
+- architecture
+- conventions
+- module-map
+- api-inventory
+size_budget_tokens: 60000
+rubric: rubric.md
+checks: checks.yaml
+evals:
+  path: evals/
+  min_cases: 10
+  min_pass_rate: 0.9
+allowed_tools:
+- Read
+- Grep
+- Glob
+- Write
+change_limits: null
+deprecated_by: null
+harness:
+  checks: checks.yaml
+  trace_required: true

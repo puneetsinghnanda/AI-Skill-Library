@@ -1,0 +1,23 @@
+# SDD-03 §5.2 kind form; check ids follow SDD-03 §5.4. H1, H4, H6 and H7 run for every skill.
+# Container checks carry no gate: H3 applies to every skill with a code output (SDD-03 §4.1).
+schema: skill-checks.v1
+skill: test-automation
+artifact_schema: test-result.v1
+checks:
+- id: test-automation.tests-run
+  kind: container
+  profile_step: test
+- id: test-automation.results-linked
+  kind: coverage
+  gate: H2
+  each: $.results[*]
+  covered_by: $.results[*].covers[*]
+  link: covers
+  min: 1
+- id: test-automation.only-test-files
+  kind: regex
+  gate: H5
+  select: $.code[*].files[*]
+  must: (^|/)(test|tests|__tests__|e2e)/|\.(test|spec)\.[a-z]+$
+- id: test-automation.risk
+  kind: diff-limit

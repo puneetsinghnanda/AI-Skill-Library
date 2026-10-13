@@ -1,0 +1,21 @@
+schema: eval-case.v1
+id: EC-02
+title: Change touches only a UI label; tests must still follow the web test layout
+kind: edge
+inputs:
+  change: inputs/change.md
+  test_strategy: inputs/test-strategy.md
+  test_layout: inputs/test-layout.json
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H5: pass
+  assert:
+  - path: code[].files[]
+    none_matches: ^api/src/(?!.*test)
+provenance: invented
+attestation:
+  by: skill-owner-6f3b
+  statement: All inputs are invented for an invented system; no client material was used.

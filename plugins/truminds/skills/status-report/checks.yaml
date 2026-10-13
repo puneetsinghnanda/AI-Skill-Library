@@ -1,0 +1,35 @@
+# SDD-03 §5.2 kind form; check ids follow SDD-03 §5.4. H1, H4, H6 and H7 run for every skill.
+# Container checks carry no gate: H3 applies to every skill with a code output (SDD-03 §4.1).
+schema: skill-checks.v1
+skill: status-report
+artifact_schema: status.v1
+checks:
+- id: status-report.runs-match
+  kind: count-match
+  gate: H2
+  select: $.counts.runs
+  count_files: runs/*/state.json
+- id: status-report.running-match
+  kind: count-match
+  gate: H2
+  select: $.counts.running
+  count_files: runs/*/state.json
+  where: status == 'RUNNING'
+- id: status-report.paused-input-match
+  kind: count-match
+  gate: H2
+  select: $.counts.paused_input
+  count_files: runs/*/state.json
+  where: status == 'PAUSED_INPUT'
+- id: status-report.paused-approval-match
+  kind: count-match
+  gate: H2
+  select: $.counts.paused_approval
+  count_files: runs/*/state.json
+  where: status == 'PAUSED_APPROVAL'
+- id: status-report.completed-match
+  kind: count-match
+  gate: H2
+  select: $.counts.completed
+  count_files: runs/*/state.json
+  where: status == 'COMPLETED'

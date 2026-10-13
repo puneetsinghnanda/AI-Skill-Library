@@ -1,0 +1,31 @@
+# Doc 3 §7.1: DEV.defect-triage -> DEV.implement -> DEV.unit-test -> PR. Human gate: PR review.
+schema: workflow.v1
+id: defect-fix
+version: 1.0.0
+title: Defect fix
+description: Triage a defect ticket, fix the most likely cause inside the change limits, add unit tests and open a pull request.
+owner: wf-owner-2b
+kind: delivery
+status: production
+requires_fresh_pack: true
+inputs:
+  ticket: {required: true}
+defaults:
+  retry: {checks: 2, review: 2, verifier: 3}
+  max_rework: 2
+steps:
+  - id: triage
+    skill: defect-triage@^1.0
+    inputs: {ticket: run.ticket}
+  - id: impl
+    skill: implement@^1.0
+    after: [triage]
+    inputs: {triage: triage.triage}
+  - id: ut
+    skill: unit-test@^1.0
+    after: [impl]
+    inputs: {change: impl.change}
+  - pr: true
+    after: [ut]
+    draft_when_band: Medium
+    repos: changed

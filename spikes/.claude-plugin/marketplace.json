@@ -1,0 +1,11 @@
+{
+  "name": "truminds-spikes",
+  "owner": { "name": "Truminds AI Practice" },
+  "plugins": [
+    {
+      "name": "tsl-spike",
+      "source": "./tsl-spike",
+      "description": "Throwaway plugin for the Claude Code platform spikes S-01 to S-15 (SDD-05 §8.1). Test seats only."
+    }
+  ]
+}

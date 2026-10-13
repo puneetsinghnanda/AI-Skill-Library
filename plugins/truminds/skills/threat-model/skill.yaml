@@ -1,0 +1,53 @@
+# Skill code: TM (SDD-01 §12). R1 target status: production.
+# evals.min_cases stays 10 (schema minimum); this folder ships 3 starter cases, see README.
+schema: skill-metadata.v1
+id: threat-model
+version: 1.0.0
+agent: security
+status: production
+owner: skill-owner-8b5d
+title: Threat model
+phase: design
+summary: STRIDE threat model with at least one threat and mitigation per design component.
+inputs:
+- name: design
+  schema: design.v1
+  source: artifact
+  required: false
+- name: architecture
+  source: context
+  path: context/architecture.md
+  required: true
+- name: data_model
+  source: context
+  path: context/data-model.md
+  required: false
+- name: api_inventory
+  source: context
+  path: context/generated/api-inventory.json
+  required: false
+outputs:
+- name: threat_model
+  schema: threat-model.v1
+  file: threat-model.md
+context_sections:
+- architecture
+- data-model
+- api-inventory
+size_budget_tokens: 45000
+rubric: rubric.md
+checks: checks.yaml
+evals:
+  path: evals/
+  min_cases: 10
+  min_pass_rate: 0.9
+allowed_tools:
+- Read
+- Grep
+- Glob
+- Write
+change_limits: null
+deprecated_by: null
+harness:
+  checks: checks.yaml
+  trace_required: false

@@ -1,0 +1,57 @@
+# Doc 3 §7.1: same chain as brownfield-change; impact-analysis is replaced by design against the intent baseline only.
+schema: workflow.v1
+id: greenfield-feature
+version: 1.0.0
+title: Greenfield feature
+description: Take a ticket for a new feature from requirement to a reviewed pull request, designing against the intent baseline.
+owner: wf-owner-2b
+kind: delivery
+status: draft                            # requirement-review is draft (SDD-01 §7)
+requires_fresh_pack: true
+inputs:
+  ticket: {required: true}
+defaults:
+  retry: {checks: 2, review: 2, verifier: 3}
+  max_rework: 2
+steps:
+  - id: req
+    skill: requirement-review@^1.0
+    inputs: {ticket: run.ticket, intent_baseline: context.intent-baseline}
+  - id: split
+    skill: story-split@^1.0
+    after: [req]
+    inputs: {intent: req.intent}
+  - id: design
+    skill: design@^1.4
+    after: [split]
+    inputs: {stories: split.stories, intent: req.intent, intent_baseline: context.intent-baseline}
+  - gate: G-design
+    role: tech_lead
+    after: [design]
+    artifacts: [design]
+    on_reject: req
+    on_changes: design
+  - id: threat
+    skill: threat-model@^1.0
+    after: [G-design]
+    inputs: {design: design.design}
+  - id: impl
+    skill: implement@^1.0
+    after: [threat]
+    inputs: {design: design.design, stories: split.stories}
+  - id: ut
+    skill: unit-test@^1.0
+    after: [impl]
+    inputs: {change: impl.change, stories: split.stories}
+  - id: secrev
+    skill: secure-code-review@^1.0
+    after: [impl]
+    inputs: {change: impl.change}
+  - id: tplan
+    skill: test-plan@^1.0
+    after: [G-design]
+    inputs: {stories: split.stories, design: design.design}
+  - pr: true
+    after: [ut, secrev, tplan]
+    draft_when_band: Medium
+    repos: changed

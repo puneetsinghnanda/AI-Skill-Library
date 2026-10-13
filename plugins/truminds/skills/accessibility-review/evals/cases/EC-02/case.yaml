@@ -1,0 +1,20 @@
+schema: eval-case.v1
+id: EC-02
+title: Focus order cannot be judged from a static file
+kind: edge
+inputs:
+  ticket: inputs/ticket.md
+  design_file: inputs/design-export.txt
+expect:
+  outcome_in:
+  - PASS-WITH-FINDINGS
+  - NEEDS-INPUT
+  gates:
+    H1: pass
+  assert:
+  - path: findings[].wcag
+    none_matches: ^2\.4\.3$
+provenance: invented
+attestation:
+  by: skill-owner-ad7f
+  statement: All inputs are invented for an invented system; no client material was used.

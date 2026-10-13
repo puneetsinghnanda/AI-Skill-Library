@@ -1,0 +1,81 @@
+#!/bin/sh
+# Stub tsl for spike S-09 (SDD-05 §8.1). It is NOT the real tool: it logs every call (argv, cwd, whether
+# TSL_SESSION_ID is set, and stdin for `hook` and `review record`) to ~/.tsl-spike/log/tsl-calls.jsonl and
+# answers with canned tsl-output.v1 envelopes for one demo run with one step. No network, no git, no signing.
+dir="${HOME}/.tsl-spike/log"
+mkdir -p "$dir"
+state="${HOME}/.tsl-spike/state"
+RUN=run_01J0SP1KE0000000000000000S
+ART="artifacts/T-1/$RUN/demo.md"
+now_ms() { perl -MTime::HiRes=time -e 'printf "%d", time*1000' 2>/dev/null || printf '%s000' "$(date +%s)"; }
+esc() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+T0=$(now_ms)
+STDIN=null
+case "${1:-} ${2:-}" in
+  "hook "*|"review record")
+    STDIN=$(tr -d '\n\r')
+    [ -n "$STDIN" ] || STDIN=null
+    ;;
+esac
+log() {
+  printf '{"ts_ms":%s,"took_ms":%s,"argv":"%s","cwd":"%s","tsl_session_id":"%s","stdin":%s}\n' \
+    "$T0" "$(( $(now_ms) - T0 ))" "$(esc "$*")" "$(esc "$PWD")" "$(esc "${TSL_SESSION_ID:-}")" "$STDIN" \
+    >> "$dir/tsl-calls.jsonl"
+}
+ok() { # message next data-json
+  printf '{"schema":"tsl-output.v1","ok":true,"code":"OK","exit":0,"message":"%s","next":"%s","data":%s,"warnings":[],"tsl_version":"0.0.1"}\n' \
+    "$1" "$2" "$3"
+}
+case "${1:-}" in
+  --version) echo "tsl 0.0.1" ;;
+  state)
+    case "${2:-}" in
+      start)
+        mkdir -p "$(dirname "$state")"
+        echo started > "$state"
+        ok "run started (stub)" "tsl next $RUN --json" "{\"run_id\":\"$RUN\",\"status\":\"RUNNING\",\"first_step\":\"demo\"}"
+        ;;
+      resume) ok "resumed (stub)" "tsl next $RUN --json" "{\"run_id\":\"$RUN\",\"status\":\"RUNNING\"}" ;;
+      show)
+        st=$(cat "$state" 2>/dev/null || echo none)
+        ok "1 run (stub)" "" "{\"runs\":[{\"run_id\":\"$RUN\",\"ticket\":\"T-1\",\"workflow\":\"demo\",\"status\":\"$st\"}]}"
+        ;;
+      *) ok "stub" "" "{}" ;;
+    esac
+    ;;
+  next)
+    if [ "$(cat "$state" 2>/dev/null)" = "decided" ]; then
+      ok "run finished (stub)" "stop" '{"action":"done"}'
+    else
+      ok "step demo (1/1)" "run skill demo-step@0.0.1" \
+        "{\"action\":\"run_skill\",\"run_id\":\"$RUN\",\"step\":\"demo\",\"attempt\":1,\"skill\":\"demo-step@0.0.1\",\"artifact_path\":\"$ART\",\"inputs\":[],\"feedback\":null,\"answers\":null,\"progress\":{\"index\":1,\"total\":1}}"
+    fi
+    ;;
+  verify)
+    case " $* " in
+      *" --inputs "*)
+        ok "inputs ready (stub)" "write the artifact to $ART" \
+          "{\"run_id\":\"$RUN\",\"step\":\"demo\",\"attempt\":1,\"skill\":\"demo-step@0.0.1\",\"artifact_path\":\"$ART\",\"inputs\":[],\"retry\":null}"
+        ;;
+      *) ok "checks passed (stub)" "run the review" "{\"artifact\":\"$ART\",\"hard_failed\":[]}" ;;
+    esac
+    ;;
+  review)
+    case "${2:-}" in
+      prepare)
+        ok "review package (stub)" "return review.v1 JSON" \
+          "{\"artifact_path\":\"$ART\",\"output_schema\":\"review.v1\",\"instructions\":\"Read the artifact and return review JSON only.\"}"
+        ;;
+      record) ok "review recorded (stub)" "tsl decide $ART --json" "{\"review_path\":\"$ART.review.json\"}" ;;
+      *) ok "stub" "" "{}" ;;
+    esac
+    ;;
+  decide)
+    echo decided > "$state"
+    ok "PASS (stub)" "continue" '{"outcome":"PASS","band":"High","action":"continue"}'
+    ;;
+  hook) : ;;   # allow: exit 0 with no output
+  *) ok "stub" "" "{}" ;;
+esac
+log "$@"
+exit 0

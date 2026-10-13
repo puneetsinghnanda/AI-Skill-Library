@@ -1,0 +1,23 @@
+schema: eval-case.v1
+id: EC-03
+title: Requirement names a payment provider that does not exist in the facts
+kind: edge
+inputs:
+  intent: inputs/intent.md
+  module_map: inputs/module-map.json
+  architecture: inputs/architecture.md
+expect:
+  outcome_in:
+  - NEEDS-INPUT
+  gates:
+    H1: pass
+    H5: pass
+  assert:
+  - path: questions[?blocking==`true`]
+    count_min: 1
+  - path: modules[?change!='new'].id
+    none_matches: (?i)payment
+provenance: invented
+attestation:
+  by: skill-owner-5e2a
+  statement: All inputs are invented for an invented system; no client material was used.

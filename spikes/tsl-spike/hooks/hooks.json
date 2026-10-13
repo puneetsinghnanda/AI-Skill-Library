@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/log-stdin\" session-start", "timeout": 10 } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Skill",
+        "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/log-stdin\" pre-skill", "timeout": 10 } ] },
+      { "matcher": "Agent",
+        "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/log-stdin\" pre-agent", "timeout": 10 } ] },
+      { "matcher": "Write|Edit|NotebookEdit|Bash",
+        "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/tsl\" hook pre-tool", "timeout": 10 } ] },
+      { "matcher": "Write",
+        "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/slow-hook\"", "timeout": 3 } ] }
+    ],
+    "PostToolUse": [
+      { "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/log-stdin\" post-write", "timeout": 10 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/tsl\" hook post-write", "timeout": 90 }
+        ] }
+    ],
+    "SessionEnd": [
+      { "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/log-stdin\" session-end", "timeout": 10 } ] }
+    ]
+  }
+}
