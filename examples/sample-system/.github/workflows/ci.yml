@@ -1,0 +1,36 @@
+# Order Tracker CI.
+# NOTE: this file is a review target for the pipeline-review skill only. It sits under
+# examples/, so GitHub never runs it from this repository.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: order_tracker
+          POSTGRES_USER: order_tracker
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ["5432:5432"]
+    steps:
+      - uses: actions/checkout@main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: example-org/setup-psql-client@main
+      - run: npm install
+      - run: npm run build
+      - name: Migrate and seed
+        env:
+          DATABASE_URL: postgres://order_tracker@localhost:5432/order_tracker
+        run: npm run db:migrate && npm run db:seed
+      - run: npm test
+      - uses: example-org/upload-test-report@v1
+        with:
+          path: "**/junit.xml"

@@ -1,0 +1,67 @@
+# Order Tracker local run. Everything binds to loopback only (TST-01 §4.2).
+# Create the password file once, outside the repo:
+#   mkdir -p ~/.truminds-dev && openssl rand -hex 24 > ~/.truminds-dev/sample_pg_password
+# Data at rest: the pgdata volume lives on the host disk; company laptops use full-disk
+# encryption. The data is invented, but the rule is the same for every component.
+name: order-tracker
+
+x-pg-env: &pg-env
+  PGHOST: db
+  PGPORT: "5432"
+  PGUSER: order_tracker
+  PGDATABASE: order_tracker
+  PGPASSWORD_FILE: /run/secrets/pg_password
+
+services:
+  db:
+    image: postgres:16.4
+    environment:
+      POSTGRES_DB: order_tracker
+      POSTGRES_USER: order_tracker
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
+      TZ: UTC
+    secrets: [pg_password]
+    ports: ["127.0.0.1:5433:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U order_tracker -d order_tracker"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    build: { context: ., target: api }
+    command: ["sh", "-c", "npm run db:migrate && npm run db:seed"]
+    environment:
+      <<: *pg-env
+      SEED_ANCHOR: now
+    secrets: [pg_password]
+    depends_on:
+      db: { condition: service_healthy }
+
+  api:
+    build: { context: ., target: api }
+    environment:
+      <<: *pg-env
+      NODE_ENV: production
+      API_HOST: 0.0.0.0
+      API_PORT: "3000"
+    secrets: [pg_password]
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  web:
+    build: { context: ., target: web }
+    environment:
+      VITE_HOST: 0.0.0.0
+      API_PROXY_TARGET: http://api:3000
+    ports: ["127.0.0.1:5174:5174"]
+    depends_on: [api]
+
+secrets:
+  pg_password:
+    file: ${HOME}/.truminds-dev/sample_pg_password
+
+volumes:
+  pgdata: {}

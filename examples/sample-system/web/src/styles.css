@@ -1,0 +1,25 @@
+:root {
+  --fg: #1d232b;
+  --muted: #5c6773;
+  --bg: #ffffff;
+  --line: #d9dee4;
+  --accent: #2357a6;
+  font-family: system-ui, sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+}
+
+body { margin: 0; }
+header.nav { display: flex; gap: 1rem; align-items: center; padding: 0.75rem 1rem; border-bottom: 1px solid var(--line); }
+header.nav a { color: var(--accent); text-decoration: none; }
+header.nav a.active { font-weight: 600; }
+main { padding: 1rem; max-width: 72rem; margin: 0 auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--line); }
+th button.sort { border: 0; background: none; cursor: pointer; padding: 0 0.25rem; }
+.status-dot { display: inline-block; width: 0.75rem; height: 0.75rem; border-radius: 50%; }
+.status-badge { padding: 0.1rem 0.5rem; border-radius: 0.75rem; font-size: 0.85rem; background: #eef1f5; }
+.error { color: #8a1c1c; background: #fdeeee; padding: 0.5rem 0.75rem; border-radius: 0.25rem; }
+.muted { color: var(--muted); }
+.filters { display: flex; gap: 0.75rem; align-items: end; margin-bottom: 1rem; flex-wrap: wrap; }
+.pagination { display: flex; gap: 0.75rem; align-items: center; margin-top: 1rem; }

@@ -1,0 +1,6 @@
+# Tech leads of SYS-SMP own configuration and the context pack (SDD-12 §3.2).
+/tsl.yaml       @example-org/tsl-cl-int-sys-smp-leads
+/policy.yaml    @example-org/tsl-cl-int-sys-smp-leads
+/CODEOWNERS     @example-org/tsl-cl-int-sys-smp-leads
+/context/       @example-org/tsl-cl-int-sys-smp-leads
+/.github/       @example-org/tsl-platform-admins

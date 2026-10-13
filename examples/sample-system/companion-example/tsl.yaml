@@ -1,0 +1,21 @@
+schema: tsl-config.v1
+system: {code: SYS-SMP, project: PRJ-SMP, client: CL-INT}
+companion: {org: example-org, name: cl-int-sys-smp-companion}
+product_repos:
+  - name: sample-system
+    url: git@github.com:example-org/sample-system.git
+    default_branch: main
+    path: .
+    verifier_profile: node-22@1
+    pr: {branch_prefix: tsl, draft_below: High, labels: [tsl]}
+read_only_repos: []
+context:
+  drift_files: 50
+  critical_paths:
+    - "sample-system:db/migrations/**"
+    - "sample-system:api/src/auth/**"
+change_limits:
+  lines: 400
+  files: 15
+  sensitive_paths: ["**/auth/**", "**/migrations/**", ".github/**"]
+gates: {self_approval: false, lock_timeout_hours: 24}

@@ -1,0 +1,45 @@
+# Machine-readable answer key (TST-01 §4.3). Same content as SEEDED_DEFECTS.md.
+# Never part of any context pack, eval workspace or skill input.
+system: order-tracker
+defects:
+  - id: SD-01
+    category: correctness
+    skills: [defect-triage, impact-analysis]
+    cite: ["sample-system:api/src/routes/orders.ts#L20-L21", "sample-system:db/migrations/003_orders_created_at.sql#L3"]
+  - id: SD-02
+    category: security
+    skills: [secure-code-review, threat-model]
+    cite: ["sample-system:api/src/repositories/orderRepo.ts#L75", "sample-system:api/src/repositories/orderRepo.ts#L81"]
+  - id: SD-03
+    category: performance
+    skills: [impact-analysis, design]
+    cite: ["sample-system:api/src/repositories/orderRepo.ts#L87-L88"]
+  - id: SD-04
+    category: security
+    skills: [threat-model]
+    cite: ["sample-system:api/src/app.ts#L21"]
+  - id: SD-05
+    category: validation
+    skills: [test-plan, unit-test]
+    cite: ["sample-system:api/src/routes/orders.ts#L65", "sample-system:db/migrations/002_create_orders.sql#L15"]
+  - id: SD-06
+    category: correctness
+    skills: [impact-analysis, design]
+    cite: ["sample-system:api/src/lib/price.ts#L14", "sample-system:web/src/lib/price.ts#L18"]
+  - id: SD-07
+    category: accessibility
+    skills: [accessibility-review]
+    parked: "needs an invented Figma file (TST-01 open item)"
+    cite: ["sample-system:web/src/components/OrderTable.tsx#L33", "sample-system:web/src/components/OrderTable.tsx#L65"]
+  - id: SD-08
+    category: pipeline
+    skills: [pipeline-review]
+    cite: ["sample-system:.github/workflows/ci.yml#L22", "sample-system:.github/workflows/ci.yml#L26"]
+  - id: SD-09
+    category: operations
+    skills: [deployment-failure-analysis]
+    cite: ["sample-system:fixtures/logs/deploy-failure-01.log#L5", "sample-system:fixtures/logs/deploy-failure-01.log#L11"]
+  - id: SD-10
+    category: requirements
+    skills: [requirement-review, impact-analysis, design]
+    cite: ["sample-system:api/src/jobs/purge-events.ts#L12", "sample-system:docs/REQUIREMENTS.md#L11"]

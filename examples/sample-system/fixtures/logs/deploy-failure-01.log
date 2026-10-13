@@ -1,0 +1,28 @@
+2026-09-29T21:02:11.104Z deploy[order-tracker] INFO  starting rollout release=1.4.2 target=staging-a strategy=rolling replicas=2
+2026-09-29T21:02:11.390Z deploy[order-tracker] INFO  pulling image order-tracker-api:1.4.2
+2026-09-29T21:02:24.877Z deploy[order-tracker] INFO  image pulled digest=sha256:0d6e4cc1a9b2 (short)
+2026-09-29T21:02:25.012Z deploy[order-tracker] INFO  applying config set "order-tracker-staging-api" (6 keys)
+2026-09-29T21:02:25.013Z deploy[order-tracker] INFO  config keys: NODE_ENV, API_HOST, API_PORT, PGUSER, PGDATABASE, PGPASSWORD_FILE
+2026-09-29T21:02:25.140Z deploy[order-tracker] INFO  migrate job: started (config set "order-tracker-staging-migrate", 7 keys)
+2026-09-29T21:02:26.402Z migrate[order-tracker] WARN  npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory.
+2026-09-29T21:02:27.911Z migrate[order-tracker] INFO  database is up to date
+2026-09-29T21:02:28.020Z deploy[order-tracker] INFO  migrate job: completed exit=0
+2026-09-29T21:02:28.233Z deploy[order-tracker] INFO  replica api-1: container started
+2026-09-29T21:02:28.871Z api-1[order-tracker] ERROR Error: Missing required environment variable: PGHOST (or DATABASE_URL)
+2026-09-29T21:02:28.871Z api-1[order-tracker] ERROR     at loadConfig (/app/api/dist/config.js:27:15)
+2026-09-29T21:02:28.871Z api-1[order-tracker] ERROR     at Object.<anonymous> (/app/api/dist/server.js:6:35)
+2026-09-29T21:02:28.902Z deploy[order-tracker] WARN  replica api-1: container exited code=1 (restart 1/5)
+2026-09-29T21:02:30.115Z api-1[order-tracker] ERROR Error: Missing required environment variable: PGHOST (or DATABASE_URL)
+2026-09-29T21:02:30.140Z deploy[order-tracker] WARN  replica api-1: container exited code=1 (restart 2/5)
+2026-09-29T21:02:33.560Z deploy[order-tracker] WARN  health check GET /api/health on api-1: connection refused
+2026-09-29T21:02:34.502Z api-1[order-tracker] ERROR Error: Missing required environment variable: PGHOST (or DATABASE_URL)
+2026-09-29T21:02:34.530Z deploy[order-tracker] WARN  replica api-1: container exited code=1 (restart 3/5)
+2026-09-29T21:02:41.007Z deploy[order-tracker] WARN  health check GET /api/health on api-1: timeout after 5000ms
+2026-09-29T21:02:43.288Z api-1[order-tracker] ERROR Error: Missing required environment variable: PGHOST (or DATABASE_URL)
+2026-09-29T21:02:43.311Z deploy[order-tracker] WARN  replica api-1: container exited code=1 (restart 4/5)
+2026-09-29T21:02:59.640Z api-1[order-tracker] ERROR Error: Missing required environment variable: PGHOST (or DATABASE_URL)
+2026-09-29T21:02:59.662Z deploy[order-tracker] ERROR replica api-1: CrashLoopBackOff after 5 restarts
+2026-09-29T21:03:00.001Z deploy[order-tracker] WARN  disk usage on node staging-a-2 at 81%
+2026-09-29T21:03:00.004Z deploy[order-tracker] ERROR rollout failed: 0/2 replicas ready within 45s
+2026-09-29T21:03:00.210Z deploy[order-tracker] INFO  rolling back to release=1.4.1
+2026-09-29T21:03:14.732Z deploy[order-tracker] INFO  rollback complete release=1.4.1 replicas=2/2 ready

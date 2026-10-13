@@ -445,6 +445,8 @@ Laptop paths (not in the companion repo): `~/.truminds/` per SDD-04 §7.3 (`conf
 | `OQ-01`–`OQ-16` | 16 | Open questions; next free `OQ-17` | Doc 1 §8 (PRD), process GOV-01 |
 | `TC-<AREA>-nnn` | `TC-TSL`, `TC-HK`, `TC-SCH`, `TC-DEC`, `TC-REV`, `TC-SEC`, `TC-INS`, `TC-POR`, `TC-E2E`, `TC-PLG`, `TC-EVL`, `TC-SAM`, `TC-DATA`, `TC-ACC`, `TC-OPS` | Test cases | TST-01 §5 (`TC-OPS` added by OPS-02 §12; `TC-POR-011/012`, `TC-INS-011` by SDD-09) |
 | `EC-nn` | per skill | Eval cases | SDD-01 §10 |
+| `SD-01`–`SD-10` | 10 | Seeded defects in the sample system (`SD-10` = order-history retention mismatch, added with the sample-system build); answer key `examples/sample-system/.answers/` | TST-01 §4.3 |
+| `ABC-142`–`ABC-180` | 8 (142, 150, 158, 163, 170, 171, 175, 180) | Invented sample-system change tickets, `examples/sample-system/tickets/` | TST-01 §4.4 |
 | `SKL-V01`–`SKL-V15` | 15 | Skill validation rules | SDD-01 §14.1 |
 | `POD-V01`–`POD-V15` | 15 | Pod validation rules | SDD-10 §9 |
 | `H1`–`H7`, `S1`–`S6` | — | Hard gates and signals (not spikes: spikes are always `S-nn` with a hyphen) | Doc 3 §5 |
