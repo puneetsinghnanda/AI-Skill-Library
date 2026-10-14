@@ -15,6 +15,15 @@ TTL = timedelta(hours=24)
 APP_ROLES_ALLOWED = {"Engineer", "TechLead", "Admin"}
 
 
+def app_roles(me: dict[str, Any]) -> set[str]:
+    """App roles from a ``GET /v1/me`` body. The service returns them in ``data.app_roles``
+    (registry §4, the portal reads the same field); older caches held them at the top level."""
+    data = me.get("data")
+    nested = data.get("app_roles") if isinstance(data, dict) else None
+    roles = nested if isinstance(nested, list) else me.get("app_roles", [])
+    return {str(r) for r in roles or []}
+
+
 def cached_me(rt: Runtime) -> dict[str, Any] | None:
     p = rt.home.me
     if not p.exists():

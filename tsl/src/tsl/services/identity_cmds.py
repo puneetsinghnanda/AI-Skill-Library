@@ -23,7 +23,7 @@ def _me_data(rt: Runtime, me: dict[str, Any], info: dict[str, Any] | None) -> di
     return {
         "pseudonym": me.get("pseudonym"),
         "upn": me.get("upn"),
-        "app_roles": me.get("app_roles", []),
+        "app_roles": sorted(memod.app_roles(me)),
         "grants": me.get("grants", []),
         "key_id": (info or {}).get("key_id"),
         "device_id": rt.device_id(),
@@ -73,7 +73,7 @@ def login(rt: Runtime, rotate_key: bool, interactive: bool | None = None) -> dic
         from tsl.core.jsonio import write_json
 
         write_json(rt.home.me, me)
-    if not set(me.get("app_roles", [])) & memod.APP_ROLES_ALLOWED:
+    if not memod.app_roles(me) & memod.APP_ROLES_ALLOWED:
         raise TslError("E-AUTH-08")
     sub = str(me.get("oid") or me.get("pseudonym"))
     info, new = keymod.ensure_key(rt, token, sub, force_new=rotate_key)

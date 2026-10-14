@@ -194,3 +194,19 @@ def test_revoked_key_rejected_on_write_paths(
     assert r.status_code in (400, 409)
     r = client.get(f"/v1/keys/{kid}", headers=bearer(ci_token))
     assert r.status_code == 200 and r.json()["revoked_reason"] == "lost_device"
+
+
+@pytest.mark.parametrize(
+    ("who", "allowed"),
+    [("eng", True), ("lead", True), ("admin2", True), ("biz", False)],
+)
+def test_tsl_reads_app_roles_from_me(
+    client: TestClient, token: TokenFactory, people: dict[str, Person], who: str, allowed: bool
+) -> None:
+    """tsl's login check (APP_ROLES_ALLOWED) must see the roles in the real GET /v1/me body."""
+    me_mod = _tsl("tsl.identity.me")
+    p = people[who]
+    body = client.get("/v1/me", headers=bearer(token(p.oid, p.roles))).json()
+    roles = me_mod.app_roles(body)
+    assert roles == set(p.roles)
+    assert bool(roles & me_mod.APP_ROLES_ALLOWED) is allowed
