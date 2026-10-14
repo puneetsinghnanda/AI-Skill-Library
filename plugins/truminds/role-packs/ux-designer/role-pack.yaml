@@ -1,0 +1,21 @@
+# Role pack for the UX Designer agent (SDD-01 §11.3, PRD FR-AGT-02).
+# Proposed (GAP-04): Puneet to confirm role packs are still wanted. Starts at draft (RP-V05).
+schema: role-pack.v1
+id: ux-designer
+version: 1.0.0
+status: draft
+title: UX Designer
+owner: skill-owner-ad7f
+persona: P-07
+summary: Reviews design-tool flows and checks screens against WCAG 2.1 AA, read-only.
+skills:
+- accessibility-review@^1.0
+- ux-flow-review@^1.0
+rubrics:
+- skill: accessibility-review
+  path: skills/accessibility-review/rubric.md
+- skill: ux-flow-review
+  path: skills/ux-flow-review/rubric.md
+default_workflows:
+- ux-review@^1.0
+deprecated_by: null

@@ -23,6 +23,7 @@ from tests.conftest import (
     post,
     project,
     run_started,
+    skill_version,
     step_decided,
 )
 
@@ -54,7 +55,13 @@ def _run(
         ),
         event(
             "step.started",
-            {"step": "design", "skill": "design", "skill_version": "1.4.0", "attempt": 1, "seq": 4},
+            {
+                "step": "design",
+                "skill": "design",
+                "skill_version": skill_version("design"),
+                "attempt": 1,
+                "seq": 4,
+            },
             run_id,
             now_iso(base + 1),
         ),
@@ -63,7 +70,7 @@ def _run(
             step_decided(
                 "design",
                 "design",
-                "1.4.0",
+                skill_version("design"),
                 1,
                 outcome,
                 "High" if outcome == "PASS" else "Low",
@@ -307,7 +314,11 @@ def test_catalogue_routes(
     q = client.get("/v1/catalogue/skills?q=threat", headers=hb).json()["data"]["items"]
     assert [x["id"] for x in q] == ["threat-model"]
     d = client.get("/v1/catalogue/skills/design", headers=hb).json()["data"]
-    assert d["workflows"] and d["current"]["version"] == "1.4.0" and "cases" in d["eval"]
+    assert (
+        d["workflows"]
+        and d["current"]["version"] == skill_version("design")
+        and "cases" in d["eval"]
+    )
     rel = client.get("/v1/catalogue/releases?limit=1", headers=hb).json()
     assert rel["data"]["items"][0]["tag"] == "v0.1.0"
     # cursor paging over skills
@@ -482,10 +493,10 @@ def test_engineering_tabs(
         gold = c.execute(
             text(
                 "SELECT count(*) FILTER (WHERE s.outcome IN ('PASS','PASS-WITH-FINDINGS'))::numeric / count(*) FROM steps s "
-                "JOIN runs r ON r.id = s.run_id WHERE s.attempt = 1 AND s.skill_id = 'design' AND s.skill_version = '1.4.0' "
+                "JOIN runs r ON r.id = s.run_id WHERE s.attempt = 1 AND s.skill_id = 'design' AND s.skill_version = :v "
                 "AND r.system_id = CAST(:s AS uuid) AND s.decided_at::date >= current_date - 29"
             ),
-            {"s": world.system_id},
+            {"s": world.system_id, "v": skill_version("design")},
         ).scalar_one()
     assert design["first_try_pass"] == pytest.approx(float(gold), abs=1e-3)  # M-03 golden SQL
     assert design["below_target"] is True and design["top_cause"]["code"] in ("S1", "REVIEW-MAJOR")

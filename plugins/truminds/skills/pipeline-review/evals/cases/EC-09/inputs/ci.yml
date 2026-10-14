@@ -1,0 +1,9 @@
+# Invented CI file for the sample-orders system (fixture)
+name: ci
+on: [pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci && npm test

@@ -1,0 +1,5 @@
+2026-01-05T14:00:01Z step 1/4 checkout ok
+2026-01-05T14:00:30Z step 2/4 migrate: 007_add_delivery_slot.sql applied
+2026-01-05T14:00:31Z step 3/4 build image
+2026-01-05T14:01:02Z step 3/4 error: ENOSPC: no space left on device
+2026-01-05T14:01:02Z step 3/4 exit code 1

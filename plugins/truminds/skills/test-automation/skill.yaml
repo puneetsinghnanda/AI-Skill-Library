@@ -1,8 +1,8 @@
 # Skill code: TA (SDD-01 §12). R1 target status: pilot.
-# evals.min_cases stays 10 (schema minimum); this folder ships 3 starter cases, see README.
+# evals: 10 cases with the SDD-01 §10.3 mix (GAP-03); a signed eval result is still needed (SKL-V13).
 schema: skill-metadata.v1
 id: test-automation
-version: 1.0.0
+version: 1.0.1
 agent: qa-engineer
 status: pilot
 owner: skill-owner-7a4c

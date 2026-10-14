@@ -1,0 +1,3 @@
+# Invented design-tool export (read-only MCP fetch), sample-orders customer orders export flow
+node 14:2 Frame "Customer orders"      button "Export CSV" -> 14:7
+node 14:7 Frame "Export"               text "" (blank frame, no progress, no error, no link back)

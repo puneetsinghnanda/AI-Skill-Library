@@ -1,0 +1,21 @@
+schema: eval-case.v1
+id: EC-08
+title: 'Ambiguous input: two acceptance criteria ask for different label text'
+kind: edge
+inputs:
+  design: inputs/design.md
+  stories: inputs/stories.md
+  conventions: inputs/conventions.md
+  module_map: inputs/module-map.json
+expect:
+  outcome_in:
+  - NEEDS-INPUT
+  gates:
+    H5: pass
+  assert:
+  - path: questions[?blocking==`true`]
+    count_min: 1
+provenance: invented
+attestation:
+  by: skill-owner-6f3b
+  statement: All inputs are invented for an invented system; no client material was used.

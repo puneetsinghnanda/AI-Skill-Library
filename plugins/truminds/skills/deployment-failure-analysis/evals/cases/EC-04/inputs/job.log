@@ -1,0 +1,4 @@
+2026-01-05T10:00:01Z step 1/4 checkout ok
+2026-01-05T10:00:09Z step 2/4 npm ERR! `npm ci` can only install packages when your package.json and package-lock.json are in sync
+2026-01-05T10:00:09Z step 2/4 exit code 1
+2026-01-05T10:00:10Z step 3/4 skipped

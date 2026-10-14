@@ -15,10 +15,12 @@ from tests.conftest import (
     bearer,
     event,
     new_run,
+    next_patch,
     now_iso,
     post,
     project,
     run_started,
+    skill_version,
     step_decided,
 )
 
@@ -44,7 +46,7 @@ def report(
                 step_decided(
                     "threat",
                     "threat-model",
-                    "1.0.0",
+                    skill_version("threat-model"),
                     1,
                     "PASS" if i < 3 else "RETRY",
                     "Low",
@@ -149,8 +151,8 @@ def test_improvement_proposed_event(
                 {
                     "improvement_id": imp,
                     "skill": "threat-model",
-                    "from_version": "1.0.0",
-                    "to_version": "1.0.1",
+                    "from_version": skill_version("threat-model"),
+                    "to_version": next_patch(skill_version("threat-model")),
                     "flag_ids": [fid],
                     "before_pass_rate": 0.8,
                     "after_pass_rate": 0.95,

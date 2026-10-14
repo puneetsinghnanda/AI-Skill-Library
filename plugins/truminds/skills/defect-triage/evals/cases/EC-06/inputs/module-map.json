@@ -1,0 +1,50 @@
+{
+  "schema": "context-facts.v1",
+  "section": "module-map",
+  "extractor": {
+    "name": "js-module",
+    "version": "1.0.0"
+  },
+  "sources": {
+    "sample-library": "18bd57b3db50906281c872e00dd5ab89f5575530"
+  },
+  "empty_reason": null,
+  "facts": [
+    {
+      "id": "module:sample-library:api/src/loans",
+      "kind": "module",
+      "source": {
+        "repo": "sample-library",
+        "path": "api/src/loans/index.js",
+        "line": 1
+      }
+    },
+    {
+      "id": "module:sample-library:api/src/members",
+      "kind": "module",
+      "source": {
+        "repo": "sample-library",
+        "path": "api/src/members/index.js",
+        "line": 1
+      }
+    },
+    {
+      "id": "module:sample-library:api/src/catalogue",
+      "kind": "module",
+      "source": {
+        "repo": "sample-library",
+        "path": "api/src/catalogue/index.js",
+        "line": 1
+      }
+    },
+    {
+      "id": "module:sample-library:web/src/loans",
+      "kind": "module",
+      "source": {
+        "repo": "sample-library",
+        "path": "web/src/loans/index.jsx",
+        "line": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+schema: eval-case.v1
+id: EC-05
+title: Two completed runs on the support system
+kind: normal
+inputs:
+  run_states: inputs/runs
+expect:
+  outcome_in:
+  - PASS
+  gates:
+    H1: pass
+    H2: pass
+  assert:
+  - path: counts.runs
+    equals: 2
+  - path: counts.completed
+    equals: 2
+provenance: invented
+attestation:
+  by: skill-owner-be8a
+  statement: All inputs are invented for an invented system; no client material was used.

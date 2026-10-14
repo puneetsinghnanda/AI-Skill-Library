@@ -1,0 +1,23 @@
+schema: eval-case.v1
+id: EC-09
+title: Requirement uses 'dispatched'; the glossary has no such order status
+kind: conflict
+inputs:
+  intent: inputs/intent.md
+  glossary: inputs/glossary.md
+expect:
+  outcome_in:
+  - PASS-WITH-FINDINGS
+  - NEEDS-INPUT
+  gates:
+    H1: pass
+    H2: pass
+  assert:
+  - path: questions
+    count_min: 1
+  - path: questions[].evidence[]
+    any_matches: glossary\.md#|intent\.md#
+provenance: invented
+attestation:
+  by: skill-owner-4c1d
+  statement: All inputs are invented for an invented system; no client material was used.

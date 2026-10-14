@@ -1,0 +1,41 @@
+{
+  "schema": "context-facts.v1",
+  "section": "test-layout",
+  "extractor": {
+    "name": "js-test",
+    "version": "1.0.0"
+  },
+  "sources": {
+    "sample-support": "7b61d5ea1dcde6fa81e9f8b92adc0680b4de7619"
+  },
+  "empty_reason": null,
+  "facts": [
+    {
+      "id": "test:sample-support:api/test/tickets.test.js",
+      "kind": "test",
+      "source": {
+        "repo": "sample-support",
+        "path": "api/test/tickets.test.js",
+        "line": 1
+      }
+    },
+    {
+      "id": "test:sample-support:api/test/sla.test.js",
+      "kind": "test",
+      "source": {
+        "repo": "sample-support",
+        "path": "api/test/sla.test.js",
+        "line": 1
+      }
+    },
+    {
+      "id": "test:sample-support:web/src/tickets/TicketPage.test.jsx",
+      "kind": "test",
+      "source": {
+        "repo": "sample-support",
+        "path": "web/src/tickets/TicketPage.test.jsx",
+        "line": 1
+      }
+    }
+  ]
+}

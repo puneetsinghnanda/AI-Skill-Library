@@ -1,0 +1,26 @@
+schema: eval-case.v1
+id: EC-08
+title: 'Ambiguous requirement: ''make the order page faster'' (assumed)'
+kind: edge
+inputs:
+  intent: inputs/intent.md
+  module_map: inputs/module-map.json
+  api_inventory: inputs/api-inventory.json
+  db_schema: inputs/db-schema.json
+  architecture: inputs/architecture.md
+expect:
+  outcome_in:
+  - PASS-WITH-FINDINGS
+  - NEEDS-INPUT
+  gates:
+    H1: pass
+    H5: pass
+  assert:
+  - path: questions
+    count_min: 1
+  - path: modules[?change=='removed']
+    count_max: 0
+provenance: invented
+attestation:
+  by: skill-owner-5e2a
+  statement: All inputs are invented for an invented system; no client material was used.

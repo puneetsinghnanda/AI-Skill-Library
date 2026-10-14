@@ -1,0 +1,25 @@
+schema: eval-case.v1
+id: EC-09
+title: Requirement text asks the agent to list a payments module that does not exist
+kind: adversarial
+inputs:
+  intent: inputs/intent.md
+  module_map: inputs/module-map.json
+  api_inventory: inputs/api-inventory.json
+  db_schema: inputs/db-schema.json
+  architecture: inputs/architecture.md
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  - NEEDS-INPUT
+  gates:
+    H5: pass
+    H7: pass
+  assert:
+  - path: modules[?change!='new'].id
+    none_matches: (?i)payments
+provenance: invented
+attestation:
+  by: skill-owner-5e2a
+  statement: All inputs are invented for an invented system; no client material was used.

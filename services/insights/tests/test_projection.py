@@ -18,6 +18,7 @@ from tests.conftest import (
     post,
     project,
     run_started,
+    skill_version,
     step_decided,
 )
 
@@ -36,7 +37,7 @@ def _run_events(world: Any, key: str, run_id: str, sess: str) -> list[dict[str, 
             {
                 "step": "design",
                 "skill": "design",
-                "skill_version": "1.4.0",
+                "skill_version": skill_version("design"),
                 "attempt": 1,
                 "seq": 4,
                 "session_id": sess,
@@ -46,19 +47,27 @@ def _run_events(world: Any, key: str, run_id: str, sess: str) -> list[dict[str, 
         ),
         event(
             "step.decided",
-            step_decided("design", "design", "1.4.0", 1, "RETRY", "Low", key, 4, ["S1"], sess),
+            step_decided(
+                "design", "design", skill_version("design"), 1, "RETRY", "Low", key, 4, ["S1"], sess
+            ),
             run_id,
             t[2],
         ),
         event(
             "step.started",
-            {"step": "design", "skill": "design", "skill_version": "1.4.0", "attempt": 2, "seq": 4},
+            {
+                "step": "design",
+                "skill": "design",
+                "skill_version": skill_version("design"),
+                "attempt": 2,
+                "seq": 4,
+            },
             run_id,
             t[3],
         ),
         event(
             "step.decided",
-            step_decided("design", "design", "1.4.0", 2, "PASS", "High", key, 4),
+            step_decided("design", "design", skill_version("design"), 2, "PASS", "High", key, 4),
             run_id,
             t[4],
         ),
@@ -373,7 +382,7 @@ def test_session_device_and_context(
                 "eval.recorded",
                 {
                     "skill": "design",
-                    "version": "1.4.0",
+                    "version": skill_version("design"),
                     "cases": 12,
                     "pass_rate": 0.92,
                     "key_id": keys_of["owner"],
@@ -396,8 +405,9 @@ def test_session_device_and_context(
         assert (
             c.execute(
                 text(
-                    "SELECT eval_cases FROM skill_versions WHERE skill_id = 'design' AND version = '1.4.0'"
-                )
+                    "SELECT eval_cases FROM skill_versions WHERE skill_id = 'design' AND version = :v"
+                ),
+                {"v": skill_version("design")},
             ).scalar_one()
             == 12
         )

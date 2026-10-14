@@ -1,0 +1,6 @@
+2026-01-05T13:00:01Z step 1/4 checkout ok
+2026-01-05T13:00:05Z step 2/4 npm WARN deprecated some-old-package@1.0.0
+2026-01-05T13:00:20Z step 2/4 npm ci ok
+2026-01-05T13:00:40Z step 3/4 migrate: running 007_add_delivery_slot.sql
+2026-01-05T13:00:41Z step 3/4 migrate: error: checksum mismatch for 006_create_shipment.sql
+2026-01-05T13:00:41Z step 3/4 exit code 1

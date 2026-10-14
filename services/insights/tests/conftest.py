@@ -53,6 +53,21 @@ PASSWORDS = {
 }
 
 
+def skill_version(skill_id: str) -> str:
+    """Current version of a plugin skill, read from its skill.yaml (tests must not pin versions)."""
+    import yaml
+
+    data = yaml.safe_load(
+        (ROOT / "plugins" / "truminds" / "skills" / skill_id / "skill.yaml").read_text()
+    )
+    return str(data["version"])
+
+
+def next_patch(version: str) -> str:
+    major, minor, patch = version.split(".")
+    return f"{major}.{minor}.{int(patch) + 1}"
+
+
 def _free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -449,7 +464,7 @@ def run_started(
         "ticket_ref": ticket,
         "system": system,
         "plugin_version": "0.1.0",
-        "pinned_skills": {"design": "1.4.0"},
+        "pinned_skills": {"design": skill_version("design")},
     }
     if pod:
         b["pod"] = pod

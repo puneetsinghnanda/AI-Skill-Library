@@ -20,6 +20,7 @@
 - The lifecycle states `draft → pilot → production → deprecated` and the promotion criteria between them.
 - The rubric format, the checks declaration format and the eval format (minimum 10 cases, invented data only).
 - The role taxonomy of eight roles and the SDLC phase list.
+- Role packs: the skills, rubrics and default workflows of each role, as referenced by pods (§11.3, proposed).
 - The Release-1 skill catalogue.
 - A fully worked reference skill, `requirement-review`, which Batch 3 implements.
 - How a skill author tests locally before opening a pull request.
@@ -505,6 +506,79 @@ These eight names match the portal prototype. Doc 1 FR-AGT-01 and Doc 2 §1 use 
 
 `requirements`, `design`, `build`, `test`, `operate`. These are the columns of the capability map (Doc 4 §2.0.4).
 
+### 11.3 Role packs (proposed)
+
+> **Status: proposed.** Doc 1 FR-AGT-02 and PLN-01 ST-05.5 ask for one role pack per agent. Puneet to confirm role packs are still wanted (O-11). Until then the files exist at `draft` and nothing at run time reads them.
+
+A **role pack** is the bundle that defines one agent role from §11.1: the skills that role owns, the rubric of each skill, and the workflows the role runs by default. It is a packaging and reporting file, like a pod ([SDD-10 §1.3](SDD-10-pods.md)). It never runs anything and never limits what Claude Code loads.
+
+**Location.** One folder per role inside the plugin, so the plugin ships every role pack (FR-AGT-02):
+
+```text
+plugins/truminds/role-packs/
+└─ developer/
+   ├─ role-pack.yaml        # schema role-pack.v1
+   └─ CHANGELOG.md          # one entry per version, newest first
+```
+
+The folder name is the role id. There are exactly eight folders, one per role in §11.1. The JSON Schema is `schemas/role-pack.v1.json`.
+
+**Example.**
+
+```yaml
+schema: role-pack.v1
+id: developer                       # req; role id from §11.1 = folder name
+version: 1.0.0                      # req; SemVer
+status: draft                       # req; draft | pilot | production | deprecated
+title: Developer                    # req; display name from §11.1
+owner: skill-owner-6f3b             # req; pseudonym
+persona: P-03                       # req; typical persona from §11.1
+summary: Implements approved designs and defect fixes with unit tests, inside the change limits.
+skills: [defect-triage@^1.0, implement@^1.0, unit-test@^1.0]    # req; every skill whose agent is this role
+rubrics:                            # req; one entry per skill, path relative to the plugin root
+  - {skill: defect-triage, path: skills/defect-triage/rubric.md}
+  - {skill: implement, path: skills/implement/rubric.md}
+  - {skill: unit-test, path: skills/unit-test/rubric.md}
+default_workflows: [brownfield-change@^1.3, defect-fix@^1.0]    # req; may be empty
+deprecated_by: null                 # req when status = deprecated
+```
+
+| Field | Rule |
+| --- | --- |
+| `skills[]` | Exactly the skills whose `skill.yaml` `agent` equals `id` and that are not deprecated, as `id@range`. A skill belongs to one role pack only. A skill from another role is never added here; a pod lends it to an agent through `cross_role_skills` ([SDD-10 §3.4](SDD-10-pods.md)) |
+| `rubrics[]` | One entry per skill in `skills[]`. `path` is the skill's `skill.yaml` `rubric`, under `skills/<id>/`. The role pack does not add or override rubric criteria; the reviewer always scores with the skill's own rubric (§8) |
+| `default_workflows[]` | Workflows that start or mostly run this role's skills. Each must use at least one skill in `skills[]`. The portal and `tsl` may suggest them to an engineer of this role; they never restrict which workflows the engineer can run |
+| `status` | Never above the lowest status of its skills and default workflows (same rule as §7 for workflows and POD-V07 for pods) |
+
+**How pods use role packs.** A pod agent is built from one role ([SDD-10 §3.4](SDD-10-pods.md)). The role pack of that agent is the one whose `id` equals `agents[].role`. `pod.v1` is closed and has no field that names a role pack. So the link is through the role id, and no pod file changes. Rule RP-V06 keeps the two files consistent: every skill on a pod agent is either in that agent's role pack or listed in the agent's `cross_role_skills`. An explicit, version-pinned reference (`agents[].role_pack: developer@^1.0`) needs a `pod.v1` change that SDD-10 owns; see O-12.
+
+```mermaid
+erDiagram
+  ROLE ||--|| ROLE_PACK : "defined by (id = role)"
+  ROLE_PACK ||--|{ SKILL : "skills (agent = role)"
+  ROLE_PACK ||--|{ RUBRIC : "rubric of each skill"
+  ROLE_PACK }o--o{ WORKFLOW : "default_workflows"
+  POD_AGENT }o--|| ROLE : "agents[].role"
+  POD_AGENT }o--o{ SKILL : "cross_role_skills (other role packs)"
+```
+
+**Versioning.** MAJOR when a skill or default workflow is removed or its range moves to a new major. MINOR when a skill or default workflow is added, or a range is narrowed. PATCH for `summary` or `title` wording. Every bump needs a CHANGELOG entry. Adding a skill to the catalogue under a role means a MINOR bump of that role's pack in the same pull request (RP-V02 fails otherwise).
+
+**Validation (`tsl validate plugins/truminds/role-packs/<role>`, proposed).** Until `tsl` gains these rules, the plugin structure tests check them (`plugins/truminds/tests/test_role_packs.py`).
+
+| Rule | Check | Level |
+| --- | --- | --- |
+| RP-V01 | Valid against `role-pack.v1`; `id` = folder name; one folder per role in §11.1, no others | Error |
+| RP-V02 | `skills[]` = the set of non-deprecated skills whose `agent` equals `id`; every range resolves to the current skill version | Error |
+| RP-V03 | `rubrics[]` has one entry per skill; each `path` is that skill's `rubric` file and exists | Error |
+| RP-V04 | Every `default_workflows[]` entry resolves to a `workflow.v1` file in range and uses at least one skill in `skills[]` | Error |
+| RP-V05 | Status ≤ the lowest status of its skills and default workflows; `deprecated_by` set when deprecated | Error |
+| RP-V06 | For every pod agent: the role has a role pack, and every agent skill not in `cross_role_skills` is in that role pack | Error |
+| RP-V07 | Version bumped vs `main` when content changed; bump class matches the rule above; CHANGELOG entry present | Error |
+| RP-V08 | No forbidden content (H4 detector); text limits: title ≤ 40, summary ≤ 200 characters | Error |
+
+**What a role pack does not do.** It does not install or hide skills. Managed settings force-enable one plugin with every skill (SDD-05 §6), so all eight role packs reach every seat. FR-AGT-02 says "the plugin installs one role pack per agent"; with one force-enabled plugin, that holds only in the sense that the plugin ships all eight. Per-role installation would need one plugin per role and per-group managed settings, which SDD-05 §6 does not design (one force-enabled `truminds` plugin) and which depends on spike S-12 (O-13).
+
 ## 12. Release-1 skill catalogue
 
 Matches the Skills screen and the capability map in [InsightsBusiness.dc.html](../ux/prototype/InsightsBusiness.dc.html). **Every skill starts at `draft`.** "R1 target status" is the status the prototype shows for Release 1; reaching it needs the promotion criteria in §7.1.
@@ -817,6 +891,8 @@ Failures exit 2 with a list of rule ids (US-15).
 - `requirement-review` exists as in §13, with 10 eval cases, good and bad examples, and a signed eval result with pass rate ≥ 0.9.
 - SKL-V01 to SKL-V15 implemented in `tsl validate` with one failing fixture each.
 - The Release-1 catalogue in §12 is mirrored by `skill.yaml` files (status `draft`) as each skill is started.
+- Every skill has at least 10 eval cases with the §10.3 mix (structure test `test_eval_case_mix_follows_sdd01_10_3`).
+- If O-11 confirms role packs: eight `role-pack.yaml` files pass RP-V01 to RP-V08, and `tsl validate` implements them.
 - Owners Abhishek Verma and Ekjot Singh have signed off this document.
 
 ## 18. Open items
@@ -833,3 +909,7 @@ Failures exit 2 with a list of rule ids (US-15).
 | O-08 | `data` shape returned by `tsl verify --inputs` and the new `tsl eval check` command | new | Japman Singh, Yash Khorwal (SDD-04) |
 | O-09 | Stage approvers who can promote to production | OQ-07 | Puneet |
 | O-10 | Secret scanner configuration that treats `FAKE-KEY-*` as test data only inside `evals/**` | Q12 | Shubham Bansal, SEC-01 |
+| O-11 | Role packs (§11.3, `role-pack.v1`) are a proposal written to close traceability GAP-04. Confirm they are still wanted; if not, delete `plugins/truminds/role-packs/`, the schema and RP-V rules, and mark FR-AGT-02's role-pack clause dropped in Doc 1 | PRD FR-AGT-02; PLN-01 ST-05.5 | Puneet |
+| O-12 | `pod.v1` agents cannot name a role pack (closed schema). Pods link to role packs through `agents[].role` only (RP-V06). An explicit pinned `agents[].role_pack` field is an additive `pod.v1` change that SDD-10 must accept | SDD-10 §3.3 | Abhishek Verma, Ekjot Singh (SDD-10) |
+| O-13 | FR-AGT-02 says the plugin "installs one role pack per agent". SDD-05 force-enables one plugin with every skill, so a role pack cannot limit installation. Accept "ships" in place of "installs", or ask for one plugin per role (a change to SDD-05 §6) | PRD FR-AGT-02; SDD-05 §6 | Puneet |
+| O-14 | `status-report` is in no workflow, so the Delivery Manager role pack lists only `estimate` as a default workflow | §11.3; SDD-02 | SDD-02 owners |

@@ -1,0 +1,26 @@
+schema: eval-case.v1
+id: EC-08
+title: 'Very long input: five stories in one ticket'
+kind: edge
+inputs:
+  stories: inputs/stories.md
+  architecture: inputs/architecture.md
+  module_map: inputs/module-map.json
+  api_inventory: inputs/api-inventory.json
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  - NEEDS-INPUT
+  gates:
+    H1: pass
+    H5: pass
+  assert:
+  - path: components
+    count_min: 2
+  - path: endpoints[?change=='new']
+    count_min: 1
+provenance: invented
+attestation:
+  by: skill-owner-5e2a
+  statement: All inputs are invented for an invented system; no client material was used.

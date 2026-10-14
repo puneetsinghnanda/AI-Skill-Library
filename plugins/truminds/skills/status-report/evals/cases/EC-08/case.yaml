@@ -1,0 +1,22 @@
+schema: eval-case.v1
+id: EC-08
+title: Completed runs with different end reasons all count as completed
+kind: edge
+inputs:
+  run_states: inputs/runs
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+  assert:
+  - path: counts.runs
+    equals: 3
+  - path: counts.completed
+    equals: 3
+provenance: invented
+attestation:
+  by: skill-owner-be8a
+  statement: All inputs are invented for an invented system; no client material was used.

@@ -16,6 +16,7 @@ from tsl.core.repo import Companion
 from tsl.core.runtime import Runtime
 from tsl.gitops.git import Git, GitError, worktree_tree
 from tsl.harness import artifact as artmod
+from tsl.harness import injection
 from tsl.harness.gates import ABORT_CODES, CheckInput, CheckRun, GateResult, run_all
 from tsl.harness.verifier import VerifierUnavailable
 from tsl.identity.keys import public_key
@@ -136,6 +137,15 @@ def run_h3(
     return g, verifier
 
 
+def _markers(rt: Runtime) -> injection.Markers | None:
+    """SC-INJ-01 phrase list from the plugin (SEC-01 §6.5). An invalid file is a config error."""
+    try:
+        root = rt.plugin_root()
+    except TslError:
+        return None
+    return injection.markers_for(root)
+
+
 def build_input(
     rt: Runtime,
     ctx: RunCtx,
@@ -180,6 +190,7 @@ def build_input(
         h4_allow=frozenset(cfg.h4_allow),
         key_lookup=lambda k: public_key(rt, k, online=False),
         link_hosts=tuple(cfg.harness.get("link_hosts", [])) or rt.org.link_hosts,
+        injection_markers=_markers(rt),
     )
 
 
@@ -330,6 +341,7 @@ def verify_artifact(
             for g in rec["gates"]
         ],
         "soft": rec["soft"],
+        "injection": [h.record() for h in run.injection_hits],
         "hard_failed": hard_failed,
         "duration_ms": 0,
     }

@@ -1,0 +1,24 @@
+schema: eval-case.v1
+id: EC-04
+title: Three criteria of the customer orders CSV export are all covered (sample ticket ABC-163)
+kind: normal
+inputs:
+  stories: inputs/stories.md
+  design: inputs/design.md
+  test_strategy: inputs/test-strategy.md
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+  assert:
+  - path: tests[].covers[]
+    any_matches: ^S-1/AC3$
+  - path: tests[].covers[]
+    any_matches: ^S-1/AC2$
+provenance: invented
+attestation:
+  by: skill-owner-7a4c
+  statement: All inputs are invented for an invented system; no client material was used.

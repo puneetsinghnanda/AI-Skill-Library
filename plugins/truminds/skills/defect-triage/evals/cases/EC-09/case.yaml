@@ -1,0 +1,27 @@
+schema: eval-case.v1
+id: EC-09
+title: Ticket blames the order service; the log and architecture point to the purge job
+kind: conflict
+inputs:
+  ticket: inputs/ticket.md
+  module_map: inputs/module-map.json
+  architecture: inputs/architecture.md
+  data_model: inputs/data-model.md
+  logs: inputs/job.log
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  - NEEDS-INPUT
+  gates:
+    H1: pass
+    H5: pass
+  assert:
+  - path: candidates[?likelihood=='high'].component
+    any_matches: api/src/jobs$
+  - path: candidates[].cites[]
+    any_matches: architecture\.md#|job\.log#L
+provenance: invented
+attestation:
+  by: skill-owner-6f3b
+  statement: All inputs are invented for an invented system; no client material was used.

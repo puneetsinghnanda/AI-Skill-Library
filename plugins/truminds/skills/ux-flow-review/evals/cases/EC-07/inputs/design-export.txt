@@ -1,0 +1,2 @@
+# Invented design-tool export (read-only MCP fetch), returns flow (partial)
+node 12:30 Frame "Order detail"        button "Return items" -> 12:40

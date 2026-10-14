@@ -1,0 +1,48 @@
+# Verifier profile python-312@1 (SDD-03 §4.5, §5.5; schema verifier-profile.v1). Image: Dockerfile in this folder.
+# image: the digest below is a PLACEHOLDER (all zeros). .github/workflows/verifier-images.yml builds this
+# folder's Dockerfile and prints the digest; a maintainer sets it here in a reviewed PR once the GitHub
+# org and registry are known (OQ-10; also replace <org>). Until then tsl refuses the image with E-H3-07.
+# Images are referenced by digest only, never by tag.
+# Every step runs in its own container. Only prepare has network (package registry): it copies the
+# read-only source (/src) into the cache volume (/cache/w) and installs from the lock file there.
+# Reports go to /out; `report` names the file there whose SHA-256 goes into checks.json.
+schema: verifier-profile.v1
+id: python-312@1
+image: ghcr.io/<org>/truminds/verifier-python-312@sha256:0000000000000000000000000000000000000000000000000000000000000000
+workdir: /src
+exclude_from_risk: ["uv.lock", "**/__snapshots__/**"]
+steps:
+  prepare:
+    cmd: "rm -rf /cache/w && mkdir -p /cache/w && cp -a /src/. /cache/w/ && cd /cache/w && uv sync --frozen"
+    timeout_s: 600
+    network: registry
+  build:
+    cmd: 'cd /cache/w && uv run --frozen --offline --no-sync python -m compileall -q -x "\.venv" .'
+    timeout_s: 300
+  test:
+    cmd: "cd /cache/w && uv run --frozen --offline --no-sync pytest --junitxml=/out/junit.xml"
+    timeout_s: 900
+    parse: junit
+    report: junit.xml
+  lint:
+    cmd: "cd /cache/w && ruff check --output-format sarif --output-file /out/lint.sarif ."
+    timeout_s: 180
+    parse: sarif
+    report: lint.sarif
+  sast:
+    cmd: "semgrep scan --config /opt/verifier/semgrep/default.yml --metrics off --disable-version-check --sarif --output /out/sast.sarif /src"
+    timeout_s: 600
+    parse: sarif
+    report: sast.sarif
+  secrets:
+    cmd: "gitleaks detect --no-git --no-banner --redact --source /src --report-format sarif --report-path /out/secrets.sarif --exit-code 1"
+    timeout_s: 120
+    parse: sarif
+    report: secrets.sarif
+  # unit-test skill only: needs coverage in the project's dev dependencies
+  coverage:
+    cmd: "cd /cache/w && uv run --frozen --offline --no-sync coverage run -m pytest && uv run --frozen --offline --no-sync coverage json -o /out/coverage.json"
+    timeout_s: 900
+    parse: coverage-summary
+    report: coverage.json
+total_timeout_s: 3600

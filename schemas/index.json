@@ -620,6 +620,17 @@
       "description": "Pod definition: agents built from roles and skills, workflows, people and gates, business view and machine-checkable fit requirements."
     },
     {
+      "name": "role-pack",
+      "version": 1,
+      "id": "role-pack.v1",
+      "file": "role-pack.v1.json",
+      "$id": "https://schemas.truminds.internal/role-pack.v1.json",
+      "kind": "file",
+      "owner": "SDD-01 §11.3",
+      "title": "plugins/truminds/role-packs/<role>/role-pack.yaml (role-pack.v1)",
+      "description": "Role pack for one agent role: the skills the role owns, the rubric of each, and the role's default workflows. Pods reference it through agents[].role. Proposed (GAP-04); Puneet to confirm it is still wanted."
+    },
+    {
       "name": "improvement",
       "version": 1,
       "id": "improvement.v1",

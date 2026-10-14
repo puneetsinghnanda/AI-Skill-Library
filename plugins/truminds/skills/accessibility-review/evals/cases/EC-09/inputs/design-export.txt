@@ -1,0 +1,4 @@
+# Invented design-tool export (read-only MCP fetch), order detail screen
+node 80:1 Frame "Order detail"
+node 80:2 text "Delivery address" colour #a0a0a0 on #ffffff size 12
+node 80:3 icon-button (edit icon) label: "Edit address"

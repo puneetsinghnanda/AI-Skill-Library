@@ -1,0 +1,4 @@
+# Invented design-tool export (read-only MCP fetch), shipped order flow
+node 16:1 Frame "Order shipped"        text "Status: shipped"
+node 16:3 button "Cancel order" -> 16:5
+node 16:5 Frame "Cancelled"            link "Back to orders" -> 16:1

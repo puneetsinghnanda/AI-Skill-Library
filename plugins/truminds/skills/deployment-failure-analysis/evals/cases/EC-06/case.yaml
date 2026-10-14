@@ -1,0 +1,23 @@
+schema: eval-case.v1
+id: EC-06
+title: A loans test fails inside the deploy pipeline (library system)
+kind: normal
+inputs:
+  ticket: inputs/ticket.md
+  job_log: inputs/job.log
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+  assert:
+  - path: cause
+    any_matches: (?i)loans\.test|renew
+  - path: findings[].cites[]
+    any_matches: '#L3$'
+provenance: invented
+attestation:
+  by: skill-owner-9c6e
+  statement: All inputs are invented for an invented system; no client material was used.

@@ -1,0 +1,4 @@
+# Invented design-tool export (read-only MCP fetch), sample-support ticket escalation flow
+node 22:1 Frame "Ticket detail"        button "Escalate" -> 22:5
+node 22:5 Frame "Confirm escalation"   text "Escalate to tier 2?" buttons "Escalate" -> 22:9 (no cancel, no close)
+node 22:9 Frame "Escalated"            link "Back to ticket" -> 22:1

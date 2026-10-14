@@ -1,0 +1,10 @@
+# Invented CI file for the sample-library system (fixture)
+name: ci
+on: [pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: example-org/setup-tools@main
+      - run: npm ci && npm test

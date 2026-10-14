@@ -1,0 +1,22 @@
+schema: eval-case.v1
+id: EC-05
+title: Three stories for the breach flag are each sized (support system)
+kind: normal
+inputs:
+  ticket: inputs/ticket.md
+  stories: inputs/stories.md
+  design: inputs/design.md
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+  assert:
+  - path: estimates
+    count_min: 3
+provenance: invented
+attestation:
+  by: skill-owner-be8a
+  statement: All inputs are invented for an invented system; no client material was used.

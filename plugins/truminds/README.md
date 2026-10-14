@@ -18,7 +18,10 @@ plugins/truminds/
 ├─ hooks/hooks.json                SessionStart, PreToolUse (2), PostToolUse, SessionEnd → bin/tsl-hook
 ├─ bin/tsl-hook, bin/tsl-hook.cmd  hook launcher: version check, stdin pipe, fail-closed/fail-open rules
 ├─ workflows/<id>.workflow.yaml    workflow.v1 files (SDD-02)
+├─ role-packs/<role>/role-pack.yaml  one role pack per agent: skills, rubrics, default workflows (SDD-01 §11.3, proposed)
 ├─ policy/policy.yaml              org policy.v2 read by the pre-tool and pre-mcp hooks (SDD-05 §6.4)
+├─ policy/injection-markers.yaml   SC-INJ-01 phrase list read by `tsl verify` (SEC-01 §6.5)
+├─ verifiers/<id>/                 H3 verifier profiles: profile.yaml + Dockerfile (SDD-03 §5.5; see verifiers/README.md)
 └─ tests/                          structural, deny-list and hook-launcher tests (pytest)
 ```
 
@@ -64,30 +67,50 @@ Every command skill sets `disable-model-invocation: true`, so only a person typi
 | Skill | Code | Role | Phase | Output | Version | Status | Eval cases |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `requirement-review` (reference, SDD-01 §13) | RR | business-analyst | requirements | `intent.v1` | 1.0.0 | draft | 10 |
-| `story-split` | SS | business-analyst | requirements | `stories.v1` | 1.0.0 | production | 3 |
-| `impact-analysis` | IA | solution-architect | design | `impact.v1` | 1.1.0 | production | 3 |
-| `design` | DS | solution-architect | design | `design.v1` | 1.4.0 | production | 3 |
-| `implement` | IM | developer | build | code + `change.v1` | 1.0.0 | production | 3 |
-| `unit-test` | UT | developer | build | tests + `ut-result.v1` | 1.0.0 | production | 3 |
-| `defect-triage` | DT | developer | operate | `triage.v1` | 1.0.0 | production | 3 |
-| `test-plan` | TP | qa-engineer | test | `test-plan.v1` | 1.0.0 | production | 3 |
-| `test-automation` | TA | qa-engineer | test | test code + `test-result.v1` | 1.0.0 | pilot | 3 |
-| `threat-model` | TM | security | design | `threat-model.v1` | 1.0.0 | production | 3 |
-| `secure-code-review` | SC | security | build | `secure-review.v1` | 1.0.0 | production | 3 |
-| `pipeline-review` | PL | devops | operate | `pipeline-review.v1` | 1.0.0 | pilot | 3 |
-| `deployment-failure-analysis` | DF | devops | operate | `deploy-failure.v1` | 1.0.0 | pilot | 3 |
-| `ux-flow-review` | UF | ux-designer | design | `ux-flow.v1` | 1.0.0 | pilot | 3 |
-| `accessibility-review` | AR | ux-designer | design | `a11y.v1` | 1.0.0 | pilot | 3 |
-| `estimate-review` | ER | delivery-manager | requirements | `estimate.v1` | 1.0.0 | production | 3 |
-| `status-report` | SR | delivery-manager | operate | `status.v1` | 1.0.0 | production | 3 |
+| `story-split` | SS | business-analyst | requirements | `stories.v1` | 1.0.1 | production | 10 |
+| `impact-analysis` | IA | solution-architect | design | `impact.v1` | 1.1.1 | production | 10 |
+| `design` | DS | solution-architect | design | `design.v1` | 1.4.1 | production | 10 |
+| `implement` | IM | developer | build | code + `change.v1` | 1.0.1 | production | 10 |
+| `unit-test` | UT | developer | build | tests + `ut-result.v1` | 1.0.1 | production | 10 |
+| `defect-triage` | DT | developer | operate | `triage.v1` | 1.0.1 | production | 10 |
+| `test-plan` | TP | qa-engineer | test | `test-plan.v1` | 1.0.1 | production | 10 |
+| `test-automation` | TA | qa-engineer | test | test code + `test-result.v1` | 1.0.1 | pilot | 10 |
+| `threat-model` | TM | security | design | `threat-model.v1` | 1.0.1 | production | 10 |
+| `secure-code-review` | SC | security | build | `secure-review.v1` | 1.0.1 | production | 10 |
+| `pipeline-review` | PL | devops | operate | `pipeline-review.v1` | 1.0.1 | pilot | 10 |
+| `deployment-failure-analysis` | DF | devops | operate | `deploy-failure.v1` | 1.0.1 | pilot | 10 |
+| `ux-flow-review` | UF | ux-designer | design | `ux-flow.v1` | 1.0.1 | pilot | 10 |
+| `accessibility-review` | AR | ux-designer | design | `a11y.v1` | 1.0.1 | pilot | 10 |
+| `estimate-review` | ER | delivery-manager | requirements | `estimate.v1` | 1.0.1 | production | 10 |
+| `status-report` | SR | delivery-manager | operate | `status.v1` | 1.0.1 | production | 10 |
 
 Every SDLC skill body starts with the input check `` !`tsl verify $0 --inputs --json` `` and has the sections Job,
 Inputs, Rules, Method, Output, If this is a retry and Hand-over (SDD-01 §3.2). Status is the Release-1 target status
-from SDD-01 §12; `requirement-review` stays `draft` as SDD-01 §13.1 specifies. **The 16 non-reference skills ship 3
-starter eval cases each.** Their `skill.yaml` and `eval-set.yaml` still declare `min_cases: 10` (the schema minimum),
-so `tsl validate` (SKL-V10) and `/truminds:eval` will report them short until the full sets are written; see "Gaps".
-All eval data is invented: the sample order system, plus a support-ticket and a library-loan system for
-`requirement-review` EC-08 to EC-10. Fake secrets use the reserved `FAKE-KEY-*` pattern (SDD-01 §10.4), inside `evals/**` only.
+from SDD-01 §12; `requirement-review` stays `draft` as SDD-01 §13.1 specifies. **Every SDLC skill has 10 eval
+cases** with the SDD-01 §10.3 mix (at least 4 normal in 2 or more systems, 2 edge, 1 conflict, 1 adversarial,
+1 forbidden-content), checked by `test_eval_case_mix_follows_sdd01_10_3`. EC-04 to EC-10 of the 16 non-reference
+skills were added for traceability GAP-03 (PATCH bump each); no signed eval result exists yet (SKL-V13).
+All eval data is invented: the sample order system, a support-ticket system and a library-loan system. Fake secrets use the reserved `FAKE-KEY-*` pattern (SDD-01 §10.4), inside `evals/**` only.
+
+## Role packs (SDD-01 §11.3, proposed)
+
+`role-packs/<role>/role-pack.yaml` (`role-pack.v1`) defines each of the eight agents: the skills whose `skill.yaml`
+`agent` is that role, the rubric of each, and the role's default workflows. Pods link to a role pack through
+`agents[].role`; a skill a pod lends to another role is listed in `cross_role_skills` (SDD-10 §3.4). Role packs do not
+install or hide skills: the one force-enabled plugin ships all of them. They start at `draft` and are a proposal
+until Puneet confirms they are still wanted (SDD-01 O-11). `tests/test_role_packs.py` checks RP-V01 to RP-V06 and
+RP-V08.
+
+| Role pack | Skills | Default workflows |
+| --- | --- | --- |
+| `business-analyst` | requirement-review, story-split | brownfield-change, greenfield-feature |
+| `solution-architect` | impact-analysis, design | brownfield-change, greenfield-feature |
+| `developer` | defect-triage, implement, unit-test | brownfield-change, defect-fix |
+| `qa-engineer` | test-plan, test-automation | brownfield-change, quality-uplift |
+| `security` | threat-model, secure-code-review | brownfield-change, security-review |
+| `devops` | pipeline-review, deployment-failure-analysis | pipeline-check, deploy-failure |
+| `ux-designer` | ux-flow-review, accessibility-review | ux-review |
+| `delivery-manager` | estimate-review, status-report | estimate (`status-report` is in no workflow, SDD-01 O-14) |
 
 ## Workflows (SDD-02, Doc 3 §7.1)
 
@@ -146,6 +169,7 @@ uv run --python 3.12 ruff check .
 | --- | --- |
 | `test_structure.py` | Every YAML, JSON and markdown front matter with a `schema:` key validates against `schemas/`; plugin and marketplace manifests; `hooks.json` = SDD-05 §5.2; reviewer and `review` skill; command skills from registry §3.2 have `disable-model-invocation: true` and their exact `tsl` preamble; SDLC SKILL.md template (SKL-V01, V04, V05, V07, V09, V11); catalogue = SDD-01 §12; eval cases, every referenced input file, JMESPath and regex in assertions; `requirement-review` EC-01..EC-10 and examples; `brownfield-change` = SDD-02 §4; workflow skill ranges, graph and input bindings (E-WFL-02..04); pods (POD-V01, V03..V05, V07..V12); plugin version = `tsl` version (skipped when `tsl` is absent) |
 | `test_denylist.py` | No secrets, no fake key outside `evals/**`, no personal data, no networking-domain wording, and no client names (hashed n-grams against `TRUMINDS_DENYLIST_FILE`, a list kept outside the repo; skipped when not set) |
+| `test_verifiers.py` | Verifier profiles validate, folder = id, image by digest with the workflow's name, only `prepare` has network, every profile named by SDD-03, SDD-06, the plugin or an example `tsl.yaml` exists, every container step a skill uses is in every profile, Dockerfile lint (hadolint when installed, else built-in), workflow wiring; real builds only with Docker and `VERIFIER_BUILD=1` |
 | `test_tsl_hook.py` | `bin/tsl-hook` under sh, dash and bash with a fake `tsl` on PATH: version mismatch, missing, crash and timeout, each in a run (deny `E-HOOK-01`) and out of a run (allow) for pre-tool and pre-mcp; post-write fail open; session warnings; stdin and stdout pass-through; session-index route; log line; no temp files left |
 
 The `.cmd` launcher is not exercised in CI here (no Windows runner); TC-HK-007 covers it on Windows.
@@ -160,8 +184,12 @@ The `.cmd` launcher is not exercised in CI here (no Windows runner); TC-HK-007 c
 | SDD-05 §4.3, §4.4 | `agents/reviewer.md`, `skills/review` |
 | SDD-05 §5.2, §5.4; SDD-04 §6.14 | `hooks/hooks.json`, `bin/tsl-hook`, `bin/tsl-hook.cmd`, `tests/test_tsl_hook.py` |
 | SDD-05 §6.4 | `policy/policy.yaml` |
+| SEC-01 §6.5 | `policy/injection-markers.yaml` |
+| SDD-03 §5.5; SEC-01 §5.5, §7.1, §8.4; OPS-03 §2.1 | `verifiers/<id>/`, `tests/test_verifiers.py` |
 | SDD-01 §2–§10, §13 | `skills/requirement-review/**` |
 | SDD-01 §12; SDD-03 §5.4 | `skills/<16 skills>/**` |
+| SDD-01 §10.3, §10.4 | `skills/*/evals/cases/EC-01`…`EC-10`; `tests/test_structure.py::test_eval_case_mix_follows_sdd01_10_3` |
+| SDD-01 §11.3 (proposed) | `role-packs/<role>/role-pack.yaml`, `tests/test_role_packs.py` |
 | SDD-01 §14.1 (subset), TST-01 §2.6 | `tests/test_structure.py` |
 | SDD-02 §3, §4; Doc 3 §7.1 | `workflows/*.workflow.yaml` |
 | SDD-10 §3, §4 | `/pods/<id>/` |
@@ -173,7 +201,7 @@ The `.cmd` launcher is not exercised in CI here (no Windows runner); TC-HK-007 c
 - Resolved (registry §10 #44): `brownfield-change` now pins `requirement-review@^1.0` and binds `intent_baseline`,
   matching SDD-01 §13.1; SDD-02 §4 was updated to the same values.
 - Status: SDD-01 §12 says every skill starts at `draft`; this build sets the Release-1 target status as instructed,
-  which needs signed eval results and 10 cases (SDD-01 §7.1) that do not exist yet. No `*.eval-result.json` is
+  which needs signed eval results (SDD-01 §7.1). The 10 cases now exist; the signed results do not. No `*.eval-result.json` is
   committed; only `tsl eval run` on a seat can produce one.
 - SDD-01 names the artifact file after the output (`intent.md`); SDD-02 and registry §8 name it after the step
   (`req.md`). `tsl next` decides the path; `skill.yaml` keeps SDD-01's `file`.

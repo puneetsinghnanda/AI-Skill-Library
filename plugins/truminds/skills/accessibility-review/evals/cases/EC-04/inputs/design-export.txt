@@ -1,0 +1,5 @@
+# Invented design-tool export (read-only MCP fetch), sample-orders order list screen
+node 40:1 Frame "Order list"
+node 40:2 text "Order ABC-0001" colour #1a1a1a on #ffffff size 14
+node 40:3 status-dot colour #2e7d32 (green = shipped, red = cancelled) text: none
+node 40:4 button "Open order" colour #ffffff on #1a5fb4 size 14

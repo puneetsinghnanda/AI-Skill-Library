@@ -333,6 +333,7 @@ Every file schema is `schemas/<name>.v<N>.json` in the skill-library repo (Doc 5
 | `context-facts.v1` | `schemas/context-facts.v1.json` | SDD-06 §4.3 |
 | `pack-signature.v1` | `schemas/pack-signature.v1.json` | SDD-06 §4.2, signing SDD-07 §6.5 |
 | `pod.v1` | `schemas/pod.v1.json` | SDD-10 §3 |
+| `role-pack.v1` (proposed, Puneet to confirm still wanted; GAP-04) | `schemas/role-pack.v1.json` | SDD-01 §11.3 |
 | `improvement.v1` | `schemas/improvement.v1.json` | SDD-11 §6.2 |
 | `consent-record.v1` | `schemas/consent-record.v1.json` | LEG-01 §13.1 |
 | `companion-archive.v1` (`ARCHIVE.json`, signed) | `schemas/companion-archive.v1.json` (`tsl companion archive` validates before signing; `tsl companion check` validates it) | SDD-12 §8.2 |
@@ -452,6 +453,7 @@ Laptop paths (not in the companion repo): `~/.truminds/` per SDD-04 §7.3 (`conf
 | `ABC-142`–`ABC-180` | 8 (142, 150, 158, 163, 170, 171, 175, 180) | Invented sample-system change tickets, `examples/sample-system/tickets/` | TST-01 §4.4 |
 | `SKL-V01`–`SKL-V15` | 15 | Skill validation rules | SDD-01 §14.1 |
 | `POD-V01`–`POD-V15` | 15 | Pod validation rules | SDD-10 §9 |
+| `RP-V01`–`RP-V08` | 8 | Role-pack validation rules (proposed) | SDD-01 §11.3 |
 | `H1`–`H7`, `S1`–`S6` | — | Hard gates and signals (not spikes: spikes are always `S-nn` with a hyphen) | Doc 3 §5 |
 | `R-01`–`R-17` | 17 | Rules | Doc 5 §7 |
 | `DEF-nn`, `NFR-nn` | — | Definitions, non-functional requirements | Doc 3 |

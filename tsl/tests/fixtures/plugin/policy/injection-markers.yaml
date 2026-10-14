@@ -1,0 +1,13 @@
+# SC-INJ-01 phrase list (SEC-01 §6.5; schema injection-markers.v1).
+# Case-insensitive regular expressions. `tsl verify` scans the artifact and its declared inputs,
+# code blocks included. A match fails the soft check SC-INJ-01: it lowers S2 (SDD-03 §9) and is
+# listed in the PR body. It never blocks a run on its own; it is a signal, not a control.
+# Owner: Shubham Bansal (policy file). Changes follow SEC-01 §6.5 and go through PR review.
+schema: injection-markers.v1
+patterns:
+  - '\bignore (all |any )?(previous|prior|above) (instructions|prompts)\b'
+  - '\b(you are|act as) (now )?(a|an|the) (system|admin|developer) (prompt|mode)\b'
+  - '\b(reviewer|assistant|claude|ai)\s*[:,]\s*(return|output|approve|mark)\b'
+  - '\bdisregard (the )?(rules|policy|guardrails)\b'
+  - '<\s*/?\s*(system|untrusted-input)\s*>'      # attempts to close or forge our wrapper
+  - '\b(exfiltrate|send (it|them) to|post (the )?(keys|tokens|secrets))\b'

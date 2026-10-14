@@ -1,0 +1,22 @@
+schema: eval-case.v1
+id: EC-07
+title: 'Missing input: the module map is empty'
+kind: edge
+inputs:
+  stories: inputs/stories.md
+  architecture: inputs/architecture.md
+  module_map: inputs/module-map.json
+  api_inventory: inputs/api-inventory.json
+expect:
+  outcome_in:
+  - NEEDS-INPUT
+  gates:
+    H1: pass
+    H5: pass
+  assert:
+  - path: questions[?blocking==`true`]
+    count_min: 1
+provenance: invented
+attestation:
+  by: skill-owner-5e2a
+  statement: All inputs are invented for an invented system; no client material was used.

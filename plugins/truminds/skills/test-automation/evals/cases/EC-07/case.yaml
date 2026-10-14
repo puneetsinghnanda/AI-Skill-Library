@@ -1,0 +1,21 @@
+schema: eval-case.v1
+id: EC-07
+title: 'Missing input: the test layout is empty'
+kind: edge
+inputs:
+  test_plan: inputs/test-plan.md
+  test_strategy: inputs/test-strategy.md
+  test_layout: inputs/test-layout.json
+expect:
+  outcome_in:
+  - PASS-WITH-FINDINGS
+  - NEEDS-INPUT
+  gates:
+    H5: pass
+  assert:
+  - path: questions
+    count_min: 1
+provenance: invented
+attestation:
+  by: skill-owner-7a4c
+  statement: All inputs are invented for an invented system; no client material was used.

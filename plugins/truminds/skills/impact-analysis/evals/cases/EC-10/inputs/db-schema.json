@@ -1,0 +1,41 @@
+{
+  "schema": "context-facts.v1",
+  "section": "db-schema",
+  "extractor": {
+    "name": "js-db",
+    "version": "1.0.0"
+  },
+  "sources": {
+    "sample-orders": "9708bef2d9f2a719d38a2d4eff536138a61ee45f"
+  },
+  "empty_reason": null,
+  "facts": [
+    {
+      "id": "table:orders",
+      "kind": "table",
+      "source": {
+        "repo": "sample-orders",
+        "path": "db/migrations/002_create_orders.sql",
+        "line": 1
+      }
+    },
+    {
+      "id": "table:order_events",
+      "kind": "table",
+      "source": {
+        "repo": "sample-orders",
+        "path": "db/migrations/004_add_order_events.sql",
+        "line": 1
+      }
+    },
+    {
+      "id": "table:customers",
+      "kind": "table",
+      "source": {
+        "repo": "sample-orders",
+        "path": "db/migrations/001_create_customer_and_product.sql",
+        "line": 1
+      }
+    }
+  ]
+}

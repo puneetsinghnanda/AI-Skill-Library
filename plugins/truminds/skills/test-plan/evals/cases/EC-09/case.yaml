@@ -1,0 +1,22 @@
+schema: eval-case.v1
+id: EC-09
+title: Criterion asks for a load test; the strategy allows only Jest and Playwright
+kind: conflict
+inputs:
+  stories: inputs/stories.md
+  test_strategy: inputs/test-strategy.md
+expect:
+  outcome_in:
+  - PASS-WITH-FINDINGS
+  - NEEDS-INPUT
+  gates:
+    H2: pass
+  assert:
+  - path: questions
+    count_min: 1
+  - path: questions[].evidence[]
+    any_matches: test-strategy\.md#|stories\.md#
+provenance: invented
+attestation:
+  by: skill-owner-7a4c
+  statement: All inputs are invented for an invented system; no client material was used.

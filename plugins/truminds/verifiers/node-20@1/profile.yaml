@@ -1,0 +1,47 @@
+# Verifier profile node-20@1 (SDD-03 §4.5, §5.5; schema verifier-profile.v1). Image: Dockerfile in this folder.
+# image: the digest below is a PLACEHOLDER (all zeros). .github/workflows/verifier-images.yml builds this
+# folder's Dockerfile and prints the digest; a maintainer sets it here in a reviewed PR once the GitHub
+# org and registry are known (OQ-10; also replace <org>). Until then tsl refuses the image with E-H3-07.
+# Images are referenced by digest only, never by tag.
+# Every step runs in its own container. Only prepare has network (package registry): it copies the
+# read-only source (/src) into the cache volume (/cache/w) and installs from the lock file there.
+# Reports go to /out; `report` names the file there whose SHA-256 goes into checks.json.
+schema: verifier-profile.v1
+id: node-20@1
+image: ghcr.io/<org>/truminds/verifier-node-20@sha256:0000000000000000000000000000000000000000000000000000000000000000
+workdir: /src
+exclude_from_risk: ["package-lock.json", "**/*.snap"]
+steps:
+  prepare:
+    cmd: "rm -rf /cache/w && mkdir -p /cache/w && cp -a /src/. /cache/w/ && cd /cache/w && npm ci --ignore-scripts"
+    timeout_s: 600
+    network: registry
+  build:
+    cmd: "cd /cache/w && npm run build --if-present"
+    timeout_s: 300
+  test:
+    cmd: "cd /cache/w && npm test"
+    timeout_s: 600
+    parse: exit-code
+  lint:
+    cmd: "cd /cache/w && npx --no-install eslint . -f /usr/local/lib/node_modules/@microsoft/eslint-formatter-sarif/sarif.js -o /out/lint.sarif"
+    timeout_s: 180
+    parse: sarif
+    report: lint.sarif
+  sast:
+    cmd: "semgrep scan --config /opt/verifier/semgrep/default.yml --metrics off --disable-version-check --sarif --output /out/sast.sarif /src"
+    timeout_s: 600
+    parse: sarif
+    report: sast.sarif
+  secrets:
+    cmd: "gitleaks detect --no-git --no-banner --redact --source /src --report-format sarif --report-path /out/secrets.sarif --exit-code 1"
+    timeout_s: 120
+    parse: sarif
+    report: secrets.sarif
+  # unit-test skill only: the project's `coverage` script must write coverage/coverage-summary.json
+  coverage:
+    cmd: "cd /cache/w && npm run coverage && cp coverage/coverage-summary.json /out/coverage-summary.json"
+    timeout_s: 900
+    parse: coverage-summary
+    report: coverage-summary.json
+total_timeout_s: 3600

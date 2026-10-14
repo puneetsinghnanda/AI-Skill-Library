@@ -1,0 +1,13 @@
+{
+  "schema": "context-facts.v1",
+  "section": "test-layout",
+  "extractor": {
+    "name": "js-test",
+    "version": "1.0.0"
+  },
+  "sources": {
+    "sample-orders": "c34519d5df33f753b57ad82cb596dce691237f92"
+  },
+  "empty_reason": "No test files were found at this commit.",
+  "facts": []
+}

@@ -1,0 +1,18 @@
+schema: eval-case.v1
+id: EC-07
+title: 'Missing input: the only requirement is unknown with a blocking question'
+kind: edge
+inputs:
+  intent: inputs/intent.md
+expect:
+  outcome_in:
+  - NEEDS-INPUT
+  gates:
+    H1: pass
+  assert:
+  - path: questions[?blocking==`true`]
+    count_min: 1
+provenance: invented
+attestation:
+  by: skill-owner-4c1d
+  statement: All inputs are invented for an invented system; no client material was used.

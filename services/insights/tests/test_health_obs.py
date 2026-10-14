@@ -116,7 +116,13 @@ def test_entry_rejects_unknown_modes() -> None:
 def test_no_secret_files_committed() -> None:
     for p in (SERVICE / ".env.example",):
         assert p.exists()
-    ignored = {".venv", ".mypy_cache", ".ruff_cache", ".pytest_cache", "__pycache__"}  # never committed
+    ignored = {
+        ".venv",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".pytest_cache",
+        "__pycache__",
+    }  # never committed
     for path in Path(SERVICE).rglob("*"):
         if ignored.intersection(path.relative_to(SERVICE).parts):
             continue

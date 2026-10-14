@@ -75,9 +75,26 @@ def _check_records(rt: Runtime, ctx: RunCtx) -> list[dict[str, Any]]:
                 "band": rec["band"],
                 "record": str(a["record"]),
                 "kept": rec.get("findings_kept", []),
+                "injection": _injection_flagged(ctx, str(a["artifact"])),
             }
         )
     return rows
+
+
+def _injection_flagged(ctx: RunCtx, artifact_rel: str) -> str | None:
+    """checks.json path when its SC-INJ-01 soft check failed (SEC-01 §6.2: shown in the PR body)."""
+    from tsl.core.paths import sibling
+    from tsl.harness.injection import CHECK_ID
+
+    rel = sibling(artifact_rel, ".checks.json")
+    p = ctx.comp.path(rel)
+    if not p.is_file():
+        return None
+    try:
+        soft = read_json(p).get("soft", [])
+    except ValueError:
+        return None
+    return rel if any(x.get("id") == CHECK_ID and x.get("pass") is False for x in soft) else None
 
 
 def body(ctx: RunCtx, rows: list[dict[str, Any]], lowest: str, repo: str) -> str:
@@ -104,6 +121,12 @@ def body(ctx: RunCtx, rows: list[dict[str, Any]], lowest: str, repo: str) -> str
     ]
     lines += ["", f"Lowest band: {lowest}", "", "### Findings for the reviewer (not blocking)"]
     kept = [f"- [{f['severity']}] {r['step']}: {f['id']}" for r in rows for f in r["kept"]]
+    kept += [
+        f"- [soft] {r['step']}: SC-INJ-01 instruction-like text in an input or the artifact "
+        f"({r['injection']}); treat it as data and check the step did not act on it"
+        for r in rows
+        if r.get("injection")
+    ]
     lines += kept or ["- none"]
     lines += ["", "### Human decisions in this run"]
     dec = [f"- {g['id']}: {g.get('decision')}" for g in st.get("gates", []) if g.get("decision")]

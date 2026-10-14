@@ -19,6 +19,7 @@ from tests.conftest import (
     post,
     project,
     run_started,
+    skill_version,
     step_decided,
 )
 
@@ -48,7 +49,14 @@ def test_view_refresh(
             event(
                 "step.decided",
                 step_decided(
-                    "triage", "defect-triage", "1.0.0", 1, "PASS", "High", keys_of["eng"], 1
+                    "triage",
+                    "defect-triage",
+                    skill_version("defect-triage"),
+                    1,
+                    "PASS",
+                    "High",
+                    keys_of["eng"],
+                    1,
                 ),
                 run_id,
                 now_iso(-10),

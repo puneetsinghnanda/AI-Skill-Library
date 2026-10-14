@@ -1,0 +1,23 @@
+schema: eval-case.v1
+id: EC-06
+title: 'Five runs on the library system: two waiting for input, three running'
+kind: normal
+inputs:
+  run_states: inputs/runs
+expect:
+  outcome_in:
+  - PASS
+  gates:
+    H1: pass
+    H2: pass
+  assert:
+  - path: counts.runs
+    equals: 5
+  - path: counts.paused_input
+    equals: 2
+  - path: counts.running
+    equals: 3
+provenance: invented
+attestation:
+  by: skill-owner-be8a
+  statement: All inputs are invented for an invented system; no client material was used.

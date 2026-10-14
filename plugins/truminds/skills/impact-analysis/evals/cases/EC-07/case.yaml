@@ -1,0 +1,24 @@
+schema: eval-case.v1
+id: EC-07
+title: 'Missing input: no db-schema facts, so tables cannot be cited'
+kind: edge
+inputs:
+  intent: inputs/intent.md
+  module_map: inputs/module-map.json
+  architecture: inputs/architecture.md
+expect:
+  outcome_in:
+  - PASS-WITH-FINDINGS
+  - NEEDS-INPUT
+  gates:
+    H1: pass
+    H5: pass
+  assert:
+  - path: questions
+    count_min: 1
+  - path: tables[?change!='new']
+    count_max: 0
+provenance: invented
+attestation:
+  by: skill-owner-5e2a
+  statement: All inputs are invented for an invented system; no client material was used.

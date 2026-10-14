@@ -6,7 +6,7 @@ Every file format, record and telemetry event in the skill library has a JSON Sc
 
 ```text
 schemas/
-├─ <name>.v<N>.json                  file and record schemas (59 from registry §6, plus envelope.v1 and event-envelope.v1)
+├─ <name>.v<N>.json                  file and record schemas (60 from registry §6, plus envelope.v1 and event-envelope.v1)
 ├─ events/<type>.v<N>.json           one closed body schema per event type (registry §5, SDD-08 §4.5)
 ├─ index.json                        machine-readable list: name, version, file, $id, kind, owner, event_type
 ├─ fixtures/<name>.v<N>/valid/       ≥ 2 documents (JSON or YAML) that must pass
@@ -35,7 +35,7 @@ Artifact front matter is validated against its body schema (for example `design.
 
 ```bash
 cd schemas
-uv run --python 3.12 pytest          # 1121 tests
+uv run --python 3.12 pytest          # 1146 tests
 uv run --python 3.12 ruff check tests
 ```
 
@@ -65,6 +65,7 @@ All fixture data is invented: the sample order-tracking system, `example-org`, `
 | SDD-05 §6.4 | `policy.v2.json` |
 | SDD-06 §3.3, §4.1–§4.3 | `context-section.v1.json`, `context-pack.v1.json`, `context-facts.v1.json`, `pack-signature.v1.json` |
 | SDD-10 §3 | `pod.v1.json` |
+| SDD-01 §11.3 (proposed, GAP-04) | `role-pack.v1.json` |
 | SDD-11 §6.2 | `improvement.v1.json` |
 | LEG-01 §13.1 | `consent-record.v1.json` |
 | Doc 5 §5.2, SDD-08 §4.5, registry §5 | `event-envelope.v1.json`, `events/*.v1.json` |
@@ -131,6 +132,7 @@ Schemas marked `"x-fields-status": "provisional"` cover formats whose owning doc
 | [`pack-signature.v1`](pack-signature.v1.json) | 1 | file | SDD-06 §4.2 | Tech lead's Ed25519 signature over the manifest hash and source commits (tsl context sign). signed_at is for key validity and audit only; freshness never uses it. |
 | [`companion-archive.v1`](companion-archive.v1.json) | 1 | file | SDD-12 §8.2 | Admin-signed `ARCHIVE.json` written by `tsl companion archive`: system code, last commit, run and record counts, SHA-256 over the sorted record hashes. |
 | [`pod.v1`](pod.v1.json) | 1 | file | SDD-10 §3 | Pod definition: agents built from roles and skills, workflows, people and gates, business view and machine-checkable fit requirements. |
+| [`role-pack.v1`](role-pack.v1.json) | 1 | file | SDD-01 §11.3 | Role pack for one agent role: the skills the role owns, the rubric of each, and the role's default workflows. Pods reference it through agents[].role. Proposed (GAP-04); Puneet to confirm it is still wanted. |
 | [`improvement.v1`](improvement.v1.json) | 1 | file | SDD-11 §6.2 | Evidence file written by tsl improve check: the flags addressed, the new failing-first cases, before and after signed eval results, and regressions. signature here is the failure signature string, not a crypto signature. |
 | [`consent-record.v1`](consent-record.v1.json) | 1 | file | LEG-01 §13.1 | Fields the insights service keeps about a signed client consent (codes only; the signed document lives in the contract store). Enforced by tsl init, context build and state start (E-CONS-01). |
 | [`secrets.v1`](secrets.v1.json) | 1 | file | SDD-03 §4.6 | H4a secret detector rule set shipped in tsl: detect-secrets plugins with limits plus Truminds regex rules (SEC-01 §7.2). Hits report the rule id and line only, never the value. |

@@ -1,0 +1,24 @@
+schema: eval-case.v1
+id: EC-05
+title: Internal notes on tickets (support system)
+kind: normal
+inputs:
+  stories: inputs/stories.md
+  architecture: inputs/architecture.md
+  module_map: inputs/module-map.json
+  api_inventory: inputs/api-inventory.json
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+    H5: pass
+  assert:
+  - path: components[].module
+    any_matches: ^module:sample-support:api/src/tickets$
+provenance: invented
+attestation:
+  by: skill-owner-5e2a
+  statement: All inputs are invented for an invented system; no client material was used.

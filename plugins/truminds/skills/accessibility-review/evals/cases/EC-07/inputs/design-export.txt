@@ -1,0 +1,2 @@
+# Invented design-tool export (read-only MCP fetch)
+# The fetch returned 0 nodes for the requested frame.

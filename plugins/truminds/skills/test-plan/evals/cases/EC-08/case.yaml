@@ -1,0 +1,23 @@
+schema: eval-case.v1
+id: EC-08
+title: 'Very long input: four stories and nine criteria'
+kind: edge
+inputs:
+  stories: inputs/stories.md
+  test_strategy: inputs/test-strategy.md
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+  assert:
+  - path: tests
+    count_min: 5
+  - path: tests[].covers[]
+    any_matches: ^S-4/AC3$
+provenance: invented
+attestation:
+  by: skill-owner-7a4c
+  statement: All inputs are invented for an invented system; no client material was used.

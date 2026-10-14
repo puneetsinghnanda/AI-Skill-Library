@@ -1,0 +1,22 @@
+# Role pack for the DevOps agent (SDD-01 §11.3, PRD FR-AGT-02).
+# Proposed (GAP-04): Puneet to confirm role packs are still wanted. Starts at draft (RP-V05).
+schema: role-pack.v1
+id: devops
+version: 1.0.0
+status: draft
+title: DevOps
+owner: skill-owner-9c6e
+persona: P-05
+summary: Reviews CI pipelines and explains failed deployments from stored job logs.
+skills:
+- deployment-failure-analysis@^1.0
+- pipeline-review@^1.0
+rubrics:
+- skill: deployment-failure-analysis
+  path: skills/deployment-failure-analysis/rubric.md
+- skill: pipeline-review
+  path: skills/pipeline-review/rubric.md
+default_workflows:
+- pipeline-check@^1.0
+- deploy-failure@^1.0
+deprecated_by: null

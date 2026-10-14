@@ -1,0 +1,25 @@
+schema: eval-case.v1
+id: EC-09
+title: Design offers cancel on a shipped order; the baseline allows it only before shipping
+kind: conflict
+inputs:
+  ticket: inputs/ticket.md
+  design_file: inputs/design-export.txt
+  intent_baseline: inputs/intent-baseline.md
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  - NEEDS-INPUT
+  gates:
+    H1: pass
+    H2: pass
+  assert:
+  - path: findings[].node
+    any_matches: '16:3'
+  - path: findings[].cites[]
+    any_matches: intent-baseline\.md#
+provenance: invented
+attestation:
+  by: skill-owner-ad7f
+  statement: All inputs are invented for an invented system; no client material was used.

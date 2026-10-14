@@ -1,0 +1,21 @@
+# Role pack for the Delivery Manager agent (SDD-01 §11.3, PRD FR-AGT-02).
+# Proposed (GAP-04): Puneet to confirm role packs are still wanted. Starts at draft (RP-V05).
+schema: role-pack.v1
+id: delivery-manager
+version: 1.0.0
+status: draft
+title: Delivery Manager
+owner: skill-owner-be8a
+persona: P-08
+summary: Sizes stories with cited evidence and reports where the runs of a system stand.
+skills:
+- estimate-review@^1.0
+- status-report@^1.0
+rubrics:
+- skill: estimate-review
+  path: skills/estimate-review/rubric.md
+- skill: status-report
+  path: skills/status-report/rubric.md
+default_workflows:
+- estimate@^1.0
+deprecated_by: null

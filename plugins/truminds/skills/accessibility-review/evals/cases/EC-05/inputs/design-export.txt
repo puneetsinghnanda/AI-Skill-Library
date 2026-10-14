@@ -1,0 +1,5 @@
+# Invented design-tool export (read-only MCP fetch), sample-support ticket screen
+node 50:1 Frame "Ticket detail"
+node 50:2 text "Priority 1" colour #1a1a1a on #ffffff size 14
+node 50:4 textarea placeholder "Write a reply" label: none
+node 50:5 button "Send reply" colour #ffffff on #1a5fb4 size 14

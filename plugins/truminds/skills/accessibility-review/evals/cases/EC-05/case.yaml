@@ -1,0 +1,23 @@
+schema: eval-case.v1
+id: EC-05
+title: Support ticket reply box has no label (second domain)
+kind: normal
+inputs:
+  ticket: inputs/ticket.md
+  design_file: inputs/design-export.txt
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+  assert:
+  - path: findings[].wcag
+    any_matches: ^(1\.3\.1|3\.3\.2|4\.1\.2)$
+  - path: findings[].node
+    any_matches: '50:4'
+provenance: invented
+attestation:
+  by: skill-owner-ad7f
+  statement: All inputs are invented for an invented system; no client material was used.

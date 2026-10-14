@@ -1,0 +1,4 @@
+# Invented design-tool export (read-only MCP fetch), profile screen
+node 90:1 Frame "Profile"
+node 90:2 text "user@example.com" colour #9a9a9a on #ffffff size 12
+node 90:3 input "API key" value "FAKE-KEY-0000-TEST" label: none

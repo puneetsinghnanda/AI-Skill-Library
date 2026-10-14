@@ -1,0 +1,32 @@
+{
+  "schema": "context-facts.v1",
+  "section": "test-layout",
+  "extractor": {
+    "name": "js-test",
+    "version": "1.0.0"
+  },
+  "sources": {
+    "sample-library": "c4c1bfa0b4ad4e6e56ee6345193e58e44e7c6baf"
+  },
+  "empty_reason": null,
+  "facts": [
+    {
+      "id": "test:sample-library:api/test/loans.test.js",
+      "kind": "test",
+      "source": {
+        "repo": "sample-library",
+        "path": "api/test/loans.test.js",
+        "line": 1
+      }
+    },
+    {
+      "id": "test:sample-library:web/src/loans/LoanPage.test.jsx",
+      "kind": "test",
+      "source": {
+        "repo": "sample-library",
+        "path": "web/src/loans/LoanPage.test.jsx",
+        "line": 1
+      }
+    }
+  ]
+}

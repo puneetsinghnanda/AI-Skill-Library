@@ -1,0 +1,24 @@
+schema: eval-case.v1
+id: EC-04
+title: Customer orders CSV export gets STRIDE rows (sample ticket ABC-163)
+kind: normal
+inputs:
+  design: inputs/design.md
+  architecture: inputs/architecture.md
+  data_model: inputs/data-model.md
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+  assert:
+  - path: threats[].component
+    any_matches: ^ExportService$
+  - path: threats[].stride
+    any_matches: ^information_disclosure$
+provenance: invented
+attestation:
+  by: skill-owner-8b5d
+  statement: All inputs are invented for an invented system; no client material was used.

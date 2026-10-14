@@ -1,0 +1,41 @@
+{
+  "schema": "context-facts.v1",
+  "section": "db-schema",
+  "extractor": {
+    "name": "js-db",
+    "version": "1.0.0"
+  },
+  "sources": {
+    "sample-support": "763e850af988aab43257eed9fd06c51e0ccb94f0"
+  },
+  "empty_reason": null,
+  "facts": [
+    {
+      "id": "table:tickets",
+      "kind": "table",
+      "source": {
+        "repo": "sample-support",
+        "path": "db/migrations/001_tickets.sql",
+        "line": 1
+      }
+    },
+    {
+      "id": "table:ticket_replies",
+      "kind": "table",
+      "source": {
+        "repo": "sample-support",
+        "path": "db/migrations/002_ticket_replies.sql",
+        "line": 1
+      }
+    },
+    {
+      "id": "table:sla_timers",
+      "kind": "table",
+      "source": {
+        "repo": "sample-support",
+        "path": "db/migrations/003_sla_timers.sql",
+        "line": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+schema: eval-case.v1
+id: EC-05
+title: Request logging writes customer emails to the log (support system)
+kind: normal
+inputs:
+  change: inputs/change.md
+  conventions: inputs/conventions.md
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+  assert:
+  - path: findings[].text
+    any_matches: (?i)log|personal|email
+  - path: scans
+    count_min: 1
+provenance: invented
+attestation:
+  by: skill-owner-8b5d
+  statement: All inputs are invented for an invented system; no client material was used.

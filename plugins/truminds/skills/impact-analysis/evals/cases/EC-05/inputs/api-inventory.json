@@ -1,0 +1,58 @@
+{
+  "schema": "context-facts.v1",
+  "section": "api-inventory",
+  "extractor": {
+    "name": "js-api",
+    "version": "1.0.0"
+  },
+  "sources": {
+    "sample-support": "3644ece0d1a20d44bf7eab8b3639003259bb1296"
+  },
+  "empty_reason": null,
+  "facts": [
+    {
+      "id": "http:GET:/api/tickets",
+      "kind": "http",
+      "method": "GET",
+      "path": "/api/tickets",
+      "source": {
+        "repo": "sample-support",
+        "path": "api/src/routes/tickets.js",
+        "line": 8
+      }
+    },
+    {
+      "id": "http:GET:/api/tickets/:id",
+      "kind": "http",
+      "method": "GET",
+      "path": "/api/tickets/:id",
+      "source": {
+        "repo": "sample-support",
+        "path": "api/src/routes/tickets.js",
+        "line": 17
+      }
+    },
+    {
+      "id": "http:POST:/api/tickets/:id/replies",
+      "kind": "http",
+      "method": "POST",
+      "path": "/api/tickets/:id/replies",
+      "source": {
+        "repo": "sample-support",
+        "path": "api/src/routes/tickets.js",
+        "line": 29
+      }
+    },
+    {
+      "id": "http:POST:/api/tickets/:id/escalate",
+      "kind": "http",
+      "method": "POST",
+      "path": "/api/tickets/:id/escalate",
+      "source": {
+        "repo": "sample-support",
+        "path": "api/src/routes/tickets.js",
+        "line": 41
+      }
+    }
+  ]
+}

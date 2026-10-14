@@ -1,0 +1,24 @@
+schema: eval-case.v1
+id: EC-09
+title: Change implements a 1000-character limit; the story says 500
+kind: conflict
+inputs:
+  change: inputs/change.md
+  stories: inputs/stories.md
+  test_strategy: inputs/test-strategy.md
+  test_layout: inputs/test-layout.json
+expect:
+  outcome_in:
+  - PASS-WITH-FINDINGS
+  - NEEDS-INPUT
+  gates:
+    H5: pass
+  assert:
+  - path: questions
+    count_min: 1
+  - path: questions[].evidence[]
+    any_matches: stories\.md#|change\.md#
+provenance: invented
+attestation:
+  by: skill-owner-6f3b
+  statement: All inputs are invented for an invented system; no client material was used.

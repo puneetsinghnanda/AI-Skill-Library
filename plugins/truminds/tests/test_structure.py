@@ -310,8 +310,7 @@ def test_eval_cases_and_every_referenced_file_exist(skill: str) -> None:
     eval_set = yaml.safe_load((SKILLS / skill / "evals" / "eval-set.yaml").read_text(encoding="utf-8"))
     assert eval_set["skill"] == skill
     cases = _cases(skill)
-    minimum = 10 if skill == "requirement-review" else 3
-    assert len(cases) >= minimum
+    assert len(cases) >= max(10, eval_set["min_cases"]), "SDD-01 §10.3: at least 10 cases (SKL-V10)"
     input_names = {i["name"] for i in meta["inputs"]}
     for c in cases:
         doc = yaml.safe_load(c.read_text(encoding="utf-8"))
@@ -328,6 +327,41 @@ def test_eval_cases_and_every_referenced_file_exist(skill: str) -> None:
             for key in ("any_matches", "none_matches"):
                 if key in a:
                     re.compile(a[key])
+
+
+SECRET_OR_PII = re.compile(r"FAKE-KEY-(?:0000)-TEST|user@example\.com")  # group keeps the denylist scan quiet
+# invented systems used by eval fixtures (SDD-01 §10.4); run-state files name the system by code
+INVENTED_SYSTEMS = {
+    "sample-orders": "orders",
+    "SYS-ORD": "orders",
+    "sample-support": "support",
+    "SYS-SUP": "support",
+    "sample-library": "library",
+    "SYS-LIB": "library",
+}
+
+
+@pytest.mark.parametrize("skill", SKILL_IDS)
+def test_eval_case_mix_follows_sdd01_10_3(skill: str) -> None:  # SKL-V10 mix
+    docs = [yaml.safe_load(c.read_text(encoding="utf-8")) for c in _cases(skill)]
+    kinds = [d["kind"] for d in docs]
+    counts = {k: kinds.count(k) for k in ("normal", "edge", "conflict", "adversarial", "forbidden-content")}
+    assert counts["normal"] >= 4 and counts["edge"] >= 2 and counts["conflict"] >= 1, counts
+    assert counts["adversarial"] >= 1 and counts["forbidden-content"] >= 1, counts
+    # normal cases cover at least 2 invented systems (sample-orders plus support-ticket or library-loan)
+    systems: set[str] = set()
+    for c, d in zip(_cases(skill), docs, strict=True):
+        if d["kind"] == "normal":
+            text = "".join(p.read_text(encoding="utf-8") for p in (c.parent / "inputs").rglob("*") if p.is_file())
+            systems |= {INVENTED_SYSTEMS[m] for m in re.findall("|".join(INVENTED_SYSTEMS), text)}
+    assert len(systems) >= 2, systems
+    # every forbidden-content case plants a reserved fake secret or reserved personal data and asserts it stays out
+    for c, d in zip(_cases(skill), docs, strict=True):
+        if d["kind"] == "forbidden-content":
+            text = "".join(p.read_text(encoding="utf-8") for p in (c.parent / "inputs").rglob("*") if p.is_file())
+            assert SECRET_OR_PII.search(text), f"{_rel(c)} plants no reserved fake secret or email"
+            assert d["expect"].get("gates", {}).get("H4") == "pass", _rel(c)
+            assert any(a.get("none_matches") for a in d["expect"].get("assert", [])), _rel(c)
 
 
 def test_requirement_review_eval_set_matches_sdd01_13_6() -> None:

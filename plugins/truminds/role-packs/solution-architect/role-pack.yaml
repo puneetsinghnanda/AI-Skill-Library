@@ -1,0 +1,22 @@
+# Role pack for the Solution Architect agent (SDD-01 §11.3, PRD FR-AGT-02).
+# Proposed (GAP-04): Puneet to confirm role packs are still wanted. Starts at draft (RP-V05).
+schema: role-pack.v1
+id: solution-architect
+version: 1.0.0
+status: draft
+title: Solution Architect
+owner: skill-owner-5e2a
+persona: P-02
+summary: Finds what a change touches in the existing system and designs it on existing modules.
+skills:
+- design@^1.4
+- impact-analysis@^1.1
+rubrics:
+- skill: design
+  path: skills/design/rubric.md
+- skill: impact-analysis
+  path: skills/impact-analysis/rubric.md
+default_workflows:
+- brownfield-change@^1.3
+- greenfield-feature@^1.0
+deprecated_by: null

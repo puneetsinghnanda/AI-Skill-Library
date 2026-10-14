@@ -1,0 +1,41 @@
+{
+  "schema": "context-facts.v1",
+  "section": "db-schema",
+  "extractor": {
+    "name": "js-db",
+    "version": "1.0.0"
+  },
+  "sources": {
+    "sample-library": "fb98aa1e09f9eeda0c5d365e2e614828d3b3db33"
+  },
+  "empty_reason": null,
+  "facts": [
+    {
+      "id": "table:loans",
+      "kind": "table",
+      "source": {
+        "repo": "sample-library",
+        "path": "db/migrations/001_loans.sql",
+        "line": 1
+      }
+    },
+    {
+      "id": "table:members",
+      "kind": "table",
+      "source": {
+        "repo": "sample-library",
+        "path": "db/migrations/002_members.sql",
+        "line": 1
+      }
+    },
+    {
+      "id": "table:items",
+      "kind": "table",
+      "source": {
+        "repo": "sample-library",
+        "path": "db/migrations/003_items.sql",
+        "line": 1
+      }
+    }
+  ]
+}

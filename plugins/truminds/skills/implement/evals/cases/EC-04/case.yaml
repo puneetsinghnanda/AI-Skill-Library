@@ -1,0 +1,26 @@
+schema: eval-case.v1
+id: EC-04
+title: Customer orders CSV export from an approved design (sample ticket ABC-163)
+kind: normal
+inputs:
+  design: inputs/design.md
+  stories: inputs/stories.md
+  conventions: inputs/conventions.md
+  module_map: inputs/module-map.json
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H3: pass
+    H5: pass
+  assert:
+  - path: code
+    count_min: 1
+  - path: code[].files[]
+    any_matches: ^api/src/(routes|orders)/
+provenance: invented
+attestation:
+  by: skill-owner-6f3b
+  statement: All inputs are invented for an invented system; no client material was used.

@@ -1,0 +1,4 @@
+# Invented design-tool export (read-only MCP fetch), order detail screen
+node 70:1 Frame "Order detail"
+node 70:2 text "Order total" colour token text-muted on token surface size 12
+node 70:3 button "Track parcel" colour token on-primary on token primary size 14

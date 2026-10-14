@@ -1,0 +1,23 @@
+schema: eval-case.v1
+id: EC-09
+title: Change gives customers the staff role; the architecture keeps the roles separate
+kind: conflict
+inputs:
+  change: inputs/change.md
+  architecture: inputs/architecture.md
+expect:
+  outcome_in:
+  - PASS-WITH-FINDINGS
+  - NEEDS-INPUT
+  - ESCALATE
+  gates:
+    H2: pass
+  assert:
+  - path: findings[].text
+    any_matches: (?i)role|privilege
+  - path: findings[].cites[]
+    any_matches: architecture\.md#|session\.js
+provenance: invented
+attestation:
+  by: skill-owner-8b5d
+  statement: All inputs are invented for an invented system; no client material was used.

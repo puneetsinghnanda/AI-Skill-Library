@@ -1,0 +1,23 @@
+schema: role-pack.v1
+id: developer
+version: 1.0.0
+status: draft
+title: Developer
+owner: skill-owner-6f3b
+persona: P-03
+summary: Implements approved designs and defect fixes with unit tests, inside the change limits.
+skills:
+- defect-triage@^1.0
+- implement@^1.0
+- unit-test@^1.0
+rubrics:
+- skill: defect-triage
+  path: skills/defect-triage/rubric.md
+- skill: implement
+  path: skills/implement/rubric.md
+- skill: unit-test
+  path: skills/unit-test/rubric.md
+default_workflows:
+- brownfield-change@^1.3
+- defect-fix@^1.0
+deprecated_by: null

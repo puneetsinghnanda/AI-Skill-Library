@@ -1,0 +1,2 @@
+2026-01-05T10:00:01Z POST /api/loans/77/renew 500
+2026-01-05T10:00:01Z renew: renewals_count is null for loan 77

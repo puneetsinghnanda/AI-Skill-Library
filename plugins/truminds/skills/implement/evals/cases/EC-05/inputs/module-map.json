@@ -1,0 +1,50 @@
+{
+  "schema": "context-facts.v1",
+  "section": "module-map",
+  "extractor": {
+    "name": "js-module",
+    "version": "1.0.0"
+  },
+  "sources": {
+    "sample-support": "96c74c7577701c2a61170352546b06771f06ff18"
+  },
+  "empty_reason": null,
+  "facts": [
+    {
+      "id": "module:sample-support:api/src/tickets",
+      "kind": "module",
+      "source": {
+        "repo": "sample-support",
+        "path": "api/src/tickets/index.js",
+        "line": 1
+      }
+    },
+    {
+      "id": "module:sample-support:api/src/sla",
+      "kind": "module",
+      "source": {
+        "repo": "sample-support",
+        "path": "api/src/sla/index.js",
+        "line": 1
+      }
+    },
+    {
+      "id": "module:sample-support:api/src/agents",
+      "kind": "module",
+      "source": {
+        "repo": "sample-support",
+        "path": "api/src/agents/index.js",
+        "line": 1
+      }
+    },
+    {
+      "id": "module:sample-support:web/src/tickets",
+      "kind": "module",
+      "source": {
+        "repo": "sample-support",
+        "path": "web/src/tickets/index.jsx",
+        "line": 1
+      }
+    }
+  ]
+}

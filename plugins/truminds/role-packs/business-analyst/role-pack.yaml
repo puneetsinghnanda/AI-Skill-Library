@@ -1,0 +1,22 @@
+# Role pack for the Business Analyst agent (SDD-01 §11.3, PRD FR-AGT-02).
+# Proposed (GAP-04): Puneet to confirm role packs are still wanted. Starts at draft (RP-V05).
+schema: role-pack.v1
+id: business-analyst
+version: 1.0.0
+status: draft
+title: Business Analyst
+owner: skill-owner-3b7e
+persona: P-01
+summary: Turns tickets into numbered requirements and small stories with acceptance criteria.
+skills:
+- requirement-review@^1.0
+- story-split@^1.0
+rubrics:
+- skill: requirement-review
+  path: skills/requirement-review/rubric.md
+- skill: story-split
+  path: skills/story-split/rubric.md
+default_workflows:
+- brownfield-change@^1.3
+- greenfield-feature@^1.0
+deprecated_by: null

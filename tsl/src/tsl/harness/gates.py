@@ -14,7 +14,7 @@ from typing import Any
 from tsl.core.errors import TslError
 from tsl.core.frontmatter import headings, norm_title, section_text
 from tsl.core.hashing import sha256_bytes, sha256_file
-from tsl.harness import citations, detectors
+from tsl.harness import citations, detectors, injection
 from tsl.harness.artifact import Artifact
 from tsl.harness.skillchecks import CheckEnv, CheckOutcome, run_declared
 from tsl.orchestrator.skills import Skill
@@ -78,6 +78,8 @@ class CheckInput:
     key_lookup: Any = None  # callable key_id -> facts dict | None
     link_hosts: tuple[str, ...] = ()
     standalone: bool = False
+    # SC-INJ-01 marker list (SEC-01 §6.5); None means no marker file, so the check is skipped
+    injection_markers: injection.Markers | None = None
 
 
 @dataclass
@@ -87,6 +89,7 @@ class CheckRun:
     inputs: list[dict[str, Any]]
     tool_log_sha256: str
     skill_checks: list[CheckOutcome]
+    injection_hits: list[injection.InjectionHit] = field(default_factory=list)
 
 
 def iter_cites(front: dict[str, Any]) -> list[tuple[str, Any]]:
@@ -568,6 +571,20 @@ def soft_checks(ci: CheckInput, hits: list[detectors.Hit]) -> list[dict[str, Any
     return out
 
 
+def injection_check(ci: CheckInput) -> tuple[dict[str, Any] | None, list[injection.InjectionHit]]:
+    """SC-INJ-01 over the artifact and every declared input that exists (SEC-01 §6.2 L1)."""
+    if ci.injection_markers is None:
+        return None, []
+    sources: list[tuple[str, str]] = [(ci.art.rel, ci.art.text)]
+    for i in ci.expected_inputs:
+        rel = str(i.get("path") or "")
+        p = ci.root / rel
+        if rel and p.is_file():
+            sources.append((rel, p.read_text(encoding="utf-8", errors="replace")))
+    entry, hits = injection.check(sources, ci.injection_markers)
+    return entry, hits
+
+
 def run_all(ci: CheckInput, h3_result: GateResult | None) -> CheckRun:
     env = CheckEnv(
         ci.art.front,
@@ -594,7 +611,10 @@ def run_all(ci: CheckInput, h3_result: GateResult | None) -> CheckRun:
         _skill_into(g["H1"], "H1", skill_checks)
     g["H3"] = h3_result or GateResult("H3", "skip")
     soft = soft_checks(ci, hits)
+    inj_entry, inj_hits = injection_check(ci)
+    if inj_entry is not None:
+        soft.append(inj_entry)
     for o in skill_checks:
         if o.gate == "soft" and o.status != "skip":
             soft.append({"id": o.id, "pass": o.status == "pass"})
-    return CheckRun(g, soft, inputs, tool_log_sha(ci.tool_log), skill_checks)
+    return CheckRun(g, soft, inputs, tool_log_sha(ci.tool_log), skill_checks, inj_hits)

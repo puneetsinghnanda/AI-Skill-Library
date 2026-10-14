@@ -1,0 +1,23 @@
+schema: eval-case.v1
+id: EC-06
+title: Renew once and loan limit, two stories (library system)
+kind: normal
+inputs:
+  stories: inputs/stories.md
+  test_strategy: inputs/test-strategy.md
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+  assert:
+  - path: tests[].covers[]
+    any_matches: ^S-2/AC1$
+  - path: tests[].covers[]
+    any_matches: ^S-1/AC2$
+provenance: invented
+attestation:
+  by: skill-owner-7a4c
+  statement: All inputs are invented for an invented system; no client material was used.

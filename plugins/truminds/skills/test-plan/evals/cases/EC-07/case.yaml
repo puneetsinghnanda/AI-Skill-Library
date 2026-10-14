@@ -1,0 +1,21 @@
+schema: eval-case.v1
+id: EC-07
+title: 'Missing input: a UI journey but the strategy has no end-to-end section'
+kind: edge
+inputs:
+  stories: inputs/stories.md
+  test_strategy: inputs/test-strategy.md
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  - NEEDS-INPUT
+  gates:
+    H2: pass
+  assert:
+  - path: tests[].covers[]
+    any_matches: ^S-1/AC1$
+provenance: invented
+attestation:
+  by: skill-owner-7a4c
+  statement: All inputs are invented for an invented system; no client material was used.

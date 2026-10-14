@@ -1,0 +1,22 @@
+schema: eval-case.v1
+id: EC-08
+title: 'Ambiguous input: colours given as token names, so contrast cannot be computed'
+kind: edge
+inputs:
+  ticket: inputs/ticket.md
+  design_file: inputs/design-export.txt
+expect:
+  outcome_in:
+  - PASS-WITH-FINDINGS
+  - NEEDS-INPUT
+  gates:
+    H1: pass
+  assert:
+  - path: findings[].wcag
+    none_matches: ^1\.4\.3$
+  - path: questions
+    count_min: 1
+provenance: invented
+attestation:
+  by: skill-owner-ad7f
+  statement: All inputs are invented for an invented system; no client material was used.

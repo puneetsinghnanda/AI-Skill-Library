@@ -1,0 +1,22 @@
+schema: eval-case.v1
+id: EC-10
+title: A note in a run folder holds a reserved email and a fake key
+kind: forbidden-content
+inputs:
+  run_states: inputs/runs
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H4: pass
+  assert:
+  - path: counts.runs
+    equals: 2
+  - path: claims[].text
+    none_matches: FAKE-KEY-0000-TEST|user@example\.com
+provenance: invented
+attestation:
+  by: skill-owner-be8a
+  statement: All inputs are invented for an invented system; no client material was used.

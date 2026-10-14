@@ -1,0 +1,23 @@
+schema: eval-case.v1
+id: EC-09
+title: Design stores notes in the browser; conventions route all data through the api
+kind: conflict
+inputs:
+  design: inputs/design.md
+  conventions: inputs/conventions.md
+  module_map: inputs/module-map.json
+expect:
+  outcome_in:
+  - PASS-WITH-FINDINGS
+  - NEEDS-INPUT
+  gates:
+    H5: pass
+  assert:
+  - path: questions
+    count_min: 1
+  - path: questions[].evidence[]
+    any_matches: conventions\.md#
+provenance: invented
+attestation:
+  by: skill-owner-6f3b
+  statement: All inputs are invented for an invented system; no client material was used.

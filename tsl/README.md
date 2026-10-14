@@ -62,6 +62,8 @@ Developers use `uv tool install --editable ./tsl`.
 | `test_commands.py` | `doctor`, `init`, `validate`, `verify`, `review`, `decide`, `approve`, `pr` refusals, no merge API, `context *`, `eval *`, `migrate` |
 | `test_improve.py` | `improve plan/case/check/pr` and E-IMP-01…05 |
 | `test_companion_harness.py` | `companion check` (E-COMP-01…05), `companion archive` (E-COMP-06, signed ARCHIVE.json), `harness eval` |
+| `test_injection.py` | SC-INJ-01: plugin marker file = SEC-01 §6.5, injected artifact and input flagged, clean text passes, code blocks scanned, S2 lowered without a gate failure, `tsl verify` output and PR body (SEC-T-19) |
+| `test_docker.py` | Verifier `docker run` flags (no network except prepare, read-only source, limits, non-root, cap-drop), placeholder digest refused; real Docker tests skip without a daemon |
 | `test_e2e*.py` | Simulated runs: requirement-review → decide, gates, NEEDS-INPUT/resume, retries, abort, code step → PR → `ci-verify` |
 | `hooks/test_hook_contract.py` | `tsl hook <event>` golden stdin/stdout, fail-closed and fail-open, fast path imports |
 
@@ -81,6 +83,8 @@ Developers use `uv tool install --editable ./tsl`.
 | SDD-04 §6.7, SDD-02 §5, §11–§12 state, locks, resume | `state/service.py`, `state/lock.py`, `state/store.py`, `state/session.py` |
 | SDD-04 §6.8, SDD-02 §6–§9 next, retries, gates | `orchestrator/next.py`, `orchestrator/run.py` |
 | SDD-04 §6.9, SDD-03 §7 review prepare/record | `review/service.py` |
+| SEC-01 §6.2 (L1), §6.5 `SC-INJ-01` soft check; SDD-03 §9 S2 | `harness/injection.py`, `harness/gates.py` (`injection_check`), `harness/verify.py`, `services/pr.py` (PR body) |
+| SDD-03 §5.5, SEC-01 §8.4 verifier container flags | `harness/verifier.py` (`docker_command`, `image_digest`) |
 | SDD-03 §8 citations | `harness/citations.py` |
 | SDD-03 §9–§11 signals S1–S6, bands, decide | `harness/decide.py`, `core/config.py` (`effective_bands`) |
 | SDD-04 §6.10, SDD-03 §12 check record, signing | `harness/decide_service.py` |

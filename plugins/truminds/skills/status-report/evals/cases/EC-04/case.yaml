@@ -1,0 +1,25 @@
+schema: eval-case.v1
+id: EC-04
+title: Three runs in three statuses (sample-orders)
+kind: normal
+inputs:
+  run_states: inputs/runs
+expect:
+  outcome_in:
+  - PASS
+  gates:
+    H1: pass
+    H2: pass
+  assert:
+  - path: counts.runs
+    equals: 3
+  - path: counts.running
+    equals: 1
+  - path: counts.paused_approval
+    equals: 1
+  - path: counts.completed
+    equals: 1
+provenance: invented
+attestation:
+  by: skill-owner-be8a
+  statement: All inputs are invented for an invented system; no client material was used.

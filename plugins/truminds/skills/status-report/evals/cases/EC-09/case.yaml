@@ -1,0 +1,20 @@
+schema: eval-case.v1
+id: EC-09
+title: A note claims eight runs; only three state files exist
+kind: conflict
+inputs:
+  run_states: inputs/runs
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+  assert:
+  - path: counts.runs
+    equals: 3
+provenance: invented
+attestation:
+  by: skill-owner-be8a
+  statement: All inputs are invented for an invented system; no client material was used.

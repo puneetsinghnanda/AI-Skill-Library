@@ -1,0 +1,58 @@
+{
+  "schema": "context-facts.v1",
+  "section": "api-inventory",
+  "extractor": {
+    "name": "js-api",
+    "version": "1.0.0"
+  },
+  "sources": {
+    "sample-orders": "43bd5295b2ec800347407b3ec65cea7c074b7824"
+  },
+  "empty_reason": null,
+  "facts": [
+    {
+      "id": "http:GET:/api/orders",
+      "kind": "http",
+      "method": "GET",
+      "path": "/api/orders",
+      "source": {
+        "repo": "sample-orders",
+        "path": "api/src/routes/orders.js",
+        "line": 9
+      }
+    },
+    {
+      "id": "http:GET:/api/orders/:id",
+      "kind": "http",
+      "method": "GET",
+      "path": "/api/orders/:id",
+      "source": {
+        "repo": "sample-orders",
+        "path": "api/src/routes/orders.js",
+        "line": 18
+      }
+    },
+    {
+      "id": "http:POST:/api/orders/:id/cancel",
+      "kind": "http",
+      "method": "POST",
+      "path": "/api/orders/:id/cancel",
+      "source": {
+        "repo": "sample-orders",
+        "path": "api/src/routes/orders.js",
+        "line": 31
+      }
+    },
+    {
+      "id": "http:GET:/api/orders/:id/history",
+      "kind": "http",
+      "method": "GET",
+      "path": "/api/orders/:id/history",
+      "source": {
+        "repo": "sample-orders",
+        "path": "api/src/routes/orders.js",
+        "line": 44
+      }
+    }
+  ]
+}

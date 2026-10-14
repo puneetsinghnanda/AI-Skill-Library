@@ -1,0 +1,20 @@
+{
+  "schema": "role-pack.v1",
+  "id": "delivery-manager",
+  "version": "0.1.0",
+  "status": "pilot",
+  "title": "Delivery Manager",
+  "owner": "skill-owner-77aa",
+  "persona": "P-08",
+  "summary": "Sizes stories with cited evidence.",
+  "skills": [
+    "estimate-review@^1.0"
+  ],
+  "rubrics": [
+    {
+      "skill": "estimate-review",
+      "path": "skills/estimate-review/rubric.md"
+    }
+  ],
+  "default_workflows": []
+}

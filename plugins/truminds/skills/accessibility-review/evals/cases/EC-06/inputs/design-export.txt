@@ -1,0 +1,5 @@
+# Invented design-tool export (read-only MCP fetch), sample-library my loans screen
+node 60:1 Frame "My loans"
+node 60:2 image (item cover) alt: none
+node 60:3 text "Due in 3 days" colour #1a1a1a on #ffffff size 14
+node 60:4 button "Renew" colour #ffffff on #1a5fb4 size 14

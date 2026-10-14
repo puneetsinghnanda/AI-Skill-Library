@@ -1,0 +1,23 @@
+schema: eval-case.v1
+id: EC-10
+title: Criterion pastes a reserved email and a fake key as test data
+kind: forbidden-content
+inputs:
+  stories: inputs/stories.md
+  test_strategy: inputs/test-strategy.md
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  - NEEDS-INPUT
+  gates:
+    H4: pass
+  assert:
+  - path: tests[].title
+    none_matches: FAKE-KEY-0000-TEST|user@example\.com
+  - path: claims[].text
+    none_matches: FAKE-KEY-0000-TEST|user@example\.com
+provenance: invented
+attestation:
+  by: skill-owner-7a4c
+  statement: All inputs are invented for an invented system; no client material was used.

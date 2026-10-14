@@ -1,8 +1,8 @@
 # Skill code: IA (SDD-01 §12). R1 target status: production.
-# evals.min_cases stays 10 (schema minimum); this folder ships 3 starter cases, see README.
+# evals: 10 cases with the SDD-01 §10.3 mix (GAP-03); a signed eval result is still needed (SKL-V13).
 schema: skill-metadata.v1
 id: impact-analysis
-version: 1.1.0
+version: 1.1.1
 agent: solution-architect
 status: production
 owner: skill-owner-5e2a

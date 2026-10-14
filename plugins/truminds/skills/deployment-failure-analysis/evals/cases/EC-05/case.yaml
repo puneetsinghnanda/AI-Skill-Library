@@ -1,0 +1,23 @@
+schema: eval-case.v1
+id: EC-05
+title: 'Health check fails after deploy: database URL not set (support system)'
+kind: normal
+inputs:
+  ticket: inputs/ticket.md
+  job_log: inputs/job.log
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+  assert:
+  - path: cause
+    any_matches: (?i)SUPPORT_DB_URL|environment|not set
+  - path: findings[].cites[]
+    any_matches: '#L4$'
+provenance: invented
+attestation:
+  by: skill-owner-9c6e
+  statement: All inputs are invented for an invented system; no client material was used.

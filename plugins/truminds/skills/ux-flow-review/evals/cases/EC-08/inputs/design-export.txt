@@ -1,0 +1,5 @@
+# Invented design-tool export (read-only MCP fetch), two flows
+node 15:1 Frame "Order detail"         button "Track" -> 15:2
+node 15:2 Frame "Tracking"             text "Parcel on the way" link "Back" -> 15:1
+node 18:1 Frame "Account"              button "Delete account" -> 18:2
+node 18:2 Frame "Deleted"              text "Account deleted" (no confirm step before it)

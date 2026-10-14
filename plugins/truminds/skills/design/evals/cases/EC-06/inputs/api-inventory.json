@@ -1,0 +1,58 @@
+{
+  "schema": "context-facts.v1",
+  "section": "api-inventory",
+  "extractor": {
+    "name": "js-api",
+    "version": "1.0.0"
+  },
+  "sources": {
+    "sample-library": "b25bfef853501eec92f0dd595a375a6d9eafa48a"
+  },
+  "empty_reason": null,
+  "facts": [
+    {
+      "id": "http:GET:/api/loans",
+      "kind": "http",
+      "method": "GET",
+      "path": "/api/loans",
+      "source": {
+        "repo": "sample-library",
+        "path": "api/src/routes/loans.js",
+        "line": 7
+      }
+    },
+    {
+      "id": "http:POST:/api/loans",
+      "kind": "http",
+      "method": "POST",
+      "path": "/api/loans",
+      "source": {
+        "repo": "sample-library",
+        "path": "api/src/routes/loans.js",
+        "line": 15
+      }
+    },
+    {
+      "id": "http:POST:/api/loans/:id/renew",
+      "kind": "http",
+      "method": "POST",
+      "path": "/api/loans/:id/renew",
+      "source": {
+        "repo": "sample-library",
+        "path": "api/src/routes/loans.js",
+        "line": 27
+      }
+    },
+    {
+      "id": "http:GET:/api/items/:id",
+      "kind": "http",
+      "method": "GET",
+      "path": "/api/items/:id",
+      "source": {
+        "repo": "sample-library",
+        "path": "api/src/routes/items.js",
+        "line": 6
+      }
+    }
+  ]
+}

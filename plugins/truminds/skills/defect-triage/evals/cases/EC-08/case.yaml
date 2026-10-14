@@ -1,0 +1,23 @@
+schema: eval-case.v1
+id: EC-08
+title: 'Ambiguous report: ''the order page is slow sometimes'' with no steps or log'
+kind: edge
+inputs:
+  ticket: inputs/ticket.md
+  module_map: inputs/module-map.json
+  architecture: inputs/architecture.md
+expect:
+  outcome_in:
+  - PASS-WITH-FINDINGS
+  - NEEDS-INPUT
+  gates:
+    H1: pass
+  assert:
+  - path: questions
+    count_min: 1
+  - path: candidates[?likelihood=='high']
+    count_max: 0
+provenance: invented
+attestation:
+  by: skill-owner-6f3b
+  statement: All inputs are invented for an invented system; no client material was used.

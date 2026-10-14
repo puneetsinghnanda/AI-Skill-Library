@@ -1,0 +1,4 @@
+# Invented design-tool export (read-only MCP fetch), sample-library loan renew flow
+node 33:1 Frame "My loans"             button "Renew" -> 33:4
+node 33:4 Frame "Renewed"              text "New due date shown" link "Back" -> 33:1
+node 33:6 Frame "Renew failed"         text "Error 409" (no reason, no next step)

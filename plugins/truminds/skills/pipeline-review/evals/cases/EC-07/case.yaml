@@ -1,0 +1,20 @@
+schema: eval-case.v1
+id: EC-07
+title: 'Missing input: the CI file has no jobs'
+kind: edge
+inputs:
+  ticket: inputs/ticket.md
+  ci_config: inputs/ci.yml
+expect:
+  outcome_in:
+  - PASS-WITH-FINDINGS
+  - NEEDS-INPUT
+  gates:
+    H5: pass
+  assert:
+  - path: questions
+    count_min: 1
+provenance: invented
+attestation:
+  by: skill-owner-9c6e
+  statement: All inputs are invented for an invented system; no client material was used.
