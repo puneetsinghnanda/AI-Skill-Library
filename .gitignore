@@ -11,3 +11,4 @@ build/
 *.key
 .pytest_cache/
 coverage/
+.devcontainer/devcontainer-lock.json

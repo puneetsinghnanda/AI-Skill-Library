@@ -191,6 +191,19 @@ Create the password file once with a random value: `mkdir -p ~/.truminds-dev && 
 | `.env`, `.env.*`, `*.pem`, `*.key` | Never (in `.gitignore`; also blocked from Claude by managed deny rules) | Local values |
 | `~/.truminds/` | Never (outside the repo) | `tsl` config, outbox, hook log; private key stays in the OS keychain (R-06) |
 
+### 3.6 Setup troubleshooting
+
+These are known dev container and laptop problems, found on Windows. The same table is in [TST-02 §3](../testing/TST-02-team-validation-plan.md#3-laptop-set-up-everyone-once); keep the two in step.
+
+| # | Symptom | Cause | Fix |
+| --- | --- | --- | --- |
+| T1 | `devcontainers/cli up` or `docker` says it cannot connect to the Docker daemon (`dockerDesktopLinuxEngine` pipe not found) | Docker Desktop is not running yet, or VS Code was opened before Docker started and kept a stale Docker context | Start Docker Desktop and wait until it shows **Engine running**, then retry. If VS Code was already open, close and reopen it |
+| T2 | VS Code **Reopen in Container** fails or hangs on Windows | The VS Code Dev Containers extension on that laptop | Use the CLI from PowerShell in the repo folder: `npx -y @devcontainers/cli up --workspace-folder .`, then `npx -y @devcontainers/cli exec --workspace-folder . make test-all` (or `... exec --workspace-folder . bash` for a shell). VS Code can then **Attach to Running Container** |
+| T3 | `git commit` from Windows fails with `pre-commit not found` | `post-create.sh` runs `pre-commit install` inside the container. That writes `.git\hooks\pre-commit` into the shared checkout, and the hook calls a `pre-commit` that exists only in the container | Pick one: commit inside the container (`... exec --workspace-folder . bash`, then `git commit`), so the hooks really run; or commit from Windows with `git commit --no-verify` (CI runs the same checks); or delete the hook with `Remove-Item .git\hooks\pre-commit` (run `pre-commit install` in the container to restore it) |
+| T4 | `git status` shows an untracked `.devcontainer/devcontainer-lock.json` | The dev containers CLI writes a lock file for the features it installed | It is in `.gitignore`; never commit it |
+| T5 | `/truminds:status` or a skill cannot find the companion repo (`tsl.yaml`) | The Claude Code session was opened in the repo root or another folder | Open the Claude Code session in `examples\sample-system\companion-example`, the folder that holds `tsl.yaml` |
+| T6 | A skill refuses to run because there is no run | By design, skills run only as steps of a run | After `tsl login`, start a run: `/truminds:run brownfield-change ABC-142`. The skills then run inside it |
+
 ## 4. Coding standards
 
 ### 4.1 Python (`tsl/`, `services/insights/`)

@@ -73,6 +73,17 @@ Windows is the main target (Claude Code runs natively on Windows, not in WSL: C-
 | 6 | Until the plugin is installed in Claude Code (phase B), tell `tsl` where the plugin is. PowerShell: `$env:CLAUDE_PLUGIN_ROOT="C:\dev\AI-Skill-Library\plugins\truminds"` (bash: `export CLAUDE_PLUGIN_ROOT=$PWD/plugins/truminds`). Without it, commands such as `tsl harness eval` stop with E-ENV-01 "truminds plugin" | `tsl validate plugins/truminds` prints `35 item(s) valid` |
 | 7 | Run `tsl doctor`. In phases A and B the login, key and service checks are expected to fail; everything else should pass | Record the output in your verdict |
 
+**Setup troubleshooting.** These are known problems from Windows laptops. If you hit a problem that is not listed here, raise a finding (§4) under component `setup`.
+
+| # | Symptom | Cause | Fix |
+| --- | --- | --- | --- |
+| T1 | `devcontainers/cli up` or `docker` says it cannot connect to the Docker daemon (`dockerDesktopLinuxEngine` pipe not found) | Docker Desktop is not running yet, or VS Code was opened before Docker started and kept a stale Docker context | Start Docker Desktop and wait until it shows **Engine running**, then retry. If VS Code was already open, close and reopen it |
+| T2 | VS Code **Reopen in Container** fails or hangs on Windows | The VS Code Dev Containers extension on that laptop | Use the CLI from PowerShell in the repo folder: `npx -y @devcontainers/cli up --workspace-folder .`, then `npx -y @devcontainers/cli exec --workspace-folder . make test-all` (or `... exec --workspace-folder . bash` for a shell). VS Code can then **Attach to Running Container** |
+| T3 | `git commit` from Windows fails with `pre-commit not found` | `post-create.sh` runs `pre-commit install` inside the container. That writes `.git\hooks\pre-commit` into the shared checkout, and the hook calls a `pre-commit` that exists only in the container | Pick one: commit inside the container (`... exec --workspace-folder . bash`, then `git commit`), so the hooks really run; or commit from Windows with `git commit --no-verify` (CI runs the same checks); or delete the hook with `Remove-Item .git\hooks\pre-commit` (run `pre-commit install` in the container to restore it) |
+| T4 | `git status` shows an untracked `.devcontainer/devcontainer-lock.json` | The dev containers CLI writes a lock file for the features it installed | It is in `.gitignore`; never commit it |
+| T5 | `/truminds:status` or a skill cannot find the companion repo (`tsl.yaml`) | The Claude Code session was opened in the repo root or another folder | Open the Claude Code session in `examples\sample-system\companion-example`, the folder that holds `tsl.yaml` |
+| T6 | A skill refuses to run because there is no run | By design, skills run only as steps of a run | After `tsl login`, start a run: `/truminds:run brownfield-change ABC-142`. The skills then run inside it |
+
 Rules while testing (they apply to every issue and file you write):
 
 - Use only the sample system (`examples/sample-system/`) and invented data. **No client names, client code, customer data, tokens or keys** anywhere: issues, screenshots, logs.
