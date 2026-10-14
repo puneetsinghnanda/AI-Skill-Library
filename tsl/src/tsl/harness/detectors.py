@@ -44,6 +44,9 @@ def _line_of(text: str, pos: int) -> int:
     return text.count("\n", 0, pos) + 1
 
 
+RUN_ID_IN_PATH = re.compile(r"run_[0-9A-HJKMNP-TV-Z]{26}")
+
+
 def _entropy(s: str) -> float:
     c = Counter(s)
     n = len(s)
@@ -178,6 +181,8 @@ def scan(
             tok = m.group(0)
             if SAFE_TOKEN.match(tok) or allowed(tok) or ("/" in tok and "." in tok):
                 continue
+            if RUN_ID_IN_PATH.search(tok):
+                continue  # citation paths carry ULID run ids; they are ids, not secrets
             if not (re.search(r"[A-Za-z]", tok) and re.search(r"[0-9]", tok)):
                 continue
             if any(p in tok.lower() for p in placeholders) or re.fullmatch(r"[a-z0-9-]+", tok):

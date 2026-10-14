@@ -45,6 +45,7 @@ Every document lives here and changes by pull request (GOV-01). The earlier Clau
 | --- | --- | --- | --- |
 | SEC-01 | Security design and threat model | Security reviewer TBD by Puneet | [security/SEC-01-threat-model.md](security/SEC-01-threat-model.md) |
 | TST-01 | Master test plan | Each area owner | [testing/TST-01-master-test-plan.md](testing/TST-01-master-test-plan.md) |
+| TST-02 | Team validation plan (who tests what, how to report, verdict) | Puneet Singh Nanda | [testing/TST-02-team-validation-plan.md](testing/TST-02-team-validation-plan.md) |
 | DEV-01 | Developer guide | TBD by Puneet | [development/DEV-01-developer-guide.md](development/DEV-01-developer-guide.md) |
 | OPS-01 | Deployment and hosting | TBD by Puneet | [operations/OPS-01-deployment-hosting.md](operations/OPS-01-deployment-hosting.md) |
 | OPS-02 | Monitoring and alerting | Gaurav Saini | [operations/OPS-02-monitoring-alerting.md](operations/OPS-02-monitoring-alerting.md) |

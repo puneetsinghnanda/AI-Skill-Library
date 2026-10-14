@@ -1,0 +1,72 @@
+name: Validation finding
+description: A problem or idea found while validating the Skill Library (TST-02).
+title: "val(<area>): "
+labels: [validation]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One finding per issue. Use only the sample system and invented data: no client names, client code,
+        customer data, tokens or keys (C-09). Plan: docs/testing/TST-02-team-validation-plan.md
+  - type: input
+    id: test
+    attributes:
+      label: Test ID
+      placeholder: VAL-HAR-07 (or "exploratory")
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [skills, workflows, pods / role packs, harness, tsl, hooks / execution, spikes, telemetry / insights, portal, sample system, deploy / monitoring, docs]
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options: [S1 Blocker, S2 Major, S3 Minor, S4 Idea]
+    validations:
+      required: true
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Phase
+      options: [A laptop only, B Claude seat no login, C full run]
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: Windows 11, Claude Code x.y, tsl 0.1.0, Docker 27
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps and command
+      description: Exact commands. Paste the JSON envelope from `tsl --json ...` if there is one.
+    validations:
+      required: true
+  - type: input
+    id: code
+    attributes:
+      label: Error code, if any
+      placeholder: E-LOCK-01
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected (cite the document section)
+      placeholder: SDD-03 §11.1 row 6 says NEEDS-INPUT
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested fix (optional)
