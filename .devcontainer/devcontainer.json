@@ -5,7 +5,7 @@
   // Claude Code itself runs in the desktop app on the host, not in this container (C-16).
   // No secrets here; sign-in uses the development Entra app registration (DEV-01 §3.4).
   "name": "truminds-skill-library",
-  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "build": { "dockerfile": "Dockerfile" },
   "features": {
     "ghcr.io/devcontainers/features/node:1": { "version": "22", "nvmVersion": "latest" },
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
