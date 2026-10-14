@@ -52,9 +52,10 @@ export const NAMES: Record<string, string> = {
   'eng-77de': 'Casey Placeholder',
   'eng-0b3e': 'Riley Fixture',
   'eng-7a1c': 'Morgan Demo',
+  'eng-5d3e': 'Quinn Mockup',
 };
 
-export type DemoUserId = 'viewer' | 'engineer' | 'lead';
+export type DemoUserId = 'viewer' | 'engineer' | 'lead' | 'admin';
 
 export interface DemoUser {
   id: DemoUserId;
@@ -142,6 +143,27 @@ export const USERS: Record<DemoUserId, DemoUser> = {
       can_reveal_names: true,
       scope: scopeOf(SYSTEMS.map((s) => s.code)),
       app_roles: ['Engineer', 'TechLead'],
+    },
+    systems: SYSTEMS.map((s) => s.code),
+    nameSystems: SYSTEMS.map((s) => s.code),
+    engineerFamily: true,
+    telemetry: true,
+    techLeadSystems: [],
+  },
+  admin: {
+    id: 'admin',
+    label: 'Insights admin',
+    me: {
+      pseudonym: 'eng-5d3e',
+      display_name: 'Quinn Mockup',
+      role_label: 'Admin',
+      roles: [{ role: 'admin', scope_type: 'org', scope: null }],
+      agent_role: null,
+      default_view: 'engineer',
+      can_switch_view: true,
+      can_reveal_names: true,
+      scope: scopeOf(SYSTEMS.map((s) => s.code)),
+      app_roles: ['Admin'],
     },
     systems: SYSTEMS.map((s) => s.code),
     nameSystems: SYSTEMS.map((s) => s.code),

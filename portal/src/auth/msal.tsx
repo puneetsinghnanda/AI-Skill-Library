@@ -109,16 +109,18 @@ export function msalAuthPort(pca: PublicClientApplication, env: Env): AuthPort {
     async getToken(options) {
       const account = pca.getActiveAccount() ?? pca.getAllAccounts()[0];
       if (!account) throw new Error('Not signed in');
+      // Portal.Write only for admin actions, requested incrementally (SDD-09 §4.16).
+      const wanted = options?.write ? [env.apiWriteScope] : scopes;
       try {
         const r = await pca.acquireTokenSilent({
-          scopes,
+          scopes: wanted,
           account,
           forceRefresh: options?.forceRefresh ?? false,
         });
         return r.accessToken;
       } catch (e) {
         if (e instanceof InteractionRequiredAuthError) {
-          await pca.acquireTokenRedirect({ scopes, account, state: currentPath() });
+          await pca.acquireTokenRedirect({ scopes: wanted, account, state: currentPath() });
         }
         throw e;
       }

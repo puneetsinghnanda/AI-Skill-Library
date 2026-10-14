@@ -23,6 +23,8 @@
     { "fg": "--tm-escalate", "bg": "--tm-surface", "min": 4.5 },
     { "fg": "--tm-abort", "bg": "--tm-abort-soft", "min": 4.5 },
     { "fg": "--tm-abort", "bg": "--tm-surface", "min": 4.5 },
+    { "fg": "--tm-text-inverse", "bg": "--tm-abort", "min": 4.5 },
+    { "fg": "--tm-text", "bg": "--tm-pass-soft", "min": 4.5 },
     { "fg": "--tm-retry", "bg": "--tm-retry-soft", "min": 4.5 },
     { "fg": "--tm-highlight", "bg": "--tm-demo-soft", "min": 4.5 },
     { "fg": "--tm-focus", "bg": "--tm-page", "min": 3 },

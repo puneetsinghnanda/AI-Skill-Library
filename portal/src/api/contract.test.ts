@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { HANDLED_ROUTES } from '../mocks/handlers';
 import { USERS } from '../mocks/fixtures';
 import type { ResponseMap } from './types';
+import { ADMIN_LIST_ROUTES, ADMIN_ROUTES } from './admin';
 
 const spec = JSON.parse(
   readFileSync(resolve(__dirname, '../../../services/insights/openapi/openapi.json'), 'utf8'),
@@ -38,6 +39,7 @@ const CLIENT_ROUTES: (keyof ResponseMap)[] = [
   '/v1/runs',
   '/v1/runs/{run_id}',
   '/v1/improvement/skills/{skill_id}',
+  ...ADMIN_LIST_ROUTES,
 ];
 
 /** Query parameters the screens send, per route (must exist in the OpenAPI). */
@@ -58,6 +60,12 @@ const QUERY_USED: Record<string, string[]> = {
   '/v1/insights/engineering/health': ['project', 'system', 'period'],
   '/v1/runs': ['project', 'system', 'period', 'owner', 'include', 'limit', 'cursor'],
   '/v1/runs/{run_id}': ['include'],
+  '/v1/admin/clients': ['consent', 'limit', 'cursor'],
+  '/v1/admin/projects': ['limit', 'cursor'],
+  '/v1/admin/systems': ['limit', 'cursor'],
+  '/v1/admin/role-grants': ['status', 'limit', 'cursor'],
+  '/v1/admin/users': ['active', 'limit', 'cursor'],
+  '/v1/admin/users/{pseudonym}/keys': ['limit', 'cursor'],
 };
 
 describe('contract with services/insights/openapi/openapi.json', () => {
@@ -84,8 +92,29 @@ describe('contract with services/insights/openapi/openapi.json', () => {
     expect(names.filter((n) => !declared.includes(n))).toEqual([]);
   });
 
-  it('the portal never calls a non-GET route (read-only portal, SDD-09 §1.3)', () => {
-    expect(HANDLED_ROUTES.every((r) => r.method === 'GET')).toBe(true);
+  it('the only non-GET routes are the admin POST routes (SDD-09 §1.3, §4.16)', () => {
+    const writes = HANDLED_ROUTES.filter((r) => r.method !== 'GET');
+    expect(writes.every((r) => r.method === 'POST')).toBe(true);
+    expect(writes.map((r) => r.path).sort()).toEqual([...ADMIN_ROUTES].sort());
+  });
+
+  it.each(ADMIN_ROUTES)('admin route %s is a POST in the OpenAPI', (path) => {
+    expect(spec.paths[path]?.post).toBeDefined();
+  });
+
+  it('admin list routes are GETs under /v1/admin/ and are all mocked', () => {
+    const mocked = HANDLED_ROUTES.filter((r) => r.method === 'GET').map((r) => r.path);
+    for (const p of ADMIN_LIST_ROUTES) {
+      expect(p.startsWith('/v1/admin/')).toBe(true);
+      expect(spec.paths[p]?.get).toBeDefined();
+      expect(mocked).toContain(p);
+    }
+  });
+
+  it('admin POST routes are the admin API and key revocation only', () => {
+    expect(
+      ADMIN_ROUTES.every((p) => p.startsWith('/v1/admin/') || p === '/v1/keys/{key_id}/revoke'),
+    ).toBe(true);
   });
 
   it('fixture users carry every /v1/me field the server returns (app/api/v1/me.py)', () => {

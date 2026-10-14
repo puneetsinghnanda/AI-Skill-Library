@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { isAdmin } from '../api/admin';
 import { usePods, useSkills } from '../api/queries';
 import { useAuth } from '../auth/port';
 import { SearchIcon } from '../components/Icons';
@@ -29,6 +30,8 @@ const NAV = [
     match: (p: string) => p.startsWith('/insights') || p.startsWith('/runs'),
   },
   { to: '/get-started', label: 'Get started', match: (p: string) => p.startsWith('/get-started') },
+  // Admin app role only (SDD-09 §4.16); filtered out for everyone else below.
+  { to: '/admin', label: 'Admin', match: (p: string) => p.startsWith('/admin'), adminOnly: true },
 ];
 
 /** Active tab: Skill detail -> Skills; Pod detail and builder -> Pods; Run detail -> Insights. */
@@ -126,6 +129,7 @@ export function TopBar() {
   const auth = useAuth();
   const qc = useQueryClient();
   const active = activeNav(pathname);
+  const nav = NAV.filter((n) => !('adminOnly' in n) || isAdmin(me));
   return (
     <header className="topbar">
       <div className="topbar-inner">
@@ -134,7 +138,7 @@ export function TopBar() {
           <span className="brand-name">AI Skill Library</span>
         </Link>
         <nav aria-label="Main" className="mainnav">
-          {NAV.map((n) => (
+          {nav.map((n) => (
             <Link key={n.to} to={n.to} aria-current={active === n.label ? 'page' : undefined}>
               {n.label}
             </Link>

@@ -93,6 +93,7 @@ The tests work as follows:
 | View refresh, partitions, retention and rollups, audit floor, outbox gauges, worker tick | `test_jobs.py` |
 | Improvement flags and report job, `improvement.proposed` | `test_improvement.py` |
 | Admin routes, self-grant refused (E-ADM-01), consent, deactivate, app-role sync | `test_admin.py` |
+| Admin lists: admin only (403 otherwise), pagination, filters, RD-1 names | `test_admin_lists.py` |
 | Health, readiness, `/metrics` labels, log redaction, entry modes, no committed secrets | `test_health_obs.py` |
 | Seed refuses prod, seed loads | `test_seed.py` |
 
@@ -131,6 +132,7 @@ The tests work as follows:
 | SDD-11 §5.4 improvement endpoints; §3 signals; report job | `app/api/v1/improvement.py`, `app/jobs/improvement_report.py`, `app/improvement_thresholds.yaml` |
 | SDD-12 §5.3 `GET /v1/systems/{code}` | `app/api/v1/systems.py` |
 | SDD-13 §7.2 admin routes | `app/api/v1/admin.py` |
+| SDD-13 §5.3, §7.2 admin lists | `app/api/v1/admin_lists.py` |
 | OPS-02 §4 health and readiness | `app/api/v1/health.py`, `app/obs/probe.py` |
 | OPS-02 §5 metrics, §6 logs | `app/obs/metrics.py`, `app/obs/logging.py` |
 | OPS-02 §8.3 outbox backlog | `app/jobs/outbox_watch.py` |

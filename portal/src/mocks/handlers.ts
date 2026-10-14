@@ -33,6 +33,7 @@ import {
   type DemoUserId,
   PHASES,
 } from './fixtures';
+import { adminHandlers, resetAdminStore } from './admin';
 
 /** Switches for tests and the demo banner. */
 export const scenario = {
@@ -43,13 +44,17 @@ export const scenario = {
 export function resetScenario(): void {
   scenario.behind = false;
   scenario.empty = false;
+  resetAdminStore();
 }
 
 export const FIXTURE_TOKEN_PREFIX = 'tm-fixture.';
+/** Suffix of a fixture token that carries the Portal.Write scope (admin actions only). */
+export const FIXTURE_WRITE_SUFFIX = '.write';
 
+/** Read routes accept the Portal.Read fixture token only, as the server checks the scope. */
 function userOf(request: Request): DemoUser | null {
   const h = request.headers.get('authorization') ?? '';
-  const m = /^Bearer tm-fixture\.(viewer|engineer|lead)$/.exec(h);
+  const m = /^Bearer tm-fixture\.(viewer|engineer|lead|admin)$/.exec(h);
   return m ? USERS[m[1] as DemoUserId] : null;
 }
 
@@ -111,7 +116,7 @@ function scoped(user: DemoUser, url: URL): string[] | null {
 
 function scopeMeta(user: DemoUser, codes: string[]): Meta['scope'] {
   return {
-    level: user.id === 'lead' ? 'all' : 'systems',
+    level: user.id === 'lead' || user.id === 'admin' ? 'all' : 'systems',
     projects: [
       ...new Set(codes.map((c) => SYSTEMS.find((s) => s.code === c)?.project ?? '')),
     ].sort(),
@@ -419,6 +424,7 @@ export const handlers = [
       return problem(404, 'E-API-04', 'Skill not found', request);
     return ok(improvementReport(String(params.skillId)), { scope: { level: 'org' } });
   }),
+  ...adminHandlers,
 ];
 
 /** Every handler's method and OpenAPI path, for the contract test (TC-POR-009). */

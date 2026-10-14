@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test as base, type Page } from '@playwright/test';
 
-export type DemoUser = 'viewer' | 'engineer' | 'lead';
+export type DemoUser = 'viewer' | 'engineer' | 'lead' | 'admin';
 
 /** Opens a demo page as a demo user. The demo uses MSW and the test token-cache fixture. */
 export async function open(

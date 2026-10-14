@@ -147,6 +147,7 @@ This is the full list of routes the service serves. Write routes are specified i
 | GET | `/v1/improvement/flags`, `/v1/improvement/skills/{skill_id}` | `Portal.Read` | `skill_owner` (own), `eng_lead`, `admin` | SDD-11 §5.4 |
 | PATCH | `/v1/improvement/flags/{flag_id}` | `Portal.Write` | `skill_owner` of the skill | SDD-11 §5.4 |
 | POST | `/v1/admin/clients`, `/v1/admin/clients/{code}/consent`, `/v1/admin/projects`, `/v1/admin/systems`, `/v1/admin/role-grants`, `/v1/admin/role-grants/{id}/revoke`, `/v1/admin/users/{pseudonym}/deactivate` | `Portal.Write` | `admin` | SDD-13 §7.2 |
+| GET | `/v1/admin/clients`, `/v1/admin/projects`, `/v1/admin/systems`, `/v1/admin/role-grants`, `/v1/admin/users`, `/v1/admin/users/{pseudonym}/keys` (paginated, read API conventions SDD-09 §5.1) | `Portal.Read` | `admin`; names in `/v1/admin/users` only with `include=names` for roles in RD-1, audited | SDD-13 §7.2 |
 
 ## 4. `POST /v1/events`
 
@@ -477,7 +478,7 @@ Retention of signed records in companion repos is NFR-16 and is not affected.
 | Caller | Credential | Allowed |
 | --- | --- | --- |
 | `tsl` (engineer laptop) | Entra access token from the device-code flow (ADR 0002), scope `Events.Write` | `POST /v1/events`, `POST /v1/keys`, `GET /v1/keys/*`, `POST /v1/keys/{key_id}/revoke`, `GET /v1/me`, `GET /v1/me/keys`, `POST /v1/signatures/verify`, `GET /v1/systems/{code}`, `GET /v1/policy/denylist` |
-| Portal (browser) | Entra access token from auth code + PKCE, scope `Portal.Read`; `Portal.Write` for the few write routes | Read API (SDD-09) and `GET /v1/me` with `Portal.Read`; `PATCH /v1/improvement/flags/{flag_id}`, `POST /v1/keys/{key_id}/revoke` and `/v1/admin/*` with `Portal.Write` (§3.3) |
+| Portal (browser) | Entra access token from auth code + PKCE, scope `Portal.Read`; `Portal.Write` for the few write routes | Read API (SDD-09) and `GET /v1/me` with `Portal.Read`; `PATCH /v1/improvement/flags/{flag_id}`, `POST /v1/keys/{key_id}/revoke` and the `/v1/admin/*` writes with `Portal.Write`; the `GET /v1/admin/*` lists with `Portal.Read` (§3.3) |
 | Claude Code OTel exporter | OTel ingest token | `/otel/v1/*` only |
 | `tsl-ci-verify` action | CI ingest token | `POST /v1/events` with `ci.verified` only; `GET /v1/keys/*`; `POST /v1/signatures/verify`; `GET /v1/policy/denylist` |
 | GitHub | HMAC secret per hook | `/v1/webhooks/github` only |

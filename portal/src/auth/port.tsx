@@ -5,9 +5,18 @@
  */
 import { createContext, useContext, type ComponentType, type ReactNode } from 'react';
 
+export interface TokenOptions {
+  forceRefresh?: boolean;
+  write?: boolean;
+}
+
 export interface AuthPort {
-  /** Access token for the read API scope (VITE_API_SCOPE). */
-  getToken(options?: { forceRefresh?: boolean }): Promise<string>;
+  /**
+   * Access token for the read API scope (VITE_API_SCOPE), or, with `write: true`, for the
+   * `Portal.Write` scope (VITE_API_WRITE_SCOPE). The write scope is requested incrementally, only
+   * when an admin submits an admin action (SDD-09 §4.16, SDD-07 §9).
+   */
+  getToken(options?: TokenOptions): Promise<string>;
   /** Start an interactive sign-in (redirect flow). */
   signIn(): Promise<void>;
   /** Sign out (redirect) after the caller has cleared the query cache. */

@@ -607,6 +607,67 @@ export interface ImprovementReport {
   window_end: string;
 }
 
+/* ------------------------------------------------------------------ admin lists (SDD-13 §7.2) */
+/** Rows of the `GET /v1/admin/...` list routes (services/insights/app/api/v1/admin_lists.py). */
+export type ConsentStatus = 'recorded' | 'withdrawn' | 'none';
+export interface AdminClientRow {
+  code: string;
+  consent: {
+    status: ConsentStatus;
+    ref: string | null;
+    scope: string[];
+    recorded_at: Iso | null;
+    withdrawn_at: Iso | null;
+  };
+  projects: number;
+  created_at: Iso | null;
+}
+export interface AdminProjectRow {
+  code: string;
+  client: string;
+  systems: number;
+}
+export interface AdminSystemRow {
+  code: string;
+  project: string;
+  client: string;
+  domain: string;
+  companion_repo: string;
+  lifecycle_state: string;
+  product_repos: { name: string; github_full_name: string; kind: 'product' | 'read_only' }[];
+  created_at: Iso | null;
+}
+export interface AdminGrantRow {
+  id: string;
+  user: string;
+  role: string;
+  scope_type: string;
+  scope: string | null;
+  status: 'active' | 'revoked';
+  granted_at: Iso | null;
+  granted_by: string | null;
+  revoked_at: Iso | null;
+}
+export interface AdminUserRow {
+  pseudonym: string;
+  app_roles: string[];
+  roles: string[];
+  active: boolean;
+  erased: boolean;
+  created_at: Iso | null;
+  /** Only with `include=names` and only for RD-1 roles; the admin screens never ask for it. */
+  display_name: string | null;
+}
+export interface AdminKeyRow {
+  key_id: string;
+  device_label: string | null;
+  status: 'active' | 'revoked' | 'expired';
+  created_at: Iso | null;
+  expires_at: Iso | null;
+  revoked_at: Iso | null;
+  revoked_reason: string | null;
+}
+
 /* ------------------------------------------------------------------ path -> response map */
 /**
  * Every GET route the portal calls, keyed by its OpenAPI path. `client.ts` checks at compile time
@@ -636,4 +697,10 @@ export interface ResponseMap {
   '/v1/runs': PagedEnvelope<RunItem>;
   '/v1/runs/{run_id}': Envelope<RunDetail>;
   '/v1/improvement/skills/{skill_id}': Envelope<ImprovementReport>;
+  '/v1/admin/clients': PagedEnvelope<AdminClientRow>;
+  '/v1/admin/projects': PagedEnvelope<AdminProjectRow>;
+  '/v1/admin/systems': PagedEnvelope<AdminSystemRow>;
+  '/v1/admin/role-grants': PagedEnvelope<AdminGrantRow>;
+  '/v1/admin/users': PagedEnvelope<AdminUserRow>;
+  '/v1/admin/users/{pseudonym}/keys': PagedEnvelope<AdminKeyRow>;
 }

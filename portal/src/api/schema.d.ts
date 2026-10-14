@@ -11,7 +11,8 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** List clients with consent status (SDD-13 §5.3) */
+    get: operations['list_clients_v1_admin_clients_get'];
     put?: never;
     /** Create a client (SDD-13 §7.2) */
     post: operations['create_client_v1_admin_clients_post'];
@@ -45,7 +46,8 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** List projects (SDD-13 §5.3) */
+    get: operations['list_projects_v1_admin_projects_get'];
     put?: never;
     /** Create a project */
     post: operations['create_project_v1_admin_projects_post'];
@@ -62,7 +64,8 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** List role grants, active and revoked (SDD-13 §5.3) */
+    get: operations['list_grants_v1_admin_role_grants_get'];
     put?: never;
     /** Grant a role (not to self, E-ADM-01) */
     post: operations['grant_v1_admin_role_grants_post'];
@@ -96,10 +99,28 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** List systems and their product repos (SDD-13 §5.3) */
+    get: operations['list_systems_v1_admin_systems_get'];
     put?: never;
     /** Create a system and its product repos */
     post: operations['create_system_v1_admin_systems_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/users': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List users: pseudonym, roles, active; names per RD-1 (SDD-13 §5.3) */
+    get: operations['list_users_v1_admin_users_get'];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -117,6 +138,23 @@ export interface paths {
     put?: never;
     /** Deactivate a user: keys offboarded, grants revoked */
     post: operations['deactivate_v1_admin_users__pseudonym__deactivate_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/admin/users/{pseudonym}/keys': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List one user's signing keys */
+    get: operations['list_user_keys_v1_admin_users__pseudonym__keys_get'];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -927,6 +965,41 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  list_clients_v1_admin_clients_get: {
+    parameters: {
+      query?: {
+        consent?: ('recorded' | 'withdrawn' | 'none') | null;
+        cursor?: string | null;
+        limit?: number | null;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
   create_client_v1_admin_clients_post: {
     parameters: {
       query?: never;
@@ -999,6 +1072,41 @@ export interface operations {
       };
     };
   };
+  list_projects_v1_admin_projects_get: {
+    parameters: {
+      query?: {
+        client?: string | null;
+        cursor?: string | null;
+        limit?: number | null;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
   create_project_v1_admin_projects_post: {
     parameters: {
       query?: never;
@@ -1014,6 +1122,53 @@ export interface operations {
     responses: {
       /** @description Successful Response */
       201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  list_grants_v1_admin_role_grants_get: {
+    parameters: {
+      query?: {
+        cursor?: string | null;
+        limit?: number | null;
+        role?:
+          | (
+              | 'viewer'
+              | 'engineer'
+              | 'tech_lead'
+              | 'skill_owner'
+              | 'stage_approver'
+              | 'eng_lead'
+              | 'admin'
+            )
+          | null;
+        status?: 'active' | 'revoked' | 'all';
+        user?: string | null;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
         headers: {
           [name: string]: unknown;
         };
@@ -1106,6 +1261,42 @@ export interface operations {
       };
     };
   };
+  list_systems_v1_admin_systems_get: {
+    parameters: {
+      query?: {
+        client?: string | null;
+        cursor?: string | null;
+        limit?: number | null;
+        project?: string | null;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
   create_system_v1_admin_systems_post: {
     parameters: {
       query?: never;
@@ -1141,6 +1332,53 @@ export interface operations {
       };
     };
   };
+  list_users_v1_admin_users_get: {
+    parameters: {
+      query?: {
+        active?: boolean | null;
+        cursor?: string | null;
+        include?: 'names' | null;
+        limit?: number | null;
+        role?:
+          | (
+              | 'viewer'
+              | 'engineer'
+              | 'tech_lead'
+              | 'skill_owner'
+              | 'stage_approver'
+              | 'eng_lead'
+              | 'admin'
+            )
+          | null;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
   deactivate_v1_admin_users__pseudonym__deactivate_post: {
     parameters: {
       query?: never;
@@ -1155,6 +1393,43 @@ export interface operations {
         'application/json': components['schemas']['ReasonIn'];
       };
     };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  list_user_keys_v1_admin_users__pseudonym__keys_get: {
+    parameters: {
+      query?: {
+        cursor?: string | null;
+        limit?: number | null;
+        status?: 'active' | 'revoked' | 'expired' | 'all';
+      };
+      header?: never;
+      path: {
+        pseudonym: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
     responses: {
       /** @description Successful Response */
       200: {

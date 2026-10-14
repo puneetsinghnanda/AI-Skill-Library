@@ -6,6 +6,7 @@ import { lazy, type ComponentType, type ReactNode } from 'react';
 import { Navigate, type RouteObject } from 'react-router-dom';
 import type { QueryClient } from '@tanstack/react-query';
 import type { ApiClient } from '../api/client';
+import { isAdmin } from '../api/admin';
 import { prefetch, q } from '../api/queries';
 import { AuthCallback } from '../screens/AuthCallback';
 import { AppShell } from './AppShell';
@@ -27,6 +28,11 @@ const CapabilityMapShare = lazy(() => import('../screens/CapabilityMapShare'));
 const ImprovementReport = lazy(() => import('../screens/ImprovementReport'));
 const RunDetail = lazy(() => import('../screens/RunDetail'));
 const NotFound = lazy(() => import('../screens/NotFound'));
+const AdminHome = lazy(() => import('../screens/admin/AdminHome'));
+const AdminClients = lazy(() => import('../screens/admin/AdminClients'));
+const AdminProjects = lazy(() => import('../screens/admin/AdminProjects'));
+const AdminRoles = lazy(() => import('../screens/admin/AdminRoles'));
+const AdminUsers = lazy(() => import('../screens/admin/AdminUsers'));
 
 function HomeRoute() {
   const { view } = useView();
@@ -42,6 +48,16 @@ function InsightsRoute() {
 function EngineerOnly({ children }: { children: ReactNode }) {
   const { view } = useView();
   if (view !== 'engineer') return <Navigate to="/insights" replace />;
+  return <>{children}</>;
+}
+
+/**
+ * Admin screens (SDD-09 §4.16): only for the Entra app role Admin. Anyone else gets the ordinary
+ * Not found page, so the routes do not reveal themselves. The server checks every action again.
+ */
+function AdminOnly({ children }: { children: ReactNode }) {
+  const { me } = useView();
+  if (!isAdmin(me)) return <NotFound />;
   return <>{children}</>;
 }
 
@@ -111,6 +127,59 @@ export function buildRoutes({ qc, api, Gate, banner }: RouteDeps): RouteObject[]
               <RunDetail />
             </EngineerOnly>
           ),
+        },
+        {
+          path: 'admin',
+          children: [
+            {
+              index: true,
+              element: (
+                <AdminOnly>
+                  <AdminHome />
+                </AdminOnly>
+              ),
+            },
+            {
+              path: 'clients',
+              element: (
+                <AdminOnly>
+                  <AdminClients />
+                </AdminOnly>
+              ),
+            },
+            {
+              path: 'projects',
+              element: (
+                <AdminOnly>
+                  <AdminProjects />
+                </AdminOnly>
+              ),
+            },
+            {
+              path: 'roles',
+              element: (
+                <AdminOnly>
+                  <AdminRoles />
+                </AdminOnly>
+              ),
+            },
+            {
+              path: 'users',
+              element: (
+                <AdminOnly>
+                  <AdminUsers />
+                </AdminOnly>
+              ),
+            },
+            {
+              path: '*',
+              element: (
+                <AdminOnly>
+                  <NotFound />
+                </AdminOnly>
+              ),
+            },
+          ],
         },
         { path: '*', element: <NotFound /> },
       ],

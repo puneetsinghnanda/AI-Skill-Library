@@ -25,13 +25,13 @@
 | Tables, views, metric definitions (M-01 to M-32), write endpoints | [SDD-08](SDD-08-telemetry-insights.md) |
 | Pod fields and pod metrics rules | [SDD-10](SDD-10-pods.md) §6 (this document implements its endpoints) |
 | Improvement report content | [SDD-11](SDD-11-improvement-loop.md) §4.4, §5.4 |
-| Admin screens (users, roles, clients, consent) | SDD-13 |
+| Admin operations, their checks and audit actions (users, roles, clients, consent) | [SDD-13](SDD-13-onboarding-admin.md) §7.2. The admin **screens** are specified here, §4.16 |
 | Hosting platform, region, ingress | OPS-01 (blocked on OQ-02) |
 | Alerts, SLOs, dashboards | [OPS-02](../operations/OPS-02-monitoring-alerting.md) |
 
 ### 1.3 Ground rules
 
-- The portal is read-only. It never starts a run (X-01, Doc 4 principle 5). It writes to no external system (C-08).
+- The portal is read-only, except the admin screens (§4.16), which call the SDD-13 §7.2 admin API of the insights service. It never starts a run (X-01, Doc 4 principle 5). It writes to no external system (C-08).
 - Every number comes from an SDD-08 table or view through the read API. The SPA never computes a metric; it only formats one.
 - No sample numbers in production. A missing value shows "No data yet" (Doc 4 §2.0.5, C-09). The "Illustrative data" tag exists only in the prototype.
 - The persona switch changes the layout only. Access is decided by the server from role grants on every request (SEC-01 §5.11 "E").
@@ -140,6 +140,7 @@ portal/
 | `/insights/capability-map/share` | Shared capability map print view | both | any grant |
 | `/insights/skills/:skillId/improvement` | Improvement report (SDD-11) | Engineer | SDD-11 §5.4 roles |
 | `/runs/:runId` | Run detail | Engineer | engineer-family, run in scope |
+| `/admin`, `/admin/clients`, `/admin/projects`, `/admin/roles`, `/admin/users` | Admin screens (§4.16) | both | app role `Admin`; others get Not found |
 | `/auth/callback` | MSAL redirect target | — | — |
 | `*` | Not found | both | — |
 
@@ -152,7 +153,7 @@ portal/
 | Flow | Authorization code with PKCE through MSAL (ADR 0002). Redirect flow, not popup |
 | App registrations | SPA app `truminds-portal` (redirect URI `https://<portal-host>/auth/callback`); API app `truminds-insights` exposes scope `Portal.Read` (SDD-08 §9.1). Created by the Entra admin (TBD by Puneet) |
 | Token store | `memoryStorage`. Tokens are never in `localStorage` or `sessionStorage` (SEC-01 §5.11). A page reload re-acquires a token silently through the Entra session |
-| Token use | `acquireTokenSilent({scopes:[VITE_API_SCOPE]})` before each request; on `InteractionRequiredAuthError` → `acquireTokenRedirect` |
+| Token use | `acquireTokenSilent({scopes:[VITE_API_SCOPE]})` before each request; on `InteractionRequiredAuthError` → `acquireTokenRedirect`. `Portal.Write` (`VITE_API_WRITE_SCOPE`) is requested incrementally, only when an admin submits an admin action (§4.16, SDD-07 §9) |
 | 401 from API | One silent retry with `forceRefresh: true`, then redirect to sign-in |
 | Sign-out | `logoutRedirect`; clears the query cache |
 | Test sign-in | Playwright only, through a test token-cache fixture (TST-01 §2.5, TC-POR-010). No bypass in any build |
@@ -385,6 +386,24 @@ Route `/runs/:runId`, Engineer view only. Calls `GET /v1/runs/{run_id}`.
 
 Not shipped as a route. It is a design reference. Its rules are implemented by §3.6 (views), §5.2 (scope), §5.3 (names) and §5.4 (access matrix), and tested by TC-POR-002 and TC-INS-009.
 
+### 4.16 Admin screens
+
+Owner: UI owner TBD by Puneet (OI-13-04). Status: draft for owner review. There is no prototype board; the screens reuse the shell, cards, buttons and tokens of the other screens.
+
+| Item | Rule |
+| --- | --- |
+| Routes | `/admin` (overview), `/admin/clients`, `/admin/projects`, `/admin/roles`, `/admin/users` (§3.3). Lazy-loaded like every screen |
+| Who sees them | Entra app role `Admin` only (`/v1/me` `app_roles`, SDD-07 §3.2). The top-bar entry "Admin" is rendered only for that role. Anyone else who opens an `/admin/*` URL gets the ordinary Not found page, so the routes do not reveal themselves. The server checks `Portal.Write` and the `admin` grant on every call (`403 E-API-03` otherwise); the UI check is a convenience, not the control |
+| Scope | `Portal.Write` is requested incrementally (`acquireTokenSilent` with the write scope, `acquireTokenRedirect` if interaction is needed), only at the moment an admin submits an action on these screens. Reads, on these screens too, use `Portal.Read`. Admin consent for `Portal.Write` is pre-granted (SDD-07 §9), so no prompt appears |
+| Calls | The SDD-13 §7.2 routes, with the request bodies of the published OpenAPI: `POST /v1/admin/clients`, `/v1/admin/clients/{code}/consent`, `/v1/admin/projects`, `/v1/admin/systems`, `/v1/admin/role-grants`, `/v1/admin/role-grants/{grant_id}/revoke`, `/v1/admin/users/{pseudonym}/deactivate`, and `POST /v1/keys/{key_id}/revoke` with an admin reason (SDD-07 §5.6). No other write route; no automatic retry of a write. Reads: the `GET /v1/admin/...` list routes of SDD-13 §7.2 |
+| Screens | Clients and consent: create client (code, display name, other names for the deny-list), record consent (reference, scopes), withdraw consent. Projects and systems: create project, create system with companion repo and product repos. Role grants: grant (user pseudonym, role, scope type limited to the role's allowed scopes, scope), revoke with reason. Users and keys: deactivate user with reason, revoke one key with reason, optional compromised-since and note |
+| Validation | Each form checks the API's patterns before sending (codes, pseudonym, repo `org/repo`, grant id, key id, required reason) and refuses a self-grant. Errors appear next to the field, the field is marked `aria-invalid`, and focus moves to the first error. The server checks again; its refusal shows the error code, its words and the request id |
+| Destructive actions | Withdraw consent, revoke grant, deactivate user and revoke key open a confirmation dialog (`alertdialog`, focus on Cancel, Escape cancels, focus returns) that says what will happen. Nothing is sent until the admin confirms |
+| Audit | Every action is written to `audit_log` by the server, never by the SPA (SEC-01; actions `client_create`, `denylist_change`, `consent_record`, `consent_withdraw`, `project_create`, `system_create`, `role_grant`, `role_revoke`, `user_deactivate`, `key_revoke`). The screens say so on every page and in every result |
+| Layout | The shell of §4.1, an eyebrow "Admin", one h1, a sub-navigation between the five screens, and one card per action. Results appear in a status panel under the form; codes only, never a client name outside the client form |
+| Lists | Each screen shows its lists as tables from the SDD-13 §7.2 list routes, with `Portal.Read`: clients with consent status; projects; systems with product repos; role grants, active and revoked (filter by status); users with pseudonym, roles and active; and, for one user, their keys (key id, device label, status, expiry). Rows carry the per-row actions revoke grant, revoke key and deactivate user, which open the same confirmation dialogs as the forms. Tables page with "Show more" (`next_cursor`) and refresh after every action. Codes and pseudonyms only; no names on these screens |
+| Tests | Unit: non-admins never see the entry or the routes; forms validate; dialogs appear before any request; the write token is sent only on admin POSTs. vitest-axe on each screen, with errors and the dialog shown. Lists render as tables, and each row action confirms before sending and refreshes the list. Playwright in demo mode: grant a role, then revoke it from its row after confirming |
+
 ## 5. Read API
 
 ### 5.1 Conventions
@@ -395,7 +414,7 @@ Not shipped as a route. It is a design reference. Its rules are implemented by �
 | --- | --- |
 | Base | `https://<portal-host>/v1` (same origin as the SPA; no CORS) |
 | Auth | `Authorization: Bearer <Entra access token>`, audience = the `truminds-insights-api` application (client) ID (v2 tokens; the SPA requests the scope `api://truminds-insights/Portal.Read`, SDD-07 §9), scope `Portal.Read` (SDD-08 §9.1). Validation in `app/auth/entra.py` |
-| Methods | `GET` only. Every route in the committed `openapi.json`. No hidden, admin or debug routes |
+| Methods | `GET` only for the read API. Every route is in the committed `openapi.json`. No hidden or debug routes. The admin routes (`/v1/admin/*`, §4.16) are documented, need the admin app role and `Portal.Write`, and are audited |
 | Rate limit | 10 requests/s per user, burst 30; `429` + `Retry-After` |
 | Caching | `Cache-Control: private, max-age=60`; catalogue routes add `ETag` (release tag + filters) and honour `If-None-Match` |
 | DB role | `insights_read` (SDD-08 §9.4); statement timeout 5 s |
@@ -925,6 +944,7 @@ Gates: `@axe-core/playwright` on every screen in both views with zero serious or
 | Accessibility | axe on all screens, both views; keyboard path through Skills filters, tabs and Run detail | TC-POR-006 |
 | Performance | Page ≤ 3 s p95 on 90 days of seed data | TC-POR-008 |
 | Build | No test-auth marker in production bundle; no hex literals outside `tokens.css`; token contrast | TC-POR-010, new TC-POR-012 |
+| Admin screens | Visibility for app role Admin only; validation; confirmation before destructive actions; `Portal.Write` only on admin actions; axe; one e2e admin flow (§4.16) | TC-POR-001, 006 (admin rows) |
 
 ## 12. Changes this document makes to other documents
 
@@ -969,4 +989,4 @@ Gates: `@axe-core/playwright` on every screen in both views with zero serious or
 | Baseline and numeric targets for the PRD §5 measures | Q35 | Puneet |
 | High-band precision column needs the `audit.recorded` event in SDD-08 | TST-01 §3 | Gaurav Saini |
 | Hosting platform and intranet ingress | OQ-02, OPS-01 | TBD by Puneet |
-| Prototype sign-off and empty, error and admin screens not yet drawn | Q11 | Puneet; UI owner TBD by Puneet |
+| Prototype sign-off and brand sign-off. Empty and error states and the admin screens (§4.16) are built (draft for owner review); the admin screens have no prototype board | Q11, OI-13-04 | Puneet; UI owner TBD by Puneet |

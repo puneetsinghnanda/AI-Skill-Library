@@ -138,3 +138,39 @@ describe('retry policy (SDD-09 §3.5)', () => {
     expect(shouldRetry(1, e(429))).toBe(false);
   });
 });
+
+describe('ApiClient.post (admin screens, SDD-09 §4.16)', () => {
+  it('asks for the Portal.Write token and sends JSON with POST', async () => {
+    const { api, fetchImpl, token } = client([
+      json({ id: 'x', code: 'PRJ-1', client: 'CL-1' }, 201),
+    ]);
+    const out = await api.post<'/v1/admin/projects', { code: string }>('/v1/admin/projects', {
+      client: 'CL-1',
+      code: 'PRJ-1',
+    });
+    expect(out.code).toBe('PRJ-1');
+    expect(token).toHaveBeenCalledWith({ write: true });
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://portal.example.invalid/v1/admin/projects');
+    expect(init.method).toBe('POST');
+    expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+    expect(JSON.parse(String(init.body))).toEqual({ client: 'CL-1', code: 'PRJ-1' });
+  });
+
+  it('on 401 refreshes the write token once and keeps the admin on the page', async () => {
+    const problem = { code: 'E-ING-07', detail: 'Token scope does not allow this route' };
+    const { api, signIn, token } = client([
+      json(problem, 401, 'application/problem+json'),
+      json(problem, 401, 'application/problem+json'),
+    ]);
+    await expect(
+      api.post(
+        '/v1/admin/users/{pseudonym}/deactivate',
+        { reason: 'r' },
+        { pseudonym: 'eng-1234' },
+      ),
+    ).rejects.toMatchObject({ status: 401, code: 'E-ING-07' });
+    expect(token).toHaveBeenLastCalledWith({ forceRefresh: true, write: true });
+    expect(signIn).not.toHaveBeenCalled();
+  });
+});

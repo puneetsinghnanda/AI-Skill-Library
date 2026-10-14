@@ -7,7 +7,7 @@
  */
 import type { ReactNode } from 'react';
 import type { AuthPort } from '../auth/port';
-import { FIXTURE_TOKEN_PREFIX } from '../mocks/handlers';
+import { FIXTURE_TOKEN_PREFIX, FIXTURE_WRITE_SUFFIX } from '../mocks/handlers';
 import type { DemoUserId } from '../mocks/fixtures';
 
 export const TEST_AUTH_MARKER = 'TM_TEST_AUTH_FIXTURE';
@@ -18,8 +18,9 @@ function Passthrough({ children }: { children: ReactNode }) {
 
 export function fixtureAuth(user: DemoUserId, hooks: { onSignOut?: () => void } = {}): AuthPort {
   return {
-    async getToken() {
-      return `${FIXTURE_TOKEN_PREFIX}${user}`;
+    async getToken(options) {
+      // The write token carries a `.write` suffix so the mocks can check the Portal.Write scope.
+      return `${FIXTURE_TOKEN_PREFIX}${user}${options?.write ? FIXTURE_WRITE_SUFFIX : ''}`;
     },
     async signIn() {
       /* nothing to do: the fixture is always signed in */

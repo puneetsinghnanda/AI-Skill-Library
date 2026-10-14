@@ -259,6 +259,12 @@ All routes are served by the insights service (SDD-08 layout, `app.main:app`). E
 | POST | `/v1/admin/role-grants` | `Portal.Write` | `admin` (not to self, E-ADM-01) | SDD-13 §7.2 |
 | POST | `/v1/admin/role-grants/{id}/revoke` | `Portal.Write` | `admin` | SDD-13 §7.2 |
 | POST | `/v1/admin/users/{pseudonym}/deactivate` | `Portal.Write` | `admin` | SDD-13 §7.2 |
+| GET | `/v1/admin/clients?consent=` | `Portal.Read` | `admin` (codes and consent status only) | SDD-13 §7.2 |
+| GET | `/v1/admin/projects?client=` | `Portal.Read` | `admin` | SDD-13 §7.2 |
+| GET | `/v1/admin/systems?client=&project=` | `Portal.Read` | `admin` | SDD-13 §7.2 |
+| GET | `/v1/admin/role-grants?status=&user=&role=` | `Portal.Read` | `admin` (active and revoked grants) | SDD-13 §7.2 |
+| GET | `/v1/admin/users?active=&role=&include=names` | `Portal.Read` | `admin`; names only for roles in RD-1 | SDD-13 §7.2 |
+| GET | `/v1/admin/users/{pseudonym}/keys?status=` | `Portal.Read` | `admin` | SDD-13 §7.2 |
 | GET | `/metrics` (internal port only) | network policy | — | OPS-02 §4 |
 
 ## 5. Event types

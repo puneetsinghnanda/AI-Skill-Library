@@ -15,6 +15,8 @@ const FORBIDDEN = [
   ['mockServiceWorker', 'MSW worker'],
   ['setupWorker', 'MSW browser setup'],
   ['Avery Example', 'fixture name'],
+  ['Quinn Mockup', 'admin fixture name'],
+  ['CONSENT-0001', 'admin fixture consent reference'],
   ['run_01J9ZK2M4Q8X7T3B5N6R0VWYCD', 'fixture run id'],
 ];
 

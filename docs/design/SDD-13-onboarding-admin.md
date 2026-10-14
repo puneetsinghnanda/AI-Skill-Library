@@ -340,6 +340,17 @@ All writes come from the portal admin view with the `Portal.Write` scope and app
 | Deactivate user | `POST /v1/admin/users/{pseudonym}/deactivate` | Also revokes keys (`offboarded`) and grants | `user_deactivate` |
 | Revoke a key | `POST /v1/keys/{key_id}/revoke` | SDD-07 §5.6 | `key_revoke` |
 
+Lists for the screens and the §5.3 access review. `Portal.Read` scope and the `admin` grant (`403 E-API-03` otherwise); read API pagination (`limit` 1-100, default 25, opaque `cursor` bound to the filters, SDD-09 §5.1); responses are `Cache-Control: no-store`. They write nothing, except the `reveal_names` row when names are returned.
+
+| List | Endpoint | Filters | Fields |
+| --- | --- | --- | --- |
+| Clients | `GET /v1/admin/clients` | `consent` = `recorded`, `withdrawn`, `none` | Code, consent status, reference, scopes, recorded and withdrawn times, project count. Never the client display name |
+| Projects | `GET /v1/admin/projects` | `client` | Code, client code, system count |
+| Systems | `GET /v1/admin/systems` | `client`, `project` | Code, project, client, domain, companion repo, lifecycle state, product repos |
+| Role grants | `GET /v1/admin/role-grants` | `status` = `active`, `revoked`, `all` (default); `user`; `role` | Grant id, user pseudonym, role, scope type, scope code, granted at and by, revoked at |
+| Users | `GET /v1/admin/users` | `active`; `role` (active grant); `include=names` | Pseudonym, app roles, active grant roles, active. `display_name` only with `include=names` and only for a caller holding a role in RD-1 (`rd1_name_reveal_roles`), through the audited reveal path (SDD-09 §5.3) |
+| Keys of a user | `GET /v1/admin/users/{pseudonym}/keys` | `status` = `active`, `revoked`, `expired`, `all` (default) | Key id, device label, status, created, expires, revoked at and reason |
+
 ### 7.3 GitHub team sync
 
 SDD-12 §6.1 ties companion-repo access to role grants. Release 1: a manual step — the portal shows, after every grant or revoke of `engineer` or `tech_lead`, the exact team change to make, and the GitHub org admin confirms it in the portal (`audit_log.action = team_sync_manual`). Later: a worker job with a GitHub App that has organisation member write permission makes the change itself. That needs each user's GitHub login stored against the user (`users.github_login`, new) and the App's permission approved (OI-13-06).

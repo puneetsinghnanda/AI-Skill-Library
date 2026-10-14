@@ -18,6 +18,8 @@ export const env = {
   clientId: str(raw.VITE_ENTRA_CLIENT_ID, ''),
   redirectUri: str(raw.VITE_ENTRA_REDIRECT_URI, ''),
   apiScope: str(raw.VITE_API_SCOPE, 'api://truminds-insights/Portal.Read'),
+  /** Requested only by the admin screens, at the moment of an admin action (SDD-09 §4.16). */
+  apiWriteScope: str(raw.VITE_API_WRITE_SCOPE, 'api://truminds-insights/Portal.Write'),
   apiBaseUrl: str(raw.VITE_API_BASE_URL, ''),
   marketplaceRepoUrl: repoUrl,
   /** `org/repo`, used in commands such as `/plugin marketplace add <org>/<repo>` (OQ-10). */

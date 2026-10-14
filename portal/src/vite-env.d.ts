@@ -5,6 +5,7 @@ interface ImportMetaEnv {
   readonly VITE_ENTRA_CLIENT_ID?: string;
   readonly VITE_ENTRA_REDIRECT_URI?: string;
   readonly VITE_API_SCOPE?: string;
+  readonly VITE_API_WRITE_SCOPE?: string;
   readonly VITE_API_BASE_URL?: string;
   readonly VITE_MARKETPLACE_REPO_URL?: string;
   readonly VITE_PILOT_MAILTO?: string;

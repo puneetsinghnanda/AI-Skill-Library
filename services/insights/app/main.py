@@ -21,6 +21,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app import __version__
 from app.api.v1 import (
     admin,
+    admin_lists,
     events,
     health,
     improvement,
@@ -166,6 +167,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         runs,
         improvement,
         admin,
+        admin_lists,
     ):
         app.include_router(module.router)
     # OTLP/HTTP paths are protocol-defined and not in the OpenAPI file (SDD-08 §9.1).

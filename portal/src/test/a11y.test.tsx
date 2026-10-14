@@ -31,6 +31,11 @@ const CASES: [string, DemoUserId, 'business' | 'engineer'][] = [
   ['/insights/skills/design/improvement', 'lead', 'engineer'],
   ['/runs/run_01J9ZK2M4Q8X7T3B5N6R0VWYCD', 'engineer', 'engineer'],
   ['/nowhere', 'viewer', 'business'],
+  ['/admin', 'admin', 'engineer'],
+  ['/admin/clients', 'admin', 'engineer'],
+  ['/admin/projects', 'admin', 'engineer'],
+  ['/admin/roles', 'admin', 'engineer'],
+  ['/admin/users', 'admin', 'engineer'],
 ];
 
 describe('axe', () => {
