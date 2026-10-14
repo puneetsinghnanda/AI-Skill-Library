@@ -42,6 +42,12 @@ def fetch_me(rt: Runtime, token: str | None = None) -> dict[str, Any]:
     if res.status == 401:
         raise TslError("E-AUTH-01")
     if res.status == 403:
+        # The service names the pseudonym and GitHub login an admin needs to grant a role to.
+        detail = res.body.get("detail") if isinstance(res.body, dict) else None
+        if isinstance(detail, str) and detail.strip():
+            raise TslError(
+                "E-AUTH-08", detail.strip()[:300], next="Ask an admin to grant you a role"
+            )
         raise TslError("E-AUTH-08")
     if res.status >= 500:
         raise InsightsUnavailable(f"HTTP {res.status}")

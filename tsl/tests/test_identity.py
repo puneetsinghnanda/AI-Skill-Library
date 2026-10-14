@@ -352,3 +352,17 @@ def test_signing_needs_a_key(world: World) -> None:
     with pytest.raises(TslError) as e:
         load_signer(rt)
     assert e.value.code == "E-AUTH-02"
+
+
+def test_login_no_role_shows_the_service_reason(world: World) -> None:
+    """GitHub sign-in: the service's 403 names the pseudonym and login an admin must grant."""
+    from tsl.insights.client import HttpResult
+
+    reason = "No Truminds role yet. Ask an admin to grant a role to eng-1a2b (GitHub @tester-one)."
+    world.insights.get_me = lambda token: HttpResult(  # type: ignore[method-assign]
+        403, {"code": "E-AUTH-08", "detail": reason}
+    )
+    with pytest.raises(TslError) as e:
+        world.login("eng2")
+    assert e.value.code == "E-AUTH-08"
+    assert "eng-1a2b" in str(e.value) and "@tester-one" in str(e.value)
