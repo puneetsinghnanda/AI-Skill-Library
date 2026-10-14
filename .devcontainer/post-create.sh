@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time setup inside the dev container (DEV-01 ??3). Installs uv, Node 20 next to Node 22,
+# One-time setup inside the dev container (DEV-01 §3). Installs uv, Node 20 next to Node 22,
 # PostgreSQL 16 binaries for the throwaway test clusters, and the pre-commit hooks.
 set -euo pipefail
 
@@ -22,5 +22,8 @@ sudo rm -f /etc/apt/sources.list.d/yarn*.list
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends postgresql-16
 
+# The workspace is bind-mounted from the host with a different owner; without this, git (and pre-commit) refuse
+# it as "dubious ownership".
+git config --global --add safe.directory "$PWD"
 pre-commit install
 echo "Dev container ready. Next: make test-all"

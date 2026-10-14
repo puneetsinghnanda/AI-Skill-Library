@@ -1,9 +1,9 @@
-﻿{
-  // Dev container for the skill-library repo (DEV-01 Â§3, tracker Q23). Draft for owner review: not yet
+{
+  // Dev container for the skill-library repo (DEV-01 §3, tracker Q23). Draft for owner review: not yet
   // built on a team laptop. It gives the tools `make test-all` needs: Python 3.12 via uv, Node 20 and 22,
   // PostgreSQL 16 client and server binaries, and the Docker CLI against the host daemon.
   // Claude Code itself runs in the desktop app on the host, not in this container (C-16).
-  // No secrets here; sign-in uses the development Entra app registration (DEV-01 Â§3.4).
+  // No secrets here; sign-in uses the development Entra app registration (DEV-01 §3.4).
   "name": "truminds-skill-library",
   "build": { "dockerfile": "Dockerfile" },
   "features": {
