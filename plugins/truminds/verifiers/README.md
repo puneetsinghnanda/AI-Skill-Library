@@ -17,15 +17,21 @@ the final choice stays with SEC-01 (SDD-03 OI-07).
 
 ## Image digests
 
-Profiles reference images by digest only, never by tag. Until the GitHub org and registry are known (OQ-10), each
-`image:` is `ghcr.io/<org>/truminds/verifier-<name>@sha256:000…0`, a placeholder. `tsl` refuses the placeholder
-with E-H3-07 instead of pulling anything. Once OQ-10 is decided:
+Profiles reference images by digest only, never by tag. The registry is the GitHub Container Registry under
+the repository owner, `ghcr.io/puneetsinghnanda/truminds/verifier-<name>` (OQ-10, decided by Puneet for the
+test phase). Until a real digest is set, `image:` ends in the placeholder `@sha256:000…0`, and `tsl` refuses it
+with E-H3-07 instead of pulling anything.
 
-1. Set the repository variable `REGISTRY` (for example `ghcr.io/<org>`) and the registry secrets.
-2. `.github/workflows/verifier-images.yml` lints each changed Dockerfile with hadolint, builds it, pushes it on
-   `main` with an SBOM, and prints the digest in the job summary.
-3. A maintainer replaces `<org>` and the placeholder digest in `profile.yaml` in a reviewed PR (OPS-03 §2.1).
-   CI never writes the digest itself.
+1. `.github/workflows/verifier-images.yml` runs on a push to `main` that touches `plugins/truminds/verifiers/**`
+   or the workflow, or by hand (Actions → verifier-images → Run workflow). It lints each Dockerfile with
+   hadolint, builds it, and pushes it with an SBOM as `:<major>` and `:<major>-<commit>`. It signs in with the
+   workflow's own `GITHUB_TOKEN`, so there is no registry secret. On pull requests it builds without pushing.
+2. The job summary prints one ready-to-paste line per profile: `image: ghcr.io/…@sha256:<digest>`.
+3. A maintainer sets those lines in each `profile.yaml` in a reviewed PR (OPS-03 §2.1). CI never writes the
+   digest itself.
+4. Pulling: the packages are private by default. Either set each package to **Public** (GitHub → your profile
+   → Packages → `truminds/verifier-<name>` → Package settings → Change visibility); the images hold only
+   open-source tools. Or each tester runs `docker login ghcr.io` with a token that has `read:packages`.
 
 ## How tsl runs a step
 

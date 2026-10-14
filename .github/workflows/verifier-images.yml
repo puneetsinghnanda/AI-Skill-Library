@@ -1,6 +1,9 @@
 # Verifier images (OPS-03 §2.1, SDD-03 §5.5). Builds every plugins/truminds/verifiers/<name>@<major>/
 # that has a Dockerfile when it changes, pushes it, and prints the digest. Profiles reference images
 # by digest only, so the digest goes into profile.yaml through a normal reviewed PR (never by CI).
+# Registry (OQ-10, decided by Puneet for the test phase): GitHub Container Registry under the
+# repository owner, ghcr.io/<owner>/truminds/verifier-<name>. Push uses the workflow's own
+# GITHUB_TOKEN (packages: write), so there is no registry secret to manage.
 name: verifier-images
 
 on:
@@ -43,6 +46,9 @@ jobs:
     if: needs.discover.outputs.profiles != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -54,31 +60,44 @@ jobs:
           PROFILE: ${{ matrix.profile }}
         run: docker run --rm -i hadolint/hadolint:v2.12.0 < "plugins/truminds/verifiers/${PROFILE}/Dockerfile"
       - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-      - name: Image name (<name>@<major> -> verifier-<name>:<major>)
+      - name: Image name (<name>@<major> -> ghcr.io/<owner>/truminds/verifier-<name>:<major>)
         id: name
         env:
           PROFILE: ${{ matrix.profile }}
+          OWNER: ${{ github.repository_owner }}
         run: |
-          echo "image=verifier-${PROFILE%@*}" >> "$GITHUB_OUTPUT"
+          echo "repo=ghcr.io/${OWNER,,}/truminds/verifier-${PROFILE%@*}" >> "$GITHUB_OUTPUT"
           echo "major=${PROFILE#*@}" >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
         if: github.event_name != 'pull_request'
         with:
-          registry: ${{ vars.REGISTRY }}
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
-      - name: Build (push on main only)
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build (push on main or manual run only)
         id: build
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: plugins/truminds/verifiers/${{ matrix.profile }}
           push: ${{ github.event_name != 'pull_request' }}
           sbom: true
-          tags: ${{ vars.REGISTRY || 'local' }}/truminds/${{ steps.name.outputs.image }}:${{ steps.name.outputs.major }}-${{ github.sha }}
+          # links the package to this repository on GHCR
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          tags: |
+            ${{ steps.name.outputs.repo }}:${{ steps.name.outputs.major }}-${{ github.sha }}
+            ${{ steps.name.outputs.repo }}:${{ steps.name.outputs.major }}
       - name: Digest for profile.yaml
+        if: github.event_name != 'pull_request'
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
           PROFILE: ${{ matrix.profile }}
+          REPO: ${{ steps.name.outputs.repo }}
         run: |
-          echo "### ${PROFILE}" >> "$GITHUB_STEP_SUMMARY"
-          echo "Set \`image:\` in plugins/truminds/verifiers/${PROFILE}/profile.yaml to the digest \`${DIGEST}\` in a reviewed PR." >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### ${PROFILE}"
+            echo "Set this line in \`plugins/truminds/verifiers/${PROFILE}/profile.yaml\` in a reviewed PR:"
+            echo '```yaml'
+            echo "image: ${REPO}@${DIGEST}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "image: ${REPO}@${DIGEST}"

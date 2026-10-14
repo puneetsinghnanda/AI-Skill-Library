@@ -40,7 +40,7 @@ Everything you test runs on your laptop. The shared service only signs you in, r
 | Run `tsl` tests, plugin tests, `tsl validate`, `tsl harness eval` | **No** (only uv) |
 | Run portal tests | **No** (only Node.js) |
 | Run **every** suite with one command (`make test-all`), including the insights service and sample-system tests that need PostgreSQL 16 | **Yes**, through the dev container (§4B) |
-| Code steps of a workflow (`implement`, `unit-test`, `test-automation`): gate H3 runs lint and tests in a verifier container | **Yes**, and it is blocked for everyone today (see §9) |
+| Code steps of a workflow (`implement`, `unit-test`, `test-automation`): gate H3 runs lint and tests in a verifier container | **Yes**, and blocked for everyone until the images are published (see Open items) |
 | VAL-HAR-05 (verifier containers) | **Yes** |
 
 By area:
@@ -168,7 +168,7 @@ Set-Content .tsl\local.yaml "schema: tsl-local.v1`nproduct_repos:`n  sample-syst
    - **Progress:** type `/truminds:status`.
 4. Check the portal: your run and its steps appear in the Engineer view.
 
-**What to expect today:** the brownfield run goes through requirement review, story split, impact analysis, design and threat model. It **stops at `implement`** with **E-H3-07** because the verifier images don't exist yet (§9). That stop is a known blocker, not a finding. Workflows without code steps (`estimate`, `security-review`, `ux-review`, `pipeline-check`) can run end to end.
+**What to expect today:** the brownfield run goes through requirement review, story split, impact analysis, design and threat model. It **stops at `implement`** with **E-H3-07** until the verifier images are published (Open items). That stop is a known blocker, not a finding. Workflows without code steps (`estimate`, `security-review`, `ux-review`, `pipeline-check`) can run end to end.
 
 ## 8. Validate and report
 
@@ -219,11 +219,6 @@ Still stuck? Open a `validation:blocked` issue with the command, the output (sec
 
 ## Open items
 
-- **Verifier images (blocks code steps; decision for Puneet).** The H3 profiles in `plugins/truminds/verifiers/*/profile.yaml` reference `ghcr.io/<org>/…@sha256:000…0` placeholders, which `tsl` refuses with E-H3-07. Unblocking needs:
-  1. A registry decision (OQ-10).
-  2. A run of `.github/workflows/verifier-images.yml`.
-  3. A reviewed PR with the real digests.
-
-  Until then, `implement`, `unit-test` and `test-automation` stop at H3.
+- **Verifier images (blocks code steps).** The registry is now `ghcr.io/puneetsinghnanda` and `.github/workflows/verifier-images.yml` builds and pushes the images. Until the real digests replace the `@sha256:000…0` placeholders in `plugins/truminds/verifiers/*/profile.yaml` (reviewed PR), `implement`, `unit-test` and `test-automation` stop at H3 with E-H3-07. After that, testers who run code steps need Docker Desktop running, and either public packages or `docker login ghcr.io` (verifier README).
 - CI and OTel ingest tokens are not yet created in the shared environment. They come with the end-to-end GitHub test.
 - The test GitHub org and repos for real PRs (`tsl pr`, lead approval, `tsl ci-verify`): TBD by Puneet.

@@ -1,14 +1,15 @@
 # Verifier profile python-312@1 (SDD-03 §4.5, §5.5; schema verifier-profile.v1). Image: Dockerfile in this folder.
 # image: the digest below is a PLACEHOLDER (all zeros). .github/workflows/verifier-images.yml builds this
-# folder's Dockerfile and prints the digest; a maintainer sets it here in a reviewed PR once the GitHub
-# org and registry are known (OQ-10; also replace <org>). Until then tsl refuses the image with E-H3-07.
+# folder's Dockerfile, pushes it to ghcr.io/puneetsinghnanda (registry decided for the test phase, OQ-10)
+# and prints the digest; a maintainer sets it here in a reviewed PR. Until then tsl refuses the image
+# with E-H3-07.
 # Images are referenced by digest only, never by tag.
 # Every step runs in its own container. Only prepare has network (package registry): it copies the
 # read-only source (/src) into the cache volume (/cache/w) and installs from the lock file there.
 # Reports go to /out; `report` names the file there whose SHA-256 goes into checks.json.
 schema: verifier-profile.v1
 id: python-312@1
-image: ghcr.io/<org>/truminds/verifier-python-312@sha256:0000000000000000000000000000000000000000000000000000000000000000
+image: ghcr.io/puneetsinghnanda/truminds/verifier-python-312@sha256:0000000000000000000000000000000000000000000000000000000000000000
 workdir: /src
 exclude_from_risk: ["uv.lock", "**/__snapshots__/**"]
 steps:
