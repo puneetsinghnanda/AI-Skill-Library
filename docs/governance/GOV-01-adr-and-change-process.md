@@ -354,6 +354,7 @@ This is the one index of every decision taken. Earlier decisions D-01 to D-16 st
 | ADR 0002 | Identity is Microsoft Entra ID: device-code for `tsl login`, auth code + PKCE for the portal | Tracker §10; [ADR 0002](../adr/0002-identity-microsoft-entra-id.md) | Accepted | |
 | ADR 0003 | This repository is the source of truth for all documents and code | [ADR 0003](../adr/0003-repo-is-source-of-truth.md) | Accepted | Supersedes X-DOC |
 | ADR 0004 | Sample brownfield system is React + Node.js with PostgreSQL | Tracker §10; [ADR 0004](../adr/0004-sample-system-react-node.md) | Proposed (tentative) | Database "PostgreSQL proposed" in tracker §10 |
+| ADR 0005 | Portability adapter design; no other-tool adapter built in Release 1 | Tracker Q15; [ADR 0005](../adr/0005-portability-adapter-design.md) | Proposed | Resolves SDD-01 O-01 when accepted |
 | X-TEAM | Team areas and owners (tracker §1) replace the module owners in Doc 3 §12.2 | Tracker §1 | Accepted | Needs a D-number at triage (GOV-OI-02) |
 
 Decisions proposed in draft SDDs (for example SDD-05's commands-as-skills and managed deny rules) are not in this log. They enter it when the SDD reaches `Approved by Puneet`, or earlier through an ADR.

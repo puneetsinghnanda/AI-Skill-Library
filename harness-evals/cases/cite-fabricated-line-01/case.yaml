@@ -1,0 +1,8 @@
+schema: harness-case.v1
+id: cite-fabricated-line-01
+skill: requirement-review@1.0.0
+kind: citation
+expect:
+  outcome: ESCALATE
+  fabricated_cites:
+  - context/intent-baseline.md#L40

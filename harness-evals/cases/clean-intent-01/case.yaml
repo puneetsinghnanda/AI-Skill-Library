@@ -1,0 +1,12 @@
+schema: harness-case.v1
+id: clean-intent-01
+skill: requirement-review@1.0.0
+kind: gate
+expect:
+  gates:
+    H1: pass
+    H2: pass
+    H4: pass
+    H5: pass
+  outcome: PASS
+  band: High

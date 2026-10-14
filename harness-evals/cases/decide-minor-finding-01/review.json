@@ -1,0 +1,53 @@
+{
+  "schema": "review.v1",
+  "status": "ok",
+  "rubric_score": 5.0,
+  "rubric_items": [
+    {
+      "id": "RR-R1",
+      "score": 5,
+      "reason": "meets the criterion"
+    },
+    {
+      "id": "RR-R2",
+      "score": 5,
+      "reason": "meets the criterion"
+    },
+    {
+      "id": "RR-R3",
+      "score": 5,
+      "reason": "meets the criterion"
+    },
+    {
+      "id": "RR-R4",
+      "score": 5,
+      "reason": "meets the criterion"
+    },
+    {
+      "id": "RR-R5",
+      "score": 5,
+      "reason": "meets the criterion"
+    },
+    {
+      "id": "RR-R6",
+      "score": 5,
+      "reason": "meets the criterion"
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-1",
+      "severity": "minor",
+      "category": "correctness",
+      "text": "Retention conflicts with the ticket",
+      "cites": [
+        {
+          "ref": "context/intent-baseline.md#data-retention",
+          "quote": "Order events are kept 24 hours."
+        }
+      ]
+    }
+  ],
+  "claims_checked": [],
+  "questions": []
+}

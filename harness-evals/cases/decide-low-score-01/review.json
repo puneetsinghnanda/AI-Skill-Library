@@ -1,0 +1,40 @@
+{
+  "schema": "review.v1",
+  "status": "ok",
+  "rubric_score": 2.0,
+  "rubric_items": [
+    {
+      "id": "RR-R1",
+      "score": 2,
+      "reason": "weak"
+    },
+    {
+      "id": "RR-R2",
+      "score": 2,
+      "reason": "weak"
+    },
+    {
+      "id": "RR-R3",
+      "score": 2,
+      "reason": "weak"
+    },
+    {
+      "id": "RR-R4",
+      "score": 2,
+      "reason": "weak"
+    },
+    {
+      "id": "RR-R5",
+      "score": 2,
+      "reason": "weak"
+    },
+    {
+      "id": "RR-R6",
+      "score": 2,
+      "reason": "weak"
+    }
+  ],
+  "findings": [],
+  "claims_checked": [],
+  "questions": []
+}

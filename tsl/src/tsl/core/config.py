@@ -19,7 +19,11 @@ ORG_DEFAULTS: dict[str, Any] = {
         "max_commits_behind": 50,
         "critical_paths": [],
         # SDD-06 §7.2, §8: pack size limits; a system may only lower them
-        "limits": {"section_tokens": 8000, "judgement_tokens": 40000, "generated_file_bytes": 2097152},
+        "limits": {
+            "section_tokens": 8000,
+            "judgement_tokens": 40000,
+            "generated_file_bytes": 2097152,
+        },
         # SDD-06 §5.2: None means the extractor's built-in globs
         "extractors": {"migrations": None, "tests": None},
         # SDD-06 §9.1, §9.4: additions to the never-read list; hashes of terms to mask

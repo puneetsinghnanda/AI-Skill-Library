@@ -1,0 +1,6 @@
+schema: harness-case.v1
+id: decide-blocking-question-01
+skill: requirement-review@1.0.0
+kind: decide
+expect:
+  outcome: NEEDS-INPUT

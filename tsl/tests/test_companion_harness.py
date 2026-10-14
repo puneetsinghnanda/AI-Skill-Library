@@ -315,3 +315,11 @@ def test_harness_eval_below_target(world: World, tmp_path: Path) -> None:
 def test_harness_eval_without_cases(world: World, tmp_path: Path) -> None:
     code, env, _, _ = world.cli(["harness", "eval", "--dir", str(tmp_path / "none"), "--json"])
     assert env is not None and (code, env["code"]) == (3, "E-ENV-01")
+
+
+def test_committed_labelled_set_is_on_target(world: World) -> None:
+    """The starter labelled set in harness-evals/ (SDD-03 §16.1) scores on target, code-only."""
+    root = Path(__file__).resolve().parents[2] / "harness-evals" / "cases"
+    code, env, _, err = world.cli(["harness", "eval", "--code-only", "--dir", str(root), "--json"])
+    assert code == 0, (env and env["data"]["mismatches"], err)
+    assert env is not None and env["data"]["cases"] >= 9 and not env["data"]["mismatches"]

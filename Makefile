@@ -14,7 +14,7 @@ NPM ?= npm
 help:
 	@echo "make test-all     every component test suite"
 	@echo "make lint-all     every linter and type checker"
-	@echo "make docs-check   relative links, anchors and registry ids"
+	@echo "make docs-check   relative links, anchors, registry ids, doc control rows, backlog.csv in sync"
 	@echo "make check-all    lint-all + test-all + docs-check + portal e2e"
 
 test-all: test-schemas test-tsl test-plugin test-insights test-portal test-sample test-deploy-ops
@@ -26,6 +26,8 @@ check-all: lint-all test-all docs-check test-portal-e2e
 docs-check:
 	python3 scripts/check_links.py
 	python3 scripts/check_registry.py
+	python3 scripts/check_docs.py
+	python3 scripts/build_backlog.py --check
 
 # --- schemas -----------------------------------------------------------------------------------
 test-schemas:

@@ -56,7 +56,13 @@ Every document lives here and changes by pull request (GOV-01). The earlier Clau
 
 ## Planning and presentations
 - [Implementation Readiness Tracker](planning/readiness-tracker.md)
+- [Traceability: tracker, requirements and stories to the repo](planning/traceability.md) — status of every tracker item
+- [Backlog (importable CSV, from PLN-01 §7)](planning/backlog.csv) — rebuilt by `scripts/build_backlog.py`; nothing is sent to Jira
+- [Release 1 done-gate checklist (G2)](planning/release-1-gate-checklist.md)
 - [Architecture deck (.pptx)](presentations/Truminds_Skill_Library_Architecture.pptx), [PDF](presentations/Truminds_Skill_Library_Architecture.pdf), source [build.js](presentations/build.js)
+
+## Training
+- [Training and onboarding](training/README.md) — onboarding checklist, persona training outlines, hands-on session guide (SDD-13 §3–§4)
 
 ## Decision records
 - [docs/adr/](adr/README.md)

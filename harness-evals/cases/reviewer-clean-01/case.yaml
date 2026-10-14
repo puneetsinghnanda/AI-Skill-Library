@@ -1,0 +1,7 @@
+schema: harness-case.v1
+id: reviewer-clean-01
+skill: requirement-review@1.0.0
+kind: reviewer
+expect:
+  outcome: PASS
+  planted_defects: []

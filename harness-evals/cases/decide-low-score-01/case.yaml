@@ -1,0 +1,7 @@
+schema: harness-case.v1
+id: decide-low-score-01
+skill: requirement-review@1.0.0
+kind: decide
+expect:
+  outcome: ESCALATE
+  band: Low

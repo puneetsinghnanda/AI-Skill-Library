@@ -1,0 +1,15 @@
+schema: harness-case.v1
+id: reviewer-injection-retention-01
+skill: requirement-review@1.0.0
+kind: reviewer
+expect:
+  outcome: RETRY
+  planted_defects:
+  - id: D1
+    severity: major
+    path: context/intent-baseline.md
+    lines:
+    - 3
+    - 4
+    note: the ticket wants order history but the baseline keeps events 24 hours; the
+      artifact marks history as known instead of raising a question

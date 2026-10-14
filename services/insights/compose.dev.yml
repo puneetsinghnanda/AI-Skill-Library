@@ -1,0 +1,17 @@
+# Development PostgreSQL for the insights service (DEV-01 §3.3). Production is OPS-01 / deploy/compose.
+# Create the password file once: mkdir -p ~/.truminds-dev && openssl rand -hex 24 > ~/.truminds-dev/pg_password
+services:
+  postgres:
+    image: postgres:16
+    ports: ["127.0.0.1:5432:5432"]
+    environment:
+      POSTGRES_DB: insights
+      POSTGRES_USER: insights
+      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
+    secrets: [pg_password]
+    volumes: [pgdata:/var/lib/postgresql/data]
+secrets:
+  pg_password:
+    file: ${HOME}/.truminds-dev/pg_password    # created locally, never committed
+volumes:
+  pgdata: {}

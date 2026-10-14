@@ -1,0 +1,6 @@
+schema: harness-case.v1
+id: decide-minor-finding-01
+skill: requirement-review@1.0.0
+kind: decide
+expect:
+  outcome: PASS-WITH-FINDINGS

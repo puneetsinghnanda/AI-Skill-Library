@@ -1,0 +1,9 @@
+schema: harness-case.v1
+id: h2-missing-out-of-scope-01
+skill: requirement-review@1.0.0
+kind: gate
+expect:
+  gates:
+    H1: pass
+    H2: fail
+  outcome: RETRY
