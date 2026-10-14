@@ -19,8 +19,9 @@ the final choice stays with SEC-01 (SDD-03 OI-07).
 
 Profiles reference images by digest only, never by tag. The registry is the GitHub Container Registry under
 the repository owner, `ghcr.io/puneetsinghnanda/truminds/verifier-<name>` (OQ-10, decided by Puneet for the
-test phase). Until a real digest is set, `image:` ends in the placeholder `@sha256:000…0`, and `tsl` refuses it
-with E-H3-07 instead of pulling anything.
+test phase). The packages are public. The three profiles are pinned to the images built from commit `010fd03`.
+A profile whose `image:` ends in the all-zeros placeholder `@sha256:000…0` is refused by `tsl` with E-H3-07
+instead of pulling anything.
 
 1. `.github/workflows/verifier-images.yml` runs on a push to `main` that touches `plugins/truminds/verifiers/**`
    or the workflow, or by hand (Actions → verifier-images → Run workflow). It lints each Dockerfile with
@@ -29,9 +30,9 @@ with E-H3-07 instead of pulling anything.
 2. The job summary prints one ready-to-paste line per profile: `image: ghcr.io/…@sha256:<digest>`.
 3. A maintainer sets those lines in each `profile.yaml` in a reviewed PR (OPS-03 §2.1). CI never writes the
    digest itself.
-4. Pulling: the packages are private by default. Either set each package to **Public** (GitHub → your profile
+4. Pulling: new packages are private by default. Set each new package to **Public** (GitHub → your profile
    → Packages → `truminds/verifier-<name>` → Package settings → Change visibility); the images hold only
-   open-source tools. Or each tester runs `docker login ghcr.io` with a token that has `read:packages`.
+   open-source tools (done for the three current images). Otherwise each tester runs `docker login ghcr.io` with a token that has `read:packages`.
 
 ## How tsl runs a step
 

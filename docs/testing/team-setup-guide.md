@@ -40,7 +40,7 @@ Everything you test runs on your laptop. The shared service only signs you in, r
 | Run `tsl` tests, plugin tests, `tsl validate`, `tsl harness eval` | **No** (only uv) |
 | Run portal tests | **No** (only Node.js) |
 | Run **every** suite with one command (`make test-all`), including the insights service and sample-system tests that need PostgreSQL 16 | **Yes**, through the dev container (§4B) |
-| Code steps of a workflow (`implement`, `unit-test`, `test-automation`): gate H3 runs lint and tests in a verifier container | **Yes**, and blocked for everyone until the images are published (see Open items) |
+| Code steps of a workflow (`implement`, `unit-test`, `test-automation`): gate H3 runs lint and tests in a verifier container | **Yes**: Docker Desktop running; the first H3 run downloads the public verifier image (about 1 GB) |
 | VAL-HAR-05 (verifier containers) | **Yes** |
 
 By area:
@@ -168,7 +168,7 @@ Set-Content .tsl\local.yaml "schema: tsl-local.v1`nproduct_repos:`n  sample-syst
    - **Progress:** type `/truminds:status`.
 4. Check the portal: your run and its steps appear in the Engineer view.
 
-**What to expect today:** the brownfield run goes through requirement review, story split, impact analysis, design and threat model. It **stops at `implement`** with **E-H3-07** until the verifier images are published (Open items). That stop is a known blocker, not a finding. Workflows without code steps (`estimate`, `security-review`, `ux-review`, `pipeline-check`) can run end to end.
+**Docker for code steps:** the brownfield run's `implement` and `unit-test` steps run gate H3 in the `node-22` verifier container. Start Docker Desktop before the run. The first time, `tsl` downloads the image from `ghcr.io/puneetsinghnanda` (public, about 1 GB). Without Docker, those steps stop with **E-H3-07**; start Docker, then `/truminds:resume <run_id>`. Workflows without code steps (`estimate`, `security-review`, `ux-review`, `pipeline-check`) need no Docker.
 
 ## 8. Validate and report
 
@@ -205,7 +205,7 @@ Set-Content .tsl\local.yaml "schema: tsl-local.v1`nproduct_repos:`n  sample-syst
 | A skill refuses to run | Start a run first: `/truminds:run <workflow> <ticket>` |
 | Claude can't find `tsl.yaml` | Wrong folder: open the session in `examples\sample-system\companion-example` |
 | `E-LOCK` when starting a run | Someone holds that ticket; pick another |
-| `E-H3-07` at `implement` or `unit-test` | Known blocker: verifier images not published yet (see Open items) |
+| `E-H3-07` at `implement` or `unit-test` | Docker isn't running, or the image couldn't download. Start Docker Desktop, check `docker pull ghcr.io/puneetsinghnanda/truminds/verifier-node-22:1` works, then `/truminds:resume <run_id>` |
 | `devcontainers/cli` can't reach Docker | Start Docker Desktop and wait for **Engine running**; reopen VS Code if it was already open |
 | `git commit` from Windows says `pre-commit not found` | Commit with `git commit --no-verify`, or commit inside the dev container |
 | `git status` shows `.devcontainer/devcontainer-lock.json` | It's ignored on `main`; run `git pull` |
@@ -219,6 +219,6 @@ Still stuck? Open a `validation:blocked` issue with the command, the output (sec
 
 ## Open items
 
-- **Verifier images (blocks code steps).** The registry is now `ghcr.io/puneetsinghnanda` and `.github/workflows/verifier-images.yml` builds and pushes the images. Until the real digests replace the `@sha256:000…0` placeholders in `plugins/truminds/verifiers/*/profile.yaml` (reviewed PR), `implement`, `unit-test` and `test-automation` stop at H3 with E-H3-07. After that, testers who run code steps need Docker Desktop running, and either public packages or `docker login ghcr.io` (verifier README).
+- **Verifier images** are published at `ghcr.io/puneetsinghnanda/truminds/verifier-*` (public) and pinned by digest in `plugins/truminds/verifiers/*/profile.yaml`. The images are amd64 only; an Apple-silicon Mac runs them under emulation, more slowly.
 - CI and OTel ingest tokens are not yet created in the shared environment. They come with the end-to-end GitHub test.
 - The test GitHub org and repos for real PRs (`tsl pr`, lead approval, `tsl ci-verify`): TBD by Puneet.

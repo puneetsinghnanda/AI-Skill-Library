@@ -91,9 +91,15 @@ def test_step_command_is_locked_down(tmp_path: Path) -> None:
 def test_placeholder_digest_is_refused() -> None:
     from tsl.harness.verifier import image_digest
 
+    placeholder = dict(
+        _profile(), image="ghcr.io/example-org/truminds/verifier-node-22@sha256:" + "0" * 64
+    )
+    with pytest.raises(VerifierUnavailable, match="placeholder"):
+        image_digest(placeholder)
+    # the repository profiles are pinned to published images (verifier README "Image digests")
     for pid in ("node-20@1", "node-22@1", "python-312@1"):
-        with pytest.raises(VerifierUnavailable, match="placeholder"):
-            image_digest(_profile(pid))
+        digest = image_digest(_profile(pid))
+        assert digest != "sha256:" + "0" * 64 and len(digest) == len("sha256:") + 64
     real = dict(
         _profile(), image="ghcr.io/example-org/truminds/verifier-node-22@sha256:" + "ab" * 32
     )
