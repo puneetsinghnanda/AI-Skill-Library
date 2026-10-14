@@ -19,7 +19,7 @@ the final choice stays with SEC-01 (SDD-03 OI-07).
 
 Profiles reference images by digest only, never by tag. The registry is the GitHub Container Registry under
 the repository owner, `ghcr.io/puneetsinghnanda/truminds/verifier-<name>` (OQ-10, decided by Puneet for the
-test phase). The packages are public. The three profiles are pinned to the images built from commit `010fd03`.
+test phase). The packages are public. The three profiles are pinned to the images built from commit `1444e2b`.
 A profile whose `image:` ends in the all-zeros placeholder `@sha256:000…0` is refused by `tsl` with E-H3-07
 instead of pulling anything.
 

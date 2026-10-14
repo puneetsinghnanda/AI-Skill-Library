@@ -1,13 +1,13 @@
 # Verifier profile node-20@1 (SDD-03 §4.5, §5.5; schema verifier-profile.v1). Image: Dockerfile in this folder.
 # image: built and pushed by .github/workflows/verifier-images.yml to ghcr.io/puneetsinghnanda (public;
-# registry decided for the test phase, OQ-10) from commit 010fd03. A new digest comes only by a reviewed PR.
+# registry decided for the test phase, OQ-10) from commit 1444e2b. A new digest comes only by a reviewed PR.
 # Images are referenced by digest only, never by tag.
 # Every step runs in its own container. Only prepare has network (package registry): it copies the
 # read-only source (/src) into the cache volume (/cache/w) and installs from the lock file there.
 # Reports go to /out; `report` names the file there whose SHA-256 goes into checks.json.
 schema: verifier-profile.v1
 id: node-20@1
-image: ghcr.io/puneetsinghnanda/truminds/verifier-node-20@sha256:33af13ed596e2c497a72e9796090beeea3717b3eacbac1972ae63e406904f863
+image: ghcr.io/puneetsinghnanda/truminds/verifier-node-20@sha256:27d66e3ac374d6413169f0866481e8d010312bd3aec300f1831d7cfb2c011365
 workdir: /src
 exclude_from_risk: ["package-lock.json", "**/*.snap"]
 steps:
