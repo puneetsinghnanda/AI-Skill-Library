@@ -232,7 +232,7 @@ def test_login_whoami_doctor_logout_with_github(world: World) -> None:
     data = world.login("eng2")
     assert data["pseudonym"] == "eng-77b1" and data["key_new"] is True
     rt = world.rt("eng2")
-    assert any("WDJB-MJHT" in line for line in rt.stderr_lines)
+    assert any("WDJB-MJHT" in line for line in rt.prompt_lines)
     # second login: silent token, no device flow
     before = len(gh.requests)
     data = world.login("eng2")
@@ -267,3 +267,24 @@ def test_test_org_example_is_a_valid_github_org_file() -> None:
     org = OrgConfig.model_validate(data)
     assert org.provider == "github" and org.github_oauth_url == "https://github.com"
     assert org.service_url.startswith("http")
+
+
+def test_login_shows_the_code_before_waiting_for_github(
+    world: World, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The device code reaches the terminal while login polls, not when the command ends."""
+    seen_while_polling: list[str] = []
+
+    class Watching(FakeGitHub):
+        def __call__(self, request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/login/oauth/access_token":
+                seen_while_polling.append(capsys.readouterr().err)
+            return super().__call__(request)
+
+    gh = Watching([{"error": "authorization_pending"}, {"access_token": "tok:eng2"}], "tok:eng2")
+    _github_runtime(world, "eng2", gh)
+    world.login("eng2")
+    assert seen_while_polling, "login never polled GitHub"
+    first = seen_while_polling[0]
+    assert "WDJB-MJHT" in first and f"{OAUTH}/login/device" in first
+    assert "Only continue if you typed `tsl login` yourself" in first

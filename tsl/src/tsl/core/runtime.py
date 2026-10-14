@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import sys
 import tomllib
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
@@ -43,6 +44,8 @@ class Runtime:
     tsl_version: str = __version__
     strict_events: bool = False
     stderr_lines: list[str] = field(default_factory=list)
+    # Lines shown at once by prompt(): instructions the user must act on while the command waits.
+    prompt_lines: list[str] = field(default_factory=list)
 
     # ---- user config (SDD-04 §7.1)
     def user_config(self) -> dict[str, Any]:
@@ -138,6 +141,13 @@ class Runtime:
 
     def warn(self, text: str) -> None:
         self.stderr_lines.append(text)
+
+    def prompt(self, text: str) -> None:
+        """Write to stderr now, not when the command ends: the user must act on it (for example
+        the sign-in code) while the command is still waiting."""
+        self.prompt_lines.append(text)
+        sys.stderr.write(text + "\n")
+        sys.stderr.flush()
 
     def outbox(self) -> Any:
         from tsl.telemetry.outbox import Outbox

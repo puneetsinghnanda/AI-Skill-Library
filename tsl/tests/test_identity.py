@@ -283,7 +283,7 @@ def test_login_registers_key_and_writes_device_code_to_stderr(world: World) -> N
     data = world.login("eng2")
     assert data["pseudonym"] == "eng-77b1" and data["key_new"] is True
     assert data["key_id"] in world.insights.keys
-    assert any("devicelogin" in line for line in rt.stderr_lines)
+    assert any("devicelogin" in line for line in rt.prompt_lines)
     code, env, _, _ = world.cli(["login", "--json"], user="eng2")  # silent token now works
     assert code == 0 and env is not None and env["data"]["key_new"] is False
 

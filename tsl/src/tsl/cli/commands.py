@@ -204,7 +204,7 @@ def comp() -> Any:
 @app.command()
 @command
 def login(rotate_key: Annotated[bool, typer.Option("--rotate-key")] = False) -> int:
-    """Sign in with Microsoft Entra ID (device code) and register this device's signing key."""
+    """Sign in with a device code (Entra ID, or GitHub in the test phase); register this key."""
     from tsl.services.identity_cmds import login as svc
 
     data = svc(rt(), rotate_key)

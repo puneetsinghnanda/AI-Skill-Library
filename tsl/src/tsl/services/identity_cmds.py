@@ -58,8 +58,8 @@ def login(rt: Runtime, rotate_key: bool, interactive: bool | None = None) -> dic
             raise TslError(
                 "E-USE-01", detail="tsl login must run in an interactive terminal", cmd="login"
             )
-        rt.warn(BANNER)
-        res = ident.device_login(rt.warn)
+        rt.prompt(BANNER)  # shown now: the device code below must be seen while login waits
+        res = ident.device_login(rt.prompt)
         token = str(res["access_token"])
         claims = dict(res.get("id_token_claims") or {})
         try:
