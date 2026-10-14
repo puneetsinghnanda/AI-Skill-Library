@@ -40,7 +40,10 @@ from app.crypto import ulid
 PG_BIN = Path(os.environ.get("PG_BIN", "/usr/lib/postgresql/16/bin"))
 SERVICE = Path(__file__).resolve().parent.parent
 ROOT = SERVICE.parent.parent
-TMP_BASE = ROOT.parent / "tmp-insights"
+# Scratch space for generated config files. Use the system temp dir (writable everywhere,
+# including dev containers where the repo's parent folder is root-owned); override with
+# INSIGHTS_TEST_TMP if needed.
+TMP_BASE = Path(os.environ.get("INSIGHTS_TEST_TMP") or tempfile.gettempdir()) / "tmp-insights"
 TENANT = "11111111-2222-4333-8444-555555555555"
 AUDIENCE = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
 TSL_CLIENT = "0f0f0f0f-1111-4222-8333-444444444444"
