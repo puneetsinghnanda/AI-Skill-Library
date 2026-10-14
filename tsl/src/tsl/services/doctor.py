@@ -82,7 +82,7 @@ def doctor(
         checks.append(_chk("keychain", "fail", "no allowed keyring backend", "See SDD-07 §4.3"))
     try:
         rt.token()
-        checks.append(_chk("login", "pass"))
+        checks.append(_chk("login", "pass", f"provider {rt.org.provider}"))
     except TslError:
         checks.append(_chk("login", "fail", "no silent token", "tsl login"))
     from tsl.identity.keys import active_info, load_signer

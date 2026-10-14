@@ -6,7 +6,7 @@
 | Owner | Puneet Singh Nanda |
 | Approver | Puneet Singh Nanda |
 | Testers | Abhishek Verma, Ekjot Singh, Japman Singh, Yash Khorwal, Shubham Bansal, Gaurav Saini |
-| Related | [TST-01](TST-01-master-test-plan.md), [traceability](../planning/traceability.md), [registry](../architecture/registry.md), [spikes](../../spikes/README.md), [Release 1 gate](../planning/release-1-gate-checklist.md) |
+| Related | [ADR 0006 Interim GitHub sign-in](../adr/0006-interim-github-sign-in-for-test-phase.md), [deploy/README.md](../../deploy/README.md), [TST-01](TST-01-master-test-plan.md), [traceability](../planning/traceability.md), [registry](../architecture/registry.md), [spikes](../../spikes/README.md), [Release 1 gate](../planning/release-1-gate-checklist.md) |
 
 ## 1. Purpose
 
@@ -23,7 +23,7 @@ You are not expected to write new features. You are expected to:
 flowchart LR
   A[Set up laptop<br/>§3] --> B[Phase A<br/>laptop only]
   B --> C[Phase B<br/>Claude seat, no login]
-  C --> D[Phase C<br/>seat + Entra + test service]
+  C --> D[Phase C<br/>seat + GitHub sign-in + test service]
   B & C & D --> E[Issues<br/>Validation finding]
   E --> F[Verdict file per area<br/>§8]
   F --> G[Puneet review<br/>Go / Go with fixes / No-go]
@@ -35,9 +35,29 @@ flowchart LR
 | --- | --- | --- | --- |
 | **A. Laptop only** | All code, tests, schemas, `tsl validate/verify/decide` on sample files, skills content, insights service and portal locally, sample system | Laptop set up as in §3 | Can start now |
 | **B. Claude seat, no login** | Plugin install in Claude Code, hooks, spikes S-01 to S-15 (S-09 runs the whole run loop with a stub `tsl`), skills tried by hand | A company Claude seat with the Claude Code desktop app (local session, not cloud, not Cowork) | Can start now |
-| **C. Full run** | `/truminds:run brownfield-change ABC-142` end to end, signed records, telemetry reaching the portal | **Entra ID test app registration** (for `tsl login`), a **test insights instance** (Gaurav can run one with `deploy/` on a shared VM), a test GitHub org or repo for companion repos | Blocked until Puneet arranges the three items (§10) |
+| **C. Full run** | `/truminds:run brownfield-change ABC-142` end to end, signed records, telemetry reaching the portal | The **one-machine test environment with GitHub sign-in** (§2.1), a `tsl` wheel built for it, a test GitHub org or repo for companion repos | Can start once Puneet has done §2.1 |
 
-Why phase C is blocked: `tsl` signs every record with a key registered at `tsl login`, and login goes only through Microsoft Entra ID. There is deliberately no bypass or debug login (org rule). So a real run needs the Entra test app.
+`tsl` signs every record with a key registered at `tsl login`. Production login goes only through Microsoft Entra ID, and there is no bypass or debug login. While the Entra registrations are pending, Puneet decided (ADR 0006) that the test environment signs in with GitHub OAuth instead. This is a flagged, test-only deviation from the company-SSO rule; production stays on Entra.
+
+### 2.1 Phase C set-up with GitHub sign-in (ADR 0006)
+
+Puneet, once (details and commands in [deploy/README.md](../../deploy/README.md) "Run the test environment on one machine for 6 testers"):
+
+1. Create a GitHub OAuth App: homepage `http://<host>:<port>`, callback `http://<host>:<port>/auth/github/callback`, **Enable Device Flow** ticked; generate a client secret.
+2. On the test machine: `deploy/scripts/test-env-secrets.sh`; copy `deploy/compose/env/test.env.example` to `test.env` and set `PUBLIC_BASE_URL`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `BOOTSTRAP_ADMIN_GITHUB_LOGINS=<Puneet's GitHub login>`.
+3. `docker compose -f deploy/compose/compose.test.yml up -d --build`, then load the catalogue with the `admin catalogue sync` command from the README.
+4. Build `tsl` with the GitHub org file: fill `deploy/test-org.github.toml` from the example and run `TSL_ORG_FILE=$PWD/deploy/test-org.github.toml uv build tsl --wheel --out-dir dist-test`; share the wheel.
+5. Sign in to the portal (TEST ENVIRONMENT banner, **Sign in with GitHub**); you are admin. In **Admin**, create the client, project and systems.
+
+Each tester:
+
+1. Install the shared wheel: `uv tool install ./truminds_tsl-<version>-py3-none-any.whl`.
+2. `tsl login`: open `https://github.com/login/device`, type the code. The first time it answers "No Truminds role yet" with your pseudonym.
+3. Puneet grants the roles in **Admin → Users** (the user list shows `@<github login>` with "Show names"). Admins cannot grant themselves, so Puneet makes one tester admin, who grants Puneet his roles.
+4. `tsl login` again: the signing key is registered. Check with `tsl whoami` and `tsl doctor` (the login check says `provider github`).
+5. Sign in to the portal with GitHub and confirm the TEST ENVIRONMENT banner and your role label.
+
+Also test in phase C: a GitHub sign-in that is cancelled (`access_denied`) or left to expire gives E-AUTH-01 with `tsl login` as the next step; `tsl logout` then `tsl doctor` shows the login check failing; a portal admin write still works after sign-out and sign-in.
 
 ## 3. Laptop set-up (everyone, once)
 
@@ -231,12 +251,13 @@ Each area submits `docs/testing/validation/<area>-verdict.md` (areas: `skills`, 
 - Do not fix code while validating unless it is a one-line fix; raise the issue first, then fix by PR linked to it, so the finding stays visible.
 - Puneet reviews findings by severity and decides Go / Go with fixes / No-go per area.
 
-## 10. What Puneet needs to arrange (blocks phase C)
+## 10. What Puneet needs to arrange
 
 | Item | From | Used for |
 | --- | --- | --- |
-| Entra ID **test** app registration (device code for `tsl`, auth code + PKCE for the portal) and test groups for the four app roles | IT / Entra admin | `tsl login`, portal sign-in |
-| A test VM on the intranet for the insights service and portal | IT | Phase C, VAL-TEL-12 |
+| Interim: GitHub OAuth App (Device Flow enabled) and the one-machine test environment (§2.1, ADR 0006) | Puneet | `tsl login`, portal sign-in in phase C |
+| Entra ID app registrations and groups for the four app roles (replaces the GitHub sign-in, ADR 0006 exit) | IT / Entra admin | Production sign-in |
+| A machine on the intranet for the test environment | IT or Puneet | Phase C, VAL-TEL-12 |
 | A test GitHub org or repo for companion repos and test PRs | Puneet | `tsl pr`, `tsl ci-verify` |
 | Claude seats for all six testers with the Claude Code desktop app | Claude admin | Phase B and C |
 | Optional: a test Jira/Confluence space with no client data | Puneet | VAL-EXE-06 only |
@@ -249,5 +270,5 @@ Every tester has read it, phase A has started, and each area has a named verdict
 
 | ID | Item | Owner |
 | --- | --- | --- |
-| TST-02-O1 | Entra test app, test VM, test GitHub org (§10) | Puneet |
+| TST-02-O1 | GitHub OAuth App and test machine (§2.1), test GitHub org (§10); Entra registrations to leave the interim set-up (ADR 0006) | Puneet |
 | TST-02-O2 | Whether a client-facing person joins phase C as product owner | Puneet |

@@ -10,10 +10,10 @@ from __future__ import annotations
 import base64
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import AliasChoices, Field, SecretStr, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 SERVICE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_SCHEMAS_DIR = SERVICE_DIR.parent.parent / "schemas"
@@ -24,7 +24,10 @@ ENGINEER_FAMILY = ("engineer", "tech_lead", "eng_lead", "admin")
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=None, extra="ignore", frozen=True)
 
-    env: Literal["dev", "test", "staging", "prod"] = "dev"
+    # ENVIRONMENT (or the older ENV). "test" shows the TEST ENVIRONMENT banner (GET /v1/status).
+    env: Literal["dev", "test", "staging", "prod"] = Field(
+        default="dev", validation_alias=AliasChoices("ENVIRONMENT", "ENV", "env")
+    )
     service_version: str = "0.1.0"
     public_base_url: str = "http://localhost:8000"
 
@@ -37,6 +40,22 @@ class Settings(BaseSettings):
     entra_jwks_url: str | None = None  # default: <authority>/<tenant>/discovery/v2.0/keys
     entra_jwks_file: Path | None = None  # JWKS document on disk (air-gapped hosts and tests)
     entra_leeway_s: int = 60
+
+    # --- Identity provider (SDD-07 §1.4, ADR 0006) ---
+    # "entra" (default, production) or "github" (interim, test phase only; refused when ENV=prod).
+    identity_provider: Literal["entra", "github"] = "entra"
+    github_client_id: str = ""
+    # The OAuth App client secret: GITHUB_CLIENT_SECRET_FILE (secret store) or GITHUB_CLIENT_SECRET
+    # (env file on the host). Never in git.
+    github_client_secret: SecretStr | None = None
+    github_client_secret_file: Path | None = None
+    github_oauth_url: str = "https://github.com"
+    github_api_url: str = "https://api.github.com"
+    github_token_cache_s: int = 300
+    # Comma-separated GitHub logins that receive the org `admin` (and `viewer`) grant when they sign
+    # in. Visible: logged at startup and audited per grant (action bootstrap_admin_grant).
+    bootstrap_admin_github_logins: Annotated[tuple[str, ...], NoDecode] = ()
+    session_max_age_s: int = 8 * 3600
 
     # --- Database (OPS-01 §5.3, SDD-08 §9.4) ---
     database_host: str = "localhost"
@@ -73,7 +92,7 @@ class Settings(BaseSettings):
     audit_retention_months: int = 36  # RD-4 default: 3 years (registry §11)
 
     # --- Policy decisions (registry §11) ---
-    rd1_name_reveal_roles: tuple[str, ...] = ("eng_lead", "admin")  # RD-1 (a)
+    rd1_name_reveal_roles: Annotated[tuple[str, ...], NoDecode] = ("eng_lead", "admin")  # RD-1 (a)
     rd2_engineer_run_scope: Literal["system", "project"] = "system"  # RD-2 (a)
     rd3_question_text_in_cloud: bool = False  # RD-3 (a)
     rd5_first_pass_metric: Literal["first_try"] = "first_try"  # noqa: S105 - RD-5 (b), not a secret
@@ -116,12 +135,17 @@ class Settings(BaseSettings):
             )
         return v
 
-    @field_validator("rd1_name_reveal_roles", mode="before")
+    @field_validator("rd1_name_reveal_roles", "bootstrap_admin_github_logins", mode="before")
     @classmethod
     def _split(cls, v: object) -> object:
         if isinstance(v, str):
             return tuple(x.strip() for x in v.split(",") if x.strip())
         return v
+
+    @field_validator("bootstrap_admin_github_logins")
+    @classmethod
+    def _lower(cls, v: tuple[str, ...]) -> tuple[str, ...]:
+        return tuple(x.lower() for x in v)
 
     # ----- derived values -----
     @property
@@ -162,6 +186,21 @@ class Settings(BaseSettings):
             query=query,
         )
         return url.render_as_string(hide_password=False)
+
+    def github_secret(self) -> str:
+        if self.github_client_secret_file:
+            return read_secret(self.github_client_secret_file)
+        if self.github_client_secret is not None:
+            return self.github_client_secret.get_secret_value()
+        raise RuntimeError("GITHUB_CLIENT_SECRET_FILE or GITHUB_CLIENT_SECRET is not set")
+
+    def check_identity(self) -> None:
+        """Refuse a configuration that ADR 0006 does not allow. Called at app start."""
+        if self.identity_provider == "github":
+            if self.env == "prod":
+                raise RuntimeError("IDENTITY_PROVIDER=github is for the test phase only (ADR 0006)")
+            if not self.github_client_id:
+                raise RuntimeError("IDENTITY_PROVIDER=github needs GITHUB_CLIENT_ID")
 
     def pepper(self) -> bytes:
         if not self.pseudonym_pepper_file:

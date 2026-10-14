@@ -54,7 +54,12 @@ export default defineConfig(({ mode }) => ({
   server: {
     port: 5173,
     strictPort: true,
-    proxy: { '/v1': 'http://localhost:8000' },
+    // /auth/github/* and /auth/logout: GitHub sign-in on the insights service (ADR 0006).
+    proxy: {
+      '/v1': 'http://localhost:8000',
+      '/auth/github': 'http://localhost:8000',
+      '/auth/logout': 'http://localhost:8000',
+    },
   },
   preview: {
     port: 4173,

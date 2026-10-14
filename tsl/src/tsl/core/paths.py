@@ -61,6 +61,11 @@ class Home:
         return self.root / "msal-cache.bin"
 
     @property
+    def github_token(self) -> Path:
+        """Sealed GitHub token (provider "github", ADR 0006); same sealing as the MSAL cache."""
+        return self.root / "github-token.bin"
+
+    @property
     def active_key(self) -> Path:
         return self.root / "keys" / "active.json"
 

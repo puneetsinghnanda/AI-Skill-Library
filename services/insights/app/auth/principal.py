@@ -11,14 +11,25 @@ from fastapi import Request
 from sqlalchemy import Connection
 
 from app.auth import ingest_tokens
-from app.auth.entra import EntraClaims, EntraValidator, TokenInvalid
+from app.auth.entra import ClientKind, EntraClaims, EntraValidator, TokenInvalid
+from app.auth.github import GITHUB_TENANT, GitHubUnavailable, GitHubValidator
 from app.auth.scope import Scope, resolve_scope
-from app.auth.users import Grant, User, effective_grants, resolve_user
+from app.auth.session import require_csrf, session_of, session_token
+from app.auth.users import (
+    APP_ROLES,
+    Grant,
+    User,
+    effective_grants,
+    resolve_github_user,
+    resolve_user,
+)
 from app.config import Settings
 from app.db import tx
 from app.errors import ServiceError
 from app.obs import metrics
 
+# "entra" is an interactive user's token: Microsoft Entra ID, or GitHub while IDENTITY_PROVIDER is
+# "github" (ADR 0006; Principal.provider says which). "ci" and "otel" are ingest tokens.
 Kind = Literal["entra", "ci", "otel"]
 RouteKind = Literal["ingest", "read", "write", "otel"]
 
@@ -31,6 +42,8 @@ class Principal:
     grants: list[Grant] = field(default_factory=list)
     token_id: str | None = None
     token_label: str | None = None
+    provider: Literal["entra", "github"] = "entra"
+    via_cookie: bool = False
     _scope: Scope | None = None
 
     @property
@@ -96,10 +109,14 @@ def authenticate(
     s: Settings = request.app.state.settings
     tok = bearer(request)
     code = _unauth(route)
+    via_cookie = False
+    if tok is None and s.identity_provider == "github":
+        tok = session_token(request, s)  # portal session cookie (SDD-09 §3.4.1)
+        via_cookie = tok is not None
     if tok is None:
         metrics.AUTH_FAILURES.labels(kind="none", reason="missing").inc()
         raise ServiceError(code, "Missing bearer token")
-    if ingest_tokens.looks_like_ingest_token(tok):
+    if not via_cookie and ingest_tokens.looks_like_ingest_token(tok):
         with tx("app", s) as conn:
             it = ingest_tokens.check(conn, tok)
         if it is None or it.kind not in allow:
@@ -108,20 +125,24 @@ def authenticate(
         return Principal(kind=it.kind, token_id=it.id, token_label=it.label)
     if "entra" not in allow:
         metrics.AUTH_FAILURES.labels(kind="entra", reason="not_allowed").inc()
-        raise ServiceError(code, "Entra tokens are not accepted on this route")
-    validator: EntraValidator = request.app.state.entra
-    try:
-        claims = validator.validate(tok)
-    except TokenInvalid as exc:
-        metrics.AUTH_FAILURES.labels(kind="entra", reason=str(exc)).inc()
-        raise ServiceError(code, "Token invalid, expired, wrong audience or tenant") from None
-    if not (claims.scopes & scopes) or (clients is not None and claims.client not in clients):
-        metrics.AUTH_FAILURES.labels(kind="entra", reason="scope").inc()
-        raise ServiceError(code, "Token scope does not allow this route")
-    with tx("app", s) as conn:
-        user = resolve_user(conn, s, claims)
-        grants = effective_grants(conn, user, claims.roles)
-    p = Principal(kind="entra", claims=claims, user=user, grants=grants)
+        raise ServiceError(code, "User tokens are not accepted on this route")
+    if s.identity_provider == "github":
+        p = _github_principal(request, s, tok, route, scopes, clients, via_cookie, code)
+    else:
+        validator: EntraValidator = request.app.state.entra
+        try:
+            claims = validator.validate(tok)
+        except TokenInvalid as exc:
+            metrics.AUTH_FAILURES.labels(kind="entra", reason=str(exc)).inc()
+            raise ServiceError(code, "Token invalid, expired, wrong audience or tenant") from None
+        if not (claims.scopes & scopes) or (clients is not None and claims.client not in clients):
+            metrics.AUTH_FAILURES.labels(kind="entra", reason="scope").inc()
+            raise ServiceError(code, "Token scope does not allow this route")
+        with tx("app", s) as conn:
+            user = resolve_user(conn, s, claims)
+            grants = effective_grants(conn, user, claims.roles)
+        p = Principal(kind="entra", claims=claims, user=user, grants=grants)
+    assert p.user is not None  # noqa: S101 - both branches set the user
     rl: RateLimiter = request.app.state.rate_limiter
     group = "ingest" if route in ("ingest", "otel") else "read"
     rate, burst = (
@@ -129,7 +150,7 @@ def authenticate(
         if group == "ingest"
         else (s.read_rate_per_s, s.read_burst)
     )
-    wait = rl.take(user.id, group, rate, burst)
+    wait = rl.take(p.user.id, group, rate, burst)
     if wait is not None:
         metrics.RATE_LIMITED.labels(route_group=group).inc()
         raise ServiceError(
@@ -140,3 +161,73 @@ def authenticate(
         )
     request.state.caller = p.caller
     return p
+
+
+# GitHub tokens carry no scope or client id (ADR 0006). The pairing is by credential and route:
+# - bearer token (tsl, or a script): Events.Write and Portal.Read; client "tsl" on ingest and write
+#   routes, "portal" on read routes. Never Portal.Write.
+# - portal session cookie: Portal.Read and Portal.Write, client "portal"; writes need the CSRF
+#   header and same-origin Origin (E-API-07).
+BEARER_SCOPES = frozenset({"Events.Write", "Portal.Read"})
+COOKIE_SCOPES = frozenset({"Portal.Read", "Portal.Write"})
+
+
+def _github_principal(
+    request: Request,
+    s: Settings,
+    tok: str,
+    route: RouteKind,
+    scopes: set[str],
+    clients: set[str] | None,
+    via_cookie: bool,
+    code: str,
+) -> Principal:
+    client: ClientKind
+    if via_cookie:
+        require_csrf(request, s)
+        client, granted = "portal", COOKIE_SCOPES
+    else:
+        client, granted = ("portal" if route == "read" else "tsl"), BEARER_SCOPES
+    validator: GitHubValidator = request.app.state.github
+    try:
+        gh = validator.validate(tok)
+    except TokenInvalid as exc:
+        metrics.AUTH_FAILURES.labels(kind="github", reason=str(exc)).inc()
+        if via_cookie:
+            sess = session_of(request)
+            if sess is not None:
+                sess.clear()
+        raise ServiceError(code, "GitHub token invalid or revoked") from None
+    except GitHubUnavailable:
+        metrics.AUTH_FAILURES.labels(kind="github", reason="unavailable").inc()
+        raise ServiceError("E-AUTH-10", "GitHub could not be reached; try again") from None
+    if not (granted & scopes) or (clients is not None and client not in clients):
+        metrics.AUTH_FAILURES.labels(kind="github", reason="scope").inc()
+        raise ServiceError(code, "This credential does not allow this route")
+    with tx("app", s) as conn:
+        user, roles, grants = resolve_github_user(conn, s, gh)
+    # Checked after the commit: the user row stays, so an admin can find it and grant roles.
+    if not user.active:
+        raise ServiceError("E-AUTH-08", "Account deactivated")
+    if not roles & APP_ROLES:
+        raise ServiceError(
+            "E-AUTH-08",
+            f"No Truminds role yet. Ask an admin to grant a role to {user.pseudonym} "
+            f"(GitHub @{gh.login}).",
+        )
+    claims = EntraClaims(
+        oid=gh.subject,
+        tid=GITHUB_TENANT,
+        client=client,
+        scopes=frozenset(granted),
+        roles=roles,
+        name=gh.name,
+    )
+    return Principal(
+        kind="entra",
+        claims=claims,
+        user=user,
+        grants=grants,
+        provider="github",
+        via_cookie=via_cookie,
+    )

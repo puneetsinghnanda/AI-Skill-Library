@@ -13,3 +13,7 @@ htmlcov/
 *.env
 !*.env.example
 .compose.check.*.yml
+# One-machine test environment (README "Run the test environment"): generated secrets and the
+# filled-in tsl org file stay on the host
+compose/test-secrets/
+test-org.github.toml

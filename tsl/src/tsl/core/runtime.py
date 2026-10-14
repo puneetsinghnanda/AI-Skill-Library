@@ -95,13 +95,21 @@ class Runtime:
 
     # ---- identity
     def identity(self) -> IdentityProvider:
+        """The provider baked into _org.toml (SDD-07 §1.4): entra or github."""
         if self.identity_provider is None:
-            from tsl.identity.entra import MsalIdentity, SealedCache
-
             dev = self.ensure_device()
-            self.identity_provider = MsalIdentity(
-                self.org, SealedCache(self.home.msal_cache, self.keystore, dev)
-            )
+            if self.org.provider == "github":
+                from tsl.identity.github import GitHubIdentity, github_cache
+
+                self.identity_provider = GitHubIdentity(
+                    self.org, github_cache(self.home.github_token, self.keystore, dev)
+                )
+            else:
+                from tsl.identity.entra import MsalIdentity, SealedCache
+
+                self.identity_provider = MsalIdentity(
+                    self.org, SealedCache(self.home.msal_cache, self.keystore, dev)
+                )
         return self.identity_provider
 
     def token(self) -> str:

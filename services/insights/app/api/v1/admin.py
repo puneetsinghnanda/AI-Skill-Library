@@ -316,7 +316,10 @@ def grant(body: GrantIn, request: Request, p: Principal = Depends(_admin)) -> di
             raise ServiceError("E-API-04", "User not found")
         if u.id == p.user.id:
             raise ServiceError("E-ADM-01")
-        if not allowed_by_ceiling(body.role, frozenset(u.app_roles or [])):
+        # With GitHub (ADR 0006) app roles are derived from grants, so there is no ceiling to check.
+        if s.identity_provider == "entra" and not allowed_by_ceiling(
+            body.role, frozenset(u.app_roles or [])
+        ):
             raise ServiceError(
                 "E-API-01",
                 f"The user's app roles do not allow {body.role} "

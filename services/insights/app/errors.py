@@ -12,6 +12,7 @@ TITLES: dict[str, tuple[int, str]] = {
     "E-API-04": (404, "Not found"),
     "E-API-05": (429, "Rate limited"),
     "E-API-06": (503, "Service unavailable"),
+    "E-API-07": (403, "Cookie write without X-Requested-With or same-origin Origin"),
     # Ingest (SDD-08 §4.3); E-ING-01..05 are per event inside a 202
     "E-ING-01": (422, "Schema invalid"),
     "E-ING-02": (422, "Unknown schema version"),
@@ -22,6 +23,9 @@ TITLES: dict[str, tuple[int, str]] = {
     "E-ING-07": (401, "Token invalid"),
     # Identity (SDD-07 §12)
     "E-AUTH-08": (403, "No Truminds app role, or account deactivated"),
+    # GitHub interim provider (ADR 0006, SDD-07 §1.4)
+    "E-AUTH-09": (400, "GitHub sign-in refused: state mismatch, missing code or failed exchange"),
+    "E-AUTH-10": (503, "Identity provider unreachable"),
     "E-KEY-02": (400, "Key proof does not verify, or iat too old"),
     "E-KEY-03": (409, "Key id already registered with another public key"),
     "E-KEY-04": (404, "Key not found, or not yours"),

@@ -59,5 +59,8 @@ def status(request: Request, p: Principal = Depends(portal_read)) -> dict[str, A
             "catalogue_release": release,
             "service_version": __version__,
             "behind": bool(views_old or silent),
+            # ENVIRONMENT: the portal shows a TEST ENVIRONMENT banner for "test" (ADR 0006).
+            "environment": s.env,
+            "identity_provider": s.identity_provider,
         }
     )

@@ -21,6 +21,8 @@ dependencies = [
     "opentelemetry-proto>=1.27",
     "protobuf>=5.27",
     "rfc8785>=0.1.4",
+    "httpx>=0.27",         # GitHub interim identity provider (ADR 0006)
+    "itsdangerous>=2.2",   # Starlette signed session cookie (GitHub portal sign-in)
 ]
 
 [dependency-groups]

@@ -38,10 +38,21 @@ def login(rt: Runtime, rotate_key: bool, interactive: bool | None = None) -> dic
     ident = rt.identity()
     token: str | None = None
     claims: dict[str, Any] = {}
+    me: dict[str, Any] | None = None
     try:
         token = ident.silent_token()
     except TslError:
         token = None
+    if token is not None:
+        try:
+            me = memod.fetch_me(rt, token)
+        except InsightsUnavailable:
+            raise TslError("E-NET-02") from None
+        except TslError as exc:
+            if exc.code != "E-AUTH-01":
+                raise
+            ident.logout()  # the stored token was rejected: start a new sign-in
+            token = None
     if token is None:
         if not interactive:
             raise TslError(
@@ -51,10 +62,12 @@ def login(rt: Runtime, rotate_key: bool, interactive: bool | None = None) -> dic
         res = ident.device_login(rt.warn)
         token = str(res["access_token"])
         claims = dict(res.get("id_token_claims") or {})
-    try:
-        me = memod.fetch_me(rt, token)
-    except InsightsUnavailable:
-        raise TslError("E-NET-02") from None
+        try:
+            me = memod.fetch_me(rt, token)
+        except InsightsUnavailable:
+            raise TslError("E-NET-02") from None
+    if me is None:  # unreachable: both paths above set it
+        raise TslError("E-AUTH-01")
     if claims.get("oid"):
         me["oid"] = claims["oid"]
         from tsl.core.jsonio import write_json

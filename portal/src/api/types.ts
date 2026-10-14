@@ -96,6 +96,9 @@ export interface StatusData {
   catalogue_release: string | null;
   service_version: string;
   behind: boolean;
+  /** ENVIRONMENT of the insights service; `test` shows the TEST ENVIRONMENT banner (ADR 0006). */
+  environment?: string;
+  identity_provider?: 'entra' | 'github';
 }
 
 /* ------------------------------------------------------------------ E03 /v1/catalogue/summary */

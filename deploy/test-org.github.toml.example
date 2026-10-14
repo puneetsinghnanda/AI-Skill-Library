@@ -1,0 +1,17 @@
+# tsl organisation file for the TEST PHASE with GitHub sign-in (ADR 0006). Not secret.
+# Copy to deploy/test-org.github.toml (git-ignored), fill in the two placeholders, then build tsl:
+#   TSL_ORG_FILE=$PWD/deploy/test-org.github.toml uv build tsl --wheel --out-dir dist-test
+# Production builds use Entra (provider = "entra") and the TSL_ORG_* variables instead.
+configured = true
+provider = "github"
+# Client ID of the GitHub OAuth App (public; the client secret goes only to the insights service).
+github_client_id = "REPLACE-WITH-OAUTH-APP-CLIENT-ID"
+github_oauth_url = "https://github.com"
+github_api_url = "https://api.github.com"
+# Insights service on the test machine: http://<host>:<port> (same value as PUBLIC_BASE_URL).
+service_url = "http://test-host.example.internal:8000"
+companion_remote_template = "git@github.com:{repo}.git"
+# Entra values are unused when provider = "github"; placeholders keep the file shape identical.
+tenant_id = "00000000-0000-0000-0000-000000000000"
+tsl_client_id = "00000000-0000-0000-0000-000000000000"
+api_scope = "api://truminds-insights/Events.Write"

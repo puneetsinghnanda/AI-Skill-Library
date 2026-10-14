@@ -19,6 +19,7 @@ from sqlalchemy.exc import OperationalError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import __version__
+from app.api import auth_github
 from app.api.v1 import (
     admin,
     admin_lists,
@@ -35,6 +36,7 @@ from app.api.v1 import (
 )
 from app.api.v1.read import catalogue, insights, pods, runs, status
 from app.auth.entra import EntraValidator
+from app.auth.github import GitHubValidator, GitHubWebFlow
 from app.auth.principal import RateLimiter
 from app.config import Settings, get_settings
 from app.errors import ServiceError
@@ -43,6 +45,19 @@ from app.obs import logging as obslog
 from app.obs import metrics
 
 log = logging.getLogger("insights.api")
+# Headers for the SPA shell when this service serves the portal itself (SERVE_PORTAL=true, e.g. the
+# one-machine test environment). Same CSP as portal/nginx.conf without the Entra login host.
+PORTAL_HEADERS = {
+    "Cache-Control": "no-cache",
+    "Content-Security-Policy": (
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+        "font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; "
+        "form-action 'self'"
+    ),
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "DENY",
+}
 READ_PREFIXES = metrics.READ_PREFIXES
 
 
@@ -70,8 +85,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         docs_url=None,
         redoc_url=None,
     )
+    s.check_identity()
     app.state.settings = s
     app.state.entra = EntraValidator(s)
+    app.state.github = GitHubValidator(s)
+    app.state.github_flow = GitHubWebFlow(s)
     app.state.rate_limiter = RateLimiter()
     app.state.schemas = load_schemas(s.schemas_dir)
 
@@ -145,13 +163,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ):
                 index = s.portal_dist_dir / "index.html"
                 if index.exists():
-                    return FileResponse(index, headers={"Cache-Control": "no-cache"})
+                    return FileResponse(index, headers=PORTAL_HEADERS)
             return _problem(request, ServiceError("E-API-04", "Not found"))
         if exc.status_code == 405:
             return JSONResponse({"detail": "Method not allowed"}, status_code=405)
         return JSONResponse({"detail": str(exc.detail)}, status_code=exc.status_code)
 
+    if s.identity_provider == "github":
+        _github_session(app, s)
+
     for module in (
+        auth_github,
         health,
         events,
         keys,
@@ -181,7 +203,38 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             StaticFiles(directory=s.portal_dist_dir / "assets", check_dir=False),
             name="assets",
         )
+        app.mount(
+            "/brand",
+            StaticFiles(directory=s.portal_dist_dir / "brand", check_dir=False),
+            name="brand",
+        )
     return app
+
+
+def _github_session(app: FastAPI, s: Settings) -> None:
+    """GitHub interim provider (ADR 0006): signed session cookie, visible startup record."""
+    from starlette.middleware.sessions import SessionMiddleware
+
+    from app.auth.session import COOKIE, cookie_secure, is_local, signing_key
+
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=signing_key(s),
+        session_cookie=COOKIE,
+        max_age=s.session_max_age_s,
+        same_site="lax",
+        https_only=cookie_secure(s),
+    )
+    admins = ",".join(s.bootstrap_admin_github_logins) or "(none)"
+    log.warning(
+        f"identity provider github (interim, ADR 0006); environment={s.env}; "
+        f"BOOTSTRAP_ADMIN_GITHUB_LOGINS={admins}; cookie_secure={cookie_secure(s)}"
+    )
+    if not cookie_secure(s) and not is_local(s):
+        log.warning(
+            "PUBLIC_BASE_URL is plain http on a non-local host: session cookie and tokens travel "
+            "unencrypted on the network; put the test host behind HTTPS when possible"
+        )
 
 
 def _lazy_app() -> FastAPI:

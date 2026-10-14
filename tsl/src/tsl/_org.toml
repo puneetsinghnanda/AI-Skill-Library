@@ -9,3 +9,8 @@ api_scope = "api://truminds-insights/Events.Write"
 service_url = "https://insights.example.invalid"
 companion_remote_template = "git@github.com:{repo}.git"
 github_api_url = "https://api.github.com"
+# Identity provider (SDD-07 §1.4, ADR 0006): "entra" (production) or "github"
+# (interim, test phase). github_* values are used only when provider = "github".
+provider = "entra"
+github_client_id = ""
+github_oauth_url = "https://github.com"

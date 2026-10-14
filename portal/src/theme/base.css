@@ -934,6 +934,20 @@ h1[tabindex='-1']:focus-visible {
   padding-bottom: 10px;
 }
 
+/* TEST ENVIRONMENT banner (ADR 0006): same palette as the status banner, bold and centred. */
+.test-env-banner {
+  background: var(--tm-input-soft);
+  color: var(--tm-input-ink);
+  border-bottom: 2px solid var(--tm-input-line);
+  font-size: 14px;
+  text-align: center;
+}
+
+.test-env-banner .tm-wrap {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
 .site-footer {
   border-top: 1px solid var(--tm-border);
   background: var(--tm-surface);

@@ -4,9 +4,13 @@ The schemas live once, in ../schemas (registry §6). This hook reads
 ../schemas/index.json and force-includes every listed schema plus index.json
 into the wheel at tsl/schemas/bundled/. Nothing is duplicated in the source tree.
 
-It also bakes the organisation identity file (tsl/_org.toml, SDD-04 §7.1) from
-build-time environment variables when they are set (release builds). At run
-time nothing reads these variables; the values are fixed inside the wheel.
+It also bakes the organisation identity file (tsl/_org.toml, SDD-04 §7.1), from one of:
+
+- ``TSL_ORG_FILE``: path to a complete org TOML file (for example the GitHub test-phase file made
+  from deploy/test-org.github.toml.example, ADR 0006). It is checked and copied in as is.
+- ``TSL_ORG_<KEY>`` variables, one per key in ORG_KEYS (Entra release builds).
+
+At run time nothing reads these variables; the values are fixed inside the wheel.
 """
 
 from __future__ import annotations
@@ -14,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +32,24 @@ ORG_KEYS = (
     "companion_remote_template",
     "github_api_url",
 )
+OPTIONAL_KEYS = ("provider", "github_client_id", "github_oauth_url", "link_hosts")
+
+
+def check_org_file(path: Path) -> dict[str, Any]:
+    """Validate an org file named by TSL_ORG_FILE; raise with a plain reason when it is wrong."""
+    if not path.is_file():
+        raise RuntimeError(f"TSL_ORG_FILE {path} does not exist")
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    missing = [k for k in ("configured", *ORG_KEYS) if k not in data]
+    unknown = sorted(set(data) - {"configured", *ORG_KEYS, *OPTIONAL_KEYS})
+    if missing or unknown:
+        raise RuntimeError(f"TSL_ORG_FILE {path}: missing {missing}, unknown {unknown}")
+    provider = data.get("provider", "entra")
+    if provider not in ("entra", "github"):
+        raise RuntimeError(f"TSL_ORG_FILE {path}: provider must be entra or github")
+    if provider == "github" and not data.get("github_client_id"):
+        raise RuntimeError(f"TSL_ORG_FILE {path}: provider github needs github_client_id")
+    return data
 
 
 class CustomBuildHook(BuildHookInterface):  # type: ignore[type-arg]
@@ -53,6 +76,12 @@ class CustomBuildHook(BuildHookInterface):  # type: ignore[type-arg]
         for entry in json.loads(index.read_text(encoding="utf-8"))["schemas"]:
             force[str(schemas / entry["file"])] = f"{dest}/{entry['file']}"
         if self.target_name == "sdist":
+            return
+        org_file = os.environ.get("TSL_ORG_FILE")
+        if org_file:
+            path = Path(org_file).expanduser().resolve()
+            check_org_file(path)
+            force[str(path)] = "tsl/_org.toml"
             return
         values = {k: os.environ.get(f"TSL_ORG_{k.upper()}") for k in ORG_KEYS}
         if all(values.values()):

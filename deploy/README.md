@@ -14,10 +14,15 @@ deploy/
 │  ├─ edge/nginx.conf             # TLS, routing, internal-only paths, E1 public allowlist
 │  ├─ postgres/pg_hba.conf        # TLS + SCRAM for the four insights roles only
 │  └─ postgres-init/10-insights-roles.sh   # first start: owner role, database, runtime roles
+├─ compose/compose.test.yml       # ONE-MACHINE TEST ENVIRONMENT (GitHub sign-in, ADR 0006)
+├─ compose/env/test.env.example   # its settings, -> deploy/compose/env/test.env (git-ignored)
 ├─ images/pg-backup/              # postgres:16 + pgBackRest (DB server and backup service)
+├─ images/test-env/               # test image: insights + portal built in GitHub mode
 ├─ scripts/fetch-secrets.sh       # secret store -> /run/truminds-secrets (tmpfs)
+├─ scripts/test-env-secrets.sh    # test environment: generate DB passwords, pepper, data key
 ├─ systemd/                       # truminds-secrets.service, truminds-insights.service
-└─ tests/test_deploy.py           # static checks, compose validation, live edge allowlist test
+├─ test-org.github.toml.example   # tsl org file for the GitHub test build (TSL_ORG_FILE)
+└─ tests/                         # static checks, compose validation, live edge allowlist test
 ```
 
 ## Images
@@ -90,6 +95,66 @@ The suite covers:
 - `docker compose config` validation, which needs the CLI but no daemon.
 - A live nginx run against a stub upstream that checks intranet routing and the E1 allowlist. It is skipped when nginx is not installed.
 
+## Run the test environment on one machine for 6 testers
+
+Interim set-up for the test phase while the Entra app registrations are pending ([ADR 0006](../docs/adr/0006-interim-github-sign-in-for-test-phase.md)). It signs people in with GitHub instead of Entra. **It is for the test phase only:** the service refuses `IDENTITY_PROVIDER=github` with `ENV=prod`, and production stays on Entra (`compose.prod.yml`). Everything below is on one Linux machine with Docker Engine and Compose v2. Put Docker's data root on an encrypted disk (the database volume lives there).
+
+**1. Create a GitHub OAuth App** (GitHub → your organisation → Settings → Developer settings → OAuth Apps → New OAuth App):
+
+| Field | Value |
+| --- | --- |
+| Application name | `Truminds Skill Library (TEST)` |
+| Homepage URL | `http://<host>:<port>` (for example `http://skills-test.example.internal:8000`) |
+| Authorization callback URL | `http://<host>:<port>/auth/github/callback` |
+| Enable Device Flow | ticked (`tsl login` uses it) |
+
+Register the app, then press **Generate a new client secret**. Keep the client ID and the secret; the secret is shown once.
+
+**2. Fill in the env file and generate the local secrets** (from the repository root):
+
+```bash
+deploy/scripts/test-env-secrets.sh                                    # DB passwords, pepper, data key -> deploy/compose/test-secrets/ (git-ignored)
+cp deploy/compose/env/test.env.example deploy/compose/env/test.env    # git-ignored
+# edit deploy/compose/env/test.env:
+#   PUBLIC_BASE_URL=http://<host>:<port>
+#   GITHUB_CLIENT_ID=<client id>
+#   GITHUB_CLIENT_SECRET=<client secret>
+#   BOOTSTRAP_ADMIN_GITHUB_LOGINS=<puneet's github login>
+```
+
+`BOOTSTRAP_ADMIN_GITHUB_LOGINS` is how the first admin gets in. It is not hidden: the api logs it at startup (`identity provider github ... BOOTSTRAP_ADMIN_GITHUB_LOGINS=...`) and every grant it makes is in `audit_log` as `bootstrap_admin_grant`. While a login is listed, its `admin` grant comes back at each sign-in; clear the value once a second admin exists.
+
+**3. Start it:**
+
+```bash
+docker compose -f deploy/compose/compose.test.yml up -d --build      # TEST_PORT=8000 by default
+docker compose -f deploy/compose/compose.test.yml logs api | grep "identity provider github"
+docker compose -f deploy/compose/compose.test.yml --profile admin run --rm admin \
+  catalogue sync --path /srv/catalogue --tag v0.1.0-test --commit "$(git rev-parse HEAD)"
+```
+
+Open `http://<host>:<port>`: the portal shows the **TEST ENVIRONMENT** banner and a **Sign in with GitHub** button. Sign in once as Puneet; you are admin.
+
+**4. Build `tsl` for GitHub sign-in** and hand the wheel to the testers:
+
+```bash
+cp deploy/test-org.github.toml.example deploy/test-org.github.toml   # git-ignored
+# edit: github_client_id = "<client id>", service_url = "http://<host>:<port>"
+TSL_ORG_FILE="$PWD/deploy/test-org.github.toml" uv build tsl --wheel --out-dir dist-test
+# testers: uv tool install ./dist-test/truminds_tsl-<version>-py3-none-any.whl
+```
+
+`hatch_build.py` checks the file and bakes it into the wheel as `tsl/_org.toml`; nothing at run time can change it.
+
+**5. Add the 6 testers:**
+
+1. Each tester runs `tsl login` (it shows a code; they open `https://github.com/login/device` and type it) or signs in to the portal once. They get "No Truminds role yet" with their pseudonym; their account now exists.
+2. In the portal, **Admin**: create the client, project and systems the testers work on, then in **Users** ("Show names" shows `@<github login>`) grant each tester the roles they need: `viewer` (org), `engineer` and `tech_lead` on their systems, `skill_owner`, `stage_approver`, `eng_lead`, `admin` as planned. App roles follow from the grants.
+3. Admins cannot grant themselves (E-ADM-01): grant `admin` to one tester, who then grants Puneet his engineer roles.
+4. Each tester runs `tsl login` again; it registers their signing key. `tsl whoami` and `tsl doctor` show the result.
+
+Risks of this set-up: with a plain `http://` URL, GitHub tokens and the session cookie cross the network unencrypted and the cookie cannot be `Secure` (the api logs a warning); put the host behind HTTPS when possible. PostgreSQL runs without TLS on an internal Docker network. When Entra is ready, follow the exit steps in ADR 0006 and discard this environment.
+
 ## Traceability
 
 | Spec section | File |
@@ -104,6 +169,7 @@ The suite covers:
 | OPS-01 §8.2 encryption at rest | Host set-up step 1; backups encrypted by `repo1-cipher-type` |
 | OPS-01 §9 backup and restore (pgBackRest, 35 days, WAL) | `images/pg-backup/*`, `backup` and `postgres` services |
 | OPS-02 §4.1 probes | `api` and `worker` health checks in `compose.prod.yml` |
+| ADR 0006 test environment with GitHub sign-in; SDD-07 §1.4; SDD-09 §3.4.1 | `compose/compose.test.yml`, `compose/env/test.env.example`, `images/test-env/`, `scripts/test-env-secrets.sh`, `test-org.github.toml.example`, `tests/test_test_env.py`; `/auth/github/` routing in `compose/edge/nginx.conf` |
 
 ## Deviations from the OPS-01 sketch
 

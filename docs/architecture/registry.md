@@ -40,6 +40,7 @@ Every code lives in `tsl/src/tsl/core/errors.py` (CLI codes) or the insights ser
 | E-API-04 | Not found, or outside the caller's scope | 404 | Read API | SDD-09 §5.1.4 |
 | E-API-05 | Rate limited | 429 | Read API | SDD-09 §5.1.4 |
 | E-API-06 | Database unavailable or statement timeout | 503 | Read API | SDD-09 §5.1.4 |
+| E-API-07 | Cookie-authenticated write without `X-Requested-With: truminds-portal` or with a foreign `Origin` (GitHub provider only) | 403 | Insights service, cookie writes | SDD-07 §1.4, ADR 0006 |
 | E-AUTH-01 | Not logged in to Truminds | 10 | `tsl` (any online command) | Doc 4 §5.2 |
 | E-AUTH-02 | Signing key revoked or unknown | 10 | `tsl login`, `decide`, `approve` | Doc 4 §5.2 |
 | E-AUTH-03 | No `engineer` grant on system `<code>` | 3 | `state start`, `context build`, `improve plan` | Doc 4 §5.2 |
@@ -48,6 +49,8 @@ Every code lives in `tsl/src/tsl/core/errors.py` (CLI codes) or the insights ser
 | E-AUTH-06 | Self-approval refused | 3 | `approve` | Doc 4 §5.2 |
 | E-AUTH-07 | Role cache older than 24 h and service unreachable | 10 | Role-checked commands offline | SDD-04 §5 |
 | E-AUTH-08 | No Truminds app role, or account deactivated | 3 / 403 | `tsl login`; insights service | SDD-07 §12 |
+| E-AUTH-09 | GitHub portal sign-in refused: `state` mismatch, no code, or the code exchange failed | 400 | `GET /auth/github/callback` | SDD-07 §1.4, ADR 0006 |
+| E-AUTH-10 | Identity provider (GitHub) unreachable; try again | 503 | Insights service (GitHub provider only) | SDD-07 §1.4, ADR 0006 |
 | E-CFG-01 | Config or definition file invalid, or a limit looser than the org default | 1 | Any command reading config; `validate` | SDD-04 §5 |
 | E-CHK-01 | Hard gate failed; retry | 2 | `verify`, `decide`, post-write hook | Doc 4 §5.2 |
 | E-CI-01 | PR has code changes but no records | 2 | `ci-verify` | Doc 4 §5.2 |
@@ -265,7 +268,27 @@ All routes are served by the insights service (SDD-08 layout, `app.main:app`). E
 | GET | `/v1/admin/role-grants?status=&user=&role=` | `Portal.Read` | `admin` (active and revoked grants) | SDD-13 §7.2 |
 | GET | `/v1/admin/users?active=&role=&include=names` | `Portal.Read` | `admin`; names only for roles in RD-1 | SDD-13 §7.2 |
 | GET | `/v1/admin/users/{pseudonym}/keys?status=` | `Portal.Read` | `admin` | SDD-13 §7.2 |
+| GET | `/auth/github/login?return_to=` | none (starts GitHub sign-in; 404 unless `IDENTITY_PROVIDER=github`) | — | SDD-09 §3.4.1, ADR 0006 |
+| GET | `/auth/github/callback?code=&state=` | `state` in the signed session cookie (404 unless `IDENTITY_PROVIDER=github`) | — | SDD-09 §3.4.1, ADR 0006 |
+| POST | `/auth/logout` | Session cookie + `X-Requested-With` + same `Origin` (404 unless `IDENTITY_PROVIDER=github`) | — | SDD-09 §3.4.1, ADR 0006 |
 | GET | `/metrics` (internal port only) | network policy | — | OPS-02 §4 |
+
+With `IDENTITY_PROVIDER=github` (ADR 0006) a GitHub user token stands in for the Entra token: a bearer token counts as `Events.Write` + `Portal.Read` (never `Portal.Write`), and the portal session cookie counts as `Portal.Read` + `Portal.Write` with the CSRF rule of E-API-07. Roles come only from `role_grants`; app roles are derived from them (SDD-07 §1.4).
+
+### 4.1 Identity provider settings (ADR 0006)
+
+| Setting | Component | Values / default | Meaning | Owning doc |
+| --- | --- | --- | --- | --- |
+| `provider` | `tsl/_org.toml` (build time) | `entra` (default) \| `github` | Identity provider of this `tsl` build | SDD-07 §1.4 |
+| `github_client_id`, `github_oauth_url`, `github_api_url` | `tsl/_org.toml` (build time) | —, `https://github.com`, `https://api.github.com` | GitHub OAuth App (device flow) and API | SDD-07 §1.4 |
+| `TSL_ORG_FILE` | `tsl` build (`hatch_build.py`) | path | Complete org file baked into the wheel | SDD-07 §1.4 |
+| `IDENTITY_PROVIDER` | Insights service | `entra` (default) \| `github`; `github` refused with `ENV=prod` | Which tokens the service accepts | SDD-07 §1.4 |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` or `GITHUB_CLIENT_SECRET_FILE` | Insights service | — | GitHub OAuth App; the secret only from the env file or secret store | SDD-07 §1.4 |
+| `GITHUB_API_URL`, `GITHUB_OAUTH_URL`, `GITHUB_TOKEN_CACHE_S` | Insights service | `https://api.github.com`, `https://github.com`, `300` | Token check `GET /user`, cached by SHA-256 of the token | SDD-07 §1.4 |
+| `BOOTSTRAP_ADMIN_GITHUB_LOGINS` | Insights service | comma list, empty | Logins that get the org `admin` grant on sign-in; logged at startup, audited `bootstrap_admin_grant` | SDD-07 §1.4 |
+| `SESSION_MAX_AGE_S` | Insights service | `28800` | Portal session cookie lifetime | SDD-09 §3.4.1 |
+| `ENVIRONMENT` (alias `ENV`) | Insights service | `dev` \| `test` \| `staging` \| `prod` | Returned by `GET /v1/status`; `test` shows the TEST ENVIRONMENT banner | SDD-09 §3.4.1 |
+| `VITE_IDENTITY_PROVIDER`, `VITE_ENVIRONMENT` | Portal (build time) | `entra` \| `github`; environment name | Sign-in mode (MSAL or cookie) and banner | SDD-09 §3.4.1 |
 
 ## 5. Event types
 

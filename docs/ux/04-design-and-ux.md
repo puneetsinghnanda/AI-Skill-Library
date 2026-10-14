@@ -428,6 +428,8 @@ Icons are paired with words so meaning never relies on symbol or colour alone.
 | E-HOOK-01 | deny (hook) | Write blocked: `tsl` is missing, the wrong version, or did not answer while a run is active. | Run the shown command: `uv tool install "truminds-tsl @ <wheel URL>"`; then `tsl doctor` |
 | E-DEP-01 | 0 (warn) | `<thing>` is deprecated and will be removed in `<version>`. | Use `<replacement>` |
 | E-AUTH-08 | 3 / 403 | Your account has no Truminds app role, or it is deactivated. | Ask your manager to request access (SDD-13 §3.2) |
+| E-AUTH-09 | 400 | GitHub sign-in did not complete (test environment only, ADR 0006). | Start again from the portal |
+| E-AUTH-10 | 503 | GitHub sign-in is unavailable (test environment only, ADR 0006). | Try again |
 | E-KEY-03 | 409 | Key id already registered with another public key. | Repeat `tsl login` (a new id is generated) |
 | E-KEY-04 | 404 | Key not found, or not yours. | `tsl keys list` |
 | E-KEY-05 | 10 | Your signing key expired. | `tsl keys rotate` |
@@ -439,6 +441,7 @@ Icons are paired with words so meaning never relies on symbol or colour alone.
 | E-API-04 | 404 | Not found. | Back to the list |
 | E-API-05 | 429 | Too many requests. | Wait and retry (`Retry-After`) |
 | E-API-06 | 503 | Insights are temporarily unavailable. | Retry later; quote the request id |
+| E-API-07 | 403 | This change must be made from the portal (test environment only, ADR 0006). | Use the portal |
 
 Exit codes: 0 ok · 1 usage · 2 check failed (fed back to Claude) · 3 blocked/auth · 4 paused · 5 abort · 10 auth/network. Codes with an HTTP status come from the insights service and are shown by `tsl` or the portal. "deny (hook)" means the hook returns a deny decision to Claude Code.
 

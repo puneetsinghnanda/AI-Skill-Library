@@ -5,7 +5,7 @@
 | Status | Draft for owner review |
 | Owner | TBD by Puneet |
 | Approver | Puneet Singh Nanda |
-| Related docs | [ADR 0002 Identity is Entra ID](../adr/0002-identity-microsoft-entra-id.md) · [Doc 2 Personas](../product/02-personas-and-stories.md) §2 · [Doc 3 Architecture](../architecture/03-architecture.md) §8 · [Doc 5 API and Rules](../architecture/05-api-and-rules.md) §1.1, §5.1, R-06, R-07 · [SDD-02 Workflow orchestration](SDD-02-workflow-orchestration.md) §9.2 · [SDD-03 Harness](SDD-03-harness.md) §12, §13 · [SDD-04 `tsl` CLI](SDD-04-tsl-cli.md) §6.1–§6.3, §7 · [SDD-06 Context pack](SDD-06-context-pack.md) §4.2 · [SDD-08 Telemetry and insights](SDD-08-telemetry-insights.md) §6.2, §9, §10 · [SDD-12 Companion repo](SDD-12-companion-repo.md) · [SDD-13 Onboarding and admin](SDD-13-onboarding-admin.md) · [SEC-01 Threat model](../security/SEC-01-threat-model.md) §5.4, §5.12 · [Readiness tracker](../planning/readiness-tracker.md) Q5, Q28 (F7) |
+| Related docs | [ADR 0002 Identity is Entra ID](../adr/0002-identity-microsoft-entra-id.md) · [ADR 0006 Interim GitHub sign-in for the test phase](../adr/0006-interim-github-sign-in-for-test-phase.md) · [Doc 2 Personas](../product/02-personas-and-stories.md) §2 · [Doc 3 Architecture](../architecture/03-architecture.md) §8 · [Doc 5 API and Rules](../architecture/05-api-and-rules.md) §1.1, §5.1, R-06, R-07 · [SDD-02 Workflow orchestration](SDD-02-workflow-orchestration.md) §9.2 · [SDD-03 Harness](SDD-03-harness.md) §12, §13 · [SDD-04 `tsl` CLI](SDD-04-tsl-cli.md) §6.1–§6.3, §7 · [SDD-06 Context pack](SDD-06-context-pack.md) §4.2 · [SDD-08 Telemetry and insights](SDD-08-telemetry-insights.md) §6.2, §9, §10 · [SDD-12 Companion repo](SDD-12-companion-repo.md) · [SDD-13 Onboarding and admin](SDD-13-onboarding-admin.md) · [SEC-01 Threat model](../security/SEC-01-threat-model.md) §5.4, §5.12 · [Readiness tracker](../planning/readiness-tracker.md) Q5, Q28 (F7) |
 
 ## 1. Scope
 
@@ -32,10 +32,36 @@
 
 ### 1.3 Ground rules
 
-- Company SSO only, through Microsoft libraries (MSAL). No passwords, no custom auth (C-05, ADR 0002).
+- Company SSO only, through Microsoft libraries (MSAL). No passwords, no custom auth (C-05, ADR 0002). **Flagged deviation:** the test environment signs in with GitHub OAuth while the Entra registrations are pending (ADR 0006, §1.4). Production stays on Entra.
 - Only `tsl` signs (R-06). Code verifies; nothing about a signature is decided by the model.
 - No back doors: no flag, environment variable or endpoint that skips signing, verification or role checks.
 - Identity and endpoint values ship inside the wheel (`tsl/_org.toml`, SDD-04 §7.1). Nothing at runtime can point `tsl` at another tenant or service.
+
+### 1.4 Identity providers
+
+Two providers sit behind the same interfaces. The provider is chosen by configuration; the default is `entra` and nothing in the Entra path changes when GitHub is configured (ADR 0006).
+
+| | `entra` (production, ADR 0002) | `github` (interim, test phase only, ADR 0006) |
+| --- | --- | --- |
+| Selected by | `tsl/_org.toml` `provider = "entra"`; service `IDENTITY_PROVIDER=entra`; portal default | `tsl/_org.toml` `provider = "github"` (build-time, via `TSL_ORG_FILE`); service `IDENTITY_PROVIDER=github`, refused when `ENV=prod`; portal `VITE_IDENTITY_PROVIDER=github` |
+| `tsl login` | MSAL device code (§4), `identity/entra.py` | OAuth device flow, `identity/github.py`: `POST {github_oauth_url}/login/device/code` (`client_id`, `scope=read:user`); show `user_code` and `verification_uri`; poll `/login/oauth/access_token` with `grant_type=urn:ietf:params:oauth:grant-type:device_code` at `interval`, +5 s on `slow_down`; stop on `expired_token` or `access_denied` (E-AUTH-01, next `tsl login`) |
+| Token at rest | Sealed MSAL cache (§4.3) | Same sealing: AES-256-GCM file `~/.truminds/github-token.bin`, key in the OS keychain item `github-token-key` |
+| Silent token | MSAL silent acquisition (§4.4) | The stored token. When the service answers 401, `tsl` checks it with `GET /user`; if GitHub rejects it the file is deleted and E-AUTH-01 asks for `tsl login` |
+| Service validation | PyJWT + JWKS (§9) | `GET {GITHUB_API_URL}/user`; cached 5 minutes under SHA-256 of the token; the token is never stored or logged. GitHub unreachable → 503 E-AUTH-10 |
+| User identity (`oid` equivalent) | (`tid`, `oid`) | `github:<numeric id>`; stored as a name-based UUID in `users.sso_subject` under a fixed GitHub tenant UUID; `users.github_login` holds the login |
+| Roles | App roles from the token (§3.2–§3.4) | Only from `role_grants` (portal admin screens). App roles are derived from the grants: `viewer` → Business; `engineer`, `skill_owner` → Engineer; `tech_lead`, `stage_approver`, `eng_lead` → TechLead; `admin` → Admin. The ceiling check of §3.3 does not apply (no token roles). A user without a grant gets 403 E-AUTH-08 naming their pseudonym; the row is kept so an admin can grant |
+| First admin | Entra app role Admin | `BOOTSTRAP_ADMIN_GITHUB_LOGINS` (comma list, case-insensitive): org `viewer` and `admin` grants on sign-in; logged at startup, each grant audited as `bootstrap_admin_grant` |
+| Portal | MSAL React, bearer token (§8) | Backend-for-frontend, SDD-09 §3.4.1: session cookie, no token in the browser |
+| Key registration, signing, verification | §5–§7 | Unchanged. The `sub` in the key proof is `github:<id>` |
+
+**Scope and client pairing (difference from §9).** GitHub tokens carry no `azp` and no `scp`, so the §9 pairing cannot be checked from the token. It is mapped by credential and route:
+
+| Credential | Counts as | Client on the route |
+| --- | --- | --- |
+| `Authorization: Bearer <github token>` (`tsl`, scripts) | `Events.Write` + `Portal.Read`; never `Portal.Write` | Ingest and key routes: `tsl`; read routes: `portal` (the user token is accepted on both) |
+| Portal session cookie | `Portal.Read` + `Portal.Write` | `portal`. Every state-changing request needs `X-Requested-With: truminds-portal` and an `Origin` equal to the `PUBLIC_BASE_URL` origin, else 403 E-API-07 |
+
+This is weaker than Entra's pairing: any holder of a tester's GitHub token with `read:user` can call the ingest and read routes as that tester. It is accepted for the test phase only (ADR 0006).
 
 ## 2. Components and identities
 
@@ -722,6 +748,8 @@ The refresh token issued to an SPA has a short life set by Entra (about 24 hours
 
 Failures: 401 `E-ING-07` for token problems (SDD-08 §4.3), 403 `E-AUTH-08` for missing role or inactive user.
 
+With `IDENTITY_PROVIDER=github` none of the checks above run; §1.4 replaces them for the test phase (ADR 0006).
+
 ## 10. Threats and mitigations
 
 New threats continue SEC-01's numbering. SDD-04 §7.1 refers to "SDD-07 TM-17" for endpoint tampering; TM-17 is already the seat-limit threat in SEC-01, so that threat is TM-26 here (OI-07-06).
@@ -776,6 +804,9 @@ Fakes: a fake MSAL client and an in-memory `keyring` backend injected in tests (
 | E-AUTH-02 | 10 | Your signing key is revoked or unknown. | `tsl login` | Doc 4 |
 | E-AUTH-07 | 10 | Role cache older than 24 h and service unreachable. | Reconnect | SDD-04 |
 | E-AUTH-08 | 3 / 403 | Your account has no Truminds app role, or it is deactivated. | Ask your manager to request access (SDD-13 §3.2) | **New** |
+| E-AUTH-09 | 400 | GitHub portal sign-in refused: `state` mismatch, no code, or the code exchange failed. | Start again from the portal | **New** (ADR 0006) |
+| E-AUTH-10 | 503 | Identity provider (GitHub) unreachable. | Try again | **New** (ADR 0006) |
+| E-API-07 | 403 | Cookie write without `X-Requested-With: truminds-portal` or with a foreign `Origin`. | Use the portal | **New** (ADR 0006) |
 | E-KEY-01 | 10 | No usable OS keychain backend. | See `tsl doctor` | SDD-04 |
 | E-KEY-02 | 400 | Key proof does not verify, or `iat` too old. | Repeat `tsl login`; check the laptop clock | SDD-08 |
 | E-KEY-03 | 409 | Key id already registered with another public key. | Repeat `tsl login` (a new id is generated) | **New** (was SDD-08 E-KEY-01) |
@@ -828,6 +859,7 @@ Fakes: a fake MSAL client and an in-memory `keyring` backend injected in tests (
 | OI-07-09 | Confirm key maximum age (180 days proposed) | new | Puneet Singh Nanda |
 | OI-07-10 | SDD-08 adopts the endpoints, columns, table, scope and event fields in §13 | SDD-04 OI-07 | Gaurav Saini |
 | OI-07-11 | Optional Graph reconciliation of app-role assignments (needs a Graph application permission) | new | TBD by Puneet |
+| OI-07-12 | Leave the interim GitHub provider (§1.4) when the Entra registrations exist: exit steps in ADR 0006 | ADR 0006 | Puneet Singh Nanda |
 | OI-07-12 | Confirm the ceiling for `eng_lead` (`TechLead` or `Admin`) | new | Puneet Singh Nanda |
 | OI-07-13 | Closed by the [registry](../architecture/registry.md) §10. Device id format: SDD-04 uses `dev_<ULID>`, the SDD-08 example uses hex. This document follows SDD-04 | new | Gaurav Saini |
 | OI-07-14 | Reword Doc 5 R-06 per §4.3 | new | Puneet Singh Nanda |

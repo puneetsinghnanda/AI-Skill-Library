@@ -1,13 +1,27 @@
-/** Production entry: Entra ID sign-in through MSAL. No mocks, no test fixture, no bypass. */
+/**
+ * Production entry: Entra ID sign-in through MSAL, or, when the build sets
+ * VITE_IDENTITY_PROVIDER=github (test phase, ADR 0006), GitHub sign-in through the insights service
+ * session cookie. No mocks, no test fixture, no bypass.
+ */
 import { MsalProvider } from '@azure/msal-react';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createPortal, Portal } from '../app/App';
 import { env } from '../config/env';
+import { githubAuthPort } from './github';
 import { createMsal, msalAuthPort } from './msal';
 
 export async function startProd(root: HTMLElement): Promise<void> {
   try {
+    if (env.identityProvider === 'github') {
+      const deps = createPortal(githubAuthPort({ apiBaseUrl: env.apiBaseUrl }));
+      createRoot(root).render(
+        <StrictMode>
+          <Portal {...deps} />
+        </StrictMode>,
+      );
+      return;
+    }
     const pca = await createMsal(env);
     const deps = createPortal(msalAuthPort(pca, env));
     createRoot(root).render(

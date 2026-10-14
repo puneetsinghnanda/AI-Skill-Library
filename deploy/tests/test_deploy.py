@@ -287,6 +287,15 @@ def test_public_allowlist(edge: dict[str, int]) -> None:
     assert _req(p, KEY_PATH, "GET", entra)[0] == 404
     assert _req(p, "/v1/signatures/verify", "POST", ci)[0] == 200
     # everything else is 404 at the edge
-    for path in ("/", "/v1/me", "/v1/keys", "/v1/runs", "/otel/v1/logs", "/metrics", "/v1/health"):
+    for path in (
+        "/",
+        "/v1/me",
+        "/v1/keys",
+        "/v1/runs",
+        "/otel/v1/logs",
+        "/metrics",
+        "/v1/health",
+        "/auth/github/login",
+    ):
         assert _req(p, path, "GET", ci)[0] == 404, path
     assert _req(p, "/v1/keys", "POST", ci)[0] == 404

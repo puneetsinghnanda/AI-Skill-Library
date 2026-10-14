@@ -16,8 +16,15 @@ insights service.
   `tsl` reads `../schemas` directly.
 - Identity and endpoints (tenant, client id, API scope, service URL) are fixed inside the
   wheel as `tsl/_org.toml`. The copy in git holds placeholders; a release build bakes real
-  values from the `TSL_ORG_*` build-time variables in `.env.example`. Nothing at run time
-  can change them.
+  values from the `TSL_ORG_*` build-time variables in `.env.example`, or copies a complete
+  org file named by `TSL_ORG_FILE`. Nothing at run time can change them.
+- Identity provider (SDD-07 §1.4): `provider = "entra"` (default, production, MSAL device
+  code, `identity/entra.py`) or `provider = "github"` (interim for the test phase, ADR 0006:
+  GitHub OAuth device flow, `identity/github.py`). Both sit behind the same interface, so
+  `login`, `logout`, `whoami` and `doctor` work the same. The GitHub token is sealed exactly
+  like the MSAL cache (AES-256-GCM, key in the OS keychain, `~/.truminds/github-token.bin`).
+  Build a GitHub test wheel with
+  `TSL_ORG_FILE=../deploy/test-org.github.toml uv build --wheel` (see `deploy/README.md`).
 
 ## Set up, run, test
 
@@ -55,6 +62,7 @@ Developers use `uv tool install --editable ./tsl`.
 | --- | --- |
 | `test_core.py` | Error catalogue vs registry (codes, exits), envelope vs `tsl-output.v1`, version pin, `--version` fast path, E-USE-01, E-REPO-01, E-INT-01 without traceback, log redaction |
 | `test_identity.py` | RFC 8785 canonical JSON, Ed25519 sign/verify round trip and tamper detection, accept rule, sealed MSAL cache, keyring backend rule, Entra device code via `msal`, `login`/`logout`/`whoami`/`keys` |
+| `test_identity_github.py` | GitHub provider through `httpx.MockTransport`: device flow with `authorization_pending`, `slow_down` (interval raised), `expired_token`, `access_denied`, local deadline, Device Flow disabled; sealed token at rest; rejected token deleted; provider picked from `_org.toml`; `login`/`whoami`/`doctor`/`logout` and re-login after a rejected stored token; the deploy test org file is valid |
 | `test_state_lock.py` | Lock protocol: take and push, E-LOCK-01 (local, other laptop, push race), E-LOCK-03, E-LOCK-04; `state show/cancel/unlock/resume/repair/repin`, E-RUN-11, start preconditions |
 | `test_citations.py` | Citation grammar, resolution (companion tree, product repo at SHA, read-deny, symbols, keys), quote and element matching, dropped findings and S1 |
 | `test_decide_table.py` | Every row of the SDD-03 §11.1 decision table, row order, caps, band boundaries |
@@ -74,6 +82,7 @@ Developers use `uv tool install --editable ./tsl`.
 | SDD-04 §2–§4 package, globals, envelope | `cli/app.py`, `cli/commands.py`, `core/envelope.py`, `core/runtime.py` |
 | SDD-04 §5, registry §2 error codes | `core/errors.py` |
 | SDD-04 §6.1–6.2, SDD-07 §4–§5 login, keys | `services/identity_cmds.py`, `identity/entra.py`, `identity/keys.py`, `identity/keystore.py`, `identity/me.py`, `identity/org.py` |
+| SDD-07 §1.4, ADR 0006 GitHub interim provider | `identity/github.py`, `identity/org.py` (`provider`, `github_*`), `core/runtime.py` (`identity()`), `hatch_build.py` (`TSL_ORG_FILE`) |
 | SDD-07 §6 canonical JSON, Ed25519 | `identity/signing.py` |
 | SDD-07 §7.3 accept rule | `identity/verify.py` |
 | SDD-04 §6.3 doctor | `services/doctor.py` |

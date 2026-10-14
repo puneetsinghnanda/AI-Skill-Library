@@ -33,16 +33,31 @@ class IdentityProvider(Protocol):
 
 
 class SealedCache:
-    def __init__(self, path: Path, keystore: KeyStore, device_id: str) -> None:
+    """AES-256-GCM file sealed with a key held in the OS keychain (SDD-07 §4.3).
+
+    ``key_item`` and ``label`` let another provider (identity/github.py) keep its own sealed file
+    with its own key; the defaults are the MSAL cache.
+    """
+
+    def __init__(
+        self,
+        path: Path,
+        keystore: KeyStore,
+        device_id: str,
+        *,
+        key_item: str = CACHE_KEY_ITEM,
+        label: bytes = b"tsl-msal-cache-v1",
+    ) -> None:
         self.path = path
         self.keystore = keystore
-        self.aad = b"tsl-msal-cache-v1:" + device_id.encode()
+        self.key_item = key_item
+        self.aad = label + b":" + device_id.encode()
 
     def _key(self, create: bool) -> bytes | None:
-        v = self.keystore.get(CACHE_KEY_ITEM)
+        v = self.keystore.get(self.key_item)
         if v is None and create:
             v = b64url(secrets.token_bytes(32))
-            self.keystore.set(CACHE_KEY_ITEM, v)
+            self.keystore.set(self.key_item, v)
         return None if v is None else b64url_decode(v)
 
     def load(self) -> str | None:
@@ -77,7 +92,7 @@ class SealedCache:
     def clear(self) -> None:
         if self.path.exists():
             self.path.unlink()
-        self.keystore.delete(CACHE_KEY_ITEM)
+        self.keystore.delete(self.key_item)
 
 
 class MsalIdentity:

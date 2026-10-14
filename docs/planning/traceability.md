@@ -108,7 +108,7 @@ Nothing in the tracker is Missing. Items built during this audit are marked **(b
 | 8.2 | Pilot system(s) and success (OQ-04) | PLN-01 §3.3 proposal; `release-1-gate-checklist.md` | Needs Puneet / external | Puneet: pilot teams, systems and domains |
 | 8.3 | Release-1 skills and pods in priority order (OQ-16) | PLN-01 §2.3; SDD-10 §4; `pods/` | Needs Puneet / external | Puneet: confirm order and pod list (PLN-OI-07) |
 | 8.4 | GitHub org (OQ-10) | Placeholders `<companion-org>` in SDD-12 §5.1 and `tsl/src/tsl/_org.toml` | Needs Puneet / external | Puneet: the org for Truminds and companion repos |
-| 8.5 | Company SSO provider | ADR 0002 (Microsoft Entra ID); SDD-07 | Delivered | Entra app registrations still need the Entra admin (see 8.13) |
+| 8.5 | Company SSO provider | ADR 0002 (Microsoft Entra ID); SDD-07. Test phase: ADR 0006 interim GitHub sign-in (flagged deviation, test environment only); SDD-07 §1.4, SDD-09 §3.4.1; `tsl/src/tsl/identity/github.py`, `services/insights/app/auth/github.py`, `services/insights/app/api/auth_github.py`, `portal/src/auth/github.tsx`, `deploy/compose/compose.test.yml`; tests `tsl/tests/test_identity_github.py`, `services/insights/tests/test_github_auth.py`, `portal/src/auth/github.test.tsx`, `deploy/tests/test_test_env.py` | Delivered | Entra app registrations still need the Entra admin (see 8.13); then leave the GitHub interim provider (ADR 0006 exit criterion) |
 | 8.6 | Thresholds: 90% eval pass, 1-in-10 audits, default limits (OQ-11, OQ-12) | SDD-01 §10, SDD-03 §10.2, §16; Doc 3 §6; config defaults in `tsl.yaml` | Needs Puneet / external | Puneet: confirm or change (PLN-OI-11) |
 | 8.7 | Hosting cloud (OQ-02) | OPS-01 §4 options | Needs Puneet / external | Puneet: choose (PLN-OI-05 proposes moving it to G1) |
 | 8.8 | Data residency (OQ-03) | Doc 6 C-07; LEG-01 §15 | Needs Puneet / external | Claude org admin and Legal: plan terms; Puneet decides |
@@ -150,6 +150,7 @@ Nothing in the tracker is Missing. Items built during this audit are marked **(b
 | Decision: where documents live | Superseded by [ADR 0003](../adr/0003-repo-is-source-of-truth.md) (repo is the source of truth) | Delivered |
 | Decision: portal technology | [ADR 0001](../adr/0001-portal-custom-react-on-fastapi.md) | Delivered |
 | Decision: identity provider | [ADR 0002](../adr/0002-identity-microsoft-entra-id.md) | Delivered |
+| Decision: interim GitHub sign-in for the test phase | [ADR 0006](../adr/0006-interim-github-sign-in-for-test-phase.md) (Accepted; test environment only) | Delivered |
 | Decision: sample system | [ADR 0004](../adr/0004-sample-system-react-node.md) (Proposed, tentative) | Delivered (draft for owner review) |
 | Doc 1 PRD | [product/01-prd.md](../product/01-prd.md) | Delivered (draft for owner review) |
 | Doc 2 Personas and Stories | [product/02-personas-and-stories.md](../product/02-personas-and-stories.md) | Delivered (draft for owner review) |

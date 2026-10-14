@@ -93,9 +93,12 @@ export function requestId(): string {
 /* ------------------------------------------------------------------ client */
 export interface ApiClientOptions {
   baseUrl: string;
-  auth: Pick<AuthPort, 'getToken' | 'signIn'>;
+  auth: Pick<AuthPort, 'getToken' | 'signIn' | 'credentials'>;
   fetchImpl?: typeof fetch;
 }
+
+/** Header the insights service requires on cookie-authenticated writes (E-API-07, ADR 0006). */
+export const CSRF_HEADER = { 'X-Requested-With': 'truminds-portal' } as const;
 
 export function buildUrl(
   base: string,
@@ -120,7 +123,7 @@ export function buildUrl(
 
 export class ApiClient {
   private readonly baseUrl: string;
-  private readonly auth: Pick<AuthPort, 'getToken' | 'signIn'>;
+  private readonly auth: Pick<AuthPort, 'getToken' | 'signIn' | 'credentials'>;
   private readonly fetchImpl: typeof fetch;
 
   constructor(opts: ApiClientOptions) {
@@ -163,34 +166,40 @@ export class ApiClient {
     refreshed: boolean,
   ): Promise<unknown> {
     const rid = requestId();
-    let token: string;
-    try {
-      const opts = {
-        ...(refreshed ? { forceRefresh: true } : {}),
-        ...(req.write ? { write: true } : {}),
-      };
-      token = await this.auth.getToken(Object.keys(opts).length ? opts : undefined);
-    } catch (e) {
-      throw new ApiError({
-        status: 401,
-        code: 'E-API-02',
-        detail: e instanceof Error ? e.message : 'Sign-in is needed.',
-        requestId: rid,
-      });
+    const cookie = this.auth.credentials === 'cookie';
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'X-Request-ID': rid,
+    };
+    if (cookie) {
+      // GitHub sign-in (ADR 0006): the HttpOnly session cookie is the credential; writes carry the
+      // CSRF header. There is no token in the browser to refresh.
+      if (req.method !== 'GET') Object.assign(headers, CSRF_HEADER);
+    } else {
+      try {
+        const opts = {
+          ...(refreshed ? { forceRefresh: true } : {}),
+          ...(req.write ? { write: true } : {}),
+        };
+        const token = await this.auth.getToken(Object.keys(opts).length ? opts : undefined);
+        headers.Authorization = `Bearer ${token}`;
+      } catch (e) {
+        throw new ApiError({
+          status: 401,
+          code: 'E-API-02',
+          detail: e instanceof Error ? e.message : 'Sign-in is needed.',
+          requestId: rid,
+        });
+      }
     }
     let res: Response;
     try {
-      const headers: Record<string, string> = {
-        Accept: 'application/json',
-        Authorization: `Bearer ${token}`,
-        'X-Request-ID': rid,
-      };
       if (req.body !== undefined) headers['Content-Type'] = 'application/json';
       res = await this.fetchImpl(req.url, {
         method: req.method,
         headers,
         ...(req.body !== undefined ? { body: req.body } : {}),
-        credentials: 'omit',
+        credentials: cookie ? 'include' : 'omit',
         signal,
       });
     } catch (e) {
@@ -204,7 +213,7 @@ export class ApiClient {
     }
     if (res.ok) return res.json();
 
-    if (res.status === 401 && !refreshed) return this.send(req, signal, true);
+    if (res.status === 401 && !refreshed && !cookie) return this.send(req, signal, true);
     const err = await toApiError(res, rid);
     // A write keeps the admin's form on screen; reads fall back to an interactive sign-in.
     if (res.status === 401 && !req.write) void this.auth.signIn();

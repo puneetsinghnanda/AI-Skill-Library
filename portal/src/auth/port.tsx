@@ -10,7 +10,16 @@ export interface TokenOptions {
   write?: boolean;
 }
 
+/**
+ * How API calls carry the credential: `bearer` (Entra access token from `getToken`) or `cookie`
+ * (GitHub sign-in, ADR 0006: the insights service holds the token; the browser sends the
+ * HttpOnly session cookie with `credentials: 'include'`).
+ */
+export type CredentialMode = 'bearer' | 'cookie';
+
 export interface AuthPort {
+  /** Defaults to `bearer`. */
+  credentials?: CredentialMode;
   /**
    * Access token for the read API scope (VITE_API_SCOPE), or, with `write: true`, for the
    * `Portal.Write` scope (VITE_API_WRITE_SCOPE). The write scope is requested incrementally, only

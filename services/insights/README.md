@@ -42,6 +42,28 @@ The policy decisions that are still open (registry §11) are config values. Thei
 | RD-5 first-pass metric | `RD5_FIRST_PASS_METRIC` | `first_try` |
 | RD-6 workflow names | `RD6_WORKFLOW_NAMES` (catalogue sync skips the other set) | `doc3` |
 
+## Identity provider: Entra (default) or GitHub (interim, test phase)
+
+`IDENTITY_PROVIDER` picks the provider (SDD-07 §1.4, ADR 0006). The default `entra` is the production path and is unchanged. `github` is the interim provider for the test phase while the Entra app registrations are pending; the service refuses to start with it when `ENV=prod`.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `IDENTITY_PROVIDER` | `entra` | `entra` or `github` |
+| `ENVIRONMENT` (or `ENV`) | `dev` | `test` makes `GET /v1/status` return `"environment": "test"`; the portal shows a TEST ENVIRONMENT banner |
+| `GITHUB_CLIENT_ID` | — | Client ID of the GitHub OAuth App (Device Flow enabled) |
+| `GITHUB_CLIENT_SECRET_FILE` or `GITHUB_CLIENT_SECRET` | — | Client secret, from the secret store (file) or the host env file. Never in git |
+| `GITHUB_API_URL`, `GITHUB_OAUTH_URL` | `https://api.github.com`, `https://github.com` | GitHub endpoints |
+| `GITHUB_TOKEN_CACHE_S` | `300` | How long a `GET /user` answer is cached, keyed by the SHA-256 of the token |
+| `BOOTSTRAP_ADMIN_GITHUB_LOGINS` | empty | Comma-separated GitHub logins that get the org `viewer` and `admin` grants when they sign in. Logged at startup (`identity provider github ...` line) and audited per grant (`audit_log.action = bootstrap_admin_grant`). Clear it once a second admin exists; while a login is listed its admin grant comes back at each sign-in |
+| `SESSION_MAX_AGE_S` | `28800` | Portal session cookie lifetime |
+
+How it works with `github`:
+
+- A bearer token (from `tsl`) is checked with `GET {GITHUB_API_URL}/user`. The user is `github:<numeric id>`; `users.github_login` holds the login. The token is never stored or logged.
+- Roles come only from `role_grants`, managed in the portal admin screens. App roles are derived from the grants (`viewer` → Business, `engineer`/`skill_owner` → Engineer, `tech_lead`/`stage_approver`/`eng_lead` → TechLead, `admin` → Admin). A new user gets 403 `E-AUTH-08` naming their pseudonym until an admin grants a role.
+- The portal signs in through `GET /auth/github/login` → GitHub → `GET /auth/github/callback` (state + PKCE; code exchanged with the client secret on the server). The token is kept encrypted (data key) inside a signed, HttpOnly, SameSite=Lax session cookie (Secure when `PUBLIC_BASE_URL` is https). `POST /auth/logout` clears it.
+- A bearer token counts as `Events.Write` + `Portal.Read`; the session cookie counts as `Portal.Read` + `Portal.Write`. Writes through the cookie need `X-Requested-With: truminds-portal` and an `Origin` equal to the `PUBLIC_BASE_URL` origin (`E-API-07`).
+
 ## Run locally
 
 ```bash
@@ -93,6 +115,7 @@ The tests work as follows:
 | View refresh, partitions, retention and rollups, audit floor, outbox gauges, worker tick | `test_jobs.py` |
 | Improvement flags and report job, `improvement.proposed` | `test_improvement.py` |
 | Admin routes, self-grant refused (E-ADM-01), consent, deactivate, app-role sync | `test_admin.py` |
+| GitHub provider (ADR 0006): `/user` validation and failure, 5-minute token cache keyed by SHA-256, GitHub down (E-AUTH-10), bootstrap admin, grants → app roles, cookie flow with state and PKCE, state mismatch (E-AUTH-09), open redirect, CSRF header and Origin (E-API-07), prod refusal, Entra JWT refused by a GitHub app | `test_github_auth.py` |
 | Admin lists: admin only (403 otherwise), pagination, filters, RD-1 names | `test_admin_lists.py` |
 | Health, readiness, `/metrics` labels, log redaction, entry modes, no committed secrets | `test_health_obs.py` |
 | Seed refuses prod, seed loads | `test_seed.py` |
@@ -112,6 +135,7 @@ The tests work as follows:
 | SDD-08 §6.2, SDD-07 §5.2–§5.6 keys: register, get, revoke, own keys | `app/api/v1/keys.py`, `app/keyreg.py` |
 | SDD-07 §7.2 signature facts and anchors | `app/api/v1/signatures.py`, `app/projector/handlers.py` (anchors) |
 | SDD-07 §9, ADR 0002 Entra JWT validation (PyJWT, JWKS) | `app/auth/entra.py`, `app/auth/principal.py`, `app/auth/scope.py` |
+| SDD-07 §1.4, SDD-09 §3.4.1, ADR 0006 GitHub interim provider | `app/auth/github.py`, `app/auth/session.py`, `app/api/auth_github.py`, `app/auth/users.py` (`resolve_github_user`), `app/auth/principal.py` (`_github_principal`) |
 | SDD-07 §3.3–§3.4 users, app-role sync, role grants | `app/auth/users.py` |
 | SDD-08 §6.4 catalogue sync | `app/catalogue/sync.py` |
 | SDD-08 §7 projector and the `run_id` join, order independence | `app/projector/loop.py`, `app/projector/handlers.py` |

@@ -13,7 +13,17 @@ const repoUrl = str(
   'https://github.com/[TRUMINDS-ORG]/truminds-skill-library',
 ).replace(/\/+$/, '');
 
+/** Sign-in mode (SDD-09 §3.4.1, ADR 0006): `entra` (MSAL, default) or `github` (session cookie). */
+export type IdentityProvider = 'entra' | 'github';
+
+export function identityProvider(v: string | undefined): IdentityProvider {
+  return v?.trim().toLowerCase() === 'github' ? 'github' : 'entra';
+}
+
 export const env = {
+  identityProvider: identityProvider(raw.VITE_IDENTITY_PROVIDER),
+  /** `test` shows the TEST ENVIRONMENT banner; GET /v1/status `environment` can also turn it on. */
+  environment: str(raw.VITE_ENVIRONMENT, ''),
   tenantId: str(raw.VITE_ENTRA_TENANT_ID, ''),
   clientId: str(raw.VITE_ENTRA_CLIENT_ID, ''),
   redirectUri: str(raw.VITE_ENTRA_REDIRECT_URI, ''),

@@ -133,6 +133,7 @@ This is the full list of routes the service serves. Write routes are specified i
 | GET | `/v1/me` | `Events.Write` or `Portal.Read` | Any | §3.1; fields SDD-09 §5.6.1 |
 | GET | `/v1/systems/{code}` | `Events.Write` | `engineer` or `tech_lead` on the system; `admin` | SDD-12 §5.3 |
 | GET | `/v1/policy/denylist` | `Events.Write` or CI ingest token | Any | SEC-01 §7.4 |
+| GET, GET, POST | `/auth/github/login`, `/auth/github/callback`, `/auth/logout` | GitHub sign-in for the portal; 404 unless `IDENTITY_PROVIDER=github` (ADR 0006) | — | SDD-09 §3.4.1 |
 | GET | `/v1/health`, `/v1/health/ready` | none | — | §11.1, OPS-02 §4 |
 | GET | `/v1/status` | `Portal.Read` | Any | SDD-09 E02 |
 | GET | `/v1/catalogue/summary`, `/v1/catalogue/skills`, `/v1/catalogue/skills/{skill_id}`, `/v1/catalogue/releases`, `/v1/catalogue/pods` | `Portal.Read` | Any (class A) | SDD-09 E03–E05, E07, E08 |
@@ -482,6 +483,10 @@ Retention of signed records in companion repos is NFR-16 and is not affected.
 | Claude Code OTel exporter | OTel ingest token | `/otel/v1/*` only |
 | `tsl-ci-verify` action | CI ingest token | `POST /v1/events` with `ci.verified` only; `GET /v1/keys/*`; `POST /v1/signatures/verify`; `GET /v1/policy/denylist` |
 | GitHub | HMAC secret per hook | `/v1/webhooks/github` only |
+| `tsl`, test phase only (`IDENTITY_PROVIDER=github`, ADR 0006) | GitHub user token (OAuth device flow), checked with `GET /user`, cached 5 min by SHA-256 | Same routes as the `tsl` row (counts as `Events.Write` + `Portal.Read`, never `Portal.Write`; SDD-07 §1.4) |
+| Portal, test phase only (`IDENTITY_PROVIDER=github`) | Signed HttpOnly session cookie holding the encrypted GitHub token (`/auth/github/login`, `/auth/github/callback`, `POST /auth/logout`, SDD-09 §3.4.1) | Same routes as the portal row; writes need `X-Requested-With: truminds-portal` and a same-origin `Origin` (E-API-07) |
+
+With the GitHub provider, roles come only from `role_grants` and app roles are derived from them (SDD-07 §1.4); the first admin comes from `BOOTSTRAP_ADMIN_GITHUB_LOGINS` (logged at startup, audited as `bootstrap_admin_grant`). The service refuses the GitHub provider when `ENV=prod`.
 
 Token validation uses Microsoft's published OIDC metadata and JWKS through a maintained JWT library (PyJWT). No custom crypto and no local passwords (C-05, X-07). There are no admin, debug or bypass endpoints. Every endpoint is in the published OpenAPI file, apart from the OTLP paths (protocol-defined, listed in §5.1) and `/metrics` on the internal port (OPS-02 §4).
 
@@ -1108,6 +1113,7 @@ Admin steps, in order: create `otel` token (§9.3) → put it in managed setting
 | Item | Ref | Owner |
 | --- | --- | --- |
 | Event retention period (13 months is a proposal) | OQ-08 | TBD by Puneet |
+| Remove the interim GitHub provider (§9.1 rows marked "test phase only") when Entra is live | ADR 0006 | Puneet Singh Nanda |
 | Hosting, region, managed PostgreSQL, key service | OQ-02, OQ-03 | TBD by Puneet |
 | GitHub webhooks and the CI action call the service from the internet, but the portal is intranet-only. Needs a public ingress that exposes only `/v1/webhooks/github`, `GET /v1/keys/*` and CI `POST /v1/events`, or a relay | new (OPS-01) | TBD by Puneet |
 | OTel metric and event names and attributes (unverified) | new, spike S-10 | Shubham Bansal |

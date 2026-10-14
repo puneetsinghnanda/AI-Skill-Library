@@ -158,6 +158,21 @@ portal/
 | Sign-out | `logoutRedirect`; clears the query cache |
 | Test sign-in | Playwright only, through a test token-cache fixture (TST-01 §2.5, TC-POR-010). No bypass in any build |
 
+#### 3.4.1 Sign-in with GitHub (test phase only)
+
+Interim, while the Entra registrations are pending (ADR 0006, SDD-07 §1.4). The build sets `VITE_IDENTITY_PROVIDER=github`; the insights service runs with `IDENTITY_PROVIDER=github`. MSAL stays the path for `entra` and is not loaded in this mode. This is a backend-for-frontend: the browser never holds a GitHub token.
+
+| Item | Rule |
+| --- | --- |
+| Gate | On start the SPA calls `GET /v1/me` with `credentials: 'include'`. 401 → a page with **Sign in with GitHub**, a link to `/auth/github/login?return_to=<path>`. 200 or 403 → the app (403 shows the no-access page with the service's message naming the pseudonym an admin must grant to) |
+| `GET /auth/github/login` | The service stores a random `state` and a PKCE verifier in the session cookie and redirects to `https://github.com/login/oauth/authorize` (`scope=read:user`, `code_challenge_method=S256`, `redirect_uri=<PUBLIC_BASE_URL>/auth/github/callback`) |
+| `GET /auth/github/callback` | `state` must equal the stored one (single use; mismatch → 400 E-AUTH-09). The code is exchanged server-side with the client secret and the verifier. The token is encrypted with the data key and kept in the session cookie; then a redirect to `return_to` (same-origin portal paths only, else `/`) |
+| Session cookie | `tm_session`, signed (Starlette `SessionMiddleware`), HttpOnly, SameSite=Lax, Secure when `PUBLIC_BASE_URL` is https; lifetime `SESSION_MAX_AGE_S` (8 h) |
+| API calls | `credentials: 'include'`, no `Authorization` header, no token refresh. Writes add `X-Requested-With: truminds-portal`; the service also checks `Origin` (E-API-07). 401 → sign-in |
+| Sign-out | `POST /auth/logout` with the CSRF header; clears the cookie; back to `/` |
+| TEST ENVIRONMENT banner | Shown on every screen, and on the no-access page, when the build sets `VITE_ENVIRONMENT=test` or `GET /v1/status` returns `"environment": "test"` (the service's `ENVIRONMENT`) |
+| Hosting | One origin: the edge routes `/auth/github/*` and `/auth/logout` to the api, or the api serves the portal itself (`SERVE_PORTAL=true`, the one-machine test environment in `deploy/README.md`) |
+
 ### 3.5 Data fetching
 
 | Rule | Value |
@@ -181,6 +196,7 @@ portal/
 | Null number | "No data yet" (SDD-08 §10.4: ratio with denominator 0) or "Not enough data" (`reason: "low_volume"`, §5.1.6) |
 | Error | Card with plain words, the error code and the request id; the rest of the page still renders |
 | Behind banner | When `GET /v1/status` returns `behind: true`: "Insights are behind; last event received at <local time>." The page keeps showing the last data (Doc 4 §2.0.5, TC-POR-005) |
+| Test environment banner | `GET /v1/status` also returns `environment` (the service's `ENVIRONMENT`) and `identity_provider`. `environment: "test"` shows "TEST ENVIRONMENT" on every screen (§3.4.1, ADR 0006) |
 | Times | Shown in the viewer's local time; ISO in tooltips (Doc 4 §6.3) |
 
 ## 4. Screens
@@ -976,6 +992,7 @@ Gates: `@axe-core/playwright` on every screen in both views with zero serious or
 
 | Item | Ref | Owner |
 | --- | --- | --- |
+| Remove GitHub sign-in mode (§3.4.1) when Entra is live; exit steps in ADR 0006 | ADR 0006 | Puneet |
 | Visibility scope: the brief says engineers see their own **projects**; Doc 2 §2 permission matrix says "own system" for run status and "own runs" for usage. This document implements projects. Confirm (registry §11, RD-2) | new | Puneet |
 | Name rule: the brief says tech leads see names; Doc 4 §1.2, §6.3 and US-19 say only the team's `eng_lead` (and admin). This document lets `tech_lead` of the system see names, opt-in and audited. Confirm and update Doc 4 / Doc 2 (registry §11, RD-1) | new | Puneet |
 | Closed (registry §10): SDD-08 stores the SDD-01 skill status words | SDD-01 O-04 | Gaurav Saini, Abhishek Verma, Ekjot Singh |

@@ -5,7 +5,7 @@ import { ApiError } from '../api/client';
 import { env } from '../config/env';
 import { ErrorState, Skeleton, SkeletonGrid } from '../components/States';
 import { NoAccess } from '../screens/NoAccess';
-import { StatusBanner } from './StatusBanner';
+import { StatusBanner, TestEnvironmentBanner } from './StatusBanner';
 import { TopBar } from './TopBar';
 import { ViewProvider } from './ViewContext';
 
@@ -67,6 +67,7 @@ function Frame({ banner, children }: { banner?: ReactNode; children: ReactNode }
       <a className="skip-link" href="#main">
         Skip to main content
       </a>
+      <TestEnvironmentBanner />
       <TopBar />
       {banner}
       <StatusBanner />
@@ -95,7 +96,13 @@ export function AppShell({ banner }: { banner?: ReactNode }) {
   }
   if (me.isError) {
     if (me.error instanceof ApiError && me.error.status === 403)
-      return <NoAccess banner={banner} />;
+      return (
+        <NoAccess
+          banner={banner}
+          // GitHub sign-in (ADR 0006): the service names the pseudonym an admin must grant to.
+          detail={env.identityProvider === 'github' ? me.error.detail : undefined}
+        />
+      );
     return (
       <main id="main" className="tm-wrap pt-40">
         <h1 className="page-h1">The portal could not load</h1>

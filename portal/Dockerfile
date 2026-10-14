@@ -5,6 +5,10 @@
 #   docker build -t truminds/portal:X.Y.Z \
 #     --build-arg VITE_ENTRA_TENANT_ID=... --build-arg VITE_ENTRA_CLIENT_ID=... portal/
 #
+# Test phase with GitHub sign-in (ADR 0006): no Entra values; the insights service runs the sign-in.
+#   docker build -t truminds/portal:test --build-arg VITE_IDENTITY_PROVIDER=github \
+#     --build-arg VITE_ENVIRONMENT=test portal/
+#
 # Base images are pinned by digest in the release pipeline (OPS-03 §3); the tags below are the floor.
 # VITE_* values are build-time and not secret (the SPA holds no secret); see .env.example.
 ARG NODE_IMAGE=node:20-alpine
@@ -17,6 +21,8 @@ ENV CI=1 PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm_config_audit=false npm_config_fu
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+ARG VITE_IDENTITY_PROVIDER=entra
+ARG VITE_ENVIRONMENT=
 ARG VITE_ENTRA_TENANT_ID
 ARG VITE_ENTRA_CLIENT_ID
 ARG VITE_ENTRA_REDIRECT_URI=
@@ -30,7 +36,9 @@ ARG VITE_BUILD_ID=unknown
 ARG VITE_RD1_NAME_REVEAL_ROLES=eng_lead,admin
 ARG VITE_RD2_ENGINEER_RUN_SCOPE=system
 ARG VITE_RD3_QUESTION_TEXT_IN_CLOUD=false
-ENV VITE_ENTRA_TENANT_ID=${VITE_ENTRA_TENANT_ID} \
+ENV VITE_IDENTITY_PROVIDER=${VITE_IDENTITY_PROVIDER} \
+    VITE_ENVIRONMENT=${VITE_ENVIRONMENT} \
+    VITE_ENTRA_TENANT_ID=${VITE_ENTRA_TENANT_ID} \
     VITE_ENTRA_CLIENT_ID=${VITE_ENTRA_CLIENT_ID} \
     VITE_ENTRA_REDIRECT_URI=${VITE_ENTRA_REDIRECT_URI} \
     VITE_API_SCOPE=${VITE_API_SCOPE} \
@@ -44,7 +52,8 @@ ENV VITE_ENTRA_TENANT_ID=${VITE_ENTRA_TENANT_ID} \
     VITE_RD2_ENGINEER_RUN_SCOPE=${VITE_RD2_ENGINEER_RUN_SCOPE} \
     VITE_RD3_QUESTION_TEXT_IN_CLOUD=${VITE_RD3_QUESTION_TEXT_IN_CLOUD}
 # Typecheck, production build, then the bundle gate (no mocks, no test-auth fixture: TC-POR-010).
-RUN test -n "$VITE_ENTRA_TENANT_ID" && test -n "$VITE_ENTRA_CLIENT_ID" \
+RUN test "$VITE_IDENTITY_PROVIDER" = "github" \
+    || (test -n "$VITE_ENTRA_TENANT_ID" && test -n "$VITE_ENTRA_CLIENT_ID") \
     || (echo "VITE_ENTRA_TENANT_ID and VITE_ENTRA_CLIENT_ID build args are required" && exit 1)
 RUN npm run build
 
