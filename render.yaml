@@ -1,0 +1,48 @@
+# Render Blueprint: the hosted TEST environment (deploy/render/README.md, ADR 0006 addendum).
+# One free Docker web service; the database is Neon (DATABASE_URL). Test phase only: invented data,
+# never client repositories. The insights service refuses these value secrets when ENV=prod.
+services:
+  - type: web
+    name: truminds-skills-test        # the URL becomes https://truminds-skills-test.onrender.com
+    runtime: docker
+    plan: free
+    region: singapore                 # next to Neon aws-ap-southeast-1
+    branch: main
+    dockerfilePath: ./deploy/render/Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    envVars:
+      # Fixed values
+      - key: IDENTITY_PROVIDER
+        value: github
+      - key: ENVIRONMENT
+        value: test
+      - key: ENV
+        value: test
+      - key: SERVE_PORTAL_DIR
+        value: /app/portal
+      - key: MARKETPLACE_REPO
+        value: puneetsinghnanda/AI-Skill-Library
+      - key: VITE_MARKETPLACE_REPO_URL
+        value: https://github.com/puneetsinghnanda/AI-Skill-Library
+      # Entered once in the Render dashboard (never in git)
+      - key: DATABASE_URL                     # Neon direct connection string (not -pooler)
+        sync: false
+      - key: PUBLIC_BASE_URL                  # https://<service name>.onrender.com
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_WEBHOOK_SECRET
+        sync: false
+      - key: BOOTSTRAP_ADMIN_GITHUB_LOGINS
+        sync: false
+      # Generated once by Render, kept across deploys. DATA_KEY also derives the session-cookie
+      # signing key, so it is the session secret too. Never change them while data exists.
+      - key: DATA_KEY
+        generateValue: true
+      - key: PSEUDONYM_PEPPER
+        generateValue: true
+      - key: DB_ROLE_PASSWORD_KEY
+        generateValue: true

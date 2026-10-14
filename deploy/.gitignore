@@ -17,3 +17,5 @@ htmlcov/
 # filled-in tsl org file stay on the host
 compose/test-secrets/
 test-org.github.toml
+# Hosted test environment (render/README.md): the filled-in tsl org file stays local
+render/tsl-org.github.toml

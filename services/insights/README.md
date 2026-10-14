@@ -64,6 +64,22 @@ How it works with `github`:
 - The portal signs in through `GET /auth/github/login` → GitHub → `GET /auth/github/callback` (state + PKCE; code exchanged with the client secret on the server). The token is kept encrypted (data key) inside a signed, HttpOnly, SameSite=Lax session cookie (Secure when `PUBLIC_BASE_URL` is https). `POST /auth/logout` clears it.
 - A bearer token counts as `Events.Write` + `Portal.Read`; the session cookie counts as `Portal.Read` + `Portal.Write`. Writes through the cookie need `X-Requested-With: truminds-portal` and an `Origin` equal to the `PUBLIC_BASE_URL` origin (`E-API-07`).
 
+## Hosted test environment (`allinone`, Render + Neon)
+
+`python -m app.entry allinone` runs the whole service in one process for a single-container host. At start it waits for the database, runs the migrations, gives the runtime roles their logins, ensures the partitions, syncs the catalogue from `CATALOGUE_SOURCE_DIR` and registers webhooks. It then runs the worker jobs in a thread behind the leader advisory lock, and uvicorn on `$PORT`. Set-up: [deploy/render/README.md](../../deploy/render/README.md). These settings are for the test phase only; the service refuses the value secrets when `ENV=prod`.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `DATABASE_URL` | — | Owner URL, for example Neon's **direct** connection string. Must use TLS for a remote host; a `-pooler` host is refused. Replaces the `DATABASE_HOST`/`*_PASSWORD_FILE` settings |
+| `DATABASE_URL_MIGRATIONS` | `DATABASE_URL` | Optional separate owner URL for Alembic |
+| `DB_ROLE_PASSWORD_KEY` | — | At least 32 characters. The passwords of `insights_app`, `insights_read` and `insights_reveal` are HMAC-SHA256 of this key, and are set at each start |
+| `DATA_KEY`, `PSEUDONYM_PEPPER` | — | The same secrets as `DATA_KEY_FILE` and `PSEUDONYM_PEPPER_FILE`, given as values. A `*_FILE` setting wins when both are set |
+| `SERVE_PORTAL_DIR` | — | Serve the built portal from this folder (`/assets`, `/brand` and an SPA fallback that never answers `/v1`, `/auth`, `/otel`, `/metrics`, `/healthz` or `/readyz`), with the `portal/nginx.conf` security headers and HSTS when `PUBLIC_BASE_URL` is https |
+| `GITHUB_WEBHOOK_HOOKS`, `GITHUB_WEBHOOK_SECRET` | empty | `HOOK_ID:org[/repo],...` registered at start with that secret (encrypted); replaces `admin hook create` where there is no shell |
+| `PORT` | `10000` | HTTP port (also used by `probe`) |
+
+`GET /healthz` (liveness) and `GET /readyz` (database, migration head, secrets; answers only ok or fail) are the platform probes. They are not in the OpenAPI file. In GitHub mode, readiness skips the Entra JWKS check.
+
 ## Run locally
 
 ```bash

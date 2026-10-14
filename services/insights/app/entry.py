@@ -1,4 +1,5 @@
-"""Container entrypoint dispatcher (OPS-01 §5.2): ``api | worker | migrate | admin | probe``.
+"""Container entrypoint dispatcher (OPS-01 §5.2): ``api | worker | migrate | admin | probe``, plus
+``allinone`` for the hosted test environment (``app.hosted``, deploy/render).
 
 It accepts no other mode, so the image has no hidden mode.
 """
@@ -12,7 +13,7 @@ import urllib.request
 
 from app.config import SERVICE_DIR, get_settings
 
-USAGE = "usage: python -m app.entry api|worker|migrate|admin ...|probe ready|live"
+USAGE = "usage: python -m app.entry api|worker|migrate|allinone|admin ...|probe ready|live"
 
 
 def _api() -> int:
@@ -62,7 +63,8 @@ def _migrate() -> int:
 def _probe(kind: str) -> int:
     path = "/v1/health/ready" if kind == "ready" else "/v1/health"
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:8000{path}", timeout=3) as r:
+        port = os.environ.get("PORT") or "8000"  # PORT: the hosted test environment (allinone)
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=3) as r:
             return 0 if r.status == 200 else 1
     except OSError:
         return 1
@@ -82,6 +84,10 @@ def main(argv: list[str]) -> int:
         return 0
     if mode == "migrate" and not rest:
         return _migrate()
+    if mode == "allinone" and not rest:
+        from app.hosted import main as hosted_main
+
+        return hosted_main()
     if mode == "admin":
         from app.admin import main as admin_main
 

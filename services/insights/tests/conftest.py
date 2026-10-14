@@ -21,6 +21,7 @@ import tempfile
 import time
 import uuid
 from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -95,14 +96,10 @@ class PG:
         return f"postgresql+psycopg://{auth}@{self.host}:{self.port}/{db}?sslmode=disable"
 
 
-@pytest.fixture(scope="session")
-def pg() -> Iterator[PG]:
-    external = os.environ.get("INSIGHTS_TEST_PG_PORT")
-    if external:  # CI service container (empty, throwaway); see the module docstring
-        yield PG(int(external), None, None, os.environ.get("INSIGHTS_TEST_PG_HOST", "127.0.0.1"))
-        return
-    if not (PG_BIN / "initdb").exists():
-        pytest.skip("PostgreSQL 16 binaries not found")
+@contextmanager
+def pg_cluster(auth_host: str = "trust") -> Iterator[PG]:
+    """A throwaway PostgreSQL 16 cluster. ``auth_host`` is the TCP auth method; the Unix socket
+    always trusts, so a test can still bootstrap as the ``postgres`` superuser through ``sock``."""
     # The cluster lives in the system temp directory: when tests run as root, initdb must run as the
     # postgres user, which cannot traverse a private scratch tree.
     work = Path(tempfile.mkdtemp(prefix="insights-pg-"))
@@ -119,7 +116,8 @@ def pg() -> Iterator[PG]:
                 str(data),
                 "-U",
                 "postgres",
-                "--auth=trust",
+                "--auth-local=trust",
+                f"--auth-host={auth_host}",
                 "-E",
                 "UTF8",
                 "--no-instructions",
@@ -155,6 +153,18 @@ def pg() -> Iterator[PG]:
             capture_output=True,
         )
         shutil.rmtree(work, ignore_errors=True)
+
+
+@pytest.fixture(scope="session")
+def pg() -> Iterator[PG]:
+    external = os.environ.get("INSIGHTS_TEST_PG_PORT")
+    if external:  # CI service container (empty, throwaway); see the module docstring
+        yield PG(int(external), None, None, os.environ.get("INSIGHTS_TEST_PG_HOST", "127.0.0.1"))
+        return
+    if not (PG_BIN / "initdb").exists():
+        pytest.skip("PostgreSQL 16 binaries not found")
+    with pg_cluster() as cluster:
+        yield cluster
 
 
 @dataclass

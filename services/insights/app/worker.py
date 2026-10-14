@@ -15,7 +15,7 @@ from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import Connection, text
 
 from app.config import Settings, get_settings
 from app.db import engine
@@ -109,6 +109,46 @@ def _health_server(port: int) -> ThreadingHTTPServer:
     return srv
 
 
+def try_lead(conn: Connection) -> bool:
+    """Take the worker leader lock on this session if it is free (non-blocking)."""
+    leader = bool(conn.execute(text("SELECT pg_try_advisory_lock(:k)"), {"k": LOCK_KEY}).scalar())
+    conn.commit()
+    return leader
+
+
+def run_loop(
+    s: Settings,
+    stop: threading.Event,
+    tick_fn: Callable[[Settings, Schedule, float], int] = tick,
+    retry_s: float = 10,
+) -> None:
+    """Wait for the leader lock, then run ``tick_fn`` until ``stop``. One leader at a time.
+
+    The lock lives on a dedicated session, so it is released when this process stops or its
+    connection drops (for example when a hosted database scales to zero); another instance then
+    takes over.
+    """
+    sched = Schedule()
+    with engine("app", s).connect() as lock_conn:
+        while not stop.is_set():
+            _heartbeat["t"] = time.time()
+            metrics.WORKER_HEARTBEAT.set(time.time())
+            leader = try_lead(lock_conn)
+            metrics.WORKER_LEADER.set(1 if leader else 0)
+            if not leader:
+                stop.wait(retry_s)
+                continue
+            while not stop.is_set():
+                _heartbeat["t"] = time.time()
+                metrics.WORKER_HEARTBEAT.set(time.time())
+                try:
+                    n = tick_fn(s, sched, time.monotonic())
+                except Exception:
+                    log.exception("worker tick failed")
+                    n = 0
+                stop.wait(1 if n else 5)
+
+
 def main() -> None:
     obslog.setup("worker")
     s = get_settings()
@@ -116,28 +156,7 @@ def main() -> None:
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
-    sched = Schedule()
-    with engine("app", s).connect() as lock_conn:
-        while not stop.is_set():
-            _heartbeat["t"] = time.time()
-            metrics.WORKER_HEARTBEAT.set(time.time())
-            leader = bool(
-                lock_conn.execute(text("SELECT pg_try_advisory_lock(:k)"), {"k": LOCK_KEY}).scalar()
-            )
-            lock_conn.commit()
-            metrics.WORKER_LEADER.set(1 if leader else 0)
-            if not leader:
-                stop.wait(10)
-                continue
-            while not stop.is_set():
-                _heartbeat["t"] = time.time()
-                metrics.WORKER_HEARTBEAT.set(time.time())
-                try:
-                    n = tick(s, sched, time.monotonic())
-                except Exception:
-                    log.exception("worker tick failed")
-                    n = 0
-                stop.wait(1 if n else 5)
+    run_loop(s, stop)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,23 @@
+# tsl organisation file for the HOSTED test environment on Render (deploy/render/README.md step E,
+# ADR 0006). Not secret. Copy to deploy/render/tsl-org.github.toml (git-ignored) and replace the
+# two placeholders. Testers install tsl with it (Windows PowerShell, from the repository root):
+#
+#   $env:TSL_ORG_FILE = "$PWD\deploy\render\tsl-org.github.toml"
+#   uv tool install --python 3.12 --reinstall --no-cache .\tsl
+#   Remove-Item Env:TSL_ORG_FILE
+#
+# --reinstall --no-cache make uv rebuild the wheel, so the build hook (tsl/hatch_build.py) bakes
+# this file in; a cached build would keep the placeholder file. Do not use --editable here.
+configured = true
+provider = "github"
+# Client ID of the GitHub OAuth App (public; the client secret goes only to Render).
+github_client_id = "REPLACE-WITH-OAUTH-APP-CLIENT-ID"
+github_oauth_url = "https://github.com"
+github_api_url = "https://api.github.com"
+# The Render service URL, the same value as PUBLIC_BASE_URL. Example placeholder:
+service_url = "https://truminds-skills-test.onrender.com"
+companion_remote_template = "git@github.com:{repo}.git"
+# Entra values are unused when provider = "github"; placeholders keep the file shape identical.
+tenant_id = "00000000-0000-0000-0000-000000000000"
+tsl_client_id = "00000000-0000-0000-0000-000000000000"
+api_scope = "api://truminds-insights/Events.Write"

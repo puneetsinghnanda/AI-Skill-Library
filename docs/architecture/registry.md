@@ -213,7 +213,7 @@ Old names are **not** kept as hidden aliases: SDD-04 §1.3 forbids hidden comman
 
 ## 4. HTTP endpoints
 
-All routes are served by the insights service (SDD-08 layout, `app.main:app`). Every route except the OTLP paths and the internal `/metrics` port is in the committed `openapi.json`. **Scope** is the Entra delegated scope of the token (SDD-07 §9), or another credential. **Roles** are `role_grants` roles (SDD-07 §3.3) unless marked "app role". The audience of every Entra token is the `truminds-insights-api` application (client) ID (v2 tokens).
+All routes are served by the insights service (SDD-08 layout, `app.main:app`). Every route except the OTLP paths, the internal `/metrics` port and the platform probes `/healthz` and `/readyz` (hosted test environment, [deploy/render](../../deploy/render/README.md)) is in the committed `openapi.json`. **Scope** is the Entra delegated scope of the token (SDD-07 §9), or another credential. **Roles** are `role_grants` roles (SDD-07 §3.3) unless marked "app role". The audience of every Entra token is the `truminds-insights-api` application (client) ID (v2 tokens).
 
 | Method | Path | Auth scope / credential | Roles | Owning doc |
 | --- | --- | --- | --- | --- |
@@ -231,6 +231,7 @@ All routes are served by the insights service (SDD-08 layout, `app.main:app`). E
 | GET | `/v1/policy/denylist` | `Events.Write` or CI ingest token | Any | SEC-01 §7.4 |
 | GET | `/v1/health` | none | — | SDD-08 §3.1 |
 | GET | `/v1/health/ready` | none | — | SDD-08 §11.1 |
+| GET | `/healthz`, `/readyz` | none | — | Platform probes for the hosted test environment; `/readyz` answers ok or fail only (not in `openapi.json`) |
 | GET | `/v1/status` | `Portal.Read` | Any | SDD-09 E02 |
 | GET | `/v1/catalogue/summary` | `Portal.Read` | Any (class A) | SDD-09 E03 |
 | GET | `/v1/catalogue/skills` | `Portal.Read` | Any (class A) | SDD-09 E04 |

@@ -1,0 +1,19 @@
+# BuildKit uses this file for deploy/render/Dockerfile (context = repository root).
+# Keep local builds, caches and secrets out of the image context.
+**/node_modules
+**/.venv
+**/__pycache__
+**/.mypy_cache
+**/.ruff_cache
+**/.pytest_cache
+portal/dist
+portal/dist-demo
+portal/test-results
+portal/playwright-report
+**/.env
+**/.env.*
+!**/.env.example
+deploy/compose/test-secrets
+deploy/compose/env/*.env
+deploy/*.toml
+.git

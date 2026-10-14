@@ -3,11 +3,18 @@
 Every value comes from an environment variable. Secrets are read only from files named by a
 ``*_FILE`` variable (OPS-01 §7.2), never from the variable itself. Open policy decisions RD-1 to
 RD-4 (registry §11) are configuration values here, not code.
+
+Hosted test environment (deploy/render/README.md, ADR 0006 addendum): a platform such as Render
+gives secrets only as environment variables and the database as one URL. There, ``DATABASE_URL``,
+``DATA_KEY``, ``PSEUDONYM_PEPPER`` and ``DB_ROLE_PASSWORD_KEY`` are accepted as values. Production
+refuses them (``check_hosting``), so production keeps the file-only rule.
 """
 
 from __future__ import annotations
 
 import base64
+import hashlib
+import hmac
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
@@ -72,11 +79,28 @@ class Settings(BaseSettings):
     database_read_password_file: Path | None = None
     database_reveal_password_file: Path | None = None
     database_pool_size: int = 5
+    # Hosted test environment only (refused when ENV=prod). One owner URL, for example Neon's direct
+    # connection string. The runtime roles log in with passwords derived from DB_ROLE_PASSWORD_KEY.
+    database_url_value: SecretStr | None = Field(
+        default=None, validation_alias=AliasChoices("DATABASE_URL", "database_url_value")
+    )
+    database_url_migrations: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("DATABASE_URL_MIGRATIONS", "database_url_migrations"),
+    )
+    db_role_password_key: SecretStr | None = None
     read_statement_timeout_ms: int = 5000
 
     # --- Secrets (SDD-08 §8.1, §9.2) ---
     pseudonym_pepper_file: Path | None = None
     data_key_file: Path | None = None
+    # Hosted test environment only (refused when ENV=prod): the same secrets as values.
+    pseudonym_pepper_value: SecretStr | None = Field(
+        default=None, validation_alias=AliasChoices("PSEUDONYM_PEPPER", "pseudonym_pepper_value")
+    )
+    data_key_value: SecretStr | None = Field(
+        default=None, validation_alias=AliasChoices("DATA_KEY", "data_key_value")
+    )
     data_key_id: str = "dk-1"
 
     # --- Schemas and catalogue ---
@@ -122,6 +146,13 @@ class Settings(BaseSettings):
         False  # SDD-09 §10 (api serves portal/dist) vs OPS-01 §2 (portal container)
     )
     portal_dist_dir: Path = Path("/app/portal")
+    # Setting SERVE_PORTAL_DIR serves the built portal from that folder (same as SERVE_PORTAL=true
+    # with PORTAL_DIST_DIR). Used by the hosted test environment.
+    serve_portal_dir: Path | None = None
+    # Hosted test environment: GitHub webhooks registered at start, "HOOK_ID:org[/repo],..."
+    # (the secret is GITHUB_WEBHOOK_SECRET). Replaces `admin hook create` where there is no shell.
+    github_webhook_hooks: Annotated[tuple[str, ...], NoDecode] = ()
+    github_webhook_secret: SecretStr | None = None
     companion_url_base: str = "https://github.com"
     view_refresh_interval_s: int = 300
 
@@ -135,7 +166,12 @@ class Settings(BaseSettings):
             )
         return v
 
-    @field_validator("rd1_name_reveal_roles", "bootstrap_admin_github_logins", mode="before")
+    @field_validator(
+        "rd1_name_reveal_roles",
+        "bootstrap_admin_github_logins",
+        "github_webhook_hooks",
+        mode="before",
+    )
     @classmethod
     def _split(cls, v: object) -> object:
         if isinstance(v, str):
@@ -158,6 +194,13 @@ class Settings(BaseSettings):
             f"{self.entra_authority_host}/{self.entra_tenant_id}/discovery/v2.0/keys"
         )
 
+    @property
+    def portal_dir(self) -> Path | None:
+        """The built portal to serve, or None when this service does not serve it."""
+        if self.serve_portal_dir is not None:
+            return self.serve_portal_dir
+        return self.portal_dist_dir if self.serve_portal else None
+
     def database_url(self, role: Literal["owner", "app", "read", "reveal"]) -> str:
         user = {
             "owner": self.database_owner_user,
@@ -165,6 +208,11 @@ class Settings(BaseSettings):
             "read": self.database_read_user,
             "reveal": self.database_reveal_user,
         }[role]
+        if self.database_url_value is not None:
+            return hosted_database_url(
+                self.database_url_value.get_secret_value(),
+                None if role == "owner" else (user, self.role_password(role)),
+            )
         pw_file = {
             "owner": self.database_owner_password_file,
             "app": self.database_app_password_file,
@@ -187,6 +235,40 @@ class Settings(BaseSettings):
         )
         return url.render_as_string(hide_password=False)
 
+    def migrations_url(self) -> str:
+        """Owner URL for Alembic: DATABASE_URL_MIGRATIONS when set, else the owner URL."""
+        if self.database_url_migrations is not None:
+            return hosted_database_url(self.database_url_migrations.get_secret_value(), None)
+        return self.database_url("owner")
+
+    def role_password(self, role: Literal["app", "read", "reveal"]) -> str:
+        """Login password of a runtime role in the hosted test environment (HMAC of the key)."""
+        if self.db_role_password_key is None:
+            raise RuntimeError("DATABASE_URL needs DB_ROLE_PASSWORD_KEY for the runtime roles")
+        key = self.db_role_password_key.get_secret_value().encode()
+        if len(key) < 32:
+            raise RuntimeError("DB_ROLE_PASSWORD_KEY must hold at least 32 characters")
+        return hmac.new(key, f"insights-db-role:{role}".encode(), hashlib.sha256).hexdigest()
+
+    def check_hosting(self) -> None:
+        """Value secrets and a database URL are for the hosted test environment only."""
+        values = {
+            "DATABASE_URL": self.database_url_value,
+            "DATABASE_URL_MIGRATIONS": self.database_url_migrations,
+            "DB_ROLE_PASSWORD_KEY": self.db_role_password_key,
+            "PSEUDONYM_PEPPER": self.pseudonym_pepper_value,
+            "DATA_KEY": self.data_key_value,
+        }
+        given = sorted(k for k, v in values.items() if v is not None)
+        if given and self.env == "prod":
+            raise RuntimeError(
+                f"{', '.join(given)}: secrets as variables are for the test phase only; "
+                "production reads secrets from *_FILE (OPS-01 §7.2)"
+            )
+        if self.database_url_value is not None:
+            hosted_database_url(self.database_url_value.get_secret_value(), None)
+            self.role_password("app")
+
     def github_secret(self) -> str:
         if self.github_client_secret_file:
             return read_secret(self.github_client_secret_file)
@@ -203,20 +285,65 @@ class Settings(BaseSettings):
                 raise RuntimeError("IDENTITY_PROVIDER=github needs GITHUB_CLIENT_ID")
 
     def pepper(self) -> bytes:
-        if not self.pseudonym_pepper_file:
+        if self.pseudonym_pepper_file:
+            raw = read_secret(self.pseudonym_pepper_file).encode()
+        elif self.pseudonym_pepper_value is not None:
+            raw = self.pseudonym_pepper_value.get_secret_value().strip().encode()
+        else:
             raise RuntimeError("PSEUDONYM_PEPPER_FILE is not set")
-        raw = read_secret(self.pseudonym_pepper_file).encode()
         if len(raw) < 32:
             raise RuntimeError("pseudonym pepper must hold at least 32 bytes")
         return raw
 
     def data_key(self) -> bytes:
-        if not self.data_key_file:
+        if self.data_key_file:
+            key = base64.b64decode(read_secret(self.data_key_file))
+        elif self.data_key_value is not None:
+            key = base64.b64decode(self.data_key_value.get_secret_value().strip())
+        else:
             raise RuntimeError("DATA_KEY_FILE is not set")
-        key = base64.b64decode(read_secret(self.data_key_file))
         if len(key) != 32:
             raise RuntimeError("DATA_KEY_FILE must hold 32 bytes, base64")
         return key
+
+
+INSECURE_SSLMODES = frozenset({"disable", "allow", "prefer"})
+
+
+def hosted_database_url(raw: str, login: tuple[str, str] | None) -> str:
+    """A hosted ``postgresql://`` URL (for example Neon's) as a SQLAlchemy psycopg URL.
+
+    ``login`` replaces the user and password (the runtime roles); query options such as
+    ``sslmode=require`` and ``channel_binding=require`` are kept. Refused: a non-PostgreSQL URL, a
+    remote host without TLS, and Neon's pooled endpoint, because the service relies on session
+    state (advisory lock, statement timeout) that a transaction pooler does not keep.
+    """
+    from sqlalchemy.engine import make_url
+    from sqlalchemy.exc import ArgumentError
+
+    raw = raw.strip()
+    if raw.startswith("postgres://"):  # the short scheme some providers print
+        raw = "postgresql://" + raw[len("postgres://") :]
+    try:
+        url = make_url(raw)
+    except ArgumentError:
+        raise RuntimeError("DATABASE_URL is not a valid database URL") from None
+    if url.get_backend_name() != "postgresql":
+        raise RuntimeError("DATABASE_URL must be a postgresql:// URL")
+    host = url.host or ""
+    if not host or not url.database:
+        raise RuntimeError("DATABASE_URL needs a host and a database name")
+    if "-pooler." in host:
+        raise RuntimeError(
+            "DATABASE_URL is Neon's pooled endpoint (-pooler); use the direct connection string"
+        )
+    local = host in ("localhost", "127.0.0.1", "::1")
+    if not local and str(url.query.get("sslmode", "prefer")) in INSECURE_SSLMODES:
+        raise RuntimeError("DATABASE_URL must use TLS: add ?sslmode=require (or verify-full)")
+    url = url.set(drivername="postgresql+psycopg")
+    if login is not None:
+        url = url.set(username=login[0], password=login[1])
+    return url.render_as_string(hide_password=False)
 
 
 def read_secret(path: Path) -> str:

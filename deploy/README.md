@@ -22,6 +22,8 @@ deploy/
 ├─ scripts/test-env-secrets.sh    # test environment: generate DB passwords, pepper, data key
 ├─ systemd/                       # truminds-secrets.service, truminds-insights.service
 ├─ test-org.github.toml.example   # tsl org file for the GitHub test build (TSL_ORG_FILE)
+├─ render/                        # HOSTED TEST ENVIRONMENT on Render + Neon (README, Dockerfile, tsl org file);
+│                                 #   the Blueprint is render.yaml at the repository root
 └─ tests/                         # static checks, compose validation, live edge allowlist test
 ```
 
@@ -96,6 +98,8 @@ The suite covers:
 - A live nginx run against a stub upstream that checks intranet routing and the E1 allowlist. It is skipped when nginx is not installed.
 
 ## Run the test environment on one machine for 6 testers
+
+The testers' environment is hosted on Render + Neon: follow [render/README.md](render/README.md). The one-machine set-up below stays as the alternative for a machine inside the network.
 
 Interim set-up for the test phase while the Entra app registrations are pending ([ADR 0006](../docs/adr/0006-interim-github-sign-in-for-test-phase.md)). It signs people in with GitHub instead of Entra. **It is for the test phase only:** the service refuses `IDENTITY_PROVIDER=github` with `ENV=prod`, and production stays on Entra (`compose.prod.yml`). Everything below is on one Linux machine with Docker Engine and Compose v2. Put Docker's data root on an encrypted disk (the database volume lives there).
 

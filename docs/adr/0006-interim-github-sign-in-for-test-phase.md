@@ -47,3 +47,17 @@ Switch to Entra when IT delivers the three app registrations and their app roles
 - A `tsl` wheel built for GitHub cannot talk to an Entra service and the reverse; testers reinstall `tsl` at the switch.
 - With a plain `http://` test URL, tokens and the session cookie cross the network unencrypted and the cookie cannot be `Secure`. Use HTTPS on the test host when possible.
 - Documents updated: SDD-07 §1.4 and §9, SDD-08 §9.1, SDD-09 §3.4.1, registry §2, §4, §4.1, TST-02 Phase C, the traceability matrix.
+
+## Addendum: hosting the test environment on Render + Neon
+
+Decided by Puneet Singh Nanda. Set-up: [deploy/render/README.md](../../deploy/render/README.md).
+
+- **What:** the test environment runs as one free Render web service (`render.yaml`, `deploy/render/Dockerfile`, `python -m app.entry allinone`), with PostgreSQL on Neon. Skills, Claude Code, `tsl` and every harness decision stay on testers' laptops; GitHub keeps the repos, PRs, CI, lead approval and webhooks.
+- **Org rules flagged:** the environment is on the public internet, not on the intranet, and its secrets are platform environment variables rather than files from the company secret store (OPS-01 §7.2). Both are accepted for the test phase only, under these guard rails:
+  - The service refuses `DATABASE_URL`, `DATA_KEY`, `PSEUDONYM_PEPPER` and `DB_ROLE_PASSWORD_KEY` as values when `ENV=prod`, as it refuses `IDENTITY_PROVIDER=github`.
+  - HTTPS end to end: Render's TLS plus HSTS, and `sslmode=require` to Neon. Neon encrypts data at rest.
+  - The API connects as the least-privilege roles, never as the owner. Their passwords are derived from a generated key and set at start.
+  - There is no shell, no admin route and no debug endpoint. `/metrics` is not served publicly, and `/readyz` answers only ok or fail.
+  - Invented data only. No client repository, webhook or CI is ever pointed at it.
+- **Exit:** at the Entra switch (above), also delete the Render service and the Neon project, and remove Render's access to the repository.
+

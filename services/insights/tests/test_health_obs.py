@@ -92,7 +92,8 @@ def test_openapi_covers_registry_and_is_committed(app: Any) -> None:
     expected = set()
     for m in re.finditer(r"^\| (GET|POST|PATCH) \| `([^`]+)`", section, re.M):
         p = m.group(2).split("?")[0]
-        if p.startswith("/otel/") or p.startswith("/metrics"):
+        # protocol paths, the internal metrics port and the platform probes are not in OpenAPI
+        if p.startswith(("/otel/", "/metrics", "/healthz", "/readyz")):
             assert p not in paths
             continue
         expected.add(re.sub(r"\{[^}]+\}", "{}", p))

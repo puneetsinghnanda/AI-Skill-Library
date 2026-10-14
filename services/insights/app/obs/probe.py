@@ -40,7 +40,8 @@ def readiness(s: Settings, validator: EntraValidator | None) -> tuple[bool, dict
         checks["secrets"] = "ok"
     except Exception:
         checks["secrets"] = "fail"
-    checks["jwks"] = "ok" if validator is not None and validator.refresh() else "fail"
-    if s.serve_portal:
-        checks["static"] = "ok" if (s.portal_dist_dir / "index.html").exists() else "fail"
+    if s.identity_provider == "entra":  # GitHub sign-in (ADR 0006) has no JWKS
+        checks["jwks"] = "ok" if validator is not None and validator.refresh() else "fail"
+    if s.portal_dir is not None:
+        checks["static"] = "ok" if (s.portal_dir / "index.html").exists() else "fail"
     return all(v == "ok" for v in checks.values()), checks

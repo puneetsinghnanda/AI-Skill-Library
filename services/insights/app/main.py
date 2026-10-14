@@ -1,7 +1,8 @@
 """``create_app()``: routers, middleware, error handling (SDD-08 §3.1).
 
-Every route is in the published OpenAPI file except the OTLP paths (protocol-defined) and
-``/metrics`` on the internal port. There are no admin, debug or bypass routes.
+Every route is in the published OpenAPI file except the OTLP paths (protocol-defined),
+``/metrics`` on the internal port, the platform probes ``/healthz`` and ``/readyz``, and the built
+portal when this service serves it. There are no admin, debug or bypass routes.
 """
 
 from __future__ import annotations
@@ -45,19 +46,53 @@ from app.obs import logging as obslog
 from app.obs import metrics
 
 log = logging.getLogger("insights.api")
-# Headers for the SPA shell when this service serves the portal itself (SERVE_PORTAL=true, e.g. the
-# one-machine test environment). Same CSP as portal/nginx.conf without the Entra login host.
+# Security headers for the portal when this service serves it itself (SERVE_PORTAL_DIR; the hosted
+# and one-machine test environments). The same set as portal/nginx.conf; the CSP drops the Entra
+# login host when the portal signs in with GitHub.
 PORTAL_HEADERS = {
-    "Cache-Control": "no-cache",
-    "Content-Security-Policy": (
-        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
-        "font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; "
-        "form-action 'self'"
-    ),
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
     "X-Frame-Options": "DENY",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Cross-Origin-Resource-Policy": "same-origin",
 }
+ENTRA_LOGIN = "https://login.microsoftonline.com"
+# Paths the SPA fallback never answers: the API, sign-in, OTLP, metrics and the probes.
+NOT_PORTAL = ("/v1", "/auth", "/otel", "/metrics", "/healthz", "/readyz")
+PORTAL_ROUTES_UNDER_AUTH = frozenset({"/auth/callback"})  # MSAL redirect, a portal route
+
+
+def portal_csp(provider: str) -> str:
+    login = f" {ENTRA_LOGIN}" if provider == "entra" else ""
+    frame = f"frame-src {ENTRA_LOGIN}; " if provider == "entra" else ""
+    return (
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; "
+        f"font-src 'self'; connect-src 'self'{login}; {frame}frame-ancestors 'none'; "
+        "base-uri 'self'; form-action 'self'"
+    )
+
+
+def is_portal_path(path: str) -> bool:
+    """True for paths the portal owns; False for API, sign-in, OTLP, metrics and probe paths."""
+    if path in PORTAL_ROUTES_UNDER_AUTH:
+        return True
+    return not any(path == p or path.startswith(p + "/") for p in NOT_PORTAL)
+
+
+def portal_cache_control(path: str) -> str:
+    if path.startswith("/assets/"):
+        return "public, max-age=31536000, immutable"
+    if path.startswith("/brand/"):
+        return "public, max-age=3600"
+    return "no-cache"
+
+
+def _blocked_static(path: str) -> bool:
+    """No dotfiles, source maps or the demo-only MSW worker (as portal/nginx.conf)."""
+    return "/." in path or path.endswith(".map") or path == "/mockServiceWorker.js"
+
+
 READ_PREFIXES = metrics.READ_PREFIXES
 
 
@@ -86,6 +121,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url=None,
     )
     s.check_identity()
+    s.check_hosting()
+    portal_dir = s.portal_dir
+    csp = portal_csp(s.identity_provider)
+    hsts = s.public_base_url.lower().startswith("https://")
     app.state.settings = s
     app.state.entra = EntraValidator(s)
     app.state.github = GitHubValidator(s)
@@ -101,12 +140,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request.state.request_id = rid
         request.state.caller = "anonymous"
         t0 = time.perf_counter()
-        response = await call_next(request)
+        path = request.url.path
+        if portal_dir is not None and is_portal_path(path) and _blocked_static(path):
+            response: Response = _problem(request, ServiceError("E-API-04", "Not found"))
+        else:
+            response = await call_next(request)
         dt = time.perf_counter() - t0
         route = request.scope.get("route")
         template = getattr(route, "path", "unmatched")
         metrics.observe(template, request.method, response.status_code, dt)
         response.headers["X-Request-ID"] = rid
+        if portal_dir is not None:
+            if is_portal_path(path):
+                response.headers.update(PORTAL_HEADERS)
+                response.headers["Content-Security-Policy"] = csp
+                response.headers["Cache-Control"] = portal_cache_control(path)
+            else:
+                response.headers.setdefault("X-Content-Type-Options", "nosniff")
+                response.headers.setdefault("Referrer-Policy", "no-referrer")
+            if hsts:
+                response.headers["Strict-Transport-Security"] = "max-age=31536000"
         if template.startswith(READ_PREFIXES) and request.method == "GET":
             response.headers.setdefault("Cache-Control", "private, max-age=60")
         log.info(
@@ -156,14 +209,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.exception_handler(StarletteHTTPException)
     async def _http(request: Request, exc: StarletteHTTPException) -> Response:
         if exc.status_code == 404:
+            path = request.url.path
             if (
-                s.serve_portal
-                and request.method == "GET"
-                and not request.url.path.startswith(("/v1/", "/otel/"))
+                portal_dir is not None
+                and request.method in ("GET", "HEAD")
+                and is_portal_path(path)
+                and not _blocked_static(path)
+                and not path.startswith(("/assets/", "/brand/"))
             ):
-                index = s.portal_dist_dir / "index.html"
+                index = portal_dir / "index.html"
                 if index.exists():
-                    return FileResponse(index, headers=PORTAL_HEADERS)
+                    return FileResponse(index)
             return _problem(request, ServiceError("E-API-04", "Not found"))
         if exc.status_code == 405:
             return JSONResponse({"detail": "Method not allowed"}, status_code=405)
@@ -195,17 +251,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # OTLP/HTTP paths are protocol-defined and not in the OpenAPI file (SDD-08 §9.1).
     app.include_router(otel.router, include_in_schema=False)
 
-    if s.serve_portal and s.portal_dist_dir.exists():
+    if portal_dir is not None and portal_dir.exists():
         from fastapi.staticfiles import StaticFiles
 
         app.mount(
             "/assets",
-            StaticFiles(directory=s.portal_dist_dir / "assets", check_dir=False),
+            StaticFiles(directory=portal_dir / "assets", check_dir=False),
             name="assets",
         )
         app.mount(
             "/brand",
-            StaticFiles(directory=s.portal_dist_dir / "brand", check_dir=False),
+            StaticFiles(directory=portal_dir / "brand", check_dir=False),
             name="brand",
         )
     return app
