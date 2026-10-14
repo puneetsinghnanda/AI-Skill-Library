@@ -6,7 +6,6 @@ import fnmatch
 from typing import Any
 
 from tsl.core.clock import parse_iso
-from tsl.core.config import ORG_DEFAULTS
 from tsl.core.hashing import sha256_file, sha256_raw
 from tsl.core.jsonio import read_json
 from tsl.core.repo import Companion
@@ -75,7 +74,7 @@ def status(rt: Runtime, comp: Companion, fetch: bool = True) -> dict[str, Any]:
                 reasons.append("edited_after_sign")
                 break
     cfg = comp.config
-    max_behind = int(ORG_DEFAULTS["context"]["max_commits_behind"])
+    max_behind = cfg.max_commits_behind
     max_drift = int(cfg.ctx("drift_files"))
     critical = list(cfg.ctx("critical_paths"))
     for repo in cfg.product_repos:

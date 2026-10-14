@@ -133,7 +133,7 @@ How an output binds to a later input was the main gap in Q3. **Decision: bind by
 | --- | --- | --- |
 | `<step>.<output>` | `impact: impact.impact` | The latest attempt of step `impact` with outcome PASS or PASS-WITH-FINDINGS, or accepted at a gate. Its output `impact` (from its `skill-metadata.v1`) |
 | `run.ticket` | `ticket: run.ticket` | The ticket reference. The skill reads it through the Jira MCP read tools |
-| `context.<section>` | `baseline: context.intent-baseline` | A context-pack section (SDD-06) |
+| `context.<section>` | `intent_baseline: context.intent-baseline` | A context-pack section (SDD-06) |
 | `answers` | (implicit) | `open-questions.md` of the run, when the step was paused for input (§9) |
 | `feedback` | (implicit) | The feedback file of the previous attempt, on a retry (§8.2) |
 
@@ -238,8 +238,8 @@ defaults:
   max_rework: 2
 steps:
   - id: req
-    skill: requirement-review@^1.2
-    inputs: {ticket: run.ticket, baseline: context.intent-baseline}
+    skill: requirement-review@^1.0
+    inputs: {ticket: run.ticket, intent_baseline: context.intent-baseline}
   - id: split
     skill: story-split@^1.0
     after: [req]

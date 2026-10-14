@@ -18,6 +18,12 @@ ORG_DEFAULTS: dict[str, Any] = {
         "drift_files": 50,
         "max_commits_behind": 50,
         "critical_paths": [],
+        # SDD-06 §7.2, §8: pack size limits; a system may only lower them
+        "limits": {"section_tokens": 8000, "judgement_tokens": 40000, "generated_file_bytes": 2097152},
+        # SDD-06 §5.2: None means the extractor's built-in globs
+        "extractors": {"migrations": None, "tests": None},
+        # SDD-06 §9.1, §9.4: additions to the never-read list; hashes of terms to mask
+        "redaction": {"extra_exclude": [], "deny_term_hashes": []},
     },
     "change_limits": {
         "lines": 400,
@@ -93,6 +99,31 @@ class TslConfig(BaseModel):
     def ctx(self, key: str) -> Any:
         return self.context.get(key, ORG_DEFAULTS["context"][key])
 
+    @property
+    def max_commits_behind(self) -> int:
+        """F5 limit (SDD-06 §7.1): the system value, never looser than the org default."""
+        org = int(ORG_DEFAULTS["context"]["max_commits_behind"])
+        return min(org, int(self.context.get("max_commits_behind", org)))
+
+    def pack_limits(self) -> dict[str, int]:
+        """Effective SDD-06 §8 limits after tsl.yaml overrides (tighten only)."""
+        org: dict[str, int] = ORG_DEFAULTS["context"]["limits"]
+        own = self.context.get("limits") or {}
+        return {k: min(int(v), int(own.get(k, v))) for k, v in org.items()}
+
+    def extractor_globs(self, kind: str) -> list[str] | None:
+        """`context.extractors.<kind>` globs (SDD-06 §5.2); None = extractor default."""
+        got = (self.context.get("extractors") or {}).get(kind)
+        return list(got) if got else None
+
+    @property
+    def extra_exclude(self) -> list[str]:
+        return list((self.context.get("redaction") or {}).get("extra_exclude") or [])
+
+    @property
+    def deny_term_hashes(self) -> frozenset[str]:
+        return frozenset((self.context.get("redaction") or {}).get("deny_term_hashes") or [])
+
     def limits(self) -> dict[str, Any]:
         base = copy.deepcopy(ORG_DEFAULTS["change_limits"])
         own = self.change_limits
@@ -155,6 +186,14 @@ def load_config(path: Path) -> tuple[TslConfig, list[dict[str, str]]]:
     if "endpoint" in (data.get("telemetry") or {}):
         warnings.append(
             {"code": "E-DEP-01", "message": "tsl.yaml telemetry.endpoint is deprecated and ignored"}
+        )
+    if "max_age_days" in (data.get("context") or {}):
+        warnings.append(
+            {
+                "code": "E-DEP-01",
+                "message": "tsl.yaml context.max_age_days is deprecated and ignored; "
+                "use context.max_commits_behind (SDD-06 §7.2)",
+            }
         )
     return TslConfig.model_validate(data), warnings
 

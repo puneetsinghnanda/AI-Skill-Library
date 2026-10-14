@@ -285,9 +285,10 @@ deprecated_by: null               # NEW; skill id@version, required when status 
 | --- | --- | --- |
 | Skill id | Verb-noun or noun-noun, kebab-case, no role or client prefix | `requirement-review`, `story-split`, `threat-model` |
 | Artifact schema | `<noun>.v<N>` | `intent.v1`, `stories.v1` |
-| Check id | `<SKILLCODE>-C<nn>` | `RR-C03` |
-| Rubric criterion | `<SKILLCODE>-R<n>` | `RR-R2` |
-| Eval case | `EC-<nn>` | `EC-07` |
+| Check id | `<SKILLCODE>-C<nn>` in the library form (§9); `<skill-id>.<check-name>` in the SDD-03 §5.3 kind form | `RR-C03`, `design.modules-exist` |
+| Rubric criterion | `<SKILLCODE>-R<n>` (schema `rubric.v1`; SDD-03 uses the same ids) | `RR-R2` |
+| Eval case | `EC-<nn>` (schema `eval-case.v1`, folder `evals/cases/EC-nn/`) | `EC-07` |
+| Harness-accuracy case | kebab-case id (schema `harness-case.v1`, SDD-03 §16); a different series from skill eval cases | `design-planted-wrong-table-01` |
 
 Skill codes are two or three letters, unique, recorded in `skill.yaml` comments and in §12.
 
@@ -394,6 +395,15 @@ checks:
 | `with` | Parameters, validated against the library check's own schema |
 
 H4 secrets/PII, H6 staleness and H7 permitted tools run for every skill without being declared.
+
+**Two accepted forms.** `skill-checks.v1` accepts each item in one of two forms, and `tsl` runs both (`tsl/src/tsl/harness/skillchecks.py`):
+
+| Form | Keys | Id | Gate | Used by |
+| --- | --- | --- | --- | --- |
+| Library form (this section) | `uses`, `with`, and exactly one of `gate` (H1–H7) or `soft: true` | `<SKILLCODE>-C<nn>` | Any hard gate, or soft | `requirement-review` |
+| Kind form (SDD-03 §5.2, §5.3) | `kind`, `select`, `in`, `against`, `key`, `unless`, `each`, `covered_by`, `link`, `min`, … | `<skill-id>.<check-name>` | `H2`, `H5` or `soft` (default `soft`) | The other Release-1 skills |
+
+Neither form replaces the other; a skill may mix them. A new library check or a new kind is a `tsl` change reviewed by the harness owners.
 
 ## 10. Eval format
 

@@ -1,0 +1,13 @@
+{
+  "schema": "companion-archive.v1",
+  "system": "SYS-SMP",
+  "last_commit": "86f7e437faa5a7fce15d1ddcb9eaeaea377667b8",
+  "runs": 0,
+  "records": 0,
+  "records_sha256": "62c66a7a5dd70c3146618063c344e531e6d4b59e379808443ce962b3abd63c5a",
+  "reason_code": "consent_withdrawn",
+  "archived_by": "adm-3c9e",
+  "archived_at": "2026-01-02T08:00:00Z",
+  "key_id": "key_01JD4E5F6G7H8J9KMNPQRSTVWX",
+  "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+}

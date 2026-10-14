@@ -1,0 +1,77 @@
+# Deployment baseline (OPS-01) and monitoring as code (OPS-02): static checks, compose validation,
+# live nginx edge allowlist, promtool rule checks and unit tests, runbook anchors (TC-OPS-*).
+name: ci-deploy-ops
+
+on:
+  pull_request:
+    paths:
+      - "deploy/**"
+      - "ops/**"
+      - "services/insights/app/obs/**"
+      - "docs/operations/OPS-04-failure-runbook.md"
+      - "docs/architecture/registry.md"
+      - ".github/workflows/ci-deploy-ops.yml"
+  push:
+    branches: [main]
+    paths:
+      - "deploy/**"
+      - "ops/**"
+      - "services/insights/app/obs/**"
+      - "docs/operations/OPS-04-failure-runbook.md"
+      - "docs/architecture/registry.md"
+      - ".github/workflows/ci-deploy-ops.yml"
+  workflow_call: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-deploy-ops-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PROMETHEUS_VERSION: "2.53.4"
+  PROMETHEUS_SHA256: b8b497c4610d1b93208252b60c8f20f6b2e78596ae8df43397a2e805aa53d475
+  BLACKBOX_VERSION: "0.25.0"
+  BLACKBOX_SHA256: c651ced6405c5e0cd292a400f47ae9b34f431f16c7bb098afbcd38f710144640
+
+jobs:
+  deploy-ops:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
+      - name: Insights venv (the suites import its metrics module)
+        working-directory: services/insights
+        run: uv sync --locked --python 3.12
+      - name: Tools (nginx from the OS; promtool and blackbox_exporter pinned by checksum)
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq nginx-light
+          cd "$RUNNER_TEMP"
+          curl -fsSLo prom.tgz "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz"
+          echo "${PROMETHEUS_SHA256}  prom.tgz" | sha256sum -c -
+          curl -fsSLo bb.tgz "https://github.com/prometheus/blackbox_exporter/releases/download/v${BLACKBOX_VERSION}/blackbox_exporter-${BLACKBOX_VERSION}.linux-amd64.tar.gz"
+          echo "${BLACKBOX_SHA256}  bb.tgz" | sha256sum -c -
+          tar xzf prom.tgz --strip-components=1 "prometheus-${PROMETHEUS_VERSION}.linux-amd64/promtool"
+          tar xzf bb.tgz --strip-components=1 "blackbox_exporter-${BLACKBOX_VERSION}.linux-amd64/blackbox_exporter"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: Lint
+        run: |
+          services/insights/.venv/bin/ruff check --config deploy/ruff.toml deploy
+          services/insights/.venv/bin/ruff check --config ops/ruff.toml ops
+      - name: Rule files and probe config
+        working-directory: ops/monitoring
+        run: |
+          promtool check rules recording.yaml alerts.yaml
+          promtool check config scrape.yaml
+          blackbox_exporter --config.check --config.file=synthetic/probe.yaml
+      - name: Deploy and monitoring tests (promtool unit tests included)
+        env:
+          PROMTOOL_UNIT: "1"
+          NGINX_BIN: /usr/sbin/nginx
+        run: |
+          PROMTOOL="$(command -v promtool)"
+          export PROMTOOL
+          services/insights/.venv/bin/python -m pytest -q deploy/tests ops/monitoring/tests

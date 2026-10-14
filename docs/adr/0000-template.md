@@ -1,6 +1,6 @@
 # NNNN · <Decision title>
 
-- **Status:** Proposed | Accepted | Superseded by NNNN
+- **Status:** Proposed | Accepted | Rejected | Superseded by NNNN
 - **Date:** YYYY-MM-DD
 - **Deciders:** Puneet Singh Nanda (approver), <owners>
 - **Related:** <docs, OQ ids, issues>

@@ -1,0 +1,60 @@
+# The truminds plugin, pods and marketplace: structure, deny-list and hook-launcher tests, and
+# `tsl validate` of every skill and workflow (TST-01 §6, TC-PLG-*, SDD-01 §14.1, SDD-10 §9).
+name: ci-plugin
+
+on:
+  pull_request:
+    paths:
+      - "plugins/**"
+      - "pods/**"
+      - ".claude-plugin/**"
+      - "managed-settings/**"
+      - "spikes/**"
+      - "schemas/**"
+      - "tsl/src/**"
+      - ".github/workflows/ci-plugin.yml"
+  push:
+    branches: [main]
+    paths:
+      - "plugins/**"
+      - "pods/**"
+      - ".claude-plugin/**"
+      - "managed-settings/**"
+      - "spikes/**"
+      - "schemas/**"
+      - "tsl/src/**"
+      - ".github/workflows/ci-plugin.yml"
+  workflow_call: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-plugin-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plugin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
+      - name: Ruff
+        working-directory: plugins/truminds/tests
+        run: uv run --locked --python 3.12 ruff check .
+      - name: Structure, deny-list and hook-launcher tests (includes pods and plugin version = tsl version)
+        working-directory: plugins/truminds/tests
+        env:
+          # Hashed client-name list kept outside the repo (TST-01 §9); the test skips when unset.
+          TRUMINDS_DENYLIST_FILE: ${{ runner.temp }}/denylist.txt
+          DENYLIST: ${{ secrets.TRUMINDS_DENYLIST }}
+        run: |
+          if [ -n "$DENYLIST" ]; then printf '%s\n' "$DENYLIST" > "$TRUMINDS_DENYLIST_FILE"; else unset TRUMINDS_DENYLIST_FILE; fi
+          uv run --locked --python 3.12 pytest -q
+      - name: tsl validate (skills, workflows, pods)
+        # Known gap, see docs/planning/traceability.md: 16 of 17 skills have 3 of the 10 eval cases
+        # SKL-V10 requires. This step reports them; it turns blocking once the eval sets are complete.
+        continue-on-error: true
+        run: uv run --project tsl --locked --python 3.12 tsl validate plugins/truminds

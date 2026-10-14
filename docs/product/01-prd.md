@@ -159,7 +159,7 @@ Each requirement states what must be true; exact formats are in document 5 and a
 | ID | Requirement | Pri | Stories |
 | --- | --- | --- | --- |
 | FR-CTX-01 | `tsl context build` extracts facts from the product repo into the companion repo; the tech lead adds judgement and signs | P0 | US-06 |
-| FR-CTX-02 | A context pack is fresh only if its facts match the product repo's current commit and its judgement files were verified within 90 days | P0 | US-06 |
+| FR-CTX-02 | A context pack is fresh only if it is signed and unchanged since signing, its source commit is at most `context.max_commits_behind` commits and `context.drift_files` files behind the product repo's default branch, and no critical path changed (SDD-06 §7.1; replaces the earlier 90-day rule, limits are OQ-12) | P0 | US-06 |
 | FR-CTX-03 | Without a fresh context pack, brownfield results are capped at band Medium and labelled | P0 | US-02 |
 | FR-DOM-01 | One domain pack, for the first pilot's domain, with an eval set; domain packs are optional for every workflow | P1 | US-17 |
 
@@ -170,7 +170,7 @@ Each requirement states what must be true; exact formats are in document 5 and a
 | FR-TEL-01 | `tsl` sends run events (document 5 §5) to the telemetry service; offline events queue and send later | P0 | US-20 |
 | FR-TEL-02 | Claude Code OpenTelemetry export and a GitHub webhook feed the same service | P0 | US-19 |
 | FR-TEL-03 | Events from client systems carry metadata only, no code or artifact text | P0 | US-18 |
-| FR-POR-01 | Backstage portal: skill catalogue, run status, usage, skill performance | P0 | US-13, US-19 |
+| FR-POR-01 | Intranet portal (custom React app on the insights service, ADR 0001; was Backstage under D-15): skill catalogue, run status, usage, skill performance | P0 | US-13, US-19 |
 | FR-POR-02 | Capability map (read-only) for Sales | P1 | US-17 |
 | FR-IMP-01 | A weekly code job produces an improvement report per skill from telemetry | P1 | US-16 |
 | FR-IMP-02 | `/truminds:improve <skill>` lets the skill owner draft a fix from the report; `/truminds:eval <skill>` runs evals locally and signs the results | P1 | US-15, US-16 |
@@ -252,21 +252,21 @@ Every decision below was made by the owner; a change requires a new row, never a
 
 Each question has no default; the gate it blocks cannot pass until it is answered.
 
-| ID | Question | Blocks |
-| --- | --- | --- |
-| OQ-01 | Who co-approves this document set for security and legal? A sole approver is a governance gap. | G0 |
-| OQ-02 | Which cloud hosts the telemetry service and Backstage portal? | G0 |
-| OQ-03 | Does the company Claude plan offer the data residency and retention terms clients require (document 6 C-07)? | Pilots on client code |
-| OQ-04 | Which three pilot teams, systems and domains? | Phase 2 |
-| OQ-05 | Who is the subject-matter expert for the first domain pack? | Phase 2 |
-| OQ-06 | What consent wording will Legal accept for client code and for storing client artifacts in companion repos? | Pilots on client code |
-| OQ-07 | Who are the stage approvers (CODEOWNERS) for each lifecycle stage? | First production promotion |
-| OQ-08 | Retention period for telemetry events where a contract does not set one | G1 |
-| OQ-09 | Confirm the proposed limits in document 3 §10 (NFRs) and §5 (harness thresholds) | G1 |
-| OQ-10 | Which GitHub org hosts companion repos: Truminds or the client's? (Doc 3 §3) | G1 |
-| OQ-11 | Sampling rate for calibration audits of High-band outcomes (Doc 3 §5.6) | G2 |
-| OQ-12 | Confirm default limits: pack age, drift, change size, stale lock (Doc 3 §6) | G1 |
-| OQ-13 | Truminds brand colours and logo for the portal (Doc 4 §6) | G2 |
-| OQ-14 | May client people (e.g. a client PO) answer open-questions files directly in the companion repo? (Doc 4 §6) | G1 |
-| OQ-15 | Intranet portal: build on Backstage, or as a custom web app on the same API? (Doc 4 §2.0) | G1 |
-| OQ-16 | Release-1 pod list and each pod's composition (Doc 4 §2.0.3) | G1 |
+| ID | Question | Blocks | Status | Closed by |
+| --- | --- | --- | --- | --- |
+| OQ-01 | Who co-approves this document set for security and legal? A sole approver is a governance gap. | G0 | Open | |
+| OQ-02 | Which cloud hosts the telemetry service and Backstage portal? | G0 | Open | |
+| OQ-03 | Does the company Claude plan offer the data residency and retention terms clients require (document 6 C-07)? | Pilots on client code | Open | |
+| OQ-04 | Which three pilot teams, systems and domains? | Phase 2 | Open | |
+| OQ-05 | Who is the subject-matter expert for the first domain pack? | Phase 2 | Open | |
+| OQ-06 | What consent wording will Legal accept for client code and for storing client artifacts in companion repos? | Pilots on client code | Open | |
+| OQ-07 | Who are the stage approvers (CODEOWNERS) for each lifecycle stage? | First production promotion | Open | |
+| OQ-08 | Retention period for telemetry events where a contract does not set one | G1 | Open | |
+| OQ-09 | Confirm the proposed limits in document 3 §10 (NFRs) and §5 (harness thresholds) | G1 | Open | |
+| OQ-10 | Which GitHub org hosts companion repos: Truminds or the client's? (Doc 3 §3) | G1 | Open | |
+| OQ-11 | Sampling rate for calibration audits of High-band outcomes (Doc 3 §5.6) | G2 | Open | |
+| OQ-12 | Confirm default limits: pack age, drift, change size, stale lock (Doc 3 §6) | G1 | Open | |
+| OQ-13 | Truminds brand colours and logo for the portal (Doc 4 §6) | G2 | Open | |
+| OQ-14 | May client people (e.g. a client PO) answer open-questions files directly in the companion repo? (Doc 4 §6) | G1 | Open | |
+| OQ-15 | Intranet portal: build on Backstage, or as a custom web app on the same API? (Doc 4 §2.0) | G1 | Closed | [ADR 0001](../adr/0001-portal-custom-react-on-fastapi.md) |
+| OQ-16 | Release-1 pod list and each pod's composition (Doc 4 §2.0.3) | G1 | Open | |

@@ -1,0 +1,34 @@
+# The single required check for branch protection (TST-01 §6): waits for every other check run on
+# the PR head that the path filters started, and fails if any of them failed. Path-filtered
+# workflows that did not start do not block.
+name: ci-required
+
+on:
+  pull_request: {}
+
+permissions:
+  checks: read
+  contents: read
+
+jobs:
+  required:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Wait for the other checks on this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          sleep 30   # let path-filtered workflows register their check runs
+          for _ in $(seq 1 110); do
+            runs="$(gh api --paginate "repos/$REPO/commits/$SHA/check-runs?per_page=100" \
+              --jq '.check_runs[] | select(.name != "required") | [.name, .status, (.conclusion // "")] | @tsv')"
+            pending="$(printf '%s\n' "$runs" | awk -F'\t' 'NF && $2 != "completed"' | wc -l)"
+            failed="$(printf '%s\n' "$runs" | awk -F'\t' 'NF && $2 == "completed" && $3 !~ /^(success|skipped|neutral)$/')"
+            if [ -n "$failed" ]; then echo "::error::failed checks:"; echo "$failed"; exit 1; fi
+            if [ "$pending" -eq 0 ]; then echo "all checks passed:"; echo "$runs"; exit 0; fi
+            echo "waiting for $pending check(s)"; sleep 30
+          done
+          echo "::error::timed out waiting for checks"; exit 1

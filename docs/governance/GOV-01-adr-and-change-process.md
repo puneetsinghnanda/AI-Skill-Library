@@ -182,6 +182,8 @@ GitHub CODEOWNERS needs GitHub usernames or teams. The GitHub org is still open 
 
 ### 5.2 `.github/CODEOWNERS`
 
+The committed file is [`.github/CODEOWNERS`](../../.github/CODEOWNERS): the block below with `<org>` set to the placeholder `truminds`, plus lines for folders added since (`pods/`, `ops/`, `deploy/`, `scripts/`, `plugins/truminds/verifiers/`). CI checks this section names: `docs-lint`, `docs-links` and `docs-approval` in `ci-docs.yml`; `secrets-scan` is `ci-security.yml`; `schemas-test` is `ci-schemas.yml`; `tsl-validate` runs in `ci-plugin.yml`.
+
 GitHub uses the **last** matching line, so the general rules come first.
 
 ```text

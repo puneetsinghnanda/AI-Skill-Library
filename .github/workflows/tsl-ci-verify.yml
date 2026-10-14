@@ -1,0 +1,108 @@
+# Reusable workflow for companion-linked product repos: re-checks a pull request's signed records
+# with `tsl ci-verify` (SDD-03 §13, Doc 5 §6.2). No LLM is called; it fails closed (E-CI-01..06).
+#
+# Caller (in the product repo, .github/workflows/tsl-ci-verify.yml):
+#
+#   on: pull_request
+#   permissions: {contents: read, pull-requests: read, checks: write}
+#   jobs:
+#     tsl-ci-verify:
+#       uses: <org>/<skill-library-repo>/.github/workflows/tsl-ci-verify.yml@v1   # OQ-10: org TBD
+#       with:
+#         companion-repo: <org>/<client>-<system>-companion
+#         tsl-version: 0.1.0
+#       secrets:
+#         companion-token: ${{ secrets.TSL_COMPANION_READ_TOKEN }}   # read-only
+#         telemetry-token: ${{ secrets.TSL_CI_TOKEN }}               # optional
+#
+# Where the action finally lives (this reusable workflow or a separate tsl-ci-verify repo) is a
+# DEV-01 §9 open item; the inputs match Doc 5 §6.2 either way.
+name: tsl-ci-verify
+
+on:
+  workflow_call:
+    inputs:
+      companion-repo:
+        description: Companion repo, owner/name (read-only access)
+        type: string
+        required: true
+      tsl-version:
+        description: tsl release to install (X.Y.Z); must match the plugin version that wrote the records' major
+        type: string
+        required: true
+      tsl-repo:
+        description: Repo that publishes the tsl wheel as a GitHub release asset (OQ-10)
+        type: string
+        default: truminds/AI-Skill-Library
+    secrets:
+      companion-token:
+        description: Read-only token for the companion repo (TSL_COMPANION_READ_TOKEN)
+        required: true
+      telemetry-token:
+        description: Optional CI ingest token for ci.verified events (TSL_CI_TOKEN)
+        required: false
+      release-token:
+        description: Optional token to download the tsl release when tsl-repo is private
+        required: false
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: write
+
+jobs:
+  tsl-ci-verify:
+    if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout product repo (PR head)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: product
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Checkout companion repo (read-only token)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: ${{ inputs.companion-repo }}
+          token: ${{ secrets.companion-token }}
+          path: companion
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
+      - name: Install tsl from its release (wheel checked against SHA256SUMS)
+        env:
+          GH_TOKEN: ${{ secrets.release-token || github.token }}
+          TSL_VERSION: ${{ inputs.tsl-version }}
+          TSL_REPO: ${{ inputs.tsl-repo }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/tsl" && cd "$RUNNER_TEMP/tsl"
+          gh release download "v${TSL_VERSION}" --repo "$TSL_REPO" --pattern '*.whl' --pattern SHA256SUMS
+          grep '\.whl$' SHA256SUMS | sha256sum -c -
+          uv tool install --python 3.12 ./truminds_tsl-"${TSL_VERSION}"-py3-none-any.whl
+          tsl --version
+      - name: Let tsl read the pull request (git credential helper over the job token)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # tsl takes the GitHub token from `git credential fill` per call and never stores it (SDD-04 §8).
+          # Single quotes on purpose: git expands GH_TOKEN when it runs the helper, so it is not written to disk.
+          # shellcheck disable=SC2016
+          git config --global credential.https://github.com.helper \
+            '!f() { test "$1" = get && echo username=x-access-token && echo "password=${GH_TOKEN}"; }; f'
+      - name: tsl ci-verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_TOKEN: ${{ secrets.telemetry-token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          args=(--pr "$PR_NUMBER" --repo "$REPO" --companion companion --product product --head "$PR_HEAD" --json)
+          if [ -n "$CI_TOKEN" ]; then
+            umask 077 && printf '%s' "$CI_TOKEN" > "$RUNNER_TEMP/ci-token"
+            args+=(--ci-token-file "$RUNNER_TEMP/ci-token")
+          fi
+          tsl ci-verify "${args[@]}"

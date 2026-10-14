@@ -18,10 +18,10 @@ defaults:
   max_rework: 2
 steps:
 - id: req
-  skill: requirement-review@^1.2
+  skill: requirement-review@^1.0
   inputs:
     ticket: run.ticket
-    baseline: context.intent-baseline
+    intent_baseline: context.intent-baseline
 - id: split
   skill: story-split@^1.0
   after:

@@ -16,7 +16,7 @@ from tsl.core.clock import FrozenClock
 from tsl.core.errors import TslError
 from tsl.core.ids import IdFactory
 from tsl.insights.client import HttpResult, InsightsUnavailable
-from tsl.telemetry.outbox import Outbox
+from tsl.telemetry.outbox import MAX_BACKOFF, Outbox
 
 BODY = {"hook": "pre-tool", "decision": "allow", "code": None}
 
@@ -71,6 +71,38 @@ def test_flush_accepted_duplicates_rejected(box: Outbox) -> None:
     assert {e["event_id"] for e in sent[0]} == set(ids)
     dead = box.events("dead")[0]
     assert dead["event_id"] == ids[2]
+
+
+def test_unknown_schema_version_stays_queued(box: Outbox) -> None:
+    # SDD-08 §4.3: E-ING-02 is "keep queued; upgrade tsl"; every other E-ING code is dead
+    ids = _fill(box, 2)
+
+    def post(tok: str, events: list[dict[str, Any]]) -> HttpResult:
+        return HttpResult(
+            202,
+            {
+                "duplicates": [],
+                "rejected": [
+                    {"event_id": ids[0], "code": "E-ING-02"},
+                    {"event_id": ids[1], "code": "E-ING-01"},
+                ],
+            },
+        )
+
+    res = box.flush(_tok, post, 5)
+    assert (res.rejected, res.pending, res.dead) == (2, 1, 1)
+    pending = box.events("pending")
+    assert [e["event_id"] for e in pending] == [ids[0]]
+    c = sqlite3.connect(box.path)
+    assert c.execute("SELECT last_error FROM event WHERE event_id=?", (ids[0],)).fetchone() == (
+        "E-ING-02",
+    )
+    c.close()
+    assert [e["event_id"] for e in box.events("dead")] == [ids[1]]
+    # a later flush against a newer service sends it
+    box.clock.advance(seconds=MAX_BACKOFF + 1)  # type: ignore[attr-defined]
+    res = box.flush(_tok, lambda t, e: HttpResult(202, {"duplicates": [], "rejected": []}), 5)
+    assert (res.sent, res.pending, res.dead) == (1, 0, 1)
 
 
 def test_offline_keeps_events(box: Outbox) -> None:
@@ -180,7 +212,7 @@ def test_concurrent_writers(tmp_path: Path) -> None:
         "from pathlib import Path\n"
         "from tsl.core.clock import FrozenClock\n"
         "from tsl.core.ids import IdFactory\n"
-        "from tsl.telemetry.outbox import Outbox\n"
+        "from tsl.telemetry.outbox import MAX_BACKOFF, Outbox\n"
         "c = FrozenClock(datetime(2026, 1, 1, tzinfo=UTC))\n"
         "b = Outbox(Path(sys.argv[1]), c, IdFactory(c, seed=int(sys.argv[2])), strict=True)\n"
         "for _ in range(25):\n"

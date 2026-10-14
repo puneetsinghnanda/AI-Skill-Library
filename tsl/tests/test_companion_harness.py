@@ -135,6 +135,9 @@ def test_archive(ran: tuple[World, str, dict[str, Any]], monkeypatch: pytest.Mon
     facts = w.insights.facts(arch["key_id"])
     assert facts and signature_ok(arch, b64url_decode(facts["public_key"]))
     assert arch["records"] >= 3 and arch["archived_by"] == "adm-90ce"
+    from tsl.schemas.registry import errors as schema_errors
+
+    assert schema_errors("companion-archive.v1", arch) == []  # SDD-12 §8.2
     state = json.loads((w.companion / f"runs/{run_id}/state.json").read_text())
     assert (state["status"], state["end_reason"]) == ("COMPLETED", "archived")
     assert "archive/final" in git(w.companion_remote, "tag")

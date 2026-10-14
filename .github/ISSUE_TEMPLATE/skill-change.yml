@@ -1,0 +1,30 @@
+name: Skill or workflow change
+description: Propose a new skill or workflow, or a change to one (SDD-01, SDD-02, SDD-11).
+title: "feat(skills): "
+labels: [skills]
+body:
+  - type: input
+    id: skill
+    attributes:
+      label: Skill or workflow id
+      placeholder: impact-analysis
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why (improvement signal IS-nn, flag flg_..., or tracker question)
+    validations:
+      required: true
+  - type: textarea
+    id: failing-case
+    attributes:
+      label: Failing eval case first
+      description: Every improvement starts with an eval case that fails today (SDD-01 §10, SDD-11). Describe it with invented data only.
+    validations:
+      required: true
+  - type: dropdown
+    id: bump
+    attributes:
+      label: Version bump (SDD-01 §6.2)
+      options: [MAJOR, MINOR, PATCH]

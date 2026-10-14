@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/companion-archive.v1.json",
+  "title": "ARCHIVE.json (companion-archive.v1)",
+  "description": "Admin-signed archive record written by tsl companion archive: system code, last commit, run and record counts, and a SHA-256 over the sorted record hashes (SDD-12 §8.2). Signed with Ed25519 over the JCS form (SDD-07).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "system",
+    "last_commit",
+    "runs",
+    "records",
+    "records_sha256",
+    "reason_code",
+    "archived_by",
+    "archived_at",
+    "key_id",
+    "signature"
+  ],
+  "properties": {
+    "schema": {
+      "const": "companion-archive.v1"
+    },
+    "system": {
+      "$ref": "#/$defs/code"
+    },
+    "last_commit": {
+      "$ref": "#/$defs/git_sha"
+    },
+    "runs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "records": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "records_sha256": {
+      "$ref": "#/$defs/sha256",
+      "description": "SHA-256 over the sorted lines '<path> <sha256>' of every record file."
+    },
+    "reason_code": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{1,39}$",
+      "description": "Code such as engagement_ended; never free text (SDD-12 §9)."
+    },
+    "archived_by": {
+      "$ref": "#/$defs/pseudonym"
+    },
+    "archived_at": {
+      "$ref": "#/$defs/signed_timestamp"
+    },
+    "key_id": {
+      "$ref": "#/$defs/key_id"
+    },
+    "signature": {
+      "$ref": "#/$defs/signature"
+    }
+  },
+  "$defs": {
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9-]{1,31}$",
+      "description": "Client, project or system code; never a name (SDD-04 §7.2, C-09)."
+    },
+    "git_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "Full 40-hex git commit or tree SHA."
+    },
+    "key_id": {
+      "type": "string",
+      "pattern": "^key_[0-9A-HJKMNP-TV-Z]{26}$",
+      "description": "Signing key id, key_<ULID> (SDD-07 §5.1)."
+    },
+    "pseudonym": {
+      "type": "string",
+      "pattern": "^[a-z][a-z-]{0,23}-[0-9a-f]{2,8}$",
+      "maxLength": 32,
+      "description": "Pseudonym such as eng-4f2a; never a real name."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    },
+    "signature": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{86}$",
+      "description": "base64url (no padding) Ed25519 signature over the JCS form without this field."
+    },
+    "signed_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "Signing-time field: YYYY-MM-DDTHH:MM:SSZ (SDD-07 §6.2)."
+    }
+  },
+  "x-owner": "SDD-12 §8.2"
+}

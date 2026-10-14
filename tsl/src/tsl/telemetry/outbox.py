@@ -40,6 +40,8 @@ PRAGMA user_version = 1;
 BATCH = 500
 LEASE = timedelta(seconds=60)
 MAX_BACKOFF = 300
+# Per-event ingest codes that keep the event queued instead of dead (SDD-08 §4.3)
+KEEP_QUEUED = frozenset({"E-ING-02"})
 
 
 class InvalidEvent(ValueError):
@@ -359,7 +361,12 @@ class Outbox:
             }
             dups = {str(x) for x in r.body.get("duplicates", [])}
             for eid in ids:
-                if eid in rejected:
+                if eid in rejected and rejected[eid] in KEEP_QUEUED:
+                    # SDD-08 §4.3: an unknown schema_version stays queued, because a newer
+                    # service may accept it; back off and keep it (never dead, never dropped)
+                    self._release(c, [eid], rejected[eid][:40], backoff=True)
+                    res.rejected += 1
+                elif eid in rejected:
                     c.execute(
                         "UPDATE event SET status='dead', last_error=?, lease_until=NULL "
                         "WHERE event_id=?",

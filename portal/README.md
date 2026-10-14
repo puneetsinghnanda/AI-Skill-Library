@@ -194,5 +194,5 @@ review. One file plus two SVGs (SDD-09 §9). The contrast gate caught one protot
   `skill_count` to everyone else (SDD-10 §6.1). In the Business view of an engineer-family user the
   card fetches E10 for the first-try pass and omits "Best for".
 - Fonts come from `@fontsource/*` (bundled, same origin) rather than files under `src/theme/fonts/`.
-- SDD-09 §10 says the insights image serves `portal/dist`; OPS-01 §5.2 and the compose file use this
-  separate nginx image behind the edge. This component follows OPS-01.
+- Hosting: this separate nginx image behind the edge (OPS-01 §5.2). SDD-09 §10 now says the same
+  (registry §10 #41).

@@ -1,0 +1,17 @@
+name: Support question
+description: A question from an engineer, tech lead or skill author (OPS-03 §6). Check OPS-04 first.
+title: "support: "
+labels: [support]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: Paste `tsl doctor --json` output if relevant (it contains no content). No client data.
+    validations:
+      required: true
+  - type: input
+    id: runbook
+    attributes:
+      label: OPS-04 section you tried
+      placeholder: "4.3 Stuck lock"

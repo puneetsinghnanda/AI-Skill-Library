@@ -491,10 +491,10 @@ drift_files    = git diff --name-only src head -- <scope>   (minus excluded path
 context:
   max_commits_behind: 50          # replaces max_age_days
   drift_files: 50                 # DEF-03
-  critical_paths: ["sample-system:api/migrations/**", "sample-system:api/src/auth/**"]
+  critical_paths: ["sample-system:db/migrations/**", "sample-system:api/src/auth/**"]
   limits: {section_tokens: 8000, judgement_tokens: 40000, generated_file_bytes: 2097152}
   extractors:
-    migrations: ["api/migrations/**/*.sql"]
+    migrations: ["db/migrations/*.sql"]
     tests: ["**/*.test.js", "**/*.test.ts", "**/*.test.tsx"]
   redaction:
     extra_exclude: []             # adds to the built-in exclusion list; cannot remove from it
@@ -573,8 +573,11 @@ The pack is built by code from client repos, so it is the place where secrets or
 ```text
 **/.env  **/.env.*  **/*.pem  **/*.key  **/*.p12  **/*.pfx  **/id_rsa*  **/id_ed25519*
 **/secrets/**  **/*.kdbx  **/*dump*.sql  **/*.sqlite*  **/*.db  **/fixtures/**/*.csv
-**/seed*/**  **/*.har  **/*.log
+**/seed*/**  **/*.har  **/*.log  **/node_modules/**
+**/.answers  **/.answers/**  **/sample-system-key/**
 ```
+
+The last line covers answer keys (TST-01 §4.3): the sample system's `.answers/` folder holds the seeded-defect key and canaries, and must never reach a pack, whatever `tsl.yaml` says. `tsl/tests/test_commands.py::test_context_build_never_reads_answer_keys` proves it.
 
 The list matches the managed deny rules in SDD-05 §6.2 and the `read.deny` list of Doc 5 §4.3, plus data-file patterns that extractors have no need to read. Excluded files appear in the manifest only as a count.
 
@@ -618,7 +621,7 @@ Pattern scanning misses things, and personal data inside normal source files can
 
 ## 10. Worked example: the sample system
 
-The sample system is the Truminds-written order-tracking app in `examples/sample-system` (ADR 0004, tentative): a React front end in `web/`, a Node.js (Express) API in `api/`, PostgreSQL. All data is invented.
+The sample system is the Truminds-written order-tracking app in `examples/sample-system` (ADR 0004, tentative): a React front end in `web/`, a Node.js 22 (Express, TypeScript) API in `api/`, PostgreSQL 16 with SQL migrations in `db/migrations/`. All data is invented.
 
 ### 10.1 Setup
 
@@ -627,11 +630,11 @@ The sample system is the Truminds-written order-tracking app in `examples/sample
 schema: tsl-config.v1
 system: {code: SYS-SMP, project: PRJ-SMP, client: CL-INT}
 product_repos:
-  - {name: sample-system, url: git@github.com:<companion-org>/sample-system.git, path: ., default_branch: main, verifier_profile: node-20@1}
+  - {name: sample-system, url: git@github.com:<companion-org>/sample-system.git, path: ., default_branch: main, verifier_profile: node-22@1}
 context:
   max_commits_behind: 50
   drift_files: 50
-  critical_paths: ["sample-system:api/migrations/**", "sample-system:api/src/auth/**"]
+  critical_paths: ["sample-system:db/migrations/**", "sample-system:api/src/auth/**"]
 ```
 
 ### 10.2 Build
@@ -653,7 +656,7 @@ Excerpt of `context/generated/db-schema.json`:
 {"id": "table:order_events", "kind": "table", "name": "order_events",
  "columns": ["column:order_events.id", "column:order_events.order_id", "column:order_events.status", "column:order_events.created_at"],
  "primary_key": ["id"], "foreign_keys": [{"columns": ["order_id"], "references": "table:orders"}],
- "source": {"repo": "sample-system", "path": "api/migrations/004_add_order_events.sql", "line": 1}}
+ "source": {"repo": "sample-system", "path": "db/migrations/004_add_order_events.sql", "line": 1}}
 ```
 
 ### 10.3 Draft, review, sign
@@ -673,7 +676,7 @@ Ticket ABC-142 asks for 30 days of order history. The `impact-analysis` skill cl
 | Product repo state since signing | commits_behind | drift_files | Critical path touched | Verdict |
 | --- | --- | --- | --- | --- |
 | 12 merged PRs in `web/` and `api/src/orders/` | 12 | 7 | No | Fresh |
-| One more PR adds `api/migrations/007_add_order_notes.sql` | 13 | 8 | Yes | Stale: `critical_change`; band capped at Medium; E-CTX-02 shown |
+| One more PR adds `db/migrations/007_add_order_notes.sql` | 13 | 8 | Yes | Stale: `critical_change`; band capped at Medium; E-CTX-02 shown |
 | Tech lead runs `tsl context build`, reviews `data-model.md` (new table), signs | 0 | 0 | — | Fresh |
 | 60 small PRs, none critical, no re-sign | 60 | 41 | No | Stale: `commits_behind` |
 

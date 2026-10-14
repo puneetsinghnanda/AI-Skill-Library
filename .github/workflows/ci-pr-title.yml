@@ -1,0 +1,29 @@
+# Commit-message check (DEV-01 §2.4): squash merges use the PR title, so the title must follow
+# Conventional Commits with a type and scope from DEV-01. No third-party action.
+name: ci-pr-title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  pr-title:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Title follows Conventional Commits
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          types='feat|fix|docs|test|refactor|perf|build|ci|chore|revert'
+          scopes='tsl|plugin|skills|workflows|hooks|policy|schemas|insights|portal|sample|spikes|docs|adr|ci|pods|deploy|ops'
+          re="^(${types})(\((${scopes})(,(${scopes}))*\))?!?: .{1,72}$"
+          if printf '%s' "$TITLE" | grep -Eq "$re"; then
+            echo "ok: $TITLE"
+          else
+            echo "::error::PR title must look like 'feat(tsl): add context limits' (DEV-01 §2.4). Got: $TITLE"
+            exit 1
+          fi

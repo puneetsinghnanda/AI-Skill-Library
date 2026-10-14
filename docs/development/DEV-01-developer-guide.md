@@ -95,29 +95,7 @@ Trunk-based development on `main`.
 | `examples/**`, `docs/**`, `.github/**` | Anything unassigned | TBD by Puneet |
 | `docs/adr/**` | Decisions | Puneet Singh Nanda |
 
-```text
-# .github/CODEOWNERS (sketch; replace @<org>/<team> once OQ-10 is decided)
-/plugins/truminds/skills/            @<org>/skills
-/plugins/truminds/workflows/         @<org>/skills
-/plugins/truminds/skills/review/     @<org>/harness
-/plugins/truminds/agents/            @<org>/harness
-/tsl/                                @<org>/harness
-/plugins/truminds/hooks/             @<org>/execution
-/plugins/truminds/bin/               @<org>/execution
-/plugins/truminds/policy/            @<org>/execution
-/plugins/truminds/skills/run/        @<org>/execution
-/plugins/truminds/skills/resume/     @<org>/execution
-/plugins/truminds/skills/status/     @<org>/execution
-/plugins/truminds/skills/eval/       @<org>/execution
-/plugins/truminds/skills/improve/    @<org>/execution
-/plugins/truminds/.claude-plugin/    @<org>/execution
-/.claude-plugin/                     @<org>/execution
-/managed-settings/                   @<org>/execution
-/services/insights/                  @<org>/telemetry
-/portal/                             @<org>/telemetry
-/schemas/                            @<org>/harness @<org>/telemetry
-/docs/adr/                           @<puneet-handle>
-```
+The file is [`.github/CODEOWNERS`](../../.github/CODEOWNERS). It uses the GOV-01 §5.1 team slugs (`@truminds/tsl-skills`, `@truminds/tsl-harness`, `@truminds/tsl-claude-code`, `@truminds/tsl-insights`, …) as placeholders; Puneet replaces them once OQ-10 names the GitHub org.
 
 Later rules in CODEOWNERS win, so the specific `skills/review/` and command-skill lines come after the general `skills/` line.
 
@@ -134,7 +112,7 @@ Later rules in CODEOWNERS win, so the specific `skills/review/` and command-skil
 | Field | Allowed values |
 | --- | --- |
 | type | `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert` |
-| scope | `tsl`, `plugin`, `skills`, `workflows`, `hooks`, `policy`, `schemas`, `insights`, `portal`, `sample`, `spikes`, `docs`, `adr`, `ci` |
+| scope | `tsl`, `plugin`, `skills`, `workflows`, `hooks`, `policy`, `schemas`, `insights`, `portal`, `sample`, `spikes`, `docs`, `adr`, `ci`, `pods`, `deploy`, `ops` |
 | `!` / `BREAKING CHANGE:` | Required for a breaking change: a schema version bump, a removed `tsl` command or flag, a changed exit code, or an API change outside `/v1` rules. It drives the major version (OPS-03 §2.2) |
 
 A commit-message check runs in CI on the PR title (squash merges use the title).
@@ -148,7 +126,7 @@ A commit-message check runs in CI on the PR title (squash merges use the title).
 | Git | 2.40 or later | Everything | `git --version` |
 | Python | 3.12 | `tsl`, insights service | `python3.12 --version` |
 | uv | Current stable | Python environments, `uv tool install` | `uv --version` |
-| Node.js | 20 LTS (pinned in `.nvmrc`) | Portal, sample system | `node --version` |
+| Node.js | 20 LTS for the portal, 22 for the sample system (each pinned in its `.nvmrc`) | Portal, sample system | `node --version` |
 | Docker | Docker Desktop or Docker Engine with Compose v2 | PostgreSQL, verifier containers, sample system | `docker compose version` |
 | Claude Code | Desktop app on a company seat, local session (C-16); native on Windows, not WSL (C-17) | Running the plugin | Code tab › Local |
 
@@ -174,7 +152,7 @@ pre-commit install               # ruff, mypy, eslint, prettier, commit message,
 | Hooks | `plugins/truminds/hooks/`, `bin/` | Needs `tsl` installed with `uv tool install --editable` | Fired by Claude Code | `uv run --project tsl pytest tests/hooks` |
 | Insights service | `services/insights/` | `uv sync`; `docker compose -f compose.dev.yml up -d postgres`; `uv run alembic upgrade head`; `uv run python seed/generate.py` (invented seed data, SDD-08 §11.3) | `uv run uvicorn app.main:app --reload --port 8000` (service layout: SDD-08 §3.1) | `uv run pytest` (starts its own PostgreSQL testcontainer) |
 | Portal | `portal/` | `nvm use` (Node 20); `npm ci` | `npm run dev` (port 5173, proxies `/v1` to port 8000) | `npm test` (Vitest); `npx playwright install --with-deps chromium`; `npm run e2e` |
-| Sample system | `examples/sample-system/` | — | `docker compose up` (db 5433, api 3000, web 5174 on loopback) | `docker compose run --rm api npm test` |
+| Sample system | `examples/sample-system/` | `nvm use` (Node 22); `npm ci` | `docker compose up` (db 5433, api 3000, web 5174 on loopback) | `npm test` (throwaway PostgreSQL 16, no Docker); `npm run lint`; `npm run typecheck`; `npm run canary` |
 | Plugin | `plugins/truminds/` | `tsl` installed (editable) | §5 | `uv run tsl validate plugins/truminds` |
 
 **`compose.dev.yml` for the insights service** (development only; production is OPS-01):
@@ -238,9 +216,9 @@ Further rules:
 | --- | --- | --- |
 | ESLint | `eslint.config.js` (flat config) with `typescript-eslint`, `react-hooks`, `jsx-a11y` | Zero errors |
 | Prettier | `.prettierrc` (print width 100, single quotes) | `prettier --check` clean |
-| TypeScript | `strict: true` (portal) | `tsc --noEmit` clean |
+| TypeScript | `strict: true` (portal and sample system) | `tsc --noEmit` clean |
 
-The sample system's `api/` is plain JavaScript on purpose (TST-01 §4.2). Keep it in that style, and do not fix its seeded defects (TST-01 §4.3).
+The sample system is TypeScript throughout (`api/`, `web/`, `db/`; TST-01 §4.2). Do not fix its seeded defects (TST-01 §4.3), and never read or copy `.answers/` into a skill input, eval workspace or context pack.
 
 ### 4.3 Skills, workflows and docs
 

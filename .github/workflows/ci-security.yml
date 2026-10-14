@@ -1,0 +1,70 @@
+# Security checks on every PR (TST-01 §6, SEC-01 §7.1, §9): gitleaks over the history, dependency
+# audits for the Python and Node lock files. Tool choice and versions are owned by SEC-01.
+name: ci-security
+
+on:
+  pull_request: {}
+  push:
+    branches: [main]
+  workflow_call: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-security-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GITLEAKS_VERSION: "8.21.2"
+  GITLEAKS_SHA256: 5bc41815076e6ed6ef8fbecc9d9b75bcae31f39029ceb55da08086315316e3ba
+
+jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: gitleaks (binary pinned by checksum; config .gitleaks.toml)
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fsSLo gl.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gl.tgz" | sha256sum -c -
+          tar xzf gl.tgz gitleaks
+          cd "$GITHUB_WORKSPACE"
+          "$RUNNER_TEMP/gitleaks" git --no-banner --redact --config .gitleaks.toml .
+
+  python-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [tsl, services/insights]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
+      - name: pip-audit on the locked runtime dependencies
+        working-directory: ${{ matrix.project }}
+        run: |
+          uv export --locked --no-dev --no-emit-project --format requirements-txt > "$RUNNER_TEMP/req.txt"
+          uvx --python 3.12 pip-audit --strict --disable-pip --no-deps -r "$RUNNER_TEMP/req.txt"
+
+  node-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [portal, examples/sample-system]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: ${{ matrix.project }}/.nvmrc
+      - name: npm audit (production dependencies, high and critical)
+        working-directory: ${{ matrix.project }}
+        run: npm audit --omit=dev --audit-level=high

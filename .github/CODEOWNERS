@@ -1,0 +1,75 @@
+# CODEOWNERS (GOV-01 §5, DEV-01 §2.3). GitHub uses the LAST matching line, so general rules come first.
+#
+# PLACEHOLDERS - PUNEET MUST REPLACE THEM. GitHub handles are unknown until the GitHub org is chosen
+# (OQ-10). Every "@truminds/tsl-*" below is a placeholder team slug from GOV-01 §5.1. Create the
+# teams in the real org (or replace each slug with real handles) before turning on "Require review
+# from Code Owners". Until then GitHub ignores unknown owners.
+#
+#   @truminds/tsl-approver      Approver                               Puneet Singh Nanda
+#   @truminds/tsl-skills        SK: skills, workflows, roles, pods     Abhishek Verma, Ekjot Singh
+#   @truminds/tsl-harness       HX: harness, execution, tsl verify     Japman Singh, Yash Khorwal
+#   @truminds/tsl-claude-code   CC: skill execution, hook execution    Shubham Bansal
+#   @truminds/tsl-insights      TL: telemetry, events, portal stats    Gaurav Saini
+#   @truminds/tsl-portal-ui     Portal UI                              TBD by Puneet (until named: Gaurav Saini)
+#   @truminds/tsl-security      Security reviewer                      TBD by Puneet
+#   @truminds/tsl-ops           Deployment and hosting (service operator) TBD by Puneet
+
+# Default: anything not matched below
+*                                         @truminds/tsl-approver
+
+# Governance, planning, ADRs, top-level product and architecture docs
+/docs/                                    @truminds/tsl-approver
+/docs/adr/                                @truminds/tsl-approver
+/docs/governance/                         @truminds/tsl-approver
+/docs/planning/                           @truminds/tsl-approver
+/docs/archive/                            @truminds/tsl-approver
+/docs/architecture/registry.md            @truminds/tsl-approver @truminds/tsl-harness
+
+# Design documents by area
+/docs/design/SDD-01-*                     @truminds/tsl-skills
+/docs/design/SDD-02-*                     @truminds/tsl-skills @truminds/tsl-claude-code
+/docs/design/SDD-03-*                     @truminds/tsl-harness
+/docs/design/SDD-04-*                     @truminds/tsl-harness
+/docs/design/SDD-05-*                     @truminds/tsl-claude-code
+/docs/design/SDD-08-*                     @truminds/tsl-insights
+/docs/design/SDD-09-*                     @truminds/tsl-insights @truminds/tsl-portal-ui
+/docs/design/SDD-10-*                     @truminds/tsl-skills
+/docs/design/SDD-11-*                     @truminds/tsl-skills @truminds/tsl-insights
+/docs/operations/OPS-02-*                 @truminds/tsl-insights
+/docs/security/                           @truminds/tsl-security @truminds/tsl-approver
+/docs/ux/                                 @truminds/tsl-portal-ui
+
+# Plugin, pods and marketplace
+/.claude-plugin/                          @truminds/tsl-claude-code
+/plugins/truminds/.claude-plugin/         @truminds/tsl-claude-code
+/plugins/truminds/hooks/                  @truminds/tsl-claude-code
+/plugins/truminds/bin/                    @truminds/tsl-claude-code
+/plugins/truminds/policy/                 @truminds/tsl-claude-code @truminds/tsl-security
+/plugins/truminds/skills/                 @truminds/tsl-skills
+/plugins/truminds/skills/run/             @truminds/tsl-claude-code
+/plugins/truminds/skills/resume/          @truminds/tsl-claude-code
+/plugins/truminds/skills/status/          @truminds/tsl-claude-code
+/plugins/truminds/skills/review/          @truminds/tsl-harness @truminds/tsl-claude-code
+/plugins/truminds/agents/                 @truminds/tsl-harness @truminds/tsl-claude-code
+/plugins/truminds/workflows/              @truminds/tsl-skills
+/plugins/truminds/verifiers/              @truminds/tsl-harness
+/plugins/truminds/tests/                  @truminds/tsl-skills @truminds/tsl-claude-code
+/pods/                                    @truminds/tsl-skills
+/managed-settings/                        @truminds/tsl-claude-code @truminds/tsl-approver
+/spikes/                                  @truminds/tsl-claude-code
+
+# tsl, schemas, services, portal, operations, samples
+/tsl/                                     @truminds/tsl-harness
+/schemas/                                 @truminds/tsl-harness @truminds/tsl-skills @truminds/tsl-claude-code @truminds/tsl-insights
+/services/insights/                       @truminds/tsl-insights
+/portal/                                  @truminds/tsl-portal-ui @truminds/tsl-insights
+/ops/                                     @truminds/tsl-insights
+/deploy/                                  @truminds/tsl-ops @truminds/tsl-approver
+/examples/sample-system/                  @truminds/tsl-approver
+
+# Repository controls
+/scripts/                                 @truminds/tsl-approver
+/Makefile                                 @truminds/tsl-approver
+/.gitleaks.toml                           @truminds/tsl-security @truminds/tsl-approver
+/.github/                                 @truminds/tsl-approver
+/.github/CODEOWNERS                       @truminds/tsl-approver

@@ -76,9 +76,9 @@ def _check_schemas(comp: Companion, files: list[str], out: list[Finding]) -> Non
     from tsl.schemas.registry import errors, readable
 
     for rel in files:
-        # Artifacts are judged by H1 (their failed attempts are kept on purpose) and the
-        # archive file has no published schema yet; everything else must validate.
-        if (rel.startswith("artifacts/") and rel.endswith(".md")) or rel == ARCHIVE_FILE:
+        # Artifacts are judged by H1 (their failed attempts are kept on purpose);
+        # everything else, ARCHIVE.json (companion-archive.v1) included, must validate.
+        if rel.startswith("artifacts/") and rel.endswith(".md"):
             continue
         p = comp.path(rel)
         if not p.is_file() or p.stat().st_size > MAX_FILE_BYTES:
@@ -334,6 +334,9 @@ def archive(
         "archived_at": iso(rt.clock()),
     }
     signed = sign_object(body, signer.key_id, signer.private)
+    from tsl.schemas.registry import require_valid
+
+    require_valid(ARCHIVE_SCHEMA, signed, ARCHIVE_FILE)
     write_json(comp.path(ARCHIVE_FILE), signed)
     branch = comp.config.companion_branch
     try:

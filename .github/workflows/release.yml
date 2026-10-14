@@ -1,0 +1,258 @@
+# Release pipeline (OPS-03 §3). Tags: vX.Y.Z[-rc.N] = plugin + tsl (one unit), insights-vX.Y.Z,
+# portal-vX.Y.Z. Only release managers can push these tags (protected tag rule, group TBD by Puneet).
+# Publishing waits for the `release` environment approval (release manager + area owner).
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "insights-v*"
+      - "portal-v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      unit: ${{ steps.tag.outputs.unit }}
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Tag format and tag commit on main
+        id: tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^(v|insights-v|portal-v)([0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?)$ ]]; then
+            echo "::error::tag $TAG does not match (v|insights-v|portal-v)X.Y.Z[-rc.N]"; exit 1
+          fi
+          case "${BASH_REMATCH[1]}" in
+            v) unit=plugin ;;
+            insights-v) unit=insights ;;
+            portal-v) unit=portal ;;
+          esac
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::tag commit is not on main"; exit 1; }
+          echo "unit=$unit" >> "$GITHUB_OUTPUT"
+          echo "version=${BASH_REMATCH[2]}" >> "$GITHUB_OUTPUT"
+
+  versions:
+    needs: guard
+    if: needs.guard.outputs.unit == 'plugin'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: plugin.json version = tsl __version__ = tag (SDD-05 §7.1, OPS-03 §3.1)
+        env:
+          TAG_VERSION: ${{ needs.guard.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, sys
+          plugin = json.load(open("plugins/truminds/.claude-plugin/plugin.json"))["version"]
+          init = open("tsl/src/tsl/__init__.py").read()
+          tsl = re.search(r'__version__\s*=\s*"([^"]+)"', init).group(1)
+          tag = os.environ["TAG_VERSION"]
+          print(f"plugin.json={plugin} tsl={tsl} tag={tag}")
+          sys.exit(0 if plugin == tsl == tag else "version mismatch: plugin.json, tsl and the tag must be equal")
+          PY
+
+  # Full matrix regardless of paths (OPS-03 §3.1 `matrix`)
+  schemas:
+    needs: guard
+    uses: ./.github/workflows/ci-schemas.yml
+  tsl:
+    needs: guard
+    uses: ./.github/workflows/ci-tsl.yml
+  plugin:
+    needs: guard
+    uses: ./.github/workflows/ci-plugin.yml
+    secrets: inherit
+  insights:
+    needs: guard
+    uses: ./.github/workflows/ci-insights.yml
+  portal:
+    needs: guard
+    uses: ./.github/workflows/ci-portal.yml
+    with:
+      extra-browsers: firefox webkit
+  sample:
+    needs: guard
+    uses: ./.github/workflows/ci-sample.yml
+  deploy-ops:
+    needs: guard
+    uses: ./.github/workflows/ci-deploy-ops.yml
+  docs:
+    needs: guard
+    uses: ./.github/workflows/ci-docs.yml
+  security:
+    needs: guard
+    uses: ./.github/workflows/ci-security.yml
+
+  catalogue:
+    needs: [guard, versions]
+    if: needs.guard.outputs.unit == 'plugin'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
+      - name: tsl validate every skill, workflow and pod (blocking for a release)
+        run: uv run --project tsl --locked --python 3.12 tsl validate plugins/truminds
+
+  build-wheel:
+    needs: [guard, versions]
+    if: needs.guard.outputs.unit == 'plugin'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Organisation identity baked into the wheel (SDD-04 §7.1). Not secrets; held per environment.
+      TSL_ORG_TENANT_ID: ${{ vars.ORG_TENANT_ID }}
+      TSL_ORG_TSL_CLIENT_ID: ${{ vars.ORG_TSL_CLIENT_ID }}
+      TSL_ORG_API_SCOPE: ${{ vars.ORG_API_SCOPE }}
+      TSL_ORG_SERVICE_URL: ${{ vars.ORG_SERVICE_URL }}
+      TSL_ORG_COMPANION_REMOTE_TEMPLATE: ${{ vars.ORG_COMPANION_REMOTE_TEMPLATE }}
+      TSL_ORG_GITHUB_API_URL: ${{ vars.ORG_GITHUB_API_URL }}
+      VERSION: ${{ needs.guard.outputs.version }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
+      - name: Build the tsl wheel (schemas bundled by hatch_build.py)
+        run: uv build --wheel --out-dir dist tsl
+      - name: Wheel version equals the plugin tag; SHA256SUMS
+        run: |
+          wheel="dist/truminds_tsl-${VERSION}-py3-none-any.whl"
+          test -f "$wheel" || { echo "::error::expected $wheel"; ls dist; exit 1; }
+          python3 -c "import zipfile,sys; n=zipfile.ZipFile(sys.argv[1]).namelist(); assert 'tsl/schemas/bundled/index.json' in n, 'schemas not bundled'" "$wheel"
+          cp managed-settings/managed-settings.template.json dist/
+          (cd dist && sha256sum ./*.whl ./*.json > SHA256SUMS && cat SHA256SUMS)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-plugin
+          path: dist/
+          retention-days: 30
+
+  build-images:
+    needs: guard
+    if: needs.guard.outputs.unit != 'plugin'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+      - uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
+        with:
+          registry: ${{ vars.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+      - name: Insights image
+        if: needs.guard.outputs.unit == 'insights'
+        id: insights
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          file: services/insights/Dockerfile
+          push: true
+          sbom: true
+          provenance: mode=max
+          build-args: |
+            VERSION=${{ needs.guard.outputs.version }}
+            REVISION=${{ github.sha }}
+          tags: ${{ vars.REGISTRY }}/truminds/insights:${{ needs.guard.outputs.version }}
+      - name: pg-backup image (released with the insights service)
+        if: needs.guard.outputs.unit == 'insights'
+        id: pgbackup
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: deploy/images/pg-backup
+          push: true
+          sbom: true
+          tags: ${{ vars.REGISTRY }}/truminds/pg-backup:${{ needs.guard.outputs.version }}
+      - name: Portal image
+        if: needs.guard.outputs.unit == 'portal'
+        id: portal
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: portal
+          push: true
+          sbom: true
+          provenance: mode=max
+          build-args: |
+            VITE_ENTRA_TENANT_ID=${{ vars.ORG_TENANT_ID }}
+            VITE_ENTRA_CLIENT_ID=${{ vars.PORTAL_CLIENT_ID }}
+          tags: ${{ vars.REGISTRY }}/truminds/portal:${{ needs.guard.outputs.version }}
+      - name: Record digests
+        env:
+          INSIGHTS: ${{ steps.insights.outputs.digest }}
+          PGBACKUP: ${{ steps.pgbackup.outputs.digest }}
+          PORTAL: ${{ steps.portal.outputs.digest }}
+        run: |
+          mkdir -p dist
+          { [ -n "$INSIGHTS" ] && echo "truminds/insights@$INSIGHTS"
+            [ -n "$PGBACKUP" ] && echo "truminds/pg-backup@$PGBACKUP"
+            [ -n "$PORTAL" ] && echo "truminds/portal@$PORTAL"; } > dist/DIGESTS || true
+          cat dist/DIGESTS
+          if [ "${{ needs.guard.outputs.unit }}" = insights ]; then cp services/insights/openapi/openapi.json dist/; fi
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-images
+          path: dist/
+          retention-days: 30
+
+  publish:
+    needs: [guard, schemas, tsl, plugin, insights, portal, sample, deploy-ops, docs, security, catalogue, build-wheel, build-images]
+    if: >-
+      always() && !cancelled() && !contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Download build outputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist
+          gh run download "$GITHUB_RUN_ID" --dir dist || true
+          find dist -type f | sort
+      - name: Create the GitHub release (checklist evidence is linked from the release PR, OPS-03 §3.2)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          prerelease=""
+          [[ "$TAG" == *-rc.* ]] && prerelease="--prerelease"
+          notes=$'## Upgrade\n- tsl install: see SHA256SUMS\n- managed settings: see managed-settings.template.json\n- schema migrations: none listed\n- breaking changes: see CHANGELOG.md\n- deprecations: see CHANGELOG.md'
+          mapfile -t files < <(find dist -type f | sort)
+          gh release create "$TAG" $prerelease --title "$TAG" --notes "$notes" "${files[@]}"
+
+  channel:
+    needs: [guard, publish]
+    if: needs.guard.outputs.unit == 'plugin'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Fast-forward channel/pilot to the tag (OPS-03 §4.2); channel/stable stays manual
+        run: |
+          git fetch origin channel/pilot || true
+          if git rev-parse --verify -q origin/channel/pilot >/dev/null; then
+            git merge-base --is-ancestor origin/channel/pilot "$GITHUB_SHA" || { echo "::error::not a fast-forward"; exit 1; }
+          fi
+          git push origin "$GITHUB_SHA:refs/heads/channel/pilot"

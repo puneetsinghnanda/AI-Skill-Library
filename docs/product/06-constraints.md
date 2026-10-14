@@ -9,6 +9,7 @@ Oct 6, 2026 · @Puneet Singh Nanda
 | Document | 6 of 6 — Constraints & Out-of-Scope |
 | Status | Draft for review |
 | Owner | Puneet Singh Nanda |
+| Approver | Puneet Singh Nanda |
 | Related | [PRD](01-prd.md) · [Personas & Stories](02-personas-and-stories.md) · [Architecture](../architecture/03-architecture.md) · [Design & UX](../ux/04-design-and-ux.md) · [API & Rules](../architecture/05-api-and-rules.md) |
 
 **How to use this list:** a constraint (C) is a fixed boundary the design must respect. An assumption (A) is something believed true but not yet confirmed; each has an owner to confirm it. A limitation (L) is a known gap we accept and how we handle it. An X item must not be built in Release 1 — a PR that builds one is rejected unless Puneet removes it from this list first.

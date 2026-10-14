@@ -26,10 +26,24 @@ read_only_repos:
 - name: common-lib
   url: git@github.com:example-org/common-lib.git
 context:
-  max_age_days: 30
+  max_commits_behind: 40
   drift_files: 50
   critical_paths:
   - orders-api:src/billing/**
+  limits:
+    section_tokens: 8000
+    judgement_tokens: 40000
+    generated_file_bytes: 2097152
+  extractors:
+    migrations:
+    - db/migrations/**/*.sql
+    tests:
+    - '**/*.test.ts'
+  redaction:
+    extra_exclude:
+    - '**/exports/**'
+    deny_term_hashes:
+    - 1788d6db25f14d589a0ab5b94af388633102d620dcb908bfb724895e90b2fd8e
 change_limits:
   lines: 400
   files: 15

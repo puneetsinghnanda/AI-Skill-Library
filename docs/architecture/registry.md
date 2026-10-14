@@ -335,7 +335,7 @@ Every file schema is `schemas/<name>.v<N>.json` in the skill-library repo (Doc 5
 | `pod.v1` | `schemas/pod.v1.json` | SDD-10 §3 |
 | `improvement.v1` | `schemas/improvement.v1.json` | SDD-11 §6.2 |
 | `consent-record.v1` | `schemas/consent-record.v1.json` | LEG-01 §13.1 |
-| `companion-archive.v1` (`ARCHIVE.json`, signed) | `schemas/companion-archive.v1.json` (not yet published; `tsl companion archive` writes it unvalidated until it is) | SDD-12 §8.2 |
+| `companion-archive.v1` (`ARCHIVE.json`, signed) | `schemas/companion-archive.v1.json` (`tsl companion archive` validates before signing; `tsl companion check` validates it) | SDD-12 §8.2 |
 | `event-envelope.v1` (one event inside a `POST /v1/events` batch) | `schemas/event-envelope.v1.json` | Doc 5 §5.2 |
 | Event bodies (one per type in §5) | `schemas/events/<type>.v<N>.json` | SDD-08 §4.5 |
 
@@ -444,7 +444,10 @@ Laptop paths (not in the companion repo): `~/.truminds/` per SDD-04 §7.3 (`conf
 | `IS-01`–`IS-10` (written `IS-1`…) | 10 | Improvement signals | SDD-11 §3 |
 | `OQ-01`–`OQ-16` | 16 | Open questions; next free `OQ-17` | Doc 1 §8 (PRD), process GOV-01 |
 | `TC-<AREA>-nnn` | `TC-TSL`, `TC-HK`, `TC-SCH`, `TC-DEC`, `TC-REV`, `TC-SEC`, `TC-INS`, `TC-POR`, `TC-E2E`, `TC-PLG`, `TC-EVL`, `TC-SAM`, `TC-DATA`, `TC-ACC`, `TC-OPS` | Test cases | TST-01 §5 (`TC-OPS` added by OPS-02 §12; `TC-POR-011/012`, `TC-INS-011` by SDD-09) |
-| `EC-nn` | per skill | Eval cases | SDD-01 §10 |
+| `EC-nn` | per skill | Eval cases (`eval-case.v1`) | SDD-01 §10 |
+| `<SKILLCODE>-C<nn>`, `<skill-id>.<check-name>` | per skill | Skill check ids: library form (`uses`/`with`) and kind form (`kind`/`select`) of `skill-checks.v1`; both accepted | SDD-01 §6.1, §9; SDD-03 §5.3 |
+| `<SKILLCODE>-R<n>` | per skill | Rubric criteria (`rubric.v1`) | SDD-01 §6.1, §8 |
+| `<kebab-case>` harness case ids | — | Harness-accuracy cases (`harness-case.v1`); not `EC-nn` | SDD-03 §16 |
 | `SD-01`–`SD-10` | 10 | Seeded defects in the sample system (`SD-10` = order-history retention mismatch, added with the sample-system build); answer key `examples/sample-system/.answers/` | TST-01 §4.3 |
 | `ABC-142`–`ABC-180` | 8 (142, 150, 158, 163, 170, 171, 175, 180) | Invented sample-system change tickets, `examples/sample-system/tickets/` | TST-01 §4.4 |
 | `SKL-V01`–`SKL-V15` | 15 | Skill validation rules | SDD-01 §14.1 |
@@ -501,6 +504,13 @@ Laptop paths (not in the companion repo): `~/.truminds/` per SDD-04 §7.3 (`conf
 | 35 | `runs.end_reason` allowed only `completed`, `aborted` in SDD-08; SDD-02 defines six values and SDD-12 adds `archived` | SDD-02 values; `runs_completed` counts `pr_opened` and `completed` | SDD-08 |
 | 36 | Event names in PRD §5 and Doc 2 US-02/US-03 (`run_started`, `skill_finished`, `run_paused`, `answers_recorded`, `context_status`) | Doc 5 §5.3 names (`run.started`, `step.decided`, `run.status_changed`, `question.answered`, `signals.S5`) | PRD, Doc 2 |
 | 37 | Old open items that these resolutions close | Marked closed with a link here | SDD-07, SDD-08, SDD-09, SDD-12, SDD-13, OPS-01, OPS-03, OPS-04, TST-01 |
+| 38 | Skill checks `{uses, with}` (SDD-01 §9) vs `{kind, select}` (SDD-03 §5.3); rubric ids `<CODE>-R<n>` (SDD-01) vs `R-n` (SDD-03 §18); eval-case vs harness-case ids | `skill-checks.v1` accepts both check forms and `tsl` runs both (ids `<CODE>-C<nn>` and `<skill>.<name>`); rubric ids are `<CODE>-R<n>`; `EC-nn` for skill evals, kebab-case for harness cases. Matches the schemas and code | SDD-01, SDD-03 |
+| 39 | `tsl.yaml` `context.max_age_days` (SDD-04, Doc 5) vs SDD-06 §7.2 `max_commits_behind`, `limits`, `extractors`, `redaction` | SDD-06 keys added to `tsl-config.v1`; `max_age_days` deprecated (E-DEP-01) | SDD-04, Doc 5, SDD-03 |
+| 40 | Outbox: SDD-04 §8 put every rejected event in `dead`; SDD-08 §4.3 keeps E-ING-02 queued | SDD-08 §4.3 | SDD-04 |
+| 41 | Portal hosting: SDD-09 §10 (insights image serves `portal/dist`) vs OPS-01 §5.2 (separate nginx image) | OPS-01 | SDD-09, OPS-02 (AL-25) |
+| 42 | Sample system: TST-01 §4 and DEV-01 (Node 20, JavaScript `api/`, answer key outside, 6 tables) vs the build (TypeScript, Node 22, `.answers/` inside and always excluded from packs, `db/migrations`, 7 tables) | Docs follow the build | TST-01, DEV-01, SDD-06 |
+| 43 | OPS-02 runbook links `#al-nn` had no anchors in OPS-04 | OPS-04 §4.13 | OPS-04, OPS-02 |
+| 44 | `brownfield-change` pinned `requirement-review@^1.2` and bound `baseline` (SDD-02 §4), but SDD-01 §13.1 fixes the skill at 1.0.0 with input `intent_baseline` | SDD-01 values: `requirement-review@^1.0`, `intent_baseline: context.intent-baseline` | SDD-02 |
 
 ## 11. Decisions needed from Puneet
 
@@ -528,6 +538,7 @@ These are product or policy choices. The documents were **not** changed to pick 
 | Item | Ref | Owner |
 | --- | --- | --- |
 | Decisions RD-1 to RD-6 | §11 | Puneet Singh Nanda |
-| Write the CI check that compares code constants with this registry | new | Japman Singh, Yash Khorwal |
+| Closed: CI checks compare code with this registry: `scripts/check_registry.py` (error codes, spike ids; `ci-docs.yml`), `tsl/tests/test_core.py` (codes and exits), insights `test_openapi_covers_registry_and_is_committed` (endpoints), `schemas/tests` (schemas, event types) | — | Japman Singh, Yash Khorwal |
 | SDD-11 §7.3 gets the hashed client list from a CI secret; SEC-01 §7.4 serves it from `GET /v1/policy/denylist`. Pick one source (registry lists the endpoint) | new | Gaurav Saini; Abhishek Verma, Ekjot Singh |
 | `E-SEC-01` (secret or PII) and `E-SEC-02` (personal data) overlap for PII. Narrow E-SEC-01 to secrets once SDD-03 confirms | new | Japman Singh, Yash Khorwal |
+| PR title rule: GOV-01 §4.1 PR-02 (title starts with the doc or story id) vs DEV-01 §2.4 (Conventional Commits title, checked by `ci-pr-title.yml`). CI enforces DEV-01 until Puneet picks one | new | Puneet Singh Nanda |

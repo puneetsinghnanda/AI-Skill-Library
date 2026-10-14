@@ -27,6 +27,11 @@ EXCLUDE = [
     "**/*.har",
     "**/*.log",
     "**/node_modules/**",
+    # Answer keys of the sample system and eval fixtures: never read, never in a pack
+    # (TST-01 §4.3, examples/sample-system/README.md). A system cannot remove these.
+    "**/.answers/**",
+    "**/.answers",
+    "**/sample-system-key/**",
 ]
 MAX_READ = 1_048_576
 

@@ -1,7 +1,9 @@
 """Test fixtures: a real PostgreSQL 16 cluster, a locally generated Entra signing key, the app.
 
 The cluster is created with ``initdb`` and ``pg_ctl`` from /usr/lib/postgresql/16/bin on a random
-port in a temporary directory. Authentication in tests uses ordinary RS256 tokens signed by a key
+port in a temporary directory. In CI an empty PostgreSQL 16 service container can be used instead:
+set ``INSIGHTS_TEST_PG_PORT`` (and optionally ``INSIGHTS_TEST_PG_HOST``) to a server that trusts the
+``postgres`` superuser on that address and holds no other data. Authentication in tests uses ordinary RS256 tokens signed by a key
 generated here and published through a JWKS file (``ENTRA_JWKS_FILE``): the service validates them
 exactly like Entra tokens. There is no bypass.
 """
@@ -66,16 +68,21 @@ def _as_postgres(cmd: list[str]) -> list[str]:
 @dataclass
 class PG:
     port: int
-    data: Path
-    sock: Path
+    data: Path | None
+    sock: Path | None
+    host: str = "127.0.0.1"
 
     def url(self, user: str = "postgres", password: str | None = None, db: str = "postgres") -> str:
         auth = f"{user}:{password}" if password else user
-        return f"postgresql+psycopg://{auth}@127.0.0.1:{self.port}/{db}?sslmode=disable"
+        return f"postgresql+psycopg://{auth}@{self.host}:{self.port}/{db}?sslmode=disable"
 
 
 @pytest.fixture(scope="session")
 def pg() -> Iterator[PG]:
+    external = os.environ.get("INSIGHTS_TEST_PG_PORT")
+    if external:  # CI service container (empty, throwaway); see the module docstring
+        yield PG(int(external), None, None, os.environ.get("INSIGHTS_TEST_PG_HOST", "127.0.0.1"))
+        return
     if not (PG_BIN / "initdb").exists():
         pytest.skip("PostgreSQL 16 binaries not found")
     # The cluster lives in the system temp directory: when tests run as root, initdb must run as the
@@ -171,7 +178,7 @@ def settings(pg: PG, signing: Keys) -> Settings:
     su.dispose()
     s = Settings(
         env="test",
-        database_host="127.0.0.1",
+        database_host=pg.host,
         database_port=pg.port,
         database_name="insights",
         database_sslmode="disable",

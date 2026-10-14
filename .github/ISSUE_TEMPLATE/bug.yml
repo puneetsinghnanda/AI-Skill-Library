@@ -1,0 +1,41 @@
+name: Bug
+description: Something in tsl, the plugin, the insights service, the portal or the docs does not work as specified.
+title: "fix(<scope>): "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        No client names, customer data, client code, tokens or keys in this issue (C-09). Use the
+        sample system and invented data. Pseudonyms such as `eng-4f2a` are fine; real names are not.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options: [tsl, plugin (skills, hooks, workflows), pods, schemas, insights service, portal, sample system, deploy, monitoring, docs]
+    validations:
+      required: true
+  - type: input
+    id: code
+    attributes:
+      label: Error code (registry §2), if any
+      placeholder: E-CTX-02
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened and what you expected
+      description: Include `tsl --version`, the command, and the `log_id` from an E-INT-01 (OPS-04 §2). Never attach outbox.db or logs with content.
+    validations:
+      required: true
+  - type: input
+    id: spec
+    attributes:
+      label: Spec section that says how it should behave
+      placeholder: SDD-06 §7.1
+  - type: checkboxes
+    id: data
+    attributes:
+      label: Data check
+      options:
+        - label: This issue contains no client names, customer data, credentials or client code
+          required: true

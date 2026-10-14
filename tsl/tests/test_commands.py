@@ -413,3 +413,108 @@ def test_context_build_blocks_secrets(world: World) -> None:
     p.write_text(p.read_text() + "\nThe deploy key is " + "AKIA" + "Q3VZ7KMB2XW4PLRT" + ".\n")
     code, env, _, _ = world.cli(["context", "build", "--check", "--json"])
     assert env is not None and (code, env["code"]) == (2, "E-CTX-06")
+
+
+def _set_context(w: World, ctx: dict[str, Any]) -> None:
+    p = w.companion / "tsl.yaml"
+    cfg = yaml.safe_load(p.read_text())
+    cfg["context"] = {**cfg["context"], **ctx}
+    p.write_text(yaml.safe_dump(cfg, sort_keys=False))
+    git(w.companion, "commit", "-qam", "tsl.yaml context")
+    git(w.companion, "push", "-q", "origin", "main")
+
+
+def _push_product(w: World, files: dict[str, str], msg: str = "change") -> None:
+    for rel, text in files.items():
+        p = w.product / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text)
+    git(w.product, "add", "-A")
+    git(w.product, "commit", "-qm", msg)
+    git(w.product, "push", "-q", "origin", "main")
+
+
+def test_context_build_never_reads_answer_keys(world: World) -> None:
+    # TST-01 §4.3, sample-system README: the answer key is never extracted into a pack,
+    # whatever tsl.yaml says (built-in exclusion, not configurable).
+    _push_product(
+        world,
+        {
+            ".answers/defects.yaml": "SD-01: order history drops the last 30 seconds\n",
+            ".answers/canary/api.canary.test.ts": "describe('SD-01 canary', () => {\n"
+            "  it('history misses 23:59:30', () => {});\n});\n",
+            ".answers/migrations/900_hint.sql": "CREATE TABLE answer_hint (id int);\n",
+            "api/.answers/notes.md": "nested answer key\n",
+        },
+        "answer key",
+    )
+    code, env, _, _ = world.cli(["context", "build", "--json"], user="tl")
+    assert code == 0, env
+    gen = world.companion / "context" / "generated"
+    for f in gen.glob("*.json"):
+        text = f.read_text()
+        assert ".answers" not in text and "SD-01" not in text and "answer_hint" not in text, f
+    manifest = json.loads((world.companion / "context" / "manifest.json").read_text())
+    assert manifest["sources"][0]["files_excluded"] >= 4
+    from tsl.context.repoview import excluded
+
+    for path in (".answers", ".answers/x.md", "examples/sample-system/.answers/defects.yaml"):
+        assert excluded(path, [])
+    assert excluded("examples/sample-system-key/defects.yaml", [])
+
+
+def test_context_config_limits_extractors_redaction(world: World) -> None:
+    # SDD-06 §7.2: max_commits_behind, limits, extractors and redaction come from tsl.yaml
+    import hashlib
+
+    term = hashlib.sha256(b"orders newest").hexdigest()
+    _set_context(
+        world,
+        {
+            "max_commits_behind": 1,
+            "limits": {"section_tokens": 6000},
+            "extractors": {"migrations": ["api/migrations/001_*.sql"], "tests": ["**/*.spec.js"]},
+            "redaction": {"extra_exclude": ["web/**"], "deny_term_hashes": [term]},
+        },
+    )
+    code, env, _, _ = world.cli(["context", "build", "--json"], user="tl")
+    assert code == 0, env
+    manifest = json.loads((world.companion / "context" / "manifest.json").read_text())
+    assert manifest["limits"]["section_tokens"] == 6000
+    assert manifest["limits"]["judgement_tokens"] == 40000
+    gen = world.companion / "context" / "generated"
+    db = (gen / "db-schema.json").read_text()
+    assert "table:orders" in db and "order_events" not in db  # only 001_* matched
+    layout = (gen / "test-layout.json").read_text()
+    assert "orders.test.js" not in layout  # only *.spec.js counts now
+    assert "web/" not in (gen / "module-map.json").read_text()  # extra_exclude
+    assert manifest["redaction"]["paths_excluded"] >= 2
+    # a deny term in a judgement section is a blocking hit (SDD-06 §9.3)
+    p = world.companion / "context" / "conventions.md"
+    p.write_text(p.read_text() + "\nWe list Orders Newest first.\n")
+    code, env, _, _ = world.cli(["context", "build", "--check", "--json"])
+    assert env is not None and (code, env["code"]) == (2, "E-CTX-06")
+    p.write_text(p.read_text().replace("\nWe list Orders Newest first.\n", "\n"))
+    # tighter F5: two commits under the scope make the signed pack stale
+    code, env, _, _ = world.cli(["context", "build", "--json"], user="tl")
+    assert code == 0, env
+    code, env, _, _ = world.cli(["context", "sign", "--json"], user="tl")
+    assert code == 0, env
+    git(world.companion, "push", "-q", "origin", "main")
+    _push_product(world, {"api/src/a.js": "1\n"}, "one")
+    _push_product(world, {"api/src/b.js": "2\n"}, "two")
+    code, env, _, _ = world.cli(["context", "status", "--json"])
+    assert code == 0 and env is not None and env["data"]["state"] == "stale"
+    assert "commits_behind" in env["data"]["reasons"]
+
+
+def test_context_max_age_days_is_deprecated(world: World, tmp_path: Path) -> None:
+    from tsl.core.config import load_config
+
+    p = tmp_path / "tsl.yaml"
+    cfg = yaml.safe_load((world.companion / "tsl.yaml").read_text())
+    cfg["context"]["max_age_days"] = 30
+    p.write_text(yaml.safe_dump(cfg))
+    loaded, warnings = load_config(p)
+    assert loaded.max_commits_behind == 50
+    assert [w["code"] for w in warnings] == ["E-DEP-01"]

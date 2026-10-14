@@ -593,7 +593,7 @@ product_repos:
   - {name: orders-api, url: "git@github.com:org/orders-api.git", path: ., default_branch: main, verifier_profile: node-20@1}
   - {name: orders-web, url: "git@github.com:org/orders-web.git", path: ., default_branch: main, verifier_profile: node-20@1}
 read_only_repos: [{name: common-lib, url: "git@github.com:org/common-lib.git"}]
-context: {max_age_days: 30, drift_files: 50, critical_paths: ["orders-api:src/billing/**"]}
+context: {max_commits_behind: 50, drift_files: 50, critical_paths: ["orders-api:src/billing/**"]}
 change_limits: {lines: 400, files: 15, sensitive_paths: ["**/auth/**", "**/migrations/**", ".github/**"]}
 policy: policy.yaml
 gates: {self_approval: false, lock_timeout_hours: 24}
@@ -614,9 +614,14 @@ telemetry: {enabled: true}
 | `.default_branch` | string | no | `main` |
 | `.verifier_profile` | `<name>@<major>` | yes | — |
 | `read_only_repos[]` | `{name, url, path?}` | no | `[]` |
-| `context.max_age_days` | int 1–30 (may only tighten) | no | 30 |
+| `context.max_commits_behind` | int 1–50 (may only tighten); F5 in SDD-06 §7.1 | no | 50 |
+| `context.max_age_days` | **deprecated** (SDD-06 §7.2), ignored with an E-DEP-01 warning | — | — |
 | `context.drift_files` | int 1–50 | no | 50 |
 | `context.critical_paths[]` | `repo:glob` | no | `[]` |
+| `context.limits.section_tokens`, `.judgement_tokens`, `.generated_file_bytes` | int ≤ 8000, ≤ 40000, ≤ 2097152 (may only tighten; SDD-06 §8) | no | 8000, 40000, 2097152 |
+| `context.extractors.migrations[]`, `.tests[]` | globs for `sql-migrations` and `js-test-layout` (SDD-06 §5.2) | no | extractor defaults |
+| `context.redaction.extra_exclude[]` | globs added to the built-in never-read list (SDD-06 §9.1); answer-key paths such as `.answers/` are always excluded | no | `[]` |
+| `context.redaction.deny_term_hashes[]` | SHA-256 of lower-cased terms, from `tsl context deny-term` (SDD-06 §9.4) | no | `[]` |
 | `change_limits.lines`, `.files` | int ≤ 400, ≤ 15 | no | 400, 15 |
 | `change_limits.sensitive_paths[]` | globs; added to the org list, never replacing it | no | org list |
 | `policy` | path to a policy.v2 addition file | no | `policy.yaml` |
@@ -697,7 +702,7 @@ loop while now < deadline:
   if no rows: break
   token = silent token (SDD-07 §4.4); none -> release rows, return E-AUTH-01
   POST /v1/events {events: rows}
-  202 -> accepted and duplicates -> 'sent'; rejected -> 'dead' with code
+  202 -> accepted and duplicates -> 'sent'; rejected E-ING-02 -> 'pending' with back-off (SDD-08 §4.3); other rejected -> 'dead' with code
   401 -> one silent refresh and retry once; else release, return E-AUTH-01
   413 -> split the batch in half and retry
   429/5xx/timeout -> attempts+1; next_attempt_at = now + min(2^attempts s, 300 s) or Retry-After

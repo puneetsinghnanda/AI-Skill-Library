@@ -2,6 +2,13 @@
 
 Oct 6, 2026 · @Puneet Singh Nanda
 
+| Field | Value |
+| --- | --- |
+| Document | 2 of 6 — User Personas and Stories |
+| Status | Draft for review |
+| Owner | Puneet Singh Nanda |
+| Approver | Puneet Singh Nanda |
+
 **Document set:** [1 PRD](01-prd.md) · 2 Personas & Stories (this) · [3 Architecture](../architecture/03-architecture.md) · [4 Design & UX](../ux/04-design-and-ux.md) · [5 API & Rules](../architecture/05-api-and-rules.md) · [6 Constraints & Out-of-Scope](06-constraints.md)
 
 ## 1. Personas

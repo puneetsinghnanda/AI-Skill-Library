@@ -9,6 +9,7 @@ Oct 6, 2026 · @Puneet Singh Nanda
 | Document | 4 of 6 — Design & UI/UX Assets |
 | Status | Draft for review |
 | Owner | Puneet Singh Nanda; design owners Ekjot (portal, catalogue) and Gaurav (dashboards, templates) |
+| Approver | Puneet Singh Nanda |
 | Related | [PRD](../product/01-prd.md) · [Personas & Stories](../product/02-personas-and-stories.md) · [Architecture](../architecture/03-architecture.md) |
 
 ### 1.1 Surfaces

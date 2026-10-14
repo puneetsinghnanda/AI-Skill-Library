@@ -1,7 +1,7 @@
 """A small, safe path language for structured front matter.
 
 Supports the forms used by skill checks and eval assertions:
-  $.a.b[*].c     a[].b     a[?k=='v'].b     a[?k==`true`]     a[0]
+  $.a.b[*].c     a[].b     a[?k=='v'].b     a[?k==`true`]     a[0]     $.a[?(@.k!='v')]
 No code is evaluated.
 """
 
@@ -12,8 +12,10 @@ import re
 from typing import Any
 
 TOKEN = re.compile(r"\.?([A-Za-z_][A-Za-z0-9_-]*)|\[(\*|\d+|\?[^\]]+)\]|\[\]")
+# `?k=='v'` (JMESPath style) and `?(@.k!='v')` (JSONPath style, used by SDD-03 §5.3 kind checks)
 FILTER = re.compile(
-    r"^\?\s*@?\.?([A-Za-z_][A-Za-z0-9_]*)\s*(==|!=)\s*(?:'([^']*)'|`([^`]*)`|\"([^\"]*)\")$"
+    r"^\?\s*(\()?\s*@?\.?([A-Za-z_][A-Za-z0-9_]*)\s*(==|!=)\s*"
+    r"(?:'([^']*)'|`([^`]*)`|\"([^\"]*)\")\s*(?(1)\))$"
 )
 
 
@@ -80,7 +82,7 @@ def select(obj: Any, path: str) -> list[Any]:
                 m = FILTER.match(arg)
                 if m is None:
                     raise PathError(f"bad filter {arg!r}")
-                field, op, lit = m.group(1), m.group(2), _lit(m.group(3), m.group(4), m.group(5))
+                field, op, lit = m.group(2), m.group(3), _lit(m.group(4), m.group(5), m.group(6))
                 items = v if isinstance(v, list) else []
                 for it in items:
                     if isinstance(it, dict):

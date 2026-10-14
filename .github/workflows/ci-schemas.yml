@@ -1,0 +1,39 @@
+# JSON Schemas: meta-validation, index, registry coverage and fixtures (TST-01 §6, TC-SCH-001..003).
+name: ci-schemas
+
+on:
+  pull_request:
+    paths:
+      - "schemas/**"
+      - "docs/architecture/registry.md"
+      - ".github/workflows/ci-schemas.yml"
+  push:
+    branches: [main]
+    paths:
+      - "schemas/**"
+      - "docs/architecture/registry.md"
+      - ".github/workflows/ci-schemas.yml"
+  workflow_call: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-schemas-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  schemas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: schemas
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
+      - name: Lint tests
+        run: uv run --locked --python 3.12 ruff check tests
+      - name: Schema contract tests
+        run: uv run --locked --python 3.12 pytest

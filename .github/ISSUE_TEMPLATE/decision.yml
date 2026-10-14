@@ -1,0 +1,23 @@
+name: Decision request
+description: Ask Puneet for a product or policy decision (GOV-01, registry §11). Approved decisions become ADRs in docs/adr/.
+title: "docs(adr): decide "
+labels: [decision]
+body:
+  - type: input
+    id: ref
+    attributes:
+      label: Reference (OQ-nn, RD-n, tracker Q, or doc open item)
+      placeholder: OQ-10
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Options and recommendation
+      description: Each option with its effect on the documents and code; say which one you recommend and why.
+    validations:
+      required: true
+  - type: textarea
+    id: blocks
+    attributes:
+      label: What it blocks

@@ -1,0 +1,102 @@
+# Documentation checks (GOV-01 §4.2, REG-01 §12): docs-lint (control rows, required sections),
+# docs-links (relative links and #anchors), registry ids, and docs-approval (Puneet's review for
+# approvals, accepted ADRs and closed OQs). Plain Python; only docs-approval reads the GitHub API.
+name: ci-docs
+
+on:
+  pull_request_review:
+    types: [submitted, dismissed]
+  pull_request:
+    paths:
+      - "**/*.md"
+      - "docs/**"
+      - "scripts/check_links.py"
+      - "scripts/check_registry.py"
+      - "scripts/check_docs.py"
+      - "tsl/src/**"
+      - "services/insights/app/**"
+      - "plugins/**"
+      - "spikes/**"
+      - ".github/workflows/ci-docs.yml"
+  push:
+    branches: [main]
+    paths:
+      - "**/*.md"
+      - "docs/**"
+      - "scripts/check_links.py"
+      - "scripts/check_registry.py"
+      - "scripts/check_docs.py"
+      - "tsl/src/**"
+      - "services/insights/app/**"
+      - "plugins/**"
+      - "spikes/**"
+      - ".github/workflows/ci-docs.yml"
+  workflow_call: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-docs-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docs-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Control rows and required sections
+        run: python3 scripts/check_docs.py
+
+  link-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Relative links and anchors resolve
+        run: python3 scripts/check_links.py
+
+  registry-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Error codes and spike ids are in the registry
+        run: python3 scripts/check_registry.py
+
+  docs-approval:
+    # GOV-01 §4.2: CODEOWNERS accepts any one owner, so this job requires Puneet's approving review
+    # when a PR moves a doc to Approved, accepts an ADR or closes an OQ. Set the repository variable
+    # APPROVER_GITHUB_LOGIN to Puneet's GitHub login (placeholder until OQ-10).
+    if: github.event_name == 'pull_request' || github.event_name == 'pull_request_review'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Approval-type changes need the approver's review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          APPROVER: ${{ vars.APPROVER_GITHUB_LOGIN }}
+        run: |
+          added="$(git diff "$BASE" "$HEAD" -- docs | grep -E '^\+[^+]' || true)"
+          if ! printf '%s\n' "$added" | grep -Eiq 'approved by puneet|^\+\|\s*status\s*\|\s*accepted|^\+status:\s*accepted|\|\s*accepted\s*\|\s*$|OQ-[0-9]+.*\bclosed\b'; then
+            echo "no approval-type change"; exit 0
+          fi
+          if [ -z "$APPROVER" ]; then
+            echo "::error::approval-type change found, but the APPROVER_GITHUB_LOGIN variable is not set"; exit 1
+          fi
+          approved="$(gh api "repos/$REPO/pulls/$PR/reviews" --jq "[.[] | select(.user.login == \"$APPROVER\" and .state == \"APPROVED\")] | length")"
+          if [ "$approved" -gt 0 ]; then echo "approved by $APPROVER"; exit 0; fi
+          echo "::error::this PR changes an approval, an ADR status or an OQ; it needs an approving review from $APPROVER (GOV-01 §4.2)"
+          exit 1

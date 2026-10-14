@@ -8,6 +8,8 @@ Oct 12, 2026 · @Puneet Singh Nanda
 | --- | --- |
 | ID | SDD-05 |
 | Status | Draft for validation |
+| Owner | Shubham Bansal |
+| Approver | Puneet Singh Nanda |
 | Author | Claude (for Puneet Singh Nanda) |
 | Validator | Shubham Bansal (skill execution, hook execution) |
 | Also reviewed by | Japman Singh, Yash Khorwal (harness hooks); Abhishek Verma, Ekjot Singh (skill and command surface) |

@@ -1,0 +1,59 @@
+# tsl, the Python 3.12 command-line tool (SDD-04): ruff, mypy, pytest on three OSes (TST-01 §6, NFR-13).
+name: ci-tsl
+
+on:
+  pull_request:
+    paths:
+      - "tsl/**"
+      - "schemas/**"
+      - "plugins/truminds/bin/**"
+      - "plugins/truminds/hooks/**"
+      - "plugins/truminds/skills/requirement-review/**"
+      - "docs/architecture/registry.md"
+      - ".github/workflows/ci-tsl.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tsl/**"
+      - "schemas/**"
+      - "plugins/truminds/bin/**"
+      - "plugins/truminds/hooks/**"
+      - "plugins/truminds/skills/requirement-review/**"
+      - "docs/architecture/registry.md"
+      - ".github/workflows/ci-tsl.yml"
+  workflow_call: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-tsl-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tsl:
+    name: tsl (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: tsl
+        shell: bash
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
+      - name: Sync (locked)
+        run: uv sync --locked --python 3.12
+      - name: Ruff
+        run: uv run --locked ruff check . && uv run --locked ruff format --check .
+      - name: Mypy (strict)
+        run: uv run --locked mypy
+      - name: Pytest (no network; Docker tests skip without a daemon)
+        run: uv run --locked pytest -q

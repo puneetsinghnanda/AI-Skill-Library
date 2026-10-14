@@ -1,0 +1,67 @@
+# Sample brownfield system (TST-01 §4): lint, typecheck, build, migrate + seed + suites against
+# PostgreSQL 16 (TC-SAM-001/002) and the defect canaries (TC-SAM-003). The sample system's own
+# .github/workflows/ci.yml is review material for pipeline-review and never runs here.
+name: ci-sample
+
+on:
+  pull_request:
+    paths:
+      - "examples/**"
+      - ".github/workflows/ci-sample.yml"
+  push:
+    branches: [main]
+    paths:
+      - "examples/**"
+      - ".github/workflows/ci-sample.yml"
+  workflow_call: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-sample-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sample-system:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      # Empty, throwaway server for this job only; invented data, no secret outlives the job.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          TZ: UTC
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: examples/sample-system
+    env:
+      TZ: UTC
+      SAMPLE_TEST_DATABASE_URL: postgres://postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: examples/sample-system/.nvmrc
+          cache: npm
+          cache-dependency-path: examples/sample-system/package-lock.json
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck (strict)
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Test (db, api, web; TC-SAM-001, TC-SAM-002)
+        run: npm test
+      - name: Defect canaries (TC-SAM-003)
+        run: npm run canary

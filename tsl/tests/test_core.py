@@ -167,3 +167,15 @@ def test_log_redaction() -> None:
         {"token": "abc", "msg": "Bearer eyJhbGciOi.eyJzdWIi.sig and -----BEGIN PRIVATE KEY-----x"}
     )
     assert "abc" not in json.dumps(text) and "eyJhbGciOi" not in json.dumps(text)
+
+
+def test_jsonpath_filters_both_styles() -> None:
+    # SDD-03 §5.3 kind checks use `?(@.k!='v')`; eval assertions use `?k=='v'`
+    from tsl.harness.jsonpath import PathError, select
+
+    d = {"a": [{"change": "new", "m": 1}, {"change": "old", "m": 2}]}
+    assert select(d, "$.a[?(@.change!='new')].m") == [2]
+    assert select(d, "$.a[?(@.change=='new')].m") == [1]
+    assert select(d, "a[?change=='new'].m") == [1]
+    with pytest.raises(PathError):
+        select(d, "$.a[?(@.change=='new'].m")

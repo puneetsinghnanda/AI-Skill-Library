@@ -11,7 +11,7 @@
 
 This runbook says, for each failure that happens in practice, **who** acts and **what** they do. It is written as symptom → cause → fix tables. Every row names the error code from Doc 4 §5.2 (the catalogue, which Doc 5 refers to), SDD-04 §5 or SDD-05 §5.4, plus the newer codes from SDD-02, SDD-03, SDD-08 and SDD-12.
 
-**Covers:** `tsl` missing or wrong version; expired login; stuck lock; a run that crashed mid-step; hook timeout; insights service down; verifier container failure; reviewer returning invalid JSON; seat limit reached; merge conflict in the companion repo; CI verify failure; and, briefly, the failures the specs already handle (stale pack, retries exhausted, abort). Section 5 covers security incidents.
+**Covers:** every alert AL-01 to AL-26 (§4.13); `tsl` missing or wrong version; expired login; stuck lock; a run that crashed mid-step; hook timeout; insights service down; verifier container failure; reviewer returning invalid JSON; seat limit reached; merge conflict in the companion repo; CI verify failure; and, briefly, the failures the specs already handle (stale pack, retries exhausted, abort). Section 5 covers security incidents.
 
 **Does not cover:** alert thresholds (OPS-02), deploy and restore steps (OPS-01), release rollback (OPS-03 §5).
 
@@ -292,12 +292,45 @@ Each run writes only its own folders; the only shared files are the lock files, 
 
 | Symptom | Cause | Fix | Code |
 | --- | --- | --- | --- |
-| Warning: pack stale, band capped at Medium | Pack older than 30 days or drift over 50 files (DEF-01, DEF-03) | Tech lead: `tsl context build`, review, `tsl context sign` | E-CTX-02 |
+| Warning: pack stale, band capped at Medium | Pack more than `max_commits_behind` (default 50) commits behind, drift over 50 files, or a critical path changed (SDD-06 §7.1) | Tech lead: `tsl context build`, review, `tsl context sign` | E-CTX-02 |
 | Run cannot start: pack missing, or signature does not verify | No pack, or a file changed after signing | Tech lead builds and signs the pack | E-CTX-01, E-CTX-03 |
 | Step escalated after retries | RETRY limit reached (R-01, R-02) | Approver reads the findings in `approvals.md` and runs `tsl approve` | E-RUN-02 |
 | Run paused for input; resume refused | Blocking questions unanswered | Answer `open-questions.md`; resume | E-RUN-01, E-RUN-03 |
 | Hard gate failed | Artifact misses a section or schema field | Claude fixes automatically, within the retry limit | E-CHK-01 |
 | Run aborted | Secret, PII, out-of-scope write, sensitive read, MCP write without approval, tool not permitted | Follow §5. The run cannot be resumed | E-SEC-01, E-SEC-02, E-POL-01 to E-POL-05 |
+
+### 4.13 Alert runbook (AL-01 to AL-26)
+
+Every alert in [OPS-02](OPS-02-monitoring-alerting.md) §7 and `ops/monitoring/alerts.yaml` links here by its `#al-nn` anchor. Thresholds and severities live in OPS-02; this table says who acts and what they do first. Follow the linked section for the full fix.
+
+| Alert | Name | Who | First actions | See |
+| --- | --- | --- | --- | --- |
+| <a id="al-01"></a>AL-01 | API down | Service operator | `docker compose ps` and `logs api`; restart; if the last deploy caused it, roll back the image (OPS-03 §5) | §4.6.1 |
+| <a id="al-02"></a>AL-02 | Not ready | Service operator | Read the `/v1/health/ready` `checks` body: DB unreachable, migration not at head (run `migrate`, never downgrade) or a missing secret | §4.6.1 |
+| <a id="al-03"></a>AL-03 | Ingest error rate | Telemetry owner | Logs by `route` and `code`; DB health. 401s for every laptop: check `ENTRA_TENANT_ID`, `ENTRA_API_AUDIENCE` and host clock (E-ING-07) | §4.6.1 |
+| <a id="al-04"></a>AL-04 | Read error rate | Telemetry owner | Logs by `route`; slow queries; last view refresh (AL-11) | §4.6.1 |
+| <a id="al-05"></a>AL-05 | Read latency | Telemetry owner | Slowest routes on DSH-3; DB CPU; missing index (SDD-08 §10.2) | §4.6.1 |
+| <a id="al-06"></a>AL-06 | Ingest latency | Telemetry owner | DB write latency on DSH-4; batch size; pool use (AL-15) | §4.6.1 |
+| <a id="al-07"></a>AL-07 | Projection lag warning | Telemetry owner | `worker` logs; backlog trend on DSH-2; handler errors | §4.6.1 (portal numbers stale) |
+| <a id="al-08"></a>AL-08 | Projection lag critical | Telemetry owner, then service operator | As AL-07; restart `worker`; check the advisory-lock leader (AL-10) | §4.6.1 |
+| <a id="al-09"></a>AL-09 | Ingest silence | Telemetry owner | Public ingress, Entra token validation (AL-17), latest `tsl` release; OPS-02 §8.2 | §4.6 |
+| <a id="al-10"></a>AL-10 | Worker stalled | Service operator | Restart `worker`; find the advisory-lock holder | §4.6.1 |
+| <a id="al-11"></a>AL-11 | Views stale | Telemetry owner | `refresh_views` job logs; long-running queries | §4.6.1 |
+| <a id="al-12"></a>AL-12 | Daily job failed | Telemetry owner | Job logs; rerun `rollup`, `retention` or `partitions` by hand with `python -m app.entry worker` job mode (SDD-08 §11) | §4.6.1 |
+| <a id="al-13"></a>AL-13 | DB storage high | Service operator | Check the retention job and table sizes on DSH-4; plan a resize (OPS-01 §8) | §4.6.1 (disk full) |
+| <a id="al-14"></a>AL-14 | DB storage critical | Service operator | Resize storage now (OPS-01 §8), then the AL-13 actions | §4.6.1 (disk full) |
+| <a id="al-15"></a>AL-15 | DB pool saturated | Telemetry owner | Long queries; raise the pool or DB connections in a config change | §4.6.1 |
+| <a id="al-16"></a>AL-16 | Outbox backlog on devices | Tech lead (admin finds the engineer by pseudonym) | Ask the engineer to connect, run `tsl login` if needed and `tsl events flush`; OPS-02 §8.3 | §4.6 |
+| <a id="al-17"></a>AL-17 | Auth failure spike | Telemetry owner; security reviewer if probing | Split by `kind` and `reason`: JWKS fetch, audience, expired CI token, or probing | §4.6.1, §5 |
+| <a id="al-18"></a>AL-18 | Deny-list hit | Telemetry owner and security reviewer | Possible content leak or `tsl` bug: find the sending `tsl` version and field; patch release. The event is dead and not stored | §5 |
+| <a id="al-19"></a>AL-19 | Catalogue sync problem | Skill owners (Abhishek Verma, Ekjot Singh) | The sync job log names the file and schema error; fix it in the marketplace repo by PR | §4.12 |
+| <a id="al-20"></a>AL-20 | Partitions missing | Service operator | Run `jobs/partitions` by hand before the month rolls over (SDD-08 §11.1) | §4.6.1 (disk full) |
+| <a id="al-21"></a>AL-21 | Webhook signature failures | Platform admin | Secret rotated without update, or forged traffic: check `github_hooks`; rotate (OPS-01 §7.3) | §5 |
+| <a id="al-22"></a>AL-22 | OTel volume anomaly | Telemetry owner | Possible misuse of the shared OTel token (SDD-08 §9.3); rotate it if needed | §5 |
+| <a id="al-23"></a>AL-23 | Rejected events | `tsl` owners (Japman Singh, Yash Khorwal) | Likely a `tsl` schema bug: group by `code` and `tsl_version` in the logs; patch release | §4.6 (dead events) |
+| <a id="al-24"></a>AL-24 | Certificate expiry | Service operator | Renew the certificate (OPS-01) | — |
+| <a id="al-25"></a>AL-25 | Portal down | Service operator | Check the portal nginx container (`truminds/portal`, OPS-01 §5.2), its static route and the edge ingress; roll back the portal image if the last deploy caused it | §4.6.1 |
+| <a id="al-26"></a>AL-26 | Error budget burn | Telemetry owner; Puneet for the release freeze | Treat as AL-03 or AL-04; freeze non-urgent releases until the budget recovers (OPS-03) | §4.6.1 |
 
 ## 5. Security incidents
 

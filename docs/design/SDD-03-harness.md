@@ -336,6 +336,8 @@ checks:
     select: "$.claims[*]"
 ```
 
+This kind form and the SDD-01 §9 library form (`uses`/`with`, ids `<SKILLCODE>-C<nn>`) are both valid `skill-checks.v1` items; `tsl` runs both, and SDD-01 §9 lists when each is used.
+
 ```yaml
 # skills/design/skill.yaml (skill-metadata.v1, additive block)
 harness:
@@ -643,7 +645,7 @@ Let `C` be the envelope claims (DEF-07), `F` the findings in `review.json`, and 
 | S2 Soft check pass rate | `S2 = soft_passed / soft_run`; skipped checks excluded; if `soft_run = 0`, `S2 = 1.0` | 0–1 | Generic soft checks (§5.1) plus skill soft checks |
 | S3 Reviewer score | `S3 = Σ wᵢ·scoreᵢ / Σ wᵢ` over `rubric_items`, weights from the rubric file (SDD-01; default 1). Rounded to 2 decimals | 1–5 or null | Code recomputes; if the reviewer's `rubric_score` differs by > 0.05 the code value wins and a note is added. `null` if `status = could_not_review` |
 | S4 Open blockers | `S4 = |kept findings with severity blocker| + |questions with blocking true| + |envelope unknown with blocking true|` | integer ≥ 0 | Questions answered in `open-questions.md` on resume no longer count |
-| S5 Context freshness | `fresh` if DEF-01 holds at `decided_at` (signature verifies, age ≤ `max_age_days`, drift < `drift_files`, no `critical_paths` change) **and** all declared inputs exist; `stale` if any freshness test fails; `missing` if no pack | enum | Drift uses the last `tsl context-refresh --check` result; if that is older than 24 h and the network is down, `S5_basis: cached` is recorded. Non-brownfield runs with `requires_fresh_pack: false` use `fresh` when the pack is absent |
+| S5 Context freshness | `fresh` if DEF-01 holds at `decided_at` (signature verifies, commits behind ≤ `max_commits_behind` (SDD-06 §7.1), drift < `drift_files`, no `critical_paths` change) **and** all declared inputs exist; `stale` if any freshness test fails; `missing` if no pack | enum | Drift uses the last `tsl context-refresh --check` result; if that is older than 24 h and the network is down, `S5_basis: cached` is recorded. Non-brownfield runs with `requires_fresh_pack: false` use `fresh` when the pack is absent |
 | S6 Change risk | `S6 = {lines, files, sensitive}`; `lines` = added + deleted lines over `product_changes`, minus `exclude_from_risk` files; `files` = changed files; `sensitive` = any changed path matches `change_limits.sensitive_paths`. Ratio `r6 = max(lines / L, files / Fmax)`, and `r6 = ∞` if `sensitive` | object + ratio | Non-code skills: `{0, 0, false}`, `r6 = 0`. `L` and `Fmax` from `change_limits` (DEF-05: 400, 15) |
 
 ## 10. Bands
@@ -963,6 +965,8 @@ expect:
   fabricated_cites: []
 ```
 
+Harness-case ids are kebab-case (`harness-case.v1`); they are a separate series from skill eval cases `EC-nn` (SDD-01 §6.1, §10).
+
 **Minimum set for the pilot (proposed):** 5 failing cases per gate H1–H7 (35), 10 clean cases, 20 reviewer cases with 1–3 planted defects each, 10 citation cases (valid, shifted lines, fabricated path, fabricated quote), 10 decide cases covering every table row and cap. Total ≈ 85.
 
 ### 16.2 Measures
@@ -1052,7 +1056,7 @@ All targets are **proposed, needs Puneet decision** (OQ-09, OQ-11).
 | SDD-04 | `tsl verify` flags `--fast`, `--gates`, `--detach`, `--status`, `--ci`; `tsl harness eval`; `tsl review prepare/record` behaviour from §7 |
 | SDD-05 | Hooks write `runs/<run_id>/tool-log.jsonl` (`tool-log.v1`) |
 | SDD-07 / SDD-08 | `GET /v1/keys/{key_id}` must also return the signer's role grants at a given time (`?at=<ts>&system=<code>`) for CI check 5 |
-| SDD-01 | Body schemas carry `x-required-sections`, `x-trace`, `x-acceptance-criteria`, `x-claims-required`, `x-max-bytes`; rubric items carry ids `R-n` and weights; claims put named elements in backticks |
+| SDD-01 | Body schemas carry `x-required-sections`, `x-trace`, `x-acceptance-criteria`, `x-claims-required`, `x-max-bytes`; rubric items carry ids `<SKILLCODE>-R<n>` (SDD-01 §6.1, for example `RR-R2`) and weights; claims put named elements in backticks |
 | SDD-06 | Symbol index in `module-map.json` (name, file, start and end line) for `sym:` anchors |
 
 ## 19. Validator sign-off

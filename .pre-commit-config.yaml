@@ -1,0 +1,52 @@
+# Optional local hooks (DEV-01 §3.2): `uv tool install pre-commit && pre-commit install --hook-type pre-commit --hook-type commit-msg`.
+# All hooks are local commands from this repo's own lock files; CI runs the same checks (TST-01 §6).
+default_install_hook_types: [pre-commit, commit-msg]
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-tsl
+        name: ruff (tsl)
+        entry: bash -c 'cd tsl && uv run --locked --python 3.12 ruff check . && uv run --locked --python 3.12 ruff format --check .'
+        language: system
+        files: ^tsl/
+        pass_filenames: false
+      - id: mypy-tsl
+        name: mypy (tsl)
+        entry: bash -c 'cd tsl && uv run --locked --python 3.12 mypy'
+        language: system
+        files: ^tsl/.*\.py$
+        pass_filenames: false
+      - id: ruff-insights
+        name: ruff (insights)
+        entry: bash -c 'cd services/insights && uv run --locked --python 3.12 ruff check . && uv run --locked --python 3.12 ruff format --check .'
+        language: system
+        files: ^services/insights/
+        pass_filenames: false
+      - id: portal-lint
+        name: eslint, stylelint, prettier (portal)
+        entry: bash -c 'cd portal && npm run lint'
+        language: system
+        files: ^portal/
+        pass_filenames: false
+      - id: sample-lint
+        name: eslint (sample system)
+        entry: bash -c 'cd examples/sample-system && npm run lint'
+        language: system
+        files: ^examples/sample-system/
+        pass_filenames: false
+      - id: docs-check
+        name: links and registry ids
+        entry: bash -c 'python3 scripts/check_links.py && python3 scripts/check_registry.py'
+        language: system
+        files: \.(md|py|ts|tsx|yaml|yml|json)$
+        pass_filenames: false
+      - id: gitleaks
+        name: gitleaks (staged changes; needs gitleaks on PATH)
+        entry: gitleaks protect --staged --no-banner --redact --config .gitleaks.toml
+        language: system
+        pass_filenames: false
+      - id: conventional-commit
+        name: commit message (DEV-01 §2.4)
+        entry: python3 scripts/check_commit_msg.py
+        language: system
+        stages: [commit-msg]

@@ -13,6 +13,7 @@ from tsl.context.freshness import MANIFEST, SIGNATURE, manifest_sha
 from tsl.context.freshness import status as fresh_status
 from tsl.context.repoview import RepoView
 from tsl.core.clock import iso
+from tsl.core.config import ORG_DEFAULTS
 from tsl.core.errors import TslError
 from tsl.core.frontmatter import FrontMatterError, headings, split
 from tsl.core.hashing import sha256_file, sha256_text
@@ -45,7 +46,8 @@ TITLES = {
     "test-strategy": "Test strategy",
     "intent-baseline": "Intent baseline",
 }
-LIMITS = {"section_tokens": 8000, "judgement_tokens": 40000, "generated_file_bytes": 2097152}
+# Org defaults; tsl.yaml context.limits may only lower them (TslConfig.pack_limits).
+LIMITS = dict(ORG_DEFAULTS["context"]["limits"])
 DRAFT = re.compile(r"<!--\s*tsl:draft\s+id=D-\d+\s*-->")
 ANCHOR_SYNTAX = re.compile(r"\{#([^}]*)\}")
 
@@ -82,22 +84,22 @@ def _views(
         )
         if sha is None:
             raise TslError("E-CTX-09", repo=repo.name)
-        views.append(RepoView(repo.name, sha, repo.path, clone))
+        views.append(RepoView(repo.name, sha, repo.path, clone, comp.config.extra_exclude))
     return views, warnings
 
 
-def _redact_value(v: Any, counts: dict[str, int]) -> Any:
+def _redact_value(v: Any, counts: dict[str, int], deny: frozenset[str] = frozenset()) -> Any:
     if isinstance(v, str):
-        hits = detectors.scan(v)
+        hits = detectors.scan(v, deny_term_hashes=deny)
         if hits:
             counts["masked"] += len(hits)
             return detectors.mask(v, hits)
         return v
     if isinstance(v, list):
-        return [_redact_value(x, counts) for x in v]
+        return [_redact_value(x, counts, deny) for x in v]
     if isinstance(v, dict):
         return {
-            k: (x if k in ("id", "kind", "source") else _redact_value(x, counts))
+            k: (x if k in ("id", "kind", "source") else _redact_value(x, counts, deny))
             for k, x in v.items()
         }
     return v
@@ -105,9 +107,16 @@ def _redact_value(v: Any, counts: dict[str, int]) -> Any:
 
 def run_extractors(
     views: list[RepoView],
+    migration_globs: list[str] | None = None,
+    test_globs: list[str] | None = None,
+    deny: frozenset[str] = frozenset(),
 ) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]], list[dict[str, str]], int, int]:
-    """section -> context-facts.v1 document; extractor list; errors; masked; excluded."""
-    regs = ex.registry()
+    """section -> context-facts.v1 document; extractor list; errors; masked; excluded.
+
+    Globs and deny-term hashes come from tsl.yaml `context.extractors` and
+    `context.redaction` (SDD-06 §5.2, §9.4).
+    """
+    regs = ex.registry(migration_globs, test_globs)
     per: dict[str, list[tuple[str, ex.ExtractResult, str]]] = {s: [] for s in FACT_SECTIONS}
     errors: list[dict[str, str]] = []
     used: dict[str, str] = {}
@@ -135,7 +144,7 @@ def run_extractors(
         reasons: list[str] = []
         for _repo, res, _name in per[sec]:
             for f in res.facts:
-                f = _redact_value(f, counts)
+                f = _redact_value(f, counts, deny)
                 if f["id"] in facts and json.dumps(facts[f["id"]], sort_keys=True) != json.dumps(
                     f, sort_keys=True
                 ):
@@ -182,6 +191,7 @@ def _template(section: str, owner: str) -> str:
 def lint_judgement(
     comp: Companion, repos: set[str], sources: dict[str, str]
 ) -> tuple[list[dict[str, Any]], list[str], int]:
+    deny = comp.config.deny_term_hashes
     """(sections, lint errors, blocking redaction hits) for context/*.md."""
     sections: list[dict[str, Any]] = []
     errs: list[str] = []
@@ -227,7 +237,11 @@ def lint_judgement(
                             f"context/{sec}.md line {i + doc.body_start_line}: citation {ref} "
                             f"does not resolve"
                         )
-        hits = [h for h in detectors.scan(text) if h.kind in ("secret", "pii", "term")]
+        hits = [
+            h
+            for h in detectors.scan(text, deny_term_hashes=deny)
+            if h.kind in ("secret", "pii", "term")
+        ]
         blocking += len(hits)
         size = len(text.encode("utf-8"))
         sections.append(
@@ -254,7 +268,14 @@ def compute(
     rt: Runtime, comp: Companion, commits: dict[str, str] | None, fetch: bool
 ) -> dict[str, Any]:
     views, warnings = _views(rt, comp, commits, fetch)
-    generated, extractors, ex_errors, masked, excluded = run_extractors(views)
+    cfg = comp.config
+    limits = cfg.pack_limits()
+    generated, extractors, ex_errors, masked, excluded = run_extractors(
+        views,
+        cfg.extractor_globs("migrations"),
+        cfg.extractor_globs("tests"),
+        cfg.deny_term_hashes,
+    )
     repos = {r.name for r in comp.config.product_repos} | {
         str(r["name"]) for r in comp.config.read_only_repos
     }
@@ -265,7 +286,7 @@ def compute(
     size_errs: list[str] = []
     for sec, text in gen_text.items():
         b = len(text.encode("utf-8"))
-        if b > LIMITS["generated_file_bytes"]:
+        if b > limits["generated_file_bytes"]:
             size_errs.append(f"generated/{sec}.json is {b} bytes (sharding not supported yet)")
         sections.append(
             {
@@ -282,13 +303,13 @@ def compute(
     total_j = 0
     for s in jsections:
         total_j += s["tokens_est"]
-        if s["tokens_est"] > LIMITS["section_tokens"]:
+        if s["tokens_est"] > limits["section_tokens"]:
             size_errs.append(
-                f"{s['path']} is {s['tokens_est']} tokens over {LIMITS['section_tokens']}"
+                f"{s['path']} is {s['tokens_est']} tokens over {limits['section_tokens']}"
             )
         sections.append({k: v for k, v in s.items() if not k.startswith("_")})
-    if total_j > LIMITS["judgement_tokens"]:
-        size_errs.append(f"judgement sections {total_j} tokens over {LIMITS['judgement_tokens']}")
+    if total_j > limits["judgement_tokens"]:
+        size_errs.append(f"judgement sections {total_j} tokens over {limits['judgement_tokens']}")
     sections.sort(key=lambda s: s["id"])
     manifest = {
         "schema": "context-pack.v1",
@@ -315,7 +336,7 @@ def compute(
             "paths_excluded": excluded,
             "blocking_hits": blocking,
         },
-        "limits": dict(LIMITS),
+        "limits": dict(limits),
         "tokens_total_est": sum(s["tokens_est"] for s in sections),
     }
     from tsl.schemas.registry import errors as schema_errors
@@ -572,7 +593,7 @@ def draft_prepare(rt: Runtime, comp: Companion, section: str) -> dict[str, Any]:
         "current": current,
         "facts": facts,
         "product_repos": repos,
-        "budget_tokens": LIMITS["section_tokens"],
+        "budget_tokens": comp.config.pack_limits()["section_tokens"],
         "rules": {
             "front_matter": "keep schema, section and owner; set status: drafted, origin: ai-draft",
             "draft_marker": "<!-- tsl:draft id=D-<n> --> before every block you write",

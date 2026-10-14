@@ -9,6 +9,7 @@ Oct 6, 2026 · @Puneet Singh Nanda
 | Document | 5 of 6 — API Specifications & Rules |
 | Status | Draft for review |
 | Owner | Puneet Singh Nanda; contract owners Abhishek (state, telemetry API), Shubham (hooks, CI, webhooks), Japman (harness records) |
+| Approver | Puneet Singh Nanda |
 | Related | [PRD](../product/01-prd.md) · [Personas & Stories](../product/02-personas-and-stories.md) · [Architecture](03-architecture.md) · [Design & UX](../ux/04-design-and-ux.md) |
 
 ### 1.1 Conventions
@@ -94,7 +95,7 @@ product_repos:                                                   # req
   - {name: orders-api, url: git@github.com:org/orders-api.git, path: ., verifier_profile: java-maven@2}
   - {name: orders-web, url: git@github.com:org/orders-web.git, path: ., verifier_profile: node-20@1}
 read_only_repos: [{name: common-lib, url: ...}]
-context: {max_age_days: 30, drift_files: 50, critical_paths: ["orders-api:src/main/**/billing/**"]}
+context: {max_commits_behind: 50, drift_files: 50, critical_paths: ["orders-api:src/main/**/billing/**"]}   # full key list: SDD-04 §7.2, SDD-06 §7.2
 change_limits: {lines: 400, files: 15, sensitive_paths: ["**/auth/**", "**/migrations/**", ".github/**"]}
 policy: policy.yaml                                              # §4.3
 gates: {self_approval: false, lock_timeout_hours: 24}
@@ -129,7 +130,7 @@ version: 1.3.0
 status: production             # draft | pilot | production | deprecated (SDD-02 §3.2, OPS-03 §7)
 requires_fresh_pack: true
 steps:
-  - {id: req,    skill: requirement-review@^1.2}
+  - {id: req,    skill: requirement-review@^1.0}
   - {id: split,  skill: story-split@^1.0, after: [req]}
   - {id: impact, skill: impact-analysis@^1.1, after: [req]}
   - {id: design, skill: design@^1.4, after: [split, impact]}

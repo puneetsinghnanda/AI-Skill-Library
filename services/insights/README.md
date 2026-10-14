@@ -69,6 +69,7 @@ Deployment is in [`deploy/`](../../deploy/README.md) and monitoring is in [`ops/
 
 ```bash
 uv run pytest            # real PostgreSQL 16 (initdb + pg_ctl on a random port), no network, no Docker
+INSIGHTS_TEST_PG_PORT=5432 uv run pytest   # CI: an empty postgres:16 service container that trusts `postgres`
 uv run ruff check . && uv run ruff format --check .
 uv run mypy              # strict, app + tests + seed
 ```

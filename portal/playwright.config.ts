@@ -9,6 +9,16 @@ const executablePath =
 
 const PORT = 4173;
 
+// Release runs add Firefox and WebKit (OPS-03 §3, TST-01 §6): PW_EXTRA_BROWSERS="firefox webkit".
+const EXTRA_DEVICES: Record<string, string> = {
+  firefox: 'Desktop Firefox',
+  webkit: 'Desktop Safari',
+};
+const extraProjects = (process.env.PW_EXTRA_BROWSERS ?? '')
+  .split(/[\s,]+/)
+  .filter((name) => name in EXTRA_DEVICES)
+  .map((name) => ({ name, use: { ...devices[EXTRA_DEVICES[name]] } }));
+
 export default defineConfig({
   testDir: './e2e',
   outputDir: './test-results',
@@ -31,6 +41,7 @@ export default defineConfig({
         ...(executablePath ? { launchOptions: { executablePath } } : {}),
       },
     },
+    ...extraProjects,
   ],
   // e2e runs against the explicit demo build (MSW mocks + test token-cache fixture), served by
   // `vite preview` with the production CSP headers.

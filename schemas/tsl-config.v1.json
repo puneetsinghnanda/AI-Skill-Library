@@ -172,7 +172,16 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 30,
-          "default": 30
+          "default": 30,
+          "deprecated": true,
+          "description": "Deprecated by SDD-06 §7.2 (replaced by max_commits_behind); accepted and ignored with E-DEP-01."
+        },
+        "max_commits_behind": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 50,
+          "description": "F5: product repo commits behind the signed source commit before the pack is stale (SDD-06 §7.1, §7.2). Tighten only."
         },
         "drift_files": {
           "type": "integer",
@@ -185,6 +194,75 @@
           "items": {
             "type": "string",
             "pattern": "^[a-z0-9-]{1,40}:\\S+$"
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Pack size limits (SDD-06 §8). Tighten only: the maxima are the org defaults.",
+          "properties": {
+            "section_tokens": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 8000,
+              "default": 8000
+            },
+            "judgement_tokens": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 40000,
+              "default": 40000
+            },
+            "generated_file_bytes": {
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 2097152,
+              "default": 2097152
+            }
+          }
+        },
+        "extractors": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Extractor globs (SDD-06 §5.2, §7.2). Paths are relative to the product repo scope.",
+          "properties": {
+            "migrations": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/glob"
+              },
+              "uniqueItems": true,
+              "maxItems": 20
+            },
+            "tests": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/glob"
+              },
+              "uniqueItems": true,
+              "maxItems": 20
+            }
+          }
+        },
+        "redaction": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Redaction (SDD-06 §9). extra_exclude only adds to the built-in never-read list; deny_term_hashes holds SHA-256 of lower-cased terms (names are never stored, C-09).",
+          "properties": {
+            "extra_exclude": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/glob"
+              },
+              "uniqueItems": true
+            },
+            "deny_term_hashes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/sha256"
+              },
+              "uniqueItems": true
+            }
           }
         }
       }

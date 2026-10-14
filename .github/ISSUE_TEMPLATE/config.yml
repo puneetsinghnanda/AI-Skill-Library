@@ -1,0 +1,6 @@
+# Security incidents and client data never go in a public issue (OPS-04 §5): report privately.
+blank_issues_enabled: false
+contact_links:
+  - name: Security incident or client data in a repo
+    url: https://github.com/truminds/AI-Skill-Library/security/advisories/new  # placeholder org (OQ-10)
+    about: Report privately to the security reviewer (OPS-04 §5). Never paste the data here.

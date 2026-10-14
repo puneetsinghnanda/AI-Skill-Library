@@ -10,10 +10,16 @@ product_repos:
     pr: {branch_prefix: tsl, draft_below: High, labels: [tsl]}
 read_only_repos: []
 context:
+  max_commits_behind: 50
   drift_files: 50
   critical_paths:
     - "sample-system:db/migrations/**"
     - "sample-system:api/src/auth/**"
+  extractors:
+    migrations: ["db/migrations/*.sql"]
+  redaction:
+    extra_exclude: []            # .answers/ is always excluded by tsl itself
+    deny_term_hashes: []
 change_limits:
   lines: 400
   files: 15

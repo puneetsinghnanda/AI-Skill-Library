@@ -598,6 +598,17 @@
       "description": "Tech lead's Ed25519 signature over the manifest hash and source commits (tsl context sign). signed_at is for key validity and audit only; freshness never uses it."
     },
     {
+      "name": "companion-archive",
+      "version": 1,
+      "id": "companion-archive.v1",
+      "file": "companion-archive.v1.json",
+      "$id": "https://schemas.truminds.internal/companion-archive.v1.json",
+      "kind": "file",
+      "owner": "SDD-12 §8.2",
+      "title": "ARCHIVE.json (companion-archive.v1)",
+      "description": "Admin-signed archive record written by tsl companion archive: system code, last commit, run and record counts, and a SHA-256 over the sorted record hashes (SDD-12 §8.2). Signed with Ed25519 over the JCS form (SDD-07)."
+    },
+    {
       "name": "pod",
       "version": 1,
       "id": "pod.v1",

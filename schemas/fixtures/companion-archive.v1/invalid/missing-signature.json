@@ -1,0 +1,12 @@
+{
+  "schema": "companion-archive.v1",
+  "system": "SYS-SMP",
+  "last_commit": "fb71731dfe0ec970d3964518e40a1e1fd11f20ee",
+  "runs": 12,
+  "records": 96,
+  "records_sha256": "62c66a7a5dd70c3146618063c344e531e6d4b59e379808443ce962b3abd63c5a",
+  "reason_code": "engagement_ended",
+  "archived_by": "adm-3c9e",
+  "archived_at": "2026-01-02T08:00:00Z",
+  "key_id": "key_01JD4E5F6G7H8J9KMNPQRSTVWX"
+}

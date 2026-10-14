@@ -280,20 +280,20 @@ Severities: **P1** pages at any time; **P2** pages during team working hours (ti
 | AL-22 | OTel volume anomaly | `rate(insights_otel_datapoints_total[1h]) > 5 * avg_over_time(rate(insights_otel_datapoints_total[1h])[7d:1h])` | 30 m | P3 | Possible misuse of the shared OTel token (SDD-08 §9.3); rotate if needed |
 | AL-23 | Rejected events | `sum(rate(insights_events_rejected_total{code=~"E-ING-0[135]"}[1h])) / sum(rate(insights_events_received_total[1h])) > 0.01` | 1 h | P3 | Likely a `tsl` schema bug; check by `code` and `tsl_version` in logs |
 | AL-24 | Certificate expiry | `insights_tls_cert_expiry_seconds < 14 * 86400` | — | P3 | Renew certificate (OPS-01) |
-| AL-25 | Portal down | SY-1 failing 3 of the last 3 runs | 3 m | P2 | Image missing `portal/dist`; static route; ingress |
+| AL-25 | Portal down | SY-1 failing 3 of the last 3 runs | 3 m | P2 | Portal nginx container (OPS-01 §5.2); static route; ingress |
 | AL-26 | Error budget burn | Fast: SLO-1 or SLO-5 burn rate > 14.4 over 1 h **and** 5 m. Slow: > 6 over 6 h **and** 30 m | — | P1 fast, P2 slow | Treat as AL-03/AL-04; freeze non-urgent releases until budget recovers |
 
 Rule format in `alerts.yaml`:
 
 ```yaml
-- alert: A-08_ProjectionLagCritical
+- alert: AL-08_ProjectionLagCritical
   expr: insights_projection_lag_seconds > 1800
   for: 5m
   labels: {severity: P1, team: insights}
   annotations:
     summary: "Projection lag {{ $value | humanizeDuration }}; portal numbers are behind"
     dashboard: "DSH-2 Ingest pipeline"
-    runbook: "docs/operations/OPS-04-failure-runbook.md#a-08"
+    runbook: "docs/operations/OPS-04-failure-runbook.md#al-08"
 ```
 
 Alert text holds counts and durations only. It never holds pseudonyms, system codes, run ids or repo names.

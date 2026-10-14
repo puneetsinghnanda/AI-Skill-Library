@@ -170,9 +170,8 @@ The `.cmd` launcher is not exercised in CI here (no Windows runner); TC-HK-007 c
 
 ## Gaps and conflicts (flagged, not worked around)
 
-- `brownfield-change` (SDD-02 §4) pins `requirement-review@^1.2`, but SDD-01 §13.1 fixes the skill at 1.0.0, so
-  `tsl validate --lock` will fail E-WFL-04 for that step. SDD-02 also binds `baseline`, while the skill's input is
-  `intent_baseline` (E-WFL-03). Both are kept literally and listed as known conflicts in the tests.
+- Resolved (registry §10 #44): `brownfield-change` now pins `requirement-review@^1.0` and binds `intent_baseline`,
+  matching SDD-01 §13.1; SDD-02 §4 was updated to the same values.
 - Status: SDD-01 §12 says every skill starts at `draft`; this build sets the Release-1 target status as instructed,
   which needs signed eval results and 10 cases (SDD-01 §7.1) that do not exist yet. No `*.eval-result.json` is
   committed; only `tsl eval run` on a seat can produce one.

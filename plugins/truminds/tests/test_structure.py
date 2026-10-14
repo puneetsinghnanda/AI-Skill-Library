@@ -41,14 +41,9 @@ from conftest import (
 
 # Conflicts between design documents that the build follows literally and reports instead of working around.
 # Each entry must stay true: a test fails when a conflict disappears, so the list never goes stale.
-KNOWN_RANGE_CONFLICTS = {
-    # SDD-02 §4 pins requirement-review@^1.2; SDD-01 §13.1 fixes the reference skill at 1.0.0.
-    ("brownfield-change", "req"),
-}
-KNOWN_BINDING_CONFLICTS = {
-    # SDD-02 §4 binds `baseline`; SDD-01 §13.1 names the input `intent_baseline`.
-    ("brownfield-change", "req", "baseline"),
-}
+# Registry §10 #44 settled the two brownfield-change conflicts (pin ^1.0, input `intent_baseline`).
+KNOWN_RANGE_CONFLICTS: set[tuple[str, str]] = set()
+KNOWN_BINDING_CONFLICTS: set[tuple[str, str, str]] = set()
 EXCLUDED_DIRS = {"tests", "__pycache__", ".pytest_cache", ".venv", ".ruff_cache"}
 SDLC_HEADINGS = ["Job", "Inputs", "Rules", "Method", "Output", "If this is a retry", "Hand-over"]
 PREAMBLE = (

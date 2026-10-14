@@ -9,6 +9,7 @@ Oct 6, 2026 · @Puneet Singh Nanda
 | Document | 3 of 6 — System Architecture & Tech Stack |
 | Status | Draft for review |
 | Owner | Puneet Singh Nanda |
+| Approver | Puneet Singh Nanda |
 | Co-approver | Open (OQ-01 in Doc 1) |
 | Execution model | Local only: Claude Code desktop app + Truminds plugin on company Claude seats. No Claude API. |
 
@@ -533,10 +534,10 @@ Numbers are **proposed** until Puneet confirms them (OQ-09 in Doc 1). Each NFR h
 | Telemetry API | FastAPI + Uvicorn, SQLAlchemy 2, Alembic | Python; OpenAPI out of the box | Django | Proposed |
 | Database | PostgreSQL 16 | Relational joins on run\_id; jsonb for signals | ClickHouse (later, if volume needs it) | Decided |
 | OTel ingest | OpenTelemetry Collector → PostgreSQL via the service (Claude Code OTel export) | Standard export from Claude Code | Vendor APM | Proposed |
-| Portal | Backstage (TypeScript/React plugins) | Catalogue + dashboards in one; CNCF project (D-15) | Custom React app, Grafana | Decided |
+| Portal | Custom React app on the FastAPI insights service, served by its own nginx image (ADR 0001, supersedes D-15; SDD-09, OPS-01 §5.2) | The prototype is already a custom design; Backstage adds a large framework for a few screens | Backstage (dropped), Grafana | Decided |
 | Source control + CI | GitHub, GitHub Actions (`tsl ci-verify` action) | Current Truminds tooling | — | Decided |
 | Hosting | Open (OQ-02) | — | — | Open |
-| Identity | Company SSO via OIDC | Org rule: company SSO only | — | Decided |
+| Identity | Microsoft Entra ID via OIDC (ADR 0002): device code for `tsl login`, auth code + PKCE for the portal | Org rule: company SSO only | — | Decided |
 
 **Not in the stack** (were in earlier drafts): Temporal, LiteLLM, Claude Agent SDK, Langfuse, promptfoo, OPA. Reason: all assumed server-side LLM execution, which D-10/D-11 removed.
 

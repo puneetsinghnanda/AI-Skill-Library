@@ -1,0 +1,17 @@
+# gitleaks configuration for this repository (SEC-01 §7.1: gitleaks on every PR).
+# Extends the default rules. The allowlist covers only value shapes that are public by design:
+# signing key ids (key_<ULID>, SDD-07 §5.1) and git or content hashes in schema fixtures.
+# Never add a path-wide allowlist; a real secret anywhere must still fail the scan.
+title = "truminds skill library"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Public identifiers that look like keys"
+regexTarget = "secret"
+regexes = [
+  '''^key_[0-9A-Za-z]{26}$''',
+  '''^[0-9a-f]{40}$''',
+  '''^[0-9a-f]{64}$''',
+]

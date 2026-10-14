@@ -50,8 +50,8 @@ flowchart LR
     API[api process: FastAPI\napp/api/v1/read/*] --> SCOPE[auth/scope.py\nrole grants -> visible systems]
     API --> RO[(PostgreSQL 16\nrole insights_read)]
     API -. name reveal only .-> RV[(users.display_name_enc\nrole insights_reveal)]
-    API --> STATIC[portal/dist\nstatic files]
   end
+  SPA -- "GET / (static files)" --> NGX[portal container: nginx\nportal/dist, OPS-01 §5.2]
   W[worker: views every 5 min] --> RO
 ```
 
@@ -900,15 +900,15 @@ Gates: `@axe-core/playwright` on every screen in both views with zero serious or
 
 | Item | Rule |
 | --- | --- |
-| Serving | `npm run build` produces `portal/dist`. The insights image copies it to `/app/portal`. The `api` process serves it with `StaticFiles` and an SPA fallback to `index.html` for any path that is not `/v1/*`, `/otel/*` or a file (ADR 0001: one stack) |
+| Serving | `npm run build` produces `portal/dist`. A separate image `truminds/portal` (`portal/Dockerfile`: Node build stage, unprivileged nginx run stage, `portal/nginx.conf`) serves it with an SPA fallback to `index.html`. The edge routes `/` to the portal container and `/v1`, `/otel` to `api` on one intranet host name, so the SPA and the read API stay same-origin (OPS-01 §3, §5.2). The `api` process serves no static files. ADR 0001's "one stack" means one technology stack, not one image |
 | Network | Portal and read API are reachable only through the intranet ingress. The public ingress (if OPS-01 adds one for GitHub and CI) exposes only the SDD-08 §15 paths and never `/` or read routes |
 | TLS | TLS 1.2+; HSTS `max-age=31536000` (SEC-01) |
 | Headers | `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://login.microsoftonline.com; frame-src https://login.microsoftonline.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`; `X-Content-Type-Options: nosniff`; `Referrer-Policy: no-referrer`; `Permissions-Policy: camera=(), microphone=(), geolocation=()` |
 | Caching | `index.html`: `no-cache`; hashed assets: `public, max-age=31536000, immutable` |
 | Config | Build-time `VITE_*` values per environment (DEV-01). None are secrets; the SPA holds no secret |
 | Environments | dev (local Vite on port 5173, proxy `/v1` to 8000, dev Entra app; DEV-01), staging, prod; each has its own Entra SPA registration and redirect URI |
-| Health | Covered by OPS-02 §4 (synthetic check of `/`, a hashed asset and `/v1/status`) |
-| Release | Portal and service ship in one image and one version. A read-API change that breaks the SPA is a breaking change (Doc 5 §1.1) |
+| Health | Covered by OPS-02 §4 (synthetic check of `/`, a hashed asset and `/v1/status`); alert AL-25 |
+| Release | Portal and service ship as two images from tags `portal-vX.Y.Z` and `insights-vX.Y.Z` (OPS-01 §5.2, OPS-03). A read-API change that breaks the SPA is a breaking change (Doc 5 §1.1); the portal's `check:api` gate fails on OpenAPI drift |
 
 ## 11. Test plan
 

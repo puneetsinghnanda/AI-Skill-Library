@@ -37,4 +37,4 @@ PROMTOOL=$(which promtool) PROMTOOL_UNIT=1 services/insights/.venv/bin/python -m
 - **AL-13 and AL-14** read `node_filesystem_*` for the encrypted pgdata volume under option H1. Under H3, swap in the provider's storage metric.
 - **SY-4** stays off until a monitoring identity with a `viewer` grant exists.
 - **DSH-5 "plugin and tsl versions"** is a placeholder text panel, because OPS-02 §5.2 defines no metric for it.
-- **Runbook links** point to `docs/operations/OPS-04-failure-runbook.md#al-nn`, as OPS-02 §13 requires. OPS-04 does not have those per-alert anchors yet.
+- **Runbook links** point to `docs/operations/OPS-04-failure-runbook.md#al-nn`, as OPS-02 §13 requires. OPS-04 §4.13 holds one anchor per alert; `test_runbook_anchors_exist_in_ops_04` keeps them in step.

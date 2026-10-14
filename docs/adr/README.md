@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-One file per decision: `NNNN-short-title.md`, numbered in order, never renumbered. Status moves Proposed → Accepted → (Superseded by NNNN). Puneet approves every ADR. Process: [GOV-01](../governance/GOV-01-adr-and-change-process.md).
+One file per decision: `NNNN-short-title.md`, numbered in order, never renumbered. Status moves Proposed → Accepted or Rejected → (Superseded by NNNN). Puneet approves every ADR. Process: [GOV-01](../governance/GOV-01-adr-and-change-process.md).
 
 | ADR | Decision | Status |
 | --- | --- | --- |

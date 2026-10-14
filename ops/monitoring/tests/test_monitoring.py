@@ -89,6 +89,17 @@ def test_every_alert_has_severity_dashboard_and_runbook() -> None:
         assert r["annotations"]["runbook"].endswith(f"#{anchor}"), r["alert"]
 
 
+def test_runbook_anchors_exist_in_ops_04() -> None:
+    """Every alert's runbook link resolves to an anchor in OPS-04 §4.13 (OPS-02 §13)."""
+    runbook = ROOT / "docs" / "operations" / "OPS-04-failure-runbook.md"
+    anchors = set(re.findall(r'<a id="([a-z0-9-]+)"></a>', runbook.read_text(encoding="utf-8")))
+    for r in _alerts():
+        path, _, anchor = r["annotations"]["runbook"].partition("#")
+        assert (ROOT / path).resolve() == runbook.resolve(), r["alert"]
+        assert anchor in anchors, r["alert"]
+    assert {f"al-{n:02d}" for n in range(1, 27)} <= anchors
+
+
 def test_alert_text_has_no_identifiers() -> None:
     for r in _alerts():
         text = json.dumps(r["annotations"])
