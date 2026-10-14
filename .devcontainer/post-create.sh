@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time setup inside the dev container (DEV-01 §3). Installs uv, Node 20 next to Node 22,
+# One-time setup inside the dev container (DEV-01 ??3). Installs uv, Node 20 next to Node 22,
 # PostgreSQL 16 binaries for the throwaway test clusters, and the pre-commit hooks.
 set -euo pipefail
 
@@ -18,6 +18,7 @@ sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
   https://www.postgresql.org/media/keys/ACCC4CF8.asc
 echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
   | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+sudo rm -f /etc/apt/sources.list.d/yarn*.list
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends postgresql-16
 
