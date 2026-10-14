@@ -41,7 +41,7 @@ flowchart LR
 
 ### 2.1 Phase C set-up with GitHub sign-in (ADR 0006)
 
-**Hosted (chosen for the six testers):** Render + Neon, step by step in [deploy/render/README.md](../../deploy/render/README.md). Steps A–D there replace Puneet's steps 1–5 below, and step E replaces tester steps 1–2 (`tsl` is installed with the hosted org file instead of a shared wheel). The one-machine steps below remain the alternative.
+**Hosted (chosen for the six testers):** Render + Neon, step by step in [deploy/render/README.md](../../deploy/render/README.md). **Testers: follow the [team setup guide](team-setup-guide.md).** Steps A–D there replace Puneet's steps 1–5 below, and step E replaces tester steps 1–2 (`tsl` is installed with the hosted org file instead of a shared wheel). The one-machine steps below remain the alternative.
 
 Puneet, once (details and commands in [deploy/README.md](../../deploy/README.md) "Run the test environment on one machine for 6 testers"):
 
