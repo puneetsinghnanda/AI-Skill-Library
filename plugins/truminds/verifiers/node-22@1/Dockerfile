@@ -41,8 +41,10 @@ COPY --from=gitleaks /usr/local/bin/gitleaks /usr/local/bin/gitleaks
 # Semgrep (SAST) in its own virtualenv. The ruleset is snapshotted into the image at build time,
 # because every step but prepare runs with --network none; the image digest fixes the snapshot.
 ARG SEMGREP_VERSION=1.95.0
+# semgrep's OpenTelemetry instrumentation imports pkg_resources, which Python 3.12+ venvs no longer ship.
+ARG SETUPTOOLS_VERSION=75.8.0
 RUN python3 -m venv /opt/semgrep \
- && /opt/semgrep/bin/pip install --no-cache-dir "semgrep==${SEMGREP_VERSION}" \
+ && /opt/semgrep/bin/pip install --no-cache-dir "semgrep==${SEMGREP_VERSION}" "setuptools==${SETUPTOOLS_VERSION}" \
  && ln -s /opt/semgrep/bin/semgrep /usr/local/bin/semgrep \
  && mkdir -p /opt/verifier/semgrep \
  && /opt/semgrep/bin/python -c "import urllib.request as u; u.urlretrieve('https://semgrep.dev/c/p/default', '/opt/verifier/semgrep/default.yml')"
@@ -50,7 +52,10 @@ RUN python3 -m venv /opt/semgrep \
 RUN (getent passwd 1000 >/dev/null || useradd --uid 1000 --user-group --no-create-home --shell /usr/sbin/nologin verifier) \
  && mkdir -p /src /cache /out \
  && chown 1000:1000 /cache /out
-ENV HOME=/tmp \
+# semgrep runs its pysemgrep helper from the same virtualenv, so that folder must be on PATH. It goes
+# last, so the venv's python never shadows the image's own.
+ENV PATH="$PATH:/opt/semgrep/bin" \
+    HOME=/tmp \
     XDG_CACHE_HOME=/tmp/.cache \
     SEMGREP_ENABLE_VERSION_CHECK=0 \
     SEMGREP_SEND_METRICS=off \
@@ -59,6 +64,8 @@ ENV HOME=/tmp \
     npm_config_fund=false \
     PG_BIN=/usr/lib/postgresql/16/bin
 USER 1000:1000
+# Smoke check as the verifier user: fail the build if a scanner cannot start.
+RUN semgrep --version && gitleaks version
 WORKDIR /src
 ENTRYPOINT []
 CMD ["sh"]
