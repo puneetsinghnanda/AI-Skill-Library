@@ -1,4 +1,4 @@
-# TST-02 · Team Validation Plan: test the Skill Library and give a verdict
+﻿# TST-02 · Team Validation Plan: test the Skill Library and give a verdict
 
 | Field | Value |
 | --- | --- |
