@@ -214,6 +214,9 @@ REQ = re.compile(
     r"(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*require\(\s*['\"](\.{1,2}/[^'\"]+)['\"]\s*\)"
     r"|import\s+([A-Za-z_$][\w$]*)\s+from\s+['\"](\.{1,2}/[^'\"]+)['\"]"
 )
+NAMED = re.compile(
+    r"import\s+(?:[A-Za-z_$][\w$]*\s*,\s*)?\{([^}]*)\}\s*from\s+['\"](\.{1,2}/[^'\"]+)['\"]"
+)
 UI = re.compile(r"<Route\b[^>]*\bpath=\{?['\"]([^'\"]+)['\"]")
 UI_OBJ = re.compile(r"\bpath\s*:\s*['\"](/[^'\"]*)['\"]")
 FETCH = re.compile(r"\bfetch\(\s*(['\"`])(/[^'\"`]*)\1([^)]*)\)")
@@ -233,8 +236,16 @@ class JsRoutes:
         prefix: dict[str, str] = {}
         for f, text in texts.items():
             names: dict[str, str] = {}
-            for m in REQ.finditer(text):
-                ident, rel = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), m.group(4))
+            imports = [
+                (m.group(1), m.group(2)) if m.group(1) else (m.group(3), m.group(4))
+                for m in REQ.finditer(text)
+            ]
+            for m in NAMED.finditer(text):
+                for part in m.group(1).split(","):
+                    local = part.split(" as ")[-1].strip()
+                    if re.fullmatch(r"[A-Za-z_$][\w$]*", local):
+                        imports.append((local, m.group(2)))
+            for ident, rel in imports:
                 target = posixpath.normpath(posixpath.join(posixpath.dirname(f), rel))
                 for cand in (
                     target,
