@@ -86,10 +86,11 @@ def take_lock(
         atomic_write(comp.path(path), text)
     written = [rel, *files]
     run_folder = f"runs/{run_id}"
+    extra = [p for p in files if not p.startswith(run_folder + "/")]
     try:
         git.commit(
             f"tsl({run_id}): start {workflow} {ticket}",
-            [rel, run_folder],
+            [rel, run_folder, *extra],
             trailer=f"Tsl-Run: {run_id}",
         )
     except GitError as exc:

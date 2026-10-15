@@ -32,6 +32,7 @@ from tsl.orchestrator import skills as skillmod
 from tsl.orchestrator import workflow as wfmod
 from tsl.orchestrator.run import RunCtx
 from tsl.state import lock as lockmod
+from tsl.state import ticket as ticketmod
 from tsl.state.session import bind, compile_policy, unbind_run
 from tsl.state.store import all_runs, latest, read_state_raw, write_new
 from tsl.telemetry.emit import emit
@@ -55,6 +56,7 @@ def start(
     ticket: str,
     system: str | None = None,
     pod: str | None = None,
+    ticket_file: str | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, str]]]:
     _require_git()
     cfg = comp.config
@@ -67,6 +69,7 @@ def start(
         raise TslError(
             "E-USE-01", detail=f"ticket {ticket!r} is not a ticket reference", cmd="state start"
         )
+    tfile = ticketmod.load(ticket_file, ticket, cfg.deny_term_hashes) if ticket_file else None
     plugin_root = rt.plugin_root()
     plugin_version = rt.plugin_version()
     if plugin_version != rt.tsl_version:
@@ -171,16 +174,13 @@ def start(
         raise TslError(
             "E-INT-01", f"state invalid: {errs[0].pointer} {errs[0].message}", log_id="state"
         )
+    files = {state_path(run_id): dumps(state), snapshot_path(run_id): snap_text}
+    ticket_rel = None
+    if tfile:
+        ticket_rel = ticketmod.snapshot_rel(ticket, run_id)
+        files[ticket_rel] = ticketmod.render(tfile, ticket, run_id, now)
     lock = lockmod.lock_body(rt, run_id, str(me["pseudonym"]), str(info["key_id"]))
-    lockmod.take_lock(
-        rt,
-        comp,
-        ticket,
-        wf["id"],
-        run_id,
-        {state_path(run_id): dumps(state), snapshot_path(run_id): snap_text},
-        lock,
-    )
+    lockmod.take_lock(rt, comp, ticket, wf["id"], run_id, files, lock)
     rel = lock_path(ticket, wf["id"])
     if session:
         bind(rt, comp, session, run_id, rel, compile_policy(rt, comp, run_id, rt.tsl_version))
@@ -211,6 +211,7 @@ def start(
         },
         "pack": {"fresh": pk["state"] == "fresh", "signed_at": pk["state_block"].get("signed_at")},
         "first_step": first,
+        "ticket_snapshot": ticket_rel,
     }, warnings
 
 

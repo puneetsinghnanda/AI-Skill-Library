@@ -1,14 +1,16 @@
 ---
 name: run
 description: Start a Truminds workflow on a ticket. Only when the user types /truminds:run.
-argument-hint: <workflow> <ticket>
+argument-hint: <workflow> <ticket> [ticket-file]
 disable-model-invocation: true
 allowed-tools: Bash(tsl *), Read, Grep, Glob, Write, Edit
 ---
 Run state from tsl (do not edit):
-!`tsl state start $0 $1 --json`
+!`tsl state start $0 $1 --ticket-file "$2" --json`
 
 If "ok" is false, show "message" and "next" to the user and stop.
+If "data.ticket_snapshot" is null, tell the user the run has no ticket text (they can pass a
+Markdown file as the third argument next time), then carry on.
 
 Loop:
 1. Run `tsl next <run_id> --json` and read "data.action".

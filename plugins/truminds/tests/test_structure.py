@@ -51,7 +51,7 @@ PREAMBLE = (
     'If the JSON above has "ok": false, show its "message" and "next" to the user and stop. Write nothing.\n'
 )
 COMMAND_PREAMBLES = {
-    "run": "!`tsl state start $0 $1 --json`",
+    "run": '!`tsl state start $0 $1 --ticket-file "$2" --json`',
     "resume": "!`tsl state resume $0 --json`",
     "status": "!`tsl state show $0 --json`",
     "eval": "!`tsl eval plan $0 --json`",

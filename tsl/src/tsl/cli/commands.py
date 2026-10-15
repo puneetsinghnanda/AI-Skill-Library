@@ -415,11 +415,15 @@ def state_start(
     ticket: str,
     system: Annotated[str | None, typer.Option("--system")] = None,
     pod: Annotated[str | None, typer.Option("--pod")] = None,
+    ticket_file: Annotated[
+        str | None,
+        typer.Option("--ticket-file", help="Ticket text (Markdown) to snapshot as ticket.md"),
+    ] = None,
 ) -> int:
-    """Start a run: take the lock, write state.json and the workflow snapshot."""
+    """Start a run: take the lock, write state.json, the workflow snapshot and ticket.md."""
     from tsl.state.service import start
 
-    data, warnings = start(rt(), comp(), workflow, ticket, system, pod)
+    data, warnings = start(rt(), comp(), workflow, ticket, system, pod, ticket_file or None)
     return emit_ok(f"Run {data['run_id']} started", data, warnings, f"tsl next {data['run_id']}")
 
 

@@ -139,7 +139,7 @@ Prerequisites: TST-02 §3 steps 1–3 (Git, uv, the repository cloned to `C:\dev
    claude plugin install truminds@truminds-skill-library
    ```
 6. In the Claude Code desktop app, open a **local** session in the folder `C:\dev\AI-Skill-Library\examples\sample-system\companion-example`, the folder that holds `tsl.yaml`.
-7. Start a run: `/truminds:run brownfield-change ABC-142`. Skills run only inside a run (TST-02 §3, T5–T6).
+7. Start a run: `/truminds:run brownfield-change ABC-142 ../tickets/ABC-142.md`. The third argument is the ticket text. Skills run only inside a run (TST-02 §3, T5–T6).
 
 ## F. GitHub webhook (PR events)
 

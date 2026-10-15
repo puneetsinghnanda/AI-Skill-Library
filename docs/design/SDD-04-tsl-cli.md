@@ -321,18 +321,18 @@ Inputs form: `data.inputs[{name, path, sha256, present, stale}]`. Exit 0, or 2 w
 
 | Command | Args | Network | Data | Exit codes |
 | --- | --- | --- | --- | --- |
-| `state start` | `<workflow> <ticket> [--system <code>] [--pod <id>]` | S, G (lock push) | `{run_id, status, lock_path, pinned{plugin,tsl,workflow,skills{}}, pack{fresh, signed_at}, first_step}` | 0; 3 (E-LOCK-01, E-AUTH-03, E-CONS-01, E-CTX-01, E-VER-01, E-ENV-01, E-POD-01, E-COMP-07); 10 (E-GIT-01, E-AUTH-07, E-LOCK-03, E-LOCK-04) |
+| `state start` | `<workflow> <ticket> [--system <code>] [--pod <id>] [--ticket-file <path>]` | S, G (lock push) | `{run_id, status, lock_path, pinned{plugin,tsl,workflow,skills{}}, pack{fresh, signed_at}, first_step, ticket_snapshot}` | 0; 1 (E-USE-01, bad ticket file); 3 (E-LOCK-01, E-AUTH-03, E-CONS-01, E-CTX-01, E-VER-01, E-ENV-01, E-POD-01, E-COMP-07); 10 (E-GIT-01, E-AUTH-07, E-LOCK-03, E-LOCK-04) |
 | `state resume` | `<run_id>` | G | `{run_id, status, next_step, answered[], approvals[]}` | 0; 2 (E-RUN-03); 3 (E-RUN-04, E-RUN-06, E-AUTH-05, E-VER-01) |
 | `state show` | `[run_id] [--all]` | — | `{runs[{run_id, ticket, workflow, status, step, attempt, updated_at, waiting_on}]}` | 0; 3 (E-RUN-04) |
 | `state unlock` | `<ticket> <workflow> --reason <text>` | S, G | `{released_lock, run_id, previous_holder}` | 0; 3 (E-AUTH-04 if not tech lead; E-RUN-05 if the lock is not stale under DEF-06) |
 
 `state start` steps, in order:
 
-1. Load and validate `tsl.yaml` and the workflow.
+1. Load and validate `tsl.yaml` and the workflow. With `--ticket-file`, read the file (UTF-8 Markdown, at most 256 KiB, optional front matter). A file whose front matter names another ticket, with no ticket text, or whose text trips the H4 secret, personal-data or deny-term rules (file line only, never the value), is E-USE-01, before any lock.
 2. Check the role (`engineer@system`, from the 24 h grant cache, or online).
 3. Check consent and pack freshness. A stale pack is a warning (E-CTX-02); a missing pack is E-CTX-01.
 4. Create a ULID `run_id`.
-5. Write `runs/<run_id>/state.json` and the lock file. Commit and push; a rejected push means E-LOCK-01 (Doc 5 §3.5).
+5. Write `runs/<run_id>/state.json`, the lock file and, with `--ticket-file`, `artifacts/<ticket>/<run_id>/ticket.md` (`ticket-snapshot.v1`, `source: file`; `title` and `issue_type` kept from the file's front matter, `title` otherwise from its first heading). Commit and push; a rejected push means E-LOCK-01 (Doc 5 §3.5).
 6. Write the session index `~/.truminds/sessions/<TSL_SESSION_ID>.json`, so the hooks know a run is active (§6.14).
 7. Queue `run.started` with `session_id`.
 

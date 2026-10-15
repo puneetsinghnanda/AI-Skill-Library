@@ -180,9 +180,10 @@ Set-Content .tsl\local.yaml "schema: tsl-local.v1`nproduct_repos:`n  sample-syst
 **Run a workflow:**
 
 1. In Claude Code, open a **local** session in `C:\dev\AI-Skill-Library\examples\sample-system\companion-example`, the folder with `tsl.yaml`. Not the repo root.
-2. Type `/truminds:run brownfield-change ABC-142`.
+2. Type `/truminds:run brownfield-change ABC-142 ../tickets/ABC-142.md`.
+   - The third argument is the ticket text. `tsl` copies it into the run as `artifacts/ABC-142/<run_id>/ticket.md`, and the first step reads it from there. Use forward slashes.
    - Skills run **only inside a run**. A skill that "refuses" outside one is correct behaviour.
-   - Use a different ticket from your teammates (`ABC-142` to `ABC-180`, in `examples\sample-system\tickets\`) so you don't block each other with locks.
+   - Use a different ticket from your teammates (`ABC-142` to `ABC-180`, in `examples\sample-system\tickets\`; pass the matching file) so you don't block each other with locks.
 3. Follow the run:
    - **Questions:** answer in `open-questions.md`, then type `/truminds:resume <run_id>`.
    - **Approval gate:** the approver runs `tsl approve`, then type `/truminds:resume <run_id>`.
@@ -225,7 +226,7 @@ Set-Content .tsl\local.yaml "schema: tsl-local.v1`nproduct_repos:`n  sample-syst
 | `E-AUTH-03` or `E-AUTH-04` when starting a run or approving | Missing `engineer` / `tech_lead` on `SYS-SMP` (§6a); `admin` is not enough |
 | `E-ADM-01` when granting a role | You tried to grant yourself; the other admin must do it |
 | `/truminds:` commands missing | Repeat the plugin install (§7) and restart the Claude Code app |
-| A skill refuses to run | Start a run first: `/truminds:run <workflow> <ticket>` |
+| A skill refuses to run | Start a run first: `/truminds:run <workflow> <ticket> <ticket-file>` |
 | Claude can't find `tsl.yaml` | Wrong folder: open the session in `examples\sample-system\companion-example` |
 | `E-LOCK` when starting a run | Someone holds that ticket; pick another |
 | `E-H3-07` at `implement` or `unit-test` | Docker isn't running, or the image couldn't download. Start Docker Desktop, check `docker pull ghcr.io/puneetsinghnanda/truminds/verifier-node-22:1` works, then `/truminds:resume <run_id>` |

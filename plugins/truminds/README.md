@@ -53,7 +53,7 @@ Open the desktop app, Code tab, **Local** session on a companion repo, and type 
 
 | Command | First thing it does (runs as code before the model reads the skill) |
 | --- | --- |
-| `/truminds:run <workflow> <ticket>` | `` !`tsl state start $0 $1 --json` ``, then the SDD-02 §7 loop |
+| `/truminds:run <workflow> <ticket> [ticket-file]` | `` !`tsl state start $0 $1 --ticket-file "$2" --json` ``, then the SDD-02 §7 loop |
 | `/truminds:resume <run_id>` | `` !`tsl state resume $0 --json` ``, then the same loop |
 | `/truminds:status [run_id]` | `` !`tsl state show $0 --json` `` |
 | `/truminds:eval <skill> [version]` | `` !`tsl eval plan $0 --json` `` |

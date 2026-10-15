@@ -84,7 +84,7 @@ Windows is the main target (Claude Code runs natively on Windows, not in WSL: C-
 | T3 | `git commit` from Windows fails with `pre-commit not found` | `post-create.sh` runs `pre-commit install` inside the container. That writes `.git\hooks\pre-commit` into the shared checkout, and the hook calls a `pre-commit` that exists only in the container | Pick one: commit inside the container (`... exec --workspace-folder . bash`, then `git commit`), so the hooks really run; or commit from Windows with `git commit --no-verify` (CI runs the same checks); or delete the hook with `Remove-Item .git\hooks\pre-commit` (run `pre-commit install` in the container to restore it) |
 | T4 | `git status` shows an untracked `.devcontainer/devcontainer-lock.json` | The dev containers CLI writes a lock file for the features it installed | It is in `.gitignore`; never commit it |
 | T5 | `/truminds:status` or a skill cannot find the companion repo (`tsl.yaml`) | The Claude Code session was opened in the repo root or another folder | Open the Claude Code session in `examples\sample-system\companion-example`, the folder that holds `tsl.yaml` |
-| T6 | A skill refuses to run because there is no run | By design, skills run only as steps of a run | After `tsl login`, start a run: `/truminds:run brownfield-change ABC-142`. The skills then run inside it |
+| T6 | A skill refuses to run because there is no run | By design, skills run only as steps of a run | After `tsl login`, start a run: `/truminds:run brownfield-change ABC-142 ../tickets/ABC-142.md`. The skills then run inside it |
 
 Rules while testing (they apply to every issue and file you write):
 
@@ -141,7 +141,7 @@ Read first: [SDD-01](../design/SDD-01-skill-authoring.md), [SDD-02](../design/SD
 | VAL-SKL-11 | B | Try skills by hand on a seat | In a local Claude Code session in the sample repo, ask Claude to follow `plugins/truminds/skills/requirement-review/SKILL.md` on `examples/sample-system/tickets/ABC-142.md`. Repeat for 2 of your skills with the matching ticket | Output follows the skill's template and rubric. Judge: would you accept it from a junior? Note hallucinated facts and missing citations |
 | VAL-SKL-12 | B | Does it find the planted defects? | Run `impact-analysis`, `secure-code-review` and `defect-triage` by hand against the sample system. Then compare with `examples/sample-system/.answers/SEEDED_DEFECTS.md` **only after** the run | Count found / missed / false alarms per skill |
 | VAL-SKL-13 | C | Real evals | `tsl eval run <skill>` for each of your skills | Pass rate per skill; ≥ 90 % is the proposed bar (Q26) |
-| VAL-SKL-14 | C | Full brownfield run | `/truminds:run brownfield-change ABC-142`, answer the open question, approve gates, resume | Run reaches the PR step; artifacts are useful |
+| VAL-SKL-14 | C | Full brownfield run | `/truminds:run brownfield-change ABC-142 ../tickets/ABC-142.md`, answer the open question, approve gates, resume | Run reaches the PR step; artifacts are useful |
 
 **Decisions to recommend in your verdict:** RD-6 workflow names, GAP-06 greenfield names, OQ-16 Release 1 pod list, whether role packs are wanted (SDD-01 O-11), the eval pass bar (Q26).
 
@@ -200,7 +200,7 @@ Read first: [SDD-05](../design/SDD-05-claude-code-integration.md), [spikes/READM
 | VAL-EXE-08 | B | Managed settings | Apply `managed-settings/managed-settings.template.json` on a test machine via the file path (testing only), with placeholders filled with test values | Deny rules block `.env`, `curl`, force push; only the Truminds marketplace allowed (S-01, S-02, S-13) |
 | VAL-EXE-09 | B | Session id handoff | Check `TSL_SESSION_ID` reaches `tsl` calls (S-08) | Present, or the documented fallback works |
 | VAL-EXE-10 | B | Seat usage | Measure one stubbed full run and, in phase C, one real run (S-11) | Numbers recorded for Q38 |
-| VAL-EXE-11 | C | Real run | `/truminds:run brownfield-change ABC-142` → answer `open-questions.md` → `/truminds:resume` → approve gates → `tsl pr` | Pause/resume works; `tsl pr` opens a PR in the **test** org and never merges |
+| VAL-EXE-11 | C | Real run | `/truminds:run brownfield-change ABC-142 ../tickets/ABC-142.md` → answer `open-questions.md` → `/truminds:resume` → approve gates → `tsl pr` | Pause/resume works; `tsl pr` opens a PR in the **test** org and never merges |
 | VAL-EXE-12 | A | Hook contracts | `make test-plugin`; read `tsl/tests` hook golden files | Golden files match what you observe in S-04/S-15 |
 
 **Decisions to recommend in your verdict:** which managed-settings delivery to use (admin console vs MDM), anything in SDD-05 that the spikes disproved, whether C-16..C-18 hold.

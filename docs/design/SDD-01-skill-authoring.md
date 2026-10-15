@@ -905,7 +905,7 @@ Failures exit 2 with a list of rule ids (US-15).
 | O-04 | Status values differ: Doc 1 FR-REG-03 uses draft, pilot, production, deprecated (adopted here); Doc 3 §9.1 DDL and Doc 5 §3.2 use experimental, production, deprecated. Doc 3, Doc 5 and SDD-08 need updating | new | Gaurav Saini (DDL), Puneet |
 | O-05 | Workflow names differ: Doc 1 FR-WFL-03 (`brownfield-feature`, `defect-triage`, `greenfield-architecture`, `greenfield-bootstrap`) vs Doc 3 §7.1 and prototype (`brownfield-change`, `greenfield-feature`, `defect-fix`, `ux-review`, `estimate`) | OQ-04, new | Puneet; SDD-02 owners |
 | O-06 | Confirm thresholds: 10 cases, 0.90 eval pass rate, 20 steps / 2 systems / 70 % first-try for production | Q26, OQ-12 | Puneet |
-| O-07 | `ticket-snapshot.v1` as the ticket input: who writes it (run loop via Jira MCP read, or engineer file) | new | SDD-02 owners |
+| O-07 | `ticket-snapshot.v1` as the ticket input: who writes it (run loop via Jira MCP read, or engineer file). The engineer file is built: `tsl state start --ticket-file` (SDD-04 §6.7). Jira MCP read stays open | new | SDD-02 owners |
 | O-08 | `data` shape returned by `tsl verify --inputs` and the new `tsl eval check` command | new | Japman Singh, Yash Khorwal (SDD-04) |
 | O-09 | Stage approvers who can promote to production | OQ-07 | Puneet |
 | O-10 | Secret scanner configuration that treats `FAKE-KEY-*` as test data only inside `evals/**` | Q12 | Shubham Bansal, SEC-01 |
