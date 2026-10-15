@@ -55,7 +55,7 @@ Each tester:
 
 1. Install the shared wheel: `uv tool install ./truminds_tsl-<version>-py3-none-any.whl`.
 2. `tsl login`: open `https://github.com/login/device`, type the code. The first time it answers "No Truminds role yet" with your pseudonym.
-3. Puneet grants the roles in **Admin → Users** (the user list shows `@<github login>` with "Show names"). Admins cannot grant themselves, so Puneet makes one tester admin, who grants Puneet his roles.
+3. The tester sends their pseudonym to Puneet, who grants the roles in **Admin → Role grants** (the admin screens show pseudonyms only). Admins cannot grant themselves, so Puneet makes one tester admin, who grants Puneet his roles ([team setup guide §6a](team-setup-guide.md#6a-roles-for-the-admins)).
 4. `tsl login` again: the signing key is registered. Check with `tsl whoami` and `tsl doctor` (the login check says `provider github`).
 5. Sign in to the portal with GitHub and confirm the TEST ENVIRONMENT banner and your role label.
 

@@ -123,11 +123,14 @@ Every suite should pass. A failure is a finding (§8).
 
 ## 6. Sign in (everyone, once)
 
-1. Open `https://truminds-skills-test.onrender.com` in your browser. The first load can take up to a minute while the free service wakes up.
-2. Click **Sign in with GitHub**, then **Authorize**. You see **"No Truminds role yet"** and a pseudonym like `eng-1a2b`. That's expected.
-3. In PowerShell, run `tsl login`. Open `https://github.com/login/device`, type the code it shows, and click **Authorize**. It also says "No Truminds role yet".
-4. **Post in the team channel that you've signed in.** Puneet (or the admin tester) gives you all roles in **Admin → Users**.
-5. Once you have roles, run `tsl login` again. This registers your signing key.
+1. Open https://truminds-skills-test.onrender.com in your browser. The first load can take up to a minute while the free service wakes up.
+2. Click **Sign in with GitHub**, then **Authorize**. You see **"No Truminds role yet"** and your **pseudonym**, for example `eng-1a2b`. That's expected: your account now exists.
+3. In PowerShell, run `tsl login`.
+   - It prints a line like `To sign in, open https://github.com/login/device and enter the code ABCD-1234.`
+   - Open that page and type the code. Check that GitHub shows *Signed in as* your own account, then click **Authorize**.
+   - The first time, it stops with **E-AUTH-08** and names your pseudonym and GitHub login. That's expected.
+4. **Send your pseudonym (`eng-xxxx`) to Puneet** in the team channel. The admin screens show pseudonyms only, never names or GitHub logins, so this is how the admin knows which row is you.
+5. An admin grants your roles in **Admin → Role grants** (§6a). When they confirm, run `tsl login` again. It finishes with `Logged in as eng-xxxx, key key_…` and registers your signing key.
 6. Check:
    ```powershell
    tsl whoami      # your pseudonym and roles
@@ -136,6 +139,24 @@ Every suite should pass. A failure is a finding (§8).
    - In `doctor`, `docker` shows **warn** if Docker isn't running. That's fine unless §2 says you need Docker.
    - Paste the `doctor` output into your verdict notes.
 7. Refresh the portal. It shows the **TEST ENVIRONMENT** banner and your role.
+
+## 6a. Roles (for the admins)
+
+Roles are granted in the portal under **Admin → Role grants**, one grant per role and scope. **Nobody can grant or revoke their own roles** (E-ADM-01), so there are two admins (Puneet and one tester) who grant each other's roles. With GitHub sign-in there is no separate "app role" to set: it follows from the grants (`viewer` → Business, `engineer`/`skill_owner` → Engineer, `tech_lead`/`stage_approver`/`eng_lead` → TechLead, `admin` → Admin). The form's hints about "Entra app roles" don't apply in this test environment.
+
+Every tester gets:
+
+| Role | Applies to | Scope value |
+| --- | --- | --- |
+| `viewer` | Organisation | (none) |
+| `engineer` | System | `SYS-SMP` |
+| `tech_lead` | System | `SYS-SMP` |
+| `stage_approver` | Stage | one grant each: `requirements`, `design`, `build`, `test`, `operate` |
+| `eng_lead` | Organisation | (none) |
+| `skill_owner` | Skill | a skill ID such as `implement` (only for the improvement-loop tests) |
+| `admin` | Organisation | (none). Only the two admins |
+
+`admin` alone does not let anyone run workflows: starting a run needs `engineer` or `tech_lead` on `SYS-SMP`, and approving a gate needs `tech_lead` or the stage's `stage_approver`. `tsl.yaml` sets `self_approval: false`, so **someone other than the run's owner** approves its gates.
 
 ## 7. Install the plugin and run a workflow (phases B and C)
 
@@ -200,7 +221,9 @@ Set-Content .tsl\local.yaml "schema: tsl-local.v1`nproduct_repos:`n  sample-syst
 | Portal or `tsl` hangs up to a minute, then works | The shared service was asleep. Open the portal first, then retry |
 | `tsl doctor` shows provider `entra` or service `insights.example.invalid` | `tsl` was installed without the settings file. Repeat §5 exactly |
 | `tsl login` says device flow is disabled, or GitHub says "redirect_uri is not associated" | Tell Puneet (OAuth App setting) |
-| Still "No Truminds role yet" | Ask for roles (§6.4), then run `tsl login` again |
+| Still "No Truminds role yet" / E-AUTH-08 | Send your pseudonym to Puneet (§6.4); after the grants, run `tsl login` again |
+| `E-AUTH-03` or `E-AUTH-04` when starting a run or approving | Missing `engineer` / `tech_lead` on `SYS-SMP` (§6a); `admin` is not enough |
+| `E-ADM-01` when granting a role | You tried to grant yourself; the other admin must do it |
 | `/truminds:` commands missing | Repeat the plugin install (§7) and restart the Claude Code app |
 | A skill refuses to run | Start a run first: `/truminds:run <workflow> <ticket>` |
 | Claude can't find `tsl.yaml` | Wrong folder: open the session in `examples\sample-system\companion-example` |

@@ -107,7 +107,8 @@ Every push to `main` redeploys. The database and the three generated keys stay; 
 1. Each tester signs in once at `https://<name>.onrender.com` with **Sign in with GitHub**, or runs `tsl login` (E.3). They see "No Truminds role yet" with their pseudonym, and their account now exists.
 2. In the portal, go to **Admin**:
    - Create the client, project and systems the testers work on (invented names only, for example client `EXAMPLE`, system `sample-system`).
-   - Open **Users** and click **Show names** (it shows `@<github login>`). Give each of the 6 testers every role: `viewer` (org), `engineer` and `tech_lead` on the systems, `skill_owner`, `stage_approver`, `eng_lead` and `admin`.
+   - Ask each tester for their pseudonym (`eng-xxxx`, shown on their "No Truminds role yet" screen and by `tsl login`). The admin screens show pseudonyms only.
+   - Open **Role grants** and give each tester the roles in the [team setup guide §6a](../../docs/testing/team-setup-guide.md#6a-roles-for-the-admins): `viewer` (org), `engineer` and `tech_lead` on `SYS-SMP`, `stage_approver` per stage, `eng_lead`, and `admin` for the second admin only.
 3. **Admins cannot grant themselves (E-ADM-01).** Make one tester admin first. That tester then grants you your own roles.
 4. Once a second admin exists, clear `BOOTSTRAP_ADMIN_GITHUB_LOGINS` in Render → Environment. Otherwise your `admin` grant comes back at every sign-in.
 
