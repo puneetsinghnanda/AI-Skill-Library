@@ -518,3 +518,20 @@ def test_context_max_age_days_is_deprecated(world: World, tmp_path: Path) -> Non
     loaded, warnings = load_config(p)
     assert loaded.max_commits_behind == 50
     assert [w["code"] for w in warnings] == ["E-DEP-01"]
+
+
+def test_context_build_checks_citations_against_the_facts_it_just_extracted(world: World) -> None:
+    # A new route cited right away must pass on the FIRST build, not only after a second one.
+    route = world.product / "api" / "src" / "routes" / "orders.js"
+    route.write_text(
+        route.read_text().replace("module.exports", "router.post('/', getOrder);\nmodule.exports")
+    )
+    git(world.product, "commit", "-qam", "add POST /api/orders")
+    git(world.product, "push", "-q", "origin", "main")
+    p = world.companion / "context" / "glossary.md"
+    p.write_text(
+        p.read_text() + "\nSources: context/generated/api-inventory.json#http:POST:/api/orders\n"
+    )
+    code, env, _, _ = world.cli(["context", "build", "--json"], user="tl")
+    assert env is not None, env
+    assert env["data"]["lint"] == [] and code == 0, env["data"]

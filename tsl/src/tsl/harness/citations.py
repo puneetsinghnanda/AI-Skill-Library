@@ -115,11 +115,20 @@ def elements_of(claim: dict[str, Any]) -> list[str]:
 class Resolver:
     """Reads cited files: companion working tree, product repos at a fixed SHA (git show)."""
 
-    def __init__(self, companion: Path, clones: dict[str, Path], shas: dict[str, str]) -> None:
+    def __init__(
+        self,
+        companion: Path,
+        clones: dict[str, Path],
+        shas: dict[str, str],
+        companion_overrides: dict[str, str] | None = None,
+    ) -> None:
         self.companion = companion
         self.clones = clones
         self.shas = shas
-        self._cache: dict[tuple[str | None, str], str | None] = {}
+        # Companion files not written yet, e.g. the facts a context build just extracted.
+        self._cache: dict[tuple[str | None, str], str | None] = {
+            (None, path): text for path, text in (companion_overrides or {}).items()
+        }
 
     def read(self, c: Cite) -> tuple[str | None, str | None]:
         key = (c.repo, c.path)

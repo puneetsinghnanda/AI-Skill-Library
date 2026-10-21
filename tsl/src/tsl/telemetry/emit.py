@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from tsl.core.errors import TslError
@@ -26,3 +27,18 @@ def flush(rt: Runtime, max_seconds: float) -> Any:
         return rt.identity().silent_token(force_refresh=force)
 
     return rt.outbox().flush(token, rt.insights.post_events, max_seconds)
+
+
+# Seconds a run-changing command may spend sending queued events before it returns.
+SEND_SOON_SECONDS = 2.0
+
+
+def send_soon(get_rt: Callable[[], Runtime]) -> None:
+    """Best-effort send after a command that changes a run, so the portal shows the change without
+    waiting for the session to end. Silent: no output, never raises; unsent events stay queued."""
+    try:
+        rt = get_rt()
+        if rt.outbox().stats()["pending"]:
+            flush(rt, max_seconds=SEND_SOON_SECONDS)
+    except Exception:  # noqa: S110 - events stay queued (R-04)
+        pass

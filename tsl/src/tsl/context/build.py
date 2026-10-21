@@ -189,7 +189,7 @@ def _template(section: str, owner: str) -> str:
 
 
 def lint_judgement(
-    comp: Companion, repos: set[str], sources: dict[str, str]
+    comp: Companion, repos: set[str], sources: dict[str, str], fresh: dict[str, str] | None = None
 ) -> tuple[list[dict[str, Any]], list[str], int]:
     deny = comp.config.deny_term_hashes
     """(sections, lint errors, blocking redaction hits) for context/*.md."""
@@ -197,7 +197,9 @@ def lint_judgement(
     errs: list[str] = []
     blocking = 0
     clones = comp.local_paths()
-    resolver = citations.Resolver(comp.root, clones, sources)
+    # `fresh`: the facts this build just extracted. Citations are checked against them,
+    # not against the previous build's files still on disk.
+    resolver = citations.Resolver(comp.root, clones, sources, fresh)
     for sec in JUDGEMENT:
         p = comp.path(f"context/{sec}.md")
         if not p.is_file():
@@ -281,7 +283,8 @@ def compute(
     }
     sources = {v.repo: v.commit for v in views}
     gen_text = {s: dumps(d) for s, d in generated.items()}
-    jsections, lint, blocking = lint_judgement(comp, repos, sources)
+    fresh = {f"context/generated/{s}.json": t for s, t in gen_text.items()}
+    jsections, lint, blocking = lint_judgement(comp, repos, sources, fresh)
     sections: list[dict[str, Any]] = []
     size_errs: list[str] = []
     for sec, text in gen_text.items():

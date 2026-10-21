@@ -689,10 +689,12 @@ CREATE INDEX event_due ON event (status, next_attempt_at);
 
 **Enqueue** (any command): build the body, validate it against its event schema, and check the free-text rules (Doc 5 §5.3: ≤ 200 chars, deny list). Then `INSERT`. An invalid body raises E-INT-01 in tests. In production it logs and drops that single event with a `hook.log` line, because sending bad data is worse than losing one metric.
 
-**Flush:**
+**Flush:** at session start and end (hooks), after every run-changing command (`state start`, `state resume`,
+`state cancel`, `state unlock`, `decide`, `approve`, `pr`; best effort, silent, never fails the command, so the portal
+shows run changes without waiting for the session to end), and on `tsl events flush`.
 
 ```text
-deadline = now + max_seconds (session hooks: 1.5 s; CLI: 30 s)
+deadline = now + max_seconds (session hooks: 1.5 s; run-changing commands: 2 s; CLI: 30 s)
 loop while now < deadline:
   BEGIN IMMEDIATE
     rows = up to 500 with status='pending' AND next_attempt_at <= now

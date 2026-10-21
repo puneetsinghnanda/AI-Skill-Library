@@ -162,13 +162,31 @@ def _log_internal(exc: BaseException) -> str:
     return log_id
 
 
+# Commands that change a run's status: their events are sent right away, not only at session end.
+SENDS_EVENTS = {
+    "state_start",
+    "state_resume",
+    "state_cancel",
+    "state_unlock",
+    "decide",
+    "approve",
+    "pr",
+}
+
+
 def command(fn: Callable[..., int]) -> Callable[..., None]:
     """Run a command body; map TslError to its envelope and anything else to E-INT-01."""
 
     @functools.wraps(fn)
     def wrapper(*a: Any, **kw: Any) -> None:
         try:
-            code = fn(*a, **kw)
+            try:
+                code = fn(*a, **kw)
+            finally:
+                if fn.__name__ in SENDS_EVENTS:
+                    from tsl.telemetry.emit import send_soon
+
+                    send_soon(rt)
         except TslError as e:
             code = emit_err(e.code, e.message, e.next, e.data, exit_=e.exit)
         except typer.Exit:
