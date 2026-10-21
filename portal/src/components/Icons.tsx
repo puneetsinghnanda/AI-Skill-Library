@@ -55,6 +55,13 @@ export function ToneIcon({ tone }: { tone: Tone }) {
           <path d="M6 6l12 12M18 6L6 18" />
         </svg>
       );
+    case 'cancel':
+      return (
+        <svg {...base}>
+          <circle cx="12" cy="12" r="8" />
+          <path d="M6.5 17.5l11-11" />
+        </svg>
+      );
     default:
       return (
         <svg {...base}>

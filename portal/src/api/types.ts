@@ -60,7 +60,7 @@ export type SkillStatus = 'draft' | 'pilot' | 'production' | 'deprecated';
 export type PodStatus = SkillStatus;
 export type RunStatus = 'RUNNING' | 'PAUSED_INPUT' | 'PAUSED_APPROVAL' | 'COMPLETED';
 export type StatusLabel =
-  'Running' | 'Needs input' | 'Needs approval' | 'Completed' | 'Aborted' | 'Unknown';
+  'Running' | 'Needs input' | 'Needs approval' | 'Completed' | 'Cancelled' | 'Aborted' | 'Unknown';
 export type Outcome =
   'PASS' | 'PASS-WITH-FINDINGS' | 'RETRY' | 'NEEDS-INPUT' | 'ESCALATE' | 'ABORT';
 export type Band = 'high' | 'medium' | 'low';
@@ -401,6 +401,7 @@ export interface EngRuns {
     paused_input: number;
     paused_approval: number;
     completed: number;
+    cancelled: number;
     aborted: number;
   };
   oldest_input_wait_s: number | null;

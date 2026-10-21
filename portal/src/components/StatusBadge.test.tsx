@@ -22,6 +22,7 @@ describe('StatusBadge (TC-POR-007: a word, never colour alone)', () => {
         'Needs input',
         'Needs approval',
         'Completed',
+        'Cancelled',
         'Aborted',
         'Unknown',
       ] as StatusLabel[]
@@ -61,6 +62,14 @@ describe('StatusBadge (TC-POR-007: a word, never colour alone)', () => {
     expect(OUTCOME.ESCALATE.tone).toBe('esc');
     expect(OUTCOME.ABORT.tone).toBe('abort');
     expect(outcomeStatus('PASS', 2).word).toBe('Retry, then pass');
+  });
+
+  it('shows cancelled runs as grey Cancelled, not Completed or Aborted', () => {
+    expect(runStatus('Cancelled')).toEqual({ tone: 'cancel', word: 'Cancelled' });
+    render(<StatusBadge status={runStatus('Cancelled')} />);
+    const badge = screen.getByText('Cancelled');
+    expect(badge.getAttribute('data-tone')).toBe('cancel');
+    expect(badge.className).toContain('b-cancel');
   });
 });
 

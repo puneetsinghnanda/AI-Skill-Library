@@ -4,7 +4,8 @@
  */
 import type { Band, Outcome, PackStatus, SkillStatus, StatusLabel } from '../api/types';
 
-export type Tone = 'pass' | 'find' | 'retry' | 'input' | 'esc' | 'abort' | 'navy' | 'teal';
+export type Tone =
+  'pass' | 'find' | 'retry' | 'input' | 'esc' | 'abort' | 'cancel' | 'navy' | 'teal';
 
 export interface StatusWord {
   tone: Tone;
@@ -37,6 +38,7 @@ export const RUN_STATUS: Record<StatusLabel, Tone> = {
   'Needs input': 'input',
   'Needs approval': 'esc',
   Completed: 'pass',
+  Cancelled: 'cancel',
   Aborted: 'abort',
   Unknown: 'retry',
 };

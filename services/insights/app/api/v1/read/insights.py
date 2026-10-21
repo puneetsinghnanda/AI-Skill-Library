@@ -333,9 +333,9 @@ def eng_runs(
         )
         done = conn.execute(
             text(
-                "SELECT count(*) FILTER (WHERE coalesce(end_reason, '') <> 'aborted') AS "
-                "completed, "
-                ""
+                "SELECT count(*) FILTER (WHERE coalesce(end_reason, '') NOT IN ('aborted', "
+                "'cancelled')) AS completed, "
+                "count(*) FILTER (WHERE end_reason = 'cancelled') AS cancelled, "
                 "count(*) FILTER (WHERE end_reason = 'aborted') AS aborted FROM runs "
                 "WHERE system_id = ANY(CAST(:s AS uuid[])) AND status = 'COMPLETED' AND "
                 "completed_at::date BETWEEN :a AND :b"
@@ -376,6 +376,7 @@ def eng_runs(
             "paused_input": int(cur.get("PAUSED_INPUT", 0)),
             "paused_approval": int(cur.get("PAUSED_APPROVAL", 0)),
             "completed": int(done.completed),
+            "cancelled": int(done.cancelled),
             "aborted": int(done.aborted),
         },
         "oldest_input_wait_s": int((utcnow() - oldest).total_seconds()) if oldest else None,

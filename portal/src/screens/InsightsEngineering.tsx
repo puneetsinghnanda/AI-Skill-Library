@@ -77,6 +77,7 @@ function RunsTab({ filters, names }: { filters: EngParams; names: boolean }) {
                   tone={c.paused_approval ? 'esc' : undefined}
                 />
                 <StatTile label="Completed" value={count(c.completed)} />
+                <StatTile label="Cancelled" value={count(c.cancelled)} />
                 <StatTile
                   label="Aborted"
                   value={count(c.aborted)}

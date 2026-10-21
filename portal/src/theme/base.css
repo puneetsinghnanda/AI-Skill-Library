@@ -160,6 +160,11 @@ h1[tabindex='-1']:focus-visible {
   background: var(--tm-retry-soft);
   color: var(--tm-retry);
 }
+/* Cancelled runs: neutral grey, like retry, but with their own icon and word. */
+.b-cancel {
+  background: var(--tm-retry-soft);
+  color: var(--tm-retry);
+}
 
 .b-navy {
   background: var(--tm-primary-soft);

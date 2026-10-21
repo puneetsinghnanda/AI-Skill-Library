@@ -368,7 +368,7 @@ Route `/insights/engineering/:tab`, Engineer view. Filters (all tabs): Project (
 
 | Tab | Element | Field | Metric | API |
 | --- | --- | --- | --- | --- |
-| Runs | Running; Paused for input + oldest wait; Waiting for approval; Completed; Aborted + reasons | `status_counts`, `oldest_input_wait_s`, `aborted_by_code[]` | M-12, M-13 | `GET /v1/insights/engineering/runs` |
+| Runs | Running; Paused for input + oldest wait; Waiting for approval; Completed; Cancelled; Aborted + reasons | `status_counts`, `oldest_input_wait_s`, `aborted_by_code[]` | M-12, M-13 | `GET /v1/insights/engineering/runs` |
 | Runs | Step outcomes bar, "N harness decisions" | `step_outcomes{total, shares}` | M-14 | same |
 | Runs | Runs table: run, system, ticket, workflow, step, status, lowest band, engineer, updated | `items[]` | — | `GET /v1/runs` |
 | Skill performance | Skill, version, runs, first-try pass (amber < 80%), H/M/L bar, retries per step, overrides, top cause, open flags | `items[]` | M-33, M-03, M-15, M-16, M-17, M-18 | `GET /v1/insights/engineering/skills` |
@@ -756,6 +756,7 @@ Params: `project`, `system`, `status` (`open`, `RUNNING`, `PAUSED_INPUT`, `PAUSE
 | `PAUSED_INPUT` | Needs input | Answer `runs/<run_id>/open-questions.md`; `/truminds:resume <run_id>` |
 | `PAUSED_APPROVAL` | Needs approval | "Tech lead approves <gate>"; `tsl approve <run_id> <gate>` |
 | `COMPLETED`, `completed` | Completed | "PR #<n> in review" or "PR #<n> merged" from `pull_requests` |
+| `COMPLETED`, `cancelled` | Cancelled | "Run cancelled"; no command. Not counted as completed |
 | `COMPLETED`, `aborted` | Aborted | "Run aborted: <end_code>"; no command |
 
 The SPA shortens ids for display (`run_01J9..CD`) and copies the full id (Doc 4 §6.3).
@@ -795,7 +796,7 @@ All take `project`, `system`, `period`.
 
 ```json
 // E17 /v1/insights/engineering/runs
-{"data": {"status_counts": {"running": 12, "paused_input": 5, "paused_approval": 3, "completed": 58, "aborted": 2},
+{"data": {"status_counts": {"running": 12, "paused_input": 5, "paused_approval": 3, "completed": 58, "cancelled": 1, "aborted": 2},
   "oldest_input_wait_s": 172800,
   "aborted_by_code": [{"code": "E-SEC-01", "n": 1}, {"code": "E-POL-01", "n": 1}],
   "step_outcomes": {"total": 412, "PASS": 0.58, "PASS-WITH-FINDINGS": 0.20, "RETRY": 0.12,

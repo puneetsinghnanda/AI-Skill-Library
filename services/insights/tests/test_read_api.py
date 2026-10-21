@@ -589,3 +589,43 @@ def test_status(
     assert (
         d["behind"] is False and d["last_event_received_at"] and d["catalogue_release"] == "v0.1.0"
     )
+
+
+def test_cancelled_runs_are_labelled_and_not_counted_as_completed(
+    client: TestClient,
+    token: TokenFactory,
+    people: dict[str, Person],
+    dataset: dict[str, Any],
+    world: Any,
+    migrated: Any,
+) -> None:
+    he = portal(token, people["eng"])
+    before = client.get("/v1/insights/engineering/runs", headers=he).json()["data"]["status_counts"]
+    run_id = new_run()
+    post(
+        client,
+        token(people["eng"].oid, people["eng"].roles),
+        [
+            event("run.started", run_started(world.system, ticket="ORD-950"), run_id, now_iso(-5)),
+            event(
+                "run.status_changed",
+                {"from": "RUNNING", "to": "COMPLETED", "reason_code": "cancelled"},
+                run_id,
+                now_iso(-1),
+            ),
+        ],
+        strict=True,
+    )
+    project(migrated)
+
+    def items(status: str) -> dict[str, Any]:
+        res = client.get(f"/v1/runs?status={status}&limit=100", headers=he).json()["data"]
+        return {r["run_id"]: r for r in res["items"]}
+
+    row = items("cancelled")[run_id]
+    assert row["status_label"] == "Cancelled"
+    assert row["next_action"]["text"] == "Run cancelled"
+    assert run_id not in items("completed")
+    after = client.get("/v1/insights/engineering/runs", headers=he).json()["data"]["status_counts"]
+    assert after["cancelled"] == before["cancelled"] + 1
+    assert after["completed"] == before["completed"]

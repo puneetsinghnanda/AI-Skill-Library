@@ -138,8 +138,11 @@ function runsResponse(user: DemoUser, url: URL, request: Request, podId?: string
   if (owner === 'me') rows = rows.filter((r) => r.engineer === user.me.pseudonym);
   if (status === 'open') rows = rows.filter((r) => r.status !== 'COMPLETED');
   else if (status === 'completed')
-    rows = rows.filter((r) => r.status === 'COMPLETED' && r.endReason !== 'aborted');
+    rows = rows.filter(
+      (r) => r.status === 'COMPLETED' && r.endReason !== 'aborted' && r.endReason !== 'cancelled',
+    );
   else if (status === 'aborted') rows = rows.filter((r) => r.endReason === 'aborted');
+  else if (status === 'cancelled') rows = rows.filter((r) => r.endReason === 'cancelled');
   else if (status) rows = rows.filter((r) => r.status === status);
   if (scenario.empty) rows = [];
   rows = [...rows].sort((a, b) => a.updatedMin - b.updatedMin);

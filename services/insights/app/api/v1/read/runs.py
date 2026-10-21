@@ -31,8 +31,11 @@ STATUS_FILTERS = {
     "RUNNING": "r.status = 'RUNNING'",
     "PAUSED_INPUT": "r.status = 'PAUSED_INPUT'",
     "PAUSED_APPROVAL": "r.status = 'PAUSED_APPROVAL'",
-    "completed": "r.status = 'COMPLETED' AND coalesce(r.end_reason, '') <> 'aborted'",
+    "completed": (
+        "r.status = 'COMPLETED' AND coalesce(r.end_reason, '') NOT IN ('aborted', 'cancelled')"
+    ),
     "aborted": "r.status = 'COMPLETED' AND r.end_reason = 'aborted'",
+    "cancelled": "r.status = 'COMPLETED' AND r.end_reason = 'cancelled'",
 }
 RUN_COLS = (
     "r.id, r.system_id::text AS system_id, r.project_id::text AS project_id, r.ticket_ref, "
@@ -95,6 +98,8 @@ def next_action(r: Any, pr: Any) -> dict[str, Any]:
         }
     if r.status == "COMPLETED" and r.end_reason == "aborted":
         return {"kind": "none", "text": f"Run aborted: {r.end_code or 'unknown'}", "command": None}
+    if r.status == "COMPLETED" and r.end_reason == "cancelled":
+        return {"kind": "none", "text": "Run cancelled", "command": None}
     if r.status == "COMPLETED" and pr is not None:
         word = (
             "merged"

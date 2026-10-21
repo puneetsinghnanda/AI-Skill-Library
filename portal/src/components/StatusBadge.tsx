@@ -9,6 +9,7 @@ const CLASS: Record<Tone, string> = {
   input: 'b-input',
   esc: 'b-esc',
   abort: 'b-abort',
+  cancel: 'b-cancel',
   navy: 'b-navy',
   teal: 'b-teal',
 };

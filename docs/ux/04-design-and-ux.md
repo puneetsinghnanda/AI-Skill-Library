@@ -461,6 +461,7 @@ The portal uses the Backstage (MUI) theme. Truminds brand colours are not yet su
 | `status.input` | NEEDS-INPUT, PAUSED\_INPUT | theme warning | ? Needs input |
 | `status.escalate` | ESCALATE, PAUSED\_APPROVAL, Low band | theme warning (strong) | ▲ Needs approval |
 | `status.abort` | ABORT | theme error | ✖ Aborted |
+| `status.cancel` | Run cancelled (`end_reason = cancelled`) | theme neutral | ⊘ Cancelled |
 | `space.*` | Layout | 8 px grid (Backstage default) | — |
 | `type.mono` | Run ids, paths, commands | theme monospace | — |
 

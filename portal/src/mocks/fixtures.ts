@@ -1159,7 +1159,8 @@ function label(r: RunRow): RunItem['status_label'] {
   if (r.status === 'RUNNING') return 'Running';
   if (r.status === 'PAUSED_INPUT') return 'Needs input';
   if (r.status === 'PAUSED_APPROVAL') return 'Needs approval';
-  return r.endReason === 'aborted' ? 'Aborted' : 'Completed';
+  if (r.endReason === 'aborted') return 'Aborted';
+  return r.endReason === 'cancelled' ? 'Cancelled' : 'Completed';
 }
 
 function nextAction(r: RunRow): RunItem['next_action'] {
@@ -1415,7 +1416,14 @@ export function engRuns(systems: string[], empty: boolean): EngRuns {
   const rows = RUN_ROWS.filter((r) => systems.includes(r.system));
   if (empty) {
     return {
-      status_counts: { running: 0, paused_input: 0, paused_approval: 0, completed: 0, aborted: 0 },
+      status_counts: {
+        running: 0,
+        paused_input: 0,
+        paused_approval: 0,
+        completed: 0,
+        cancelled: 0,
+        aborted: 0,
+      },
       oldest_input_wait_s: null,
       aborted_by_code: [],
       step_outcomes: {
@@ -1436,7 +1444,11 @@ export function engRuns(systems: string[], empty: boolean): EngRuns {
       paused_input: rows.filter((r) => r.status === 'PAUSED_INPUT').length + 4,
       paused_approval: rows.filter((r) => r.status === 'PAUSED_APPROVAL').length + 1,
       completed:
-        rows.filter((r) => r.status === 'COMPLETED' && r.endReason !== 'aborted').length + 56,
+        rows.filter(
+          (r) =>
+            r.status === 'COMPLETED' && r.endReason !== 'aborted' && r.endReason !== 'cancelled',
+        ).length + 56,
+      cancelled: rows.filter((r) => r.endReason === 'cancelled').length,
       aborted: aborted.length,
     },
     oldest_input_wait_s: 172800,

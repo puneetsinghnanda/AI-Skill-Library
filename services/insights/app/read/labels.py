@@ -41,5 +41,7 @@ def status_label(status: str | None, end_reason: str | None) -> str:
     if status == "PAUSED_APPROVAL":
         return "Needs approval"
     if status == "COMPLETED":
-        return "Aborted" if end_reason == "aborted" else "Completed"
+        if end_reason == "aborted":
+            return "Aborted"
+        return "Cancelled" if end_reason == "cancelled" else "Completed"
     return "Unknown"
