@@ -29,7 +29,7 @@ steps:
   - id: design
     skill: design@^1.4
     after: [split, impact]
-    inputs: {impact: impact.impact, stories: split.stories}
+    inputs: {impact: impact.impact, stories: split.stories, intent: req.intent}
   - gate: G-design
     role: tech_lead
     after: [design]
