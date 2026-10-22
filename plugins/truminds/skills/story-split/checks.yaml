@@ -8,7 +8,7 @@ checks:
   kind: coverage
   gate: H5
   each: $.trace[*]
-  covered_by: $.stories[*]
+  covered_by: $.stories[*].trace[*]
   link: trace
   min: 1
 - id: story-split.ac-format

@@ -592,6 +592,11 @@ def run_all(ci: CheckInput, h3_result: GateResult | None) -> CheckRun:
         ci.root,
         [str(i["path"]) for i in ci.expected_inputs if i.get("path")],
         {},
+        {
+            str(i["name"]): str(i["path"])
+            for i in ci.expected_inputs
+            if i.get("name") and i.get("path")
+        },
     )
     skill_checks = run_declared(env, ci.skill.checks if ci.skill and ci.art.doc else None)
     g: dict[str, GateResult] = {}
