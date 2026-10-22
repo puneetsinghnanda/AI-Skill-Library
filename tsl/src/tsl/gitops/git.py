@@ -11,13 +11,25 @@ from tsl.core.errors import TslError
 
 
 class GitError(Exception):
-    def __init__(self, op: str, detail: str) -> None:
+    def __init__(self, op: str, detail: str, next_: str | None = None) -> None:
         super().__init__(f"git {op}: {detail}")
         self.op = op
         self.detail = detail
+        self.next = next_
 
     def tsl(self) -> TslError:
-        return TslError("E-GIT-01", op=self.op, detail=self.detail[:120])
+        return TslError("E-GIT-01", op=self.op, detail=self.detail[:120], next=self.next)
+
+
+def conflict_error(paths: list[str]) -> GitError:
+    """Local edits that collide with what is on GitHub: say which file and how to keep GitHub's."""
+    first = paths[0]
+    return GitError(
+        "pull",
+        f"your local edits to {first} conflict with the version on GitHub",
+        f"Keep GitHub's version: git checkout HEAD -- {first}; then git stash list and, if the "
+        "entry is only that edit, git stash drop. Never edit runs/ files by hand",
+    )
 
 
 class Git:
@@ -178,8 +190,15 @@ class Git:
     def fetch(self) -> None:
         self.run("fetch", "-q", "origin", timeout=60)
 
+    def unmerged(self) -> list[str]:
+        return self.run("diff", "--name-only", "--diff-filter=U", check=False).stdout.split()
+
     def rebase(self, onto: str) -> None:
+        if left := self.unmerged():
+            raise conflict_error(left)
         p = self.run("rebase", "-q", "--autostash", onto, check=False)
+        if left := self.unmerged():  # the autostash did not re-apply cleanly
+            raise conflict_error(left)
         if p.returncode != 0:
             self.run("rebase", "--abort", check=False)
             raise GitError("rebase", (p.stderr or "conflict").strip()[:120])

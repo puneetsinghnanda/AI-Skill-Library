@@ -51,6 +51,7 @@ Every code lives in `tsl/src/tsl/core/errors.py` (CLI codes) or the insights ser
 | E-AUTH-08 | No Truminds app role, or account deactivated | 3 / 403 | `tsl login`; insights service | SDD-07 §12 |
 | E-AUTH-09 | GitHub portal sign-in refused: `state` mismatch, no code, or the code exchange failed | 400 | `GET /auth/github/callback` | SDD-07 §1.4, ADR 0006 |
 | E-AUTH-10 | Identity provider (GitHub) unreachable; try again | 503 | Insights service (GitHub provider only) | SDD-07 §1.4, ADR 0006 |
+| E-AUTH-11 | A signed approval does not verify; the message names the reason (key not registered, signature mismatch, key expired or revoked, block malformed) | 3 | `state resume` | SDD-04 §6.7 |
 | E-CFG-01 | Config or definition file invalid, or a limit looser than the org default | 1 | Any command reading config; `validate` | SDD-04 §5 |
 | E-CHK-01 | Hard gate failed; retry | 2 | `verify`, `decide`, post-write hook | Doc 4 §5.2 |
 | E-CI-01 | PR has code changes but no records | 2 | `ci-verify` | Doc 4 §5.2 |
@@ -142,6 +143,7 @@ Every code lives in `tsl/src/tsl/core/errors.py` (CLI codes) or the insights ser
 | E-SEC-01 | Secret or PII detected in artifact (H4) | 5 | `verify`, `decide` | Doc 4 §5.2 |
 | E-SEC-02 | Personal data detected in artifact (H4) | 5 | `verify` | SDD-03 §14 |
 | E-USE-01 | Invalid arguments | 1 | Any command | SDD-04 §5 |
+| E-SMOKE-01 | Smoke run failed at a named step | 2 | `smoke` | SDD-04 §6.3 |
 | E-VER-01 | `tsl` version does not match the plugin or the run pin | 3 | hooks, `state *` | SDD-04 §5 |
 | E-WFL-01 | Workflow file does not match `workflow.v1` | 2 | `validate` | SDD-02 §3.5 |
 | E-WFL-02 | Workflow graph invalid (ids, cycles, reachability, gate placement) | 2 | `validate` | SDD-02 §3.5 |

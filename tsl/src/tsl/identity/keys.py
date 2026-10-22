@@ -79,6 +79,53 @@ def cache_key(rt: Runtime, facts: dict[str, Any]) -> None:
     write_json(rt.home.key_cache(str(facts["key_id"])), facts)
 
 
+# Seconds to wait for a sleeping insights service to wake before a strict key lookup gives up.
+WAKE_SECONDS = 60.0
+
+
+def wake_service(rt: Runtime, max_seconds: float | None = None) -> bool:
+    """Poll the service's health until it answers: a free hosted service sleeps when idle."""
+    import time
+
+    deadline = time.monotonic() + (WAKE_SECONDS if max_seconds is None else max_seconds)
+    while True:
+        if rt.insights.health():
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(2)
+
+
+def public_key_strict(rt: Runtime, key_id: str) -> dict[str, Any] | None:
+    """Like public_key(online=True), but says why a lookup failed instead of returning None.
+
+    Returns None only when the service answers that the key does not exist. Raises E-AUTH-01 when
+    the service refuses our own sign-in, and E-NET-02 when it stays unreachable after a wake-up.
+    """
+    found = public_key(rt, key_id, online=False)
+    if found is not None:
+        return found
+    for attempt in range(2):
+        try:
+            res = rt.insights.get_key(rt.token(), key_id)
+        except InsightsUnavailable:
+            if attempt == 0:
+                wake_service(rt)
+                continue
+            raise TslError("E-NET-02") from None
+        if res.status in (401, 403):
+            raise TslError(
+                "E-AUTH-01",
+                "Your Truminds sign-in is no longer valid (the service refused it).",
+                next="tsl login, then repeat the command",
+            )
+        if res.status == 200 and isinstance(res.body, dict):
+            cache_key(rt, res.body)
+            return dict(res.body)
+        return None
+    return None
+
+
 def public_key(rt: Runtime, key_id: str, online: bool = True) -> dict[str, Any] | None:
     """Key facts for local verification: cache first, then GET /v1/keys/{id} (SDD-07 §5.3)."""
     info = active_info(rt)

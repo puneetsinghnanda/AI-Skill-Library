@@ -177,6 +177,27 @@ New-Item -ItemType Directory -Force .tsl | Out-Null
 Set-Content .tsl\local.yaml "schema: tsl-local.v1`nproduct_repos:`n  sample-system: .."
 ```
 
+**Before every run or resume, check your laptop (about 30 seconds):**
+
+```powershell
+cd <your companion repo>
+tsl doctor --run
+```
+
+Every line must be ✔ (⚠ is a warning). A ✖ line ends with the exact fix; do it, then run `tsl doctor --run` again.
+Typical fixes: `tsl login` (your sign-in expired), opening the portal so the free service wakes up, starting Docker
+Desktop, or `git pull` in the product clone.
+
+**First time on a laptop, prove the whole chain once without AI (about 2 minutes):**
+
+```powershell
+tsl smoke
+```
+
+It starts a throwaway `SMOKE-<n>` run, writes canned content for the first step, runs every check, records a
+review and a signed decision, cancels the run and confirms the portal received it. When it ends with
+`✔ Smoke run passed`, the setup works and any later problem is about a skill's output, not your laptop.
+
 **Run a workflow:**
 
 1. In Claude Code, open a **local** session in `C:\dev\AI-Skill-Library\examples\sample-system\companion-example`, the folder with `tsl.yaml`. Not the repo root.
@@ -186,7 +207,7 @@ Set-Content .tsl\local.yaml "schema: tsl-local.v1`nproduct_repos:`n  sample-syst
    - Use a different ticket from your teammates (`ABC-142` to `ABC-180`, in `examples\sample-system\tickets\`; pass the matching file) so you don't block each other with locks.
 3. Follow the run:
    - **Questions:** answer in `open-questions.md`, then type `/truminds:resume <run_id>`.
-   - **Approval gate:** the approver runs `tsl approve`, then type `/truminds:resume <run_id>`.
+   - **Approval gate:** the approver runs `tsl approve` on their own laptop and pushes, then type `/truminds:resume <run_id>`. Never edit `approvals.md` by hand.
    - **Progress:** type `/truminds:status`.
 4. Check the portal: your run and its steps appear in the Engineer view.
 

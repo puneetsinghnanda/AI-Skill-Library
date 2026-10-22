@@ -62,6 +62,12 @@ CATALOGUE: dict[str, ErrorDef] = {
             "Reconnect, then repeat",
         ),
         _d(
+            "E-AUTH-11",
+            BLOCKED,
+            "Approval for gate {gate} could not be verified: {reason}.",
+            "{fix}",
+        ),
+        _d(
             "E-AUTH-08",
             BLOCKED,
             "Your account has no Truminds app role, or it is deactivated.",
@@ -474,6 +480,12 @@ CATALOGUE: dict[str, ErrorDef] = {
             "Run aborted; security event raised",
         ),
         _d("E-USE-01", USAGE, "Invalid arguments: {detail}", "tsl {cmd} --help"),
+        _d(
+            "E-SMOKE-01",
+            CHECK,
+            "Smoke run failed at '{step}': {detail}",
+            "Fix that step, then run tsl smoke again",
+        ),
         _d(
             "E-VER-01",
             BLOCKED,

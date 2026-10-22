@@ -71,6 +71,13 @@ def human(env: Envelope, color: bool) -> str:
     for k, v in env.data.items():
         if isinstance(v, (str, int, float, bool)) or v is None:
             lines.append(f"  {k}: {v}")
+    for c in env.data.get("checks") or []:  # tsl doctor: one line per check, with its fix
+        if isinstance(c, dict) and {"id", "status"} <= set(c):
+            mark = {"pass": "✔", "warn": "⚠", "fail": "✖"}.get(str(c["status"]), "·")
+            line = f"  {mark} {c['id']}" + (f": {c['detail']}" if c.get("detail") else "")
+            if c["status"] != "pass" and c.get("fix"):
+                line += f"  → {c['fix']}"
+            lines.append(line)
     text = "\n".join(lines)
     if color and not env.ok:
         return f"\x1b[31m{text}\x1b[0m"

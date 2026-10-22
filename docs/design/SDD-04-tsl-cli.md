@@ -247,7 +247,22 @@ Defined in SDD-07 §5.5. `list` → `data.keys[{key_id, device_id, device_label,
 
 ### 6.3 `tsl doctor`
 
-`tsl doctor [--plugin-version X.Y.Z]`. Network: S (optional, reported as a check).
+`tsl doctor [--plugin-version X.Y.Z] [--run]`. Network: S (optional, reported as a check). The human output lists
+every check with its fix.
+
+`--run` adds live run-readiness checks, run from the companion repo before starting or resuming a run. They cover
+what stopped real runs part-way: `service-awake` (waits up to a minute for a sleeping service), `sign-in-live` (the
+service accepts this laptop's token; a revoked GitHub token fails here, not mid-run), `key-registered` (the service
+holds this device's key), `docker-running`, `line-endings` (`.gitattributes` with `eol=lf`), `no-conflicts`
+(conflicted files, with the command that keeps GitHub's version), `no-local-edits` and `no-leftover-stash` (warnings),
+`product-<name>` (each clone in `.tsl/local.yaml` is at its `origin/<default_branch>`) and `pack-fresh`.
+
+`tsl smoke` runs `--run`'s checks (Docker aside), then a whole `brownfield-change` run with canned content and no
+AI: start with a generated `SMOKE-<n>` ticket, the first step's artifact through the write hooks and every harness
+check, review prepare and record, a signed decision, then `state cancel`, and confirms the run's events reached the
+service. Any decision outcome passes; an error fails with E-SMOKE-01 naming the step. It needs no second person and
+leaves one cancelled run in the companion history.
+
 
 | Check id | Pass condition |
 | --- | --- |

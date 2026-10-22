@@ -282,12 +282,30 @@ def keys_revoke(
 # ------------------------------------------------------------------------------- setup
 @app.command()
 @command
-def doctor(plugin_version: Annotated[str | None, typer.Option("--plugin-version")] = None) -> int:
+def doctor(
+    plugin_version: Annotated[str | None, typer.Option("--plugin-version")] = None,
+    run: Annotated[
+        bool,
+        typer.Option("--run", help="Also check, live, that a run can start or resume from here"),
+    ] = False,
+) -> int:
     """Check prerequisites, login, key, service, outbox and the companion repo."""
     from tsl.services.doctor import doctor as svc
 
-    data, warnings = svc(rt(), plugin_version, OPTS.repo or Path.cwd())
+    data, warnings = svc(rt(), plugin_version, OPTS.repo or Path.cwd(), run)
     return emit_ok("All checks passed", data, warnings)
+
+
+@app.command()
+@command
+def smoke() -> int:
+    """Run a whole workflow with canned content and no AI, to prove the setup end to end."""
+    from tsl.services.smoke import smoke as svc
+
+    data, warnings = svc(rt(), comp().root, progress=lambda line: sys.stderr.write(line + "\n"))
+    return emit_ok(
+        f"Smoke run passed: {data['run_id']} started, decided and cancelled", data, warnings
+    )
 
 
 @app.command()

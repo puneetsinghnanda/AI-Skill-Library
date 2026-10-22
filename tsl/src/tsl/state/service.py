@@ -26,7 +26,7 @@ from tsl.core.repo import Companion
 from tsl.core.runtime import Runtime
 from tsl.gitops.git import GitError
 from tsl.identity import me as memod
-from tsl.identity.keys import active_info, public_key
+from tsl.identity.keys import active_info, public_key_strict
 from tsl.identity.verify import accept, facts_from
 from tsl.orchestrator import skills as skillmod
 from tsl.orchestrator import workflow as wfmod
@@ -387,16 +387,42 @@ def _resume_input(rt: Runtime, ctx: RunCtx) -> list[str]:
     return open_ids
 
 
-def _verify_block(rt: Runtime, block: dict[str, Any]) -> bool:
+REAPPROVE = "The approver runs tsl doctor, then tsl approve {run} {gate} again"
+APPROVAL_PROBLEMS = {
+    "unknown_key": "the approver's signing key {key} is not registered on the service",
+    "bad_signature": "the signature does not match the approver's key",
+    "signed_before_key": "it was signed before the approver's key existed",
+    "key_expired": "the approver's key had expired when it was signed",
+    "revoked": "the approver's key was revoked before it was signed",
+    "compromised": "the approver's key is marked compromised",
+    "not_anchored_before_compromise": "the approver's key is marked compromised",
+}
+
+
+def _verify_block(rt: Runtime, ctx: RunCtx, gate: str, block: dict[str, Any]) -> None:
+    """Raises a specific error when a signed approval does not verify (E-AUTH-01, E-NET-02,
+    E-AUTH-11), so the user sees the real cause instead of a role problem."""
     from tsl.schemas.registry import errors
 
+    path = approvals_path(ctx.run_id)
     if errors("approval-signature.v1", block):
-        return False
-    facts = public_key(rt, str(block["key_id"]), online=True)
-    verdict, _ = accept(
+        raise TslError(
+            "E-AUTH-11",
+            gate=gate,
+            reason="the signature block is malformed (edited by hand?)",
+            fix=f"git checkout HEAD -- {path}, then repeat; if it stays, approve again",
+        )
+    facts = public_key_strict(rt, str(block["key_id"]))
+    verdict, why = accept(
         block, parse_iso(str(block["approved_at"])), [], facts_from(facts), check_roles=False
     )
-    return verdict != "bad"
+    if verdict == "bad":
+        raise TslError(
+            "E-AUTH-11",
+            gate=gate,
+            reason=APPROVAL_PROBLEMS.get(str(why), str(why)).format(key=block["key_id"]),
+            fix=REAPPROVE.format(run=ctx.run_id, gate=gate),
+        )
 
 
 def _resume_approval(rt: Runtime, ctx: RunCtx) -> list[dict[str, Any]]:
@@ -407,8 +433,7 @@ def _resume_approval(rt: Runtime, ctx: RunCtx) -> list[dict[str, Any]]:
         block = (e or {}).get("signature")
         if not e or not block:
             raise TslError("E-RUN-02", next=f"approver runs tsl approve {ctx.run_id} {g['id']}")
-        if not _verify_block(rt, block):
-            raise TslError("E-AUTH-05", role=e["role"], gate=g["id"])
+        _verify_block(rt, ctx, str(g["id"]), block)
         if block["role"] != e["role"] or block["decision"] != e["decision"]:
             raise TslError("E-AUTH-05", role=e["role"], gate=g["id"])
         if block["comment_sha256"] != approvals_md.comment_sha256(e.get("comment")):
