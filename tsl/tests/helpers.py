@@ -747,7 +747,7 @@ def review_json(
     questions: list[dict[str, Any]] | None = None,
     score: int = 5,
     rubric_ids: list[str] | None = None,
-    version: str = "0.1.0",
+    version: str = "0.1.1",
 ) -> str:
     ids = rubric_ids or ["RR-R1", "RR-R2", "RR-R3", "RR-R4", "RR-R5", "RR-R6"]
     obj = {

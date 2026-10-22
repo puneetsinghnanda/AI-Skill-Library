@@ -35,7 +35,7 @@ from tsl.state import lock as lockmod
 from tsl.state import ticket as ticketmod
 from tsl.state.session import bind, compile_policy, unbind_run
 from tsl.state.store import all_runs, latest, read_state_raw, write_new
-from tsl.telemetry.emit import emit
+from tsl.telemetry.emit import emit, flush_quietly
 
 TICKET = re.compile(r"^[A-Za-z][A-Za-z0-9_]*-[0-9]+$")
 
@@ -198,6 +198,8 @@ def start(
     if pod:
         body["pod"] = pod
     emit(rt, "run.started", body, run_id, enabled=cfg.telemetry_enabled)
+    if cfg.telemetry_enabled:
+        flush_quietly(rt, max_seconds=1.5)
     first = next(wfmod.step_id(s) for s in snap["steps"])
     return {
         "run_id": run_id,

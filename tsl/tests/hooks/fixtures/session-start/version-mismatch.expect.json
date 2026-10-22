@@ -2,7 +2,7 @@
   "setup": "none+old-plugin",
   "exit": 0,
   "stdout": {
-    "systemMessage": "E-VER-01 tsl 0.1.0 does not match plugin 9.9.9. Run: uv tool install truminds-tsl==9.9.9"
+    "systemMessage": "E-VER-01 tsl 0.1.1 does not match plugin 9.9.9. Run: uv tool install truminds-tsl==9.9.9"
   },
   "log_contains": "\"decision\": \"allow\"",
   "event": {
