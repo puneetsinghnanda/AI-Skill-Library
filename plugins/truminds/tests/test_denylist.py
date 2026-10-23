@@ -57,8 +57,8 @@ def _files() -> list[Path]:
             continue
         for p in sorted(root.rglob("*")):
             if (
-                p.is_file()
-                and not (SKIP_PARTS & set(p.parts))
+                not (SKIP_PARTS & set(p.parts))  # first: Windows cannot stat Linux .venv links
+                and p.is_file()
                 and p.suffix in TEXT_SUFFIXES
                 and p.name != "test_denylist.py"
             ):

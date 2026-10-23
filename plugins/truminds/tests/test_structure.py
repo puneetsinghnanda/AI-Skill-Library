@@ -64,7 +64,8 @@ def _files(*roots: Path) -> list[Path]:
     out = []
     for root in roots:
         for p in sorted(root.rglob("*")):
-            if p.is_file() and not (EXCLUDED_DIRS & set(p.relative_to(root).parts)):
+            # excluded dirs first: a .venv made on Linux holds symlinks Windows cannot stat
+            if not (EXCLUDED_DIRS & set(p.relative_to(root).parts)) and p.is_file():
                 out.append(p)
     return out
 
@@ -172,6 +173,15 @@ def test_reviewer_agent_is_read_only_and_review_skill_forks() -> None:
         "user-invocable": False,
     }
     assert "!`tsl review prepare $ARGUMENTS --json`" in body(SKILLS / "review" / "SKILL.md")
+
+
+@pytest.mark.parametrize("command", ["run", "resume"])
+def test_run_loop_records_the_review_before_decide(command: str) -> None:
+    """The forked review skill only returns JSON; the loop must record it (else E-RUN-05)."""
+    text = body(SKILLS / command / "SKILL.md")
+    record = text.index("`tsl review record <artifact_path> --json`")
+    assert text.index("Run the `review` skill") < record < text.index("`tsl decide <artifact_path>")
+    assert "E-REV-02" in text and "--unavailable" in text
 
 
 def test_every_skill_folder_is_a_command_the_review_step_or_an_sdlc_skill() -> None:
