@@ -22,7 +22,7 @@ from tsl.harness.verifier import VerifierUnavailable
 from tsl.identity.keys import public_key
 from tsl.orchestrator.run import RunCtx
 from tsl.state.session import compile_policy
-from tsl.state.store import latest
+from tsl.state.store import find_step, latest
 
 
 def to_rel(comp: Companion, artifact: str) -> str:
@@ -424,6 +424,18 @@ def verify_inputs(
     attempt = latest(ctx.step(step))
     if attempt is None:
         raise TslError("E-RUN-09", step=step, run_id=run_id)
+    # The skill calls this first, so it marks the launch. H5 and H7 read the tool log from here,
+    # which leaves out calls a session made at this step before the skill ran.
+    launched, n = iso(rt.clock()), attempt["n"]
+
+    def mark(st: dict[str, Any]) -> None:
+        a = latest(find_step(st, step))
+        if a is not None and a["n"] == n:
+            a["skill_started_at"] = launched
+
+    with ctx.store.local_lock():
+        ctx.state = ctx.store.update(mark)
+    attempt = latest(ctx.step(step)) or attempt
     sk = ctx.skill_for(step)
     items = ctx.resolve_inputs(step)
     out_inputs: list[dict[str, Any]] = []

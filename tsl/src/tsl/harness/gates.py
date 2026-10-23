@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from tsl.core.clock import parse_iso
 from tsl.core.errors import TslError
 from tsl.core.frontmatter import headings, norm_title, section_text
 from tsl.core.hashing import sha256_bytes, sha256_file
@@ -336,7 +337,7 @@ def h5(ci: CheckInput, skill_checks: list[CheckOutcome]) -> GateResult:
                 g.fail("E-POL-01", f"{ch['repo']}:{f} matches a write deny rule", "GEN-SCOPE-01")
     if ci.policy and ci.tool_log and ci.tool_log.is_file() and ci.attempt is not None:
         for e in _log_entries(ci.tool_log):
-            if e.get("step") != ci.art.step or e.get("attempt") != ci.attempt["n"]:
+            if not _in_attempt(e, ci):
                 continue
             is_write = e.get("tool") in ("Write", "Edit", "NotebookEdit")
             if (
@@ -483,6 +484,19 @@ def _prefix_ok(data: bytes, recorded: str) -> bool:
     return False
 
 
+def _in_attempt(e: dict[str, Any], ci: CheckInput) -> bool:
+    """A log line of this step and attempt, made after the skill launched when that is known."""
+    if ci.attempt is None or e.get("step") != ci.art.step or e.get("attempt") != ci.attempt["n"]:
+        return False
+    since = ci.attempt.get("skill_started_at")
+    if not since:
+        return True
+    try:
+        return parse_iso(str(e.get("ts"))) >= parse_iso(str(since))
+    except ValueError:
+        return True
+
+
 def _tool_allowed(entry: dict[str, Any], allowed: list[str]) -> bool:
     tool = str(entry.get("tool"))
     if tool.startswith("mcp__"):
@@ -517,8 +531,7 @@ def h7(ci: CheckInput) -> GateResult:
         if e.get("_bad") or errors("tool-log.v1", e):
             g.fail("E-POL-05", "tool log line does not parse", "GEN-TOOLS-01")
             return g
-    mine = [e for e in entries if e["step"] == ci.art.step and e["attempt"] == ci.attempt["n"]]
-    for e in mine:
+    for e in (e for e in entries if _in_attempt(e, ci)):
         if e["decision"] == "deny":
             g.fail(str(e["code"]), f"denied {e['tool']} recorded in the tool log", "GEN-TOOLS-01")
         elif not _tool_allowed(e, ci.skill.allowed_tools):
