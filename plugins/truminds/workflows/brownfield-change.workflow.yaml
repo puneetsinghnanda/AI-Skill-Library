@@ -30,15 +30,9 @@ steps:
     skill: design@^1.4
     after: [split, impact]
     inputs: {impact: impact.impact, stories: split.stories, intent: req.intent}
-  - gate: G-design
-    role: tech_lead
-    after: [design]
-    artifacts: [design]
-    on_reject: req                      # requirement was wrong: start again from req
-    on_changes: design                  # design needs rework: re-run design with the comment
   - id: threat
     skill: threat-model@^1.0
-    after: [G-design]
+    after: [design]
     inputs: {design: design.design}
   - id: impl
     skill: implement@^1.0
@@ -54,7 +48,7 @@ steps:
     inputs: {change: impl.change}
   - id: tplan
     skill: test-plan@^1.0
-    after: [G-design]
+    after: [design]
     inputs: {stories: split.stories, design: design.design}
   - pr: true
     after: [ut, secrev, tplan]
