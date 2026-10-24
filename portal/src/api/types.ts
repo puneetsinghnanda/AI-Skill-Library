@@ -63,7 +63,8 @@ export type StatusLabel =
   'Running' | 'Needs input' | 'Needs approval' | 'Completed' | 'Cancelled' | 'Aborted' | 'Unknown';
 export type Outcome =
   'PASS' | 'PASS-WITH-FINDINGS' | 'RETRY' | 'NEEDS-INPUT' | 'ESCALATE' | 'ABORT';
-export type Band = 'high' | 'medium' | 'low';
+/** As tsl and the insights API spell it (schemas/events/step.decided.v1.json). */
+export type Band = 'High' | 'Medium' | 'Low';
 export type PackStatus = 'fresh' | 'stale' | 'missing' | string;
 export type ViewName = 'business' | 'engineer';
 export type RoleName =
