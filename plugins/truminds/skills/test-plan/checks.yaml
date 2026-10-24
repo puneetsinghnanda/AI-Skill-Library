@@ -12,9 +12,12 @@ checks:
 - id: test-plan.every-ac-tested
   kind: coverage
   gate: H2
-  each: $.inputs.stories.stories[*].acceptance_criteria[*]
-  covered_by: $.tests[*]
-  link: covers
+  each_input: stories
+  each: $.stories[*]
+  each_key:
+    prefix: id
+    select: $.acceptance_criteria[*].id
+  covered_by: $.tests[*].covers[*]
   min: 1
 - id: test-plan.ids
   kind: regex

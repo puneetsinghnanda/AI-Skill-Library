@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable
 from typing import Any
 
@@ -27,6 +28,12 @@ def flush(rt: Runtime, max_seconds: float) -> Any:
         return rt.identity().silent_token(force_refresh=force)
 
     return rt.outbox().flush(token, rt.insights.post_events, max_seconds)
+
+
+def flush_quietly(rt: Runtime, max_seconds: float = 1.5) -> None:
+    """Best-effort flush: never raises; unsent events stay queued (R-04)."""
+    with contextlib.suppress(Exception):
+        flush(rt, max_seconds)
 
 
 # Seconds a run-changing command may spend sending queued events before it returns.

@@ -339,6 +339,10 @@
                 "started_at": {
                   "$ref": "#/$defs/timestamp"
                 },
+                "skill_started_at": {
+                  "$ref": "#/$defs/timestamp",
+                  "description": "When the skill last launched for this attempt (tsl verify --inputs). H5 and H7 read only tool-log lines from then on."
+                },
                 "decided_at": {
                   "oneOf": [
                     {

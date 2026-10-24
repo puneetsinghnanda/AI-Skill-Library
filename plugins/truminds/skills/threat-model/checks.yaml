@@ -7,9 +7,9 @@ checks:
 - id: threat-model.stride-per-component
   kind: coverage
   gate: H2
-  each: $.inputs.design.components[*]
-  covered_by: $.threats[*]
-  link: component
+  each_input: design
+  each: $.components[*].name
+  covered_by: $.threats[*].component
   min: 1
 - id: threat-model.ids
   kind: regex

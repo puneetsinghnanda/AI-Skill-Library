@@ -164,6 +164,33 @@
                 "type": "string",
                 "pattern": "^\\$"
               },
+              "each_input": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "description": "coverage: name of the step input whose front matter `each` selects from (default: the artifact itself)."
+              },
+              "each_key": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "prefix",
+                  "select"
+                ],
+                "properties": {
+                  "prefix": {
+                    "type": "string"
+                  },
+                  "select": {
+                    "type": "string",
+                    "pattern": "^\\$"
+                  },
+                  "sep": {
+                    "type": "string",
+                    "default": "/"
+                  }
+                },
+                "description": "coverage: turn each item into keys '<item.prefix><sep><value>' for every value `select` finds in the item (stories[] + acceptance_criteria[].id -> S-1/AC1)."
+              },
               "covered_by": {
                 "type": "string",
                 "pattern": "^\\$"

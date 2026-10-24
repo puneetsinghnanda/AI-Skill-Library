@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +29,7 @@ class CheckEnv:
     root: Path
     input_paths: list[str]
     input_texts: dict[str, str]
+    named_inputs: dict[str, str] = field(default_factory=dict)  # step input name -> rel path
 
 
 Fn = Callable[[CheckEnv, dict[str, Any]], str | None]  # returns failure detail or None
@@ -244,6 +245,40 @@ def _load_json(root: Path, rel: str) -> Any:
         return None
 
 
+def _input_front(env: CheckEnv, name: str) -> dict[str, Any] | None:
+    from tsl.core.frontmatter import FrontMatterError, split
+
+    rel = env.named_inputs.get(name)
+    p = env.root / rel if rel else None
+    if p is None or not p.is_file():
+        return None
+    try:
+        return dict(split(p.read_text(encoding="utf-8")).front)
+    except (FrontMatterError, TypeError, ValueError):
+        return None
+
+
+def _coverage_items(env: CheckEnv, c: dict[str, Any]) -> list[Any] | str:
+    """Items `each` selects, from the named input's front matter when `each_input` is set.
+    `each_key` joins each item's `prefix` field with every value `select` finds under it
+    (stories[] + acceptance_criteria[].id -> S-1/AC1). Returns failure detail as a str."""
+    src: dict[str, Any] | None = env.front
+    if c.get("each_input"):
+        src = _input_front(env, str(c["each_input"]))
+        if src is None:
+            return f"input {c['each_input']} missing or has no front matter"
+    items = select(src, c["each"])
+    ek = c.get("each_key")
+    if not ek:
+        return items
+    sep = str(ek.get("sep", "/"))
+    keys: list[Any] = []
+    for it in items:
+        if isinstance(it, dict):
+            keys.extend(f"{it.get(ek['prefix'])}{sep}{v}" for v in select(it, ek["select"]))
+    return keys
+
+
 def _kind_check(env: CheckEnv, c: dict[str, Any]) -> tuple[str, str]:
     kind = c["kind"]
     try:
@@ -273,17 +308,24 @@ def _kind_check(env: CheckEnv, c: dict[str, Any]) -> tuple[str, str]:
                     return "fail", f"{k(v)} already exists"
             return "pass", ""
         if kind == "coverage":
-            items = select(env.front, c["each"])
+            items = _coverage_items(env, c)
+            if isinstance(items, str):
+                return "fail", items
             refs = select(env.front, c["covered_by"])
             link = c.get("link", "id")
             need = int(c.get("min", 1))
+            # `link` names the id field: on the covering objects when covered_by selects objects
+            # (stories[].trace), else on the items (results[].covers). List values hold several ids.
+            refs_are_objects = any(isinstance(r, dict) for r in refs)
             flat: list[Any] = []
             for r in refs:
-                flat.extend(r if isinstance(r, list) else [r])
+                v = r.get(link) if refs_are_objects and isinstance(r, dict) else r
+                flat.extend(v if isinstance(v, list) else [v])
             for it in items:
-                ident = it.get(link) if isinstance(it, dict) else it
-                if sum(1 for r in flat if r == ident) < need:
-                    return "fail", f"{ident} covered fewer than {need} times"
+                ident = it.get(link) if isinstance(it, dict) and not refs_are_objects else it
+                for one in ident if isinstance(ident, list) else [ident]:
+                    if sum(1 for r in flat if r == one) < need:
+                        return "fail", f"{one} covered fewer than {need} times"
             return "pass", ""
         if kind == "regex":
             for v in select(env.front, c["select"]):
@@ -346,10 +388,12 @@ def validate_declared(checks_doc: dict[str, Any]) -> list[str]:
                 errs.append(f"{cid}: unknown kind")
             if not cid.startswith(skill.split("-")[0]) and cid.split(".")[0] not in skill:
                 errs.append(f"{cid}: id must be prefixed by the skill")
-            for k in ("select", "each", "covered_by"):
-                if k in c:
-                    try:
-                        compile_path(c[k])
-                    except PathError as exc:
-                        errs.append(f"{cid}: {exc}")
+            paths = [c[k] for k in ("select", "each", "covered_by") if k in c]
+            if isinstance(c.get("each_key"), dict) and "select" in c["each_key"]:
+                paths.append(c["each_key"]["select"])
+            for path in paths:
+                try:
+                    compile_path(path)
+                except PathError as exc:
+                    errs.append(f"{cid}: {exc}")
     return errs

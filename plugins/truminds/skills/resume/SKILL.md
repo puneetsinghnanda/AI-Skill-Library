@@ -17,10 +17,16 @@ Loop:
 2. run_skill: use the skill named in "data.skill". Give it "data.inputs",
    "data.feedback" and "data.answers". It must write exactly "data.artifact_path".
    If the post-write hook blocks the write, fix what it says and write again.
-3. Run the `review` skill on "data.artifact_path".
-4. Run `tsl decide <artifact_path> --json`. Show its status line to the user.
+3. Run the `review` skill on "data.artifact_path". It only returns JSON; it records nothing.
+4. Pipe that JSON, unchanged, to `tsl review record <artifact_path> --json` (on stdin).
+   On E-REV-02 the JSON did not match review.v1: run the `review` skill again, passing it
+   the error "message", and record again. Stay within the review budget (retry.review,
+   2 by default). If it still fails, run
+   `tsl review record <artifact_path> --unavailable "<the error message>" --json`.
+   Never write or edit the review JSON yourself.
+5. Run `tsl decide <artifact_path> --json`. Show its status line to the user.
    Then go back to step 1, whatever the outcome.
-5. run_decide: go straight to step 4.
-6. open_pr: run `tsl pr <run_id> --json`, then go back to step 1.
-7. pause_input, pause_approval, done, stopped: show "message" and "next" and stop.
+6. run_decide: go straight to step 5.
+7. open_pr: run `tsl pr <run_id> --json`, then go back to step 1.
+8. pause_input, pause_approval, done, stopped: show "message" and "next" and stop.
 Never decide pass or fail yourself. Never edit state.json, records, approvals or open-questions.md.

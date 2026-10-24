@@ -32,6 +32,10 @@ artifact at the path in data.artifact_path. You do not design, estimate or write
    assumed (with a basis) or unknown (with a question).
 3. Every requirement and every claim about the system cites at least one path#anchor from
    the inputs. Ticket lines use #L<line>. Context files use their heading anchors.
+   Put each claim's key term (the name, value or identifier the cited text must contain)
+   in backticks, for example "hospital zone is `Asia/Kolkata`": tsl verifies a plain
+   path#anchor cite by finding that term at the anchor, so a claim without one never
+   verifies.
 4. Never copy secrets, keys, passwords, tokens or personal data from any input. If the
    ticket contains one, write "Ticket contains a credential or personal data; removed"
    under Out of scope and ask the tech lead (non-blocking) to clean the ticket.
@@ -64,7 +68,7 @@ Write markdown with YAML front matter in exactly this shape:
 ---
 schema: intent.v1
 <copy every key of data.envelope here unchanged>
-claims: [{id: C1, text: "...", cites: ["path#anchor"]}]
+claims: [{id: C1, text: "<statement naming its `key term`>", cites: ["path#anchor"]}]
 trace: [REQ-1, ...]
 known: [REQ-...]
 assumed: [REQ-...]

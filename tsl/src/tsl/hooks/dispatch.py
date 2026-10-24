@@ -177,7 +177,11 @@ def run(
 
 
 def active_run(ctx: Ctx) -> dict[str, Any] | None:
-    """Session index for this session, if it points at a run that is still RUNNING."""
+    """Session index for this session, if it points at a run that is still RUNNING.
+
+    A session that is no longer the run's active_session (another session resumed it) gets
+    None, so its tool calls are not logged against the run's current step.
+    """
     p = ctx.session_file()
     if not ctx.session_id or not p.is_file():
         return None
@@ -187,6 +191,9 @@ def active_run(ctx: Ctx) -> dict[str, Any] | None:
         return None
     st = json.loads(state_p.read_text(encoding="utf-8"))
     if st.get("status") != "RUNNING":
+        return None
+    act = st.get("active_session")
+    if act and act.get("session_id") != ctx.session_id[:128]:
         return None
     idx["_state"] = st
     ctx.run_id = idx["run_id"]
