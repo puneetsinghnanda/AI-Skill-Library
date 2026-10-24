@@ -65,10 +65,12 @@ export function podStatus(s: SkillStatus): StatusWord {
   return s === 'production' ? { tone: 'pass', word: 'Available' } : skillStatus(s);
 }
 
+/** The API sends High, Medium or Low; compare without case so no band falls through to Low. */
 export function bandStatus(b: Band | null | undefined): StatusWord | null {
   if (!b) return null;
-  if (b === 'high') return { tone: 'pass', word: 'High' };
-  if (b === 'medium') return { tone: 'find', word: 'Medium' };
+  const v = b.toLowerCase();
+  if (v === 'high') return { tone: 'pass', word: 'High' };
+  if (v === 'medium') return { tone: 'find', word: 'Medium' };
   return { tone: 'esc', word: 'Low' };
 }
 

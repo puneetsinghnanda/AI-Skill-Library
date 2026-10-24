@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { Outcome, StatusLabel } from '../api/types';
+import type { Band, Outcome, StatusLabel } from '../api/types';
 import {
   OUTCOME,
   bandStatus,
@@ -32,9 +32,9 @@ describe('StatusBadge (TC-POR-007: a word, never colour alone)', () => {
     skillStatus('draft'),
     skillStatus('deprecated'),
     podStatus('production'),
-    bandStatus('high')!,
-    bandStatus('medium')!,
-    bandStatus('low')!,
+    bandStatus('High')!,
+    bandStatus('Medium')!,
+    bandStatus('Low')!,
     packStatus('fresh'),
     packStatus('stale'),
     outcomeStatus(null),
@@ -70,6 +70,15 @@ describe('StatusBadge (TC-POR-007: a word, never colour alone)', () => {
     const badge = screen.getByText('Cancelled');
     expect(badge.getAttribute('data-tone')).toBe('cancel');
     expect(badge.className).toContain('b-cancel');
+  });
+
+  it('maps the title-case bands the API sends, so High and Medium never show as Low', () => {
+    expect(bandStatus('High')).toEqual({ tone: 'pass', word: 'High' });
+    expect(bandStatus('Medium')).toEqual({ tone: 'find', word: 'Medium' });
+    expect(bandStatus('Low')).toEqual({ tone: 'esc', word: 'Low' });
+    expect(bandStatus(null)).toBeNull();
+    // older lowercase values still read the same
+    expect(bandStatus('high' as string as Band)?.word).toBe('High');
   });
 });
 
