@@ -62,16 +62,19 @@ def product_changes(ctx: RunCtx) -> list[dict[str, Any]] | None:
         if clone is None:
             continue
         g = Git(clone)
+        # A passed code step leaves a checkpoint commit (head_sha); the next code step's change
+        # is measured from there, so unit-test is not charged with implement's files.
+        since = b.get("head_sha") or b["base_sha"]
         try:
             tree = worktree_tree(clone)
-            added, deleted, files = g.numstat(b["base_sha"], tree)
-            diff = g.diff_bytes(b["base_sha"], tree)
+            added, deleted, files = g.numstat(since, tree)
+            diff = g.diff_bytes(since, tree)
         except GitError as exc:
             raise exc.tsl() from None
         out.append(
             {
                 "repo": repo,
-                "base_sha": b["base_sha"],
+                "base_sha": since,
                 "tree_sha": tree,
                 "diff_sha256": sha256_bytes(diff),
                 "lines_added": added,

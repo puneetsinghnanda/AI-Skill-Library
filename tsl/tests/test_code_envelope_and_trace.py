@@ -98,3 +98,18 @@ def test_coverage_step_exit_78_is_a_skip(
     monkeypatch.setattr(subprocess, "run", fake_run)
     res = vmod.DockerVerifier().run(profile, tmp_path, tmp_path / "out", with_coverage=True)
     assert [s.status for s in res.steps] == [status]
+
+
+def test_lookup_paths_expand_run_and_ticket(tmp_path: Path) -> None:
+    from tsl.harness.skillchecks import CheckEnv, _expand
+
+    env = CheckEnv(
+        front={"run_id": "run_X"},
+        body="",
+        root=tmp_path,
+        input_paths=["context/conventions.md", "artifacts/HMS-1/run_X/impl.md"],
+        input_texts={},
+    )
+    assert _expand(env, "artifacts/{ticket}/{run_id}/impl.checks.json") == (
+        "artifacts/HMS-1/run_X/impl.checks.json"
+    )
