@@ -179,8 +179,10 @@ def test_reviewer_agent_is_read_only_and_review_skill_forks() -> None:
 def test_run_loop_records_the_review_before_decide(command: str) -> None:
     """The forked review skill only returns JSON; the loop must record it (else E-RUN-05)."""
     text = body(SKILLS / command / "SKILL.md")
-    record = text.index("`tsl review record <artifact_path> --json`")
-    assert text.index("Run the `review` skill") < record < text.index("`tsl decide <artifact_path>")
+    record = text.index("`tsl review record <artifact_path> --file runs/<run_id>/review-input/")
+    verify = text.index("`tsl verify <artifact_path> --json`")
+    review = text.index("run the `review` skill")
+    assert verify < review < record < text.index("`tsl decide <artifact_path>")
     assert "E-REV-02" in text and "--unavailable" in text
 
 

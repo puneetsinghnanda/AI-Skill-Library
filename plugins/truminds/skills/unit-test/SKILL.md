@@ -39,8 +39,12 @@ change production code; if a test exposes a bug, report it under Unknown.
 1. Read the change summary and the changed files.
 2. Find the matching existing tests in the test layout; extend them, or add files where the strategy says.
 3. Write tests for the normal path, error paths and each acceptance criterion the change serves.
-4. Write the artifact: tests run, passed and failed, and coverage base and after, copied from the
-   verifier result in data when tsl provides it; otherwise leave the numbers to tsl and say so.
+4. After the last test edit, run `tsl verify <data.artifact_path> --inputs --json` once more and copy
+   its data.envelope, which now carries code[] measured from the run branch. Never type code[]
+   yourself; H5 rejects a code[] that does not match the branch diff (E-H5-03).
+5. Write the artifact. tests and coverage come only from the verifier: include them when data holds
+   a verifier result; otherwise leave both keys out and say under Summary that tsl records them in
+   checks.json when it runs the verifier (H3).
 
 ## Output
 Write markdown with YAML front matter in exactly this shape:
@@ -54,9 +58,9 @@ known: [...]
 assumed: [...]
 unknown: [...]
 questions: [{id: Q-01, blocking, ask, text, why, evidence: [], options: [], default}]
-code: [{repo, base_sha, head_sha, diff_sha256, files: []}]   # copied from data.envelope
-tests: {run, passed, failed}
-coverage: {base, after}
+code: [{repo, base_sha, head_sha, diff_sha256, files: []}]   # copied from the re-run's data.envelope
+tests: {run, passed, failed}   # only from a verifier result in data; else omit
+coverage: {base, after}        # only from a verifier result in data; else omit
 ---
 # Unit tests: <ticket id>
 ## Summary          (what is tested and the result)

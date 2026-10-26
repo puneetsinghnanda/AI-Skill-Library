@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 STEP_ORDER = ("build", "test", "lint", "sast", "secrets", "coverage")
+SKIP_EXIT = 78  # EX_CONFIG: a profile step exits 78 when the project has nothing to run for it
 STEP_CODE = {
     "build": "E-H3-01",
     "test": "E-H3-02",
@@ -167,6 +168,10 @@ class DockerVerifier:
                 )
             elif code == 0:
                 res.steps.append(StepResult(name, "pass", code, ms, rsha))
+            elif code == SKIP_EXIT and name == "coverage":
+                res.steps.append(
+                    StepResult(name, "skip", code, ms, rsha, None, "project has no coverage script")
+                )
             else:
                 err = "E-SEC-01" if name == "secrets" else STEP_CODE.get(name, "E-H3-01")
                 res.steps.append(

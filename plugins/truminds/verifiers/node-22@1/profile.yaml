@@ -37,9 +37,10 @@ steps:
     timeout_s: 120
     parse: sarif
     report: secrets.sarif
-  # unit-test skill only: the project's `coverage` script must write coverage/coverage-summary.json
+  # unit-test skill only: the project's `coverage` script must write coverage/coverage-summary.json;
+  # exit 78 (no coverage script) records the step as skipped instead of failed
   coverage:
-    cmd: "cd /cache/w && npm run coverage && cp coverage/coverage-summary.json /out/coverage-summary.json"
+    cmd: "cd /cache/w && if [ \"$(npm pkg get scripts.coverage)\" = \"{}\" ]; then exit 78; fi; npm run coverage && cp coverage/coverage-summary.json /out/coverage-summary.json"
     timeout_s: 900
     parse: coverage-summary
     report: coverage-summary.json

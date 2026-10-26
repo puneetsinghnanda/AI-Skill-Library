@@ -10,7 +10,7 @@ checks:
   select: $.scans[*].report_sha256
   in:
     file: artifacts/{ticket}/{run_id}/impl.checks.json
-    path: $.verifier.steps[*].reports[*].sha256
+    path: $.verifier.steps[*].report_sha256
 - id: secure-code-review.findings-cited
   kind: cites-required
   gate: H2

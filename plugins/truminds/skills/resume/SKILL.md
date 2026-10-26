@@ -17,8 +17,16 @@ Loop:
 2. run_skill: use the skill named in "data.skill". Give it "data.inputs",
    "data.feedback" and "data.answers". It must write exactly "data.artifact_path".
    If the post-write hook blocks the write, fix what it says and write again.
-3. Run the `review` skill on "data.artifact_path". It only returns JSON; it records nothing.
-4. Pipe that JSON, unchanged, to `tsl review record <artifact_path> --json` (on stdin).
+3. Run `tsl verify <artifact_path> --json`. It runs every check, including the verifier
+   container (H3) for steps that change code; the post-write hook ran only the fast checks.
+   If it reports a failing gate (E-CHK-01, E-SEC-*), skip the review: run
+   `tsl review record <artifact_path> --unavailable "<its message>" --json` and go to step 5;
+   decide turns the failure into a retry with feedback.
+   Otherwise run the `review` skill on "data.artifact_path". It only returns JSON; it records nothing.
+4. Save that JSON, unchanged, with the Write tool to
+   `runs/<run_id>/review-input/<step>.review.json`, then run
+   `tsl review record <artifact_path> --file runs/<run_id>/review-input/<step>.review.json --json`.
+   (A file, not stdin: long JSON on a shell command line breaks some shell wrappers.)
    On E-REV-02 the JSON did not match review.v1: run the `review` skill again, passing it
    the error "message", and record again. Stay within the review budget (retry.review,
    2 by default). If it still fails, run

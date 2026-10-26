@@ -558,6 +558,12 @@ CATALOGUE: dict[str, ErrorDef] = {
         _d("E-H5-01", CHECK, "Trace missing or incomplete.", "Add trace ids"),
         _d("E-H5-02", CHECK, "Trace id {id} not found.", "Fix the id"),
         _d(
+            "E-H5-03",
+            CHECK,
+            "code[] does not match the run branch diff.",
+            "Re-run tsl verify --inputs after the last edit and copy code[]",
+        ),
+        _d(
             "E-H6-03",
             CHECK,
             "Upstream record for {input} missing, unsigned or not passed.",
