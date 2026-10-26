@@ -235,6 +235,18 @@ KINDS = {
 }
 
 
+def _expand(env: CheckEnv, rel: str) -> str:
+    """Fill {run_id} and {ticket} in a checks.yaml file path from the artifact being checked."""
+    run_id = str(env.front.get("run_id") or "")
+    ticket = ""
+    for path in env.input_paths:
+        m = re.match(rf"artifacts/([^/]+)/{re.escape(run_id)}/", path.replace("\\", "/"))
+        if run_id and m:
+            ticket = m.group(1)
+            break
+    return rel.replace("{run_id}", run_id).replace("{ticket}", ticket)
+
+
 def _load_json(root: Path, rel: str) -> Any:
     p = root / rel
     if not p.is_file():
@@ -283,18 +295,18 @@ def _kind_check(env: CheckEnv, c: dict[str, Any]) -> tuple[str, str]:
     kind = c["kind"]
     try:
         if kind == "lookup":
-            data = _load_json(env.root, c["in"]["file"])
+            data = _load_json(env.root, _expand(env, c["in"]["file"]))
             if data is None:
-                return "fail", f"{c['in']['file']} missing"
+                return "fail", f"{_expand(env, c['in']['file'])} missing"
             have = {json.dumps(v, sort_keys=True) for v in select(data, c["in"]["path"])}
             for v in select(env.front, c["select"]):
                 if json.dumps(v, sort_keys=True) not in have:
                     return "fail", f"value {v!r} not found"
             return "pass", ""
         if kind == "no-clash":
-            data = _load_json(env.root, c["against"]["file"])
+            data = _load_json(env.root, _expand(env, c["against"]["file"]))
             if data is None:
-                return "fail", f"{c['against']['file']} missing"
+                return "fail", f"{_expand(env, c['against']['file'])} missing"
             keys = c.get("key") or []
 
             def k(v: Any) -> str:

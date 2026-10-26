@@ -44,8 +44,11 @@ the design, write unit tests (the unit-test step does) or open pull requests.
 3. Make the smallest edits that implement the component. Keep existing public behaviour unless the
    design marks it changed.
 4. Re-read your diff: every edit maps to a component or a triage candidate; nothing else changed.
-5. Write the artifact: summary, the files you changed, Known/Assumed/Unknown. Copy data.envelope;
-   tsl fills code[] (repo, base_sha, head_sha, diff_sha256, files) in data.envelope for you.
+5. After the last product edit, run `tsl verify <data.artifact_path> --inputs --json` once more. Its
+   data.envelope now carries code[] (repo, base_sha, head_sha, diff_sha256, files) measured from the
+   run branch. Write the artifact: copy that envelope, including code[], then summary, the files you
+   changed, Known/Assumed/Unknown. Never type code[] yourself; H5 rejects a code[] that does not
+   match the branch diff (E-H5-03).
 
 ## Output
 Write markdown with YAML front matter in exactly this shape:
@@ -59,7 +62,7 @@ known: [...]
 assumed: [...]
 unknown: [...]
 questions: [{id: Q-01, blocking, ask, text, why, evidence: [], options: [], default}]
-code: [{repo, base_sha, head_sha, diff_sha256, files: []}]   # copied from data.envelope
+code: [{repo, base_sha, head_sha, diff_sha256, files: []}]   # copied from the re-run's data.envelope
 summary: "..."
 ---
 # Change: <ticket id>

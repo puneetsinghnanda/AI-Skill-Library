@@ -43,17 +43,10 @@ def _code_run(world: World) -> tuple[str, dict[str, Any]]:
             "assumed": [],
             "unknown": [],
             "summary": "Comment added",
-            "code": [
-                {
-                    "repo": "sample-orders",
-                    "base_sha": branch["base_sha"],
-                    "head_sha": tree,
-                    "diff_sha256": diff,
-                    "files": ["api/src/routes/orders.js"],
-                }
-            ],
         }
     )
+    # code[] comes from the verify --inputs re-run after the edit (E-H5-03 otherwise)
+    assert fm["code"][0]["head_sha"] == tree and fm["code"][0]["diff_sha256"] == diff
     body = "\n".join(
         f"## {s}\nCH-1 text.\n" for s in ("Summary", "Changes", "Known", "Assumed", "Unknown")
     )

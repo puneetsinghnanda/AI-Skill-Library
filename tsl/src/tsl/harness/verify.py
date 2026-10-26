@@ -62,16 +62,19 @@ def product_changes(ctx: RunCtx) -> list[dict[str, Any]] | None:
         if clone is None:
             continue
         g = Git(clone)
+        # A passed code step leaves a checkpoint commit (head_sha); the next code step's change
+        # is measured from there, so unit-test is not charged with implement's files.
+        since = b.get("head_sha") or b["base_sha"]
         try:
             tree = worktree_tree(clone)
-            added, deleted, files = g.numstat(b["base_sha"], tree)
-            diff = g.diff_bytes(b["base_sha"], tree)
+            added, deleted, files = g.numstat(since, tree)
+            diff = g.diff_bytes(since, tree)
         except GitError as exc:
             raise exc.tsl() from None
         out.append(
             {
                 "repo": repo,
-                "base_sha": b["base_sha"],
+                "base_sha": since,
                 "tree_sha": tree,
                 "diff_sha256": sha256_bytes(diff),
                 "lines_added": added,
@@ -484,6 +487,20 @@ def verify_inputs(
         "inputs": [{"path": i["path"], "sha256": i["sha256"]} for i in out_inputs if i["sha256"]],
         "pack_sha": dict(pack.get("source_sha") or {}),
     }
+    if sk.is_code:
+        # The skill re-runs `tsl verify --inputs` after its edits and copies code[] from here.
+        changes = product_changes(ctx)
+        if changes:
+            envelope["code"] = [
+                {
+                    "repo": c["repo"],
+                    "base_sha": c["base_sha"],
+                    "head_sha": c["tree_sha"],
+                    "diff_sha256": c["diff_sha256"],
+                    "files": c["files"],
+                }
+                for c in changes
+            ]
     data = {
         "run_id": run_id,
         "step": step,
@@ -503,6 +520,9 @@ def verify_inputs(
         "feedback": attempt.get("feedback")
         or (feedback_path(run_id, step, attempt["n"] - 1) if attempt["n"] > 1 else None),
     }
+    scans = _upstream_scans(comp, out_inputs)
+    if scans:
+        data["scans"] = scans
     if status == "missing" and ctx.requires_fresh_pack:
         raise TslError("E-CTX-01", detail="", data=data)
     if missing:
@@ -510,3 +530,18 @@ def verify_inputs(
     if stale:
         raise TslError("E-IN-02", artifact=stale[0][0], step=stale[0][1], data=data)
     return data
+
+
+def _upstream_scans(comp: Companion, inputs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """SAST and secrets reports from the H3 record of a change.v1 input (secure-code-review)."""
+    out: list[dict[str, Any]] = []
+    for i in inputs:
+        if i.get("schema") != "change.v1":
+            continue
+        p = comp.path(sibling(str(i["path"]), ".checks.json"))
+        if not p.is_file():
+            continue
+        for s in (read_json(p).get("verifier") or {}).get("steps", []):
+            if s.get("name") in ("sast", "secrets") and s.get("report_sha256"):
+                out.append({"kind": s["name"], "report_sha256": s["report_sha256"]})
+    return out

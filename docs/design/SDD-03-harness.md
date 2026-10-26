@@ -141,7 +141,7 @@ The post-write hook has a 90 s hard timeout (SDD-05 §5.2). Build and test conta
 | H2 | Required sections, Known / Assumed / Unknown | RETRY | E-H2-01 … E-H2-03 |
 | H3 | Verifier profile: build, unit tests, lint, SAST, secrets scan | Fix loop (max 3), then ESCALATE | E-H3-01 … E-H3-07 |
 | H4 | Forbidden content | ABORT for secrets or PII; RETRY for invented values and client names | E-SEC-01, E-SEC-02, E-H4-03, E-H4-04 |
-| H5 | Trace links resolve; edits inside allowed scope | RETRY (trace); ABORT (scope) | E-H5-01, E-H5-02, E-POL-01 |
+| H5 | Trace links resolve; edits inside allowed scope | RETRY (trace, code[]); ABORT (scope) | E-H5-01, E-H5-02, E-H5-03, E-POL-01 |
 | H6 | Inputs current, not stale | RETRY of the stale upstream step | E-IN-01, E-IN-02, E-H6-03 |
 | H7 | Only permitted tools called | ABORT | E-POL-04, E-POL-05, and any E-POL-01/02/03 in the log |
 
@@ -895,6 +895,7 @@ sequenceDiagram
 | E-H4-04 | 2 | Value `<v>` in `<AC>` not found in inputs or assumptions. | Remove it or add an assumption |
 | E-H5-01 | 2 | Trace missing or incomplete. | Add trace ids |
 | E-H5-02 | 2 | Trace id `<id>` not found. | Fix the id |
+| E-H5-03 | 2 | `code[]` does not match the run branch diff. | Re-run `tsl verify --inputs` after the last edit and copy `code[]` |
 | E-H6-03 | 2 | Upstream record for `<input>` missing, unsigned or not passed. | Re-run step `<step>` |
 | E-POL-04 | 5 | Tool `<tool>` not permitted for skill `<skill>`. | Run aborted |
 | E-POL-05 | 5 | Tool log missing or altered. | Run aborted; tech lead investigates |

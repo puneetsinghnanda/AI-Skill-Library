@@ -287,15 +287,41 @@ def _foundation(ci: CheckInput) -> set[str]:
         ids |= set(re.findall(r"\b[A-Z]+-[0-9]+\b", base.read_text(encoding="utf-8")))
     for i in ci.expected_inputs:
         p = ci.root / str(i.get("path", ""))
-        if i.get("schema") == "intent.v1" and p.is_file():
-            from tsl.core.frontmatter import FrontMatterError, split
+        if not i.get("schema") or not p.is_file():
+            continue
+        from tsl.core.frontmatter import FrontMatterError, split
 
-            with contextlib.suppress(FrontMatterError, KeyError, TypeError):
-                ids |= {
-                    str(r["id"])
-                    for r in split(p.read_text(encoding="utf-8")).front.get("requirements", [])
-                }
+        with contextlib.suppress(FrontMatterError, KeyError, TypeError):
+            front = split(p.read_text(encoding="utf-8")).front
+            if i.get("schema") == "intent.v1":
+                ids |= {str(r["id"]) for r in front.get("requirements", [])}
+            else:
+                # Downstream steps (threat, impl, ut, ...) do not read the intent; the REQ ids
+                # an upstream artifact traced, and that its own H5 accepted, are the foundation.
+                ids |= {str(t) for t in front.get("trace", []) or []}
     return ids
+
+
+def _code_matches(ci: CheckInput, g: GateResult) -> None:
+    """A code skill's code[] must be the branch diff tsl measured, copied from verify --inputs."""
+    if ci.skill is None or not ci.skill.is_code or not ci.product_changes:
+        return
+    declared = {
+        str(c.get("repo")): c for c in ci.art.front.get("code", []) or [] if isinstance(c, dict)
+    }
+    for ch in ci.product_changes:
+        c = declared.get(str(ch["repo"]))
+        if c is None:
+            g.fail("E-H5-03", f"code[] has no entry for {ch['repo']}", "GEN-CODE-01")
+        elif c.get("diff_sha256") != ch["diff_sha256"] or sorted(c.get("files") or []) != sorted(
+            ch["files"]
+        ):
+            g.fail(
+                "E-H5-03",
+                f"code[] for {ch['repo']} does not match the branch diff; re-run "
+                "tsl verify --inputs after the last edit and copy code[] from data.envelope",
+                "GEN-CODE-01",
+            )
 
 
 def h5(ci: CheckInput, skill_checks: list[CheckOutcome]) -> GateResult:
@@ -335,6 +361,7 @@ def h5(ci: CheckInput, skill_checks: list[CheckOutcome]) -> GateResult:
                 if d.startswith("**")
             ):
                 g.fail("E-POL-01", f"{ch['repo']}:{f} matches a write deny rule", "GEN-SCOPE-01")
+    _code_matches(ci, g)
     if ci.policy and ci.tool_log and ci.tool_log.is_file() and ci.attempt is not None:
         for e in _log_entries(ci.tool_log):
             if not _in_attempt(e, ci):
