@@ -15,6 +15,8 @@ from typing import Any, Protocol
 
 STEP_ORDER = ("build", "test", "lint", "sast", "secrets", "coverage")
 SKIP_EXIT = 78  # EX_CONFIG: a profile step exits 78 when the project has nothing to run for it
+LOG_MAX_BYTES = 200_000  # each step log keeps the last 200 kB of stdout and stderr
+NO_LOG_STEPS = frozenset({"secrets"})  # its output can hold the secret it found
 STEP_CODE = {
     "build": "E-H3-01",
     "test": "E-H3-02",
@@ -37,6 +39,7 @@ class StepResult:
     report_sha256: str | None = None
     code: str | None = None
     detail: str = ""
+    log: str | None = None  # file name of the step log in out_dir
 
 
 @dataclass
@@ -153,9 +156,12 @@ class DockerVerifier:
                 )
                 code: int | None = p.returncode
                 timed_out = False
-            except subprocess.TimeoutExpired:
+                outs: tuple[bytes | None, bytes | None] = (p.stdout, p.stderr)
+            except subprocess.TimeoutExpired as exc:
                 code, timed_out = None, True
+                outs = (exc.stdout, exc.stderr)
             ms = int((time.monotonic() - t0) * 1000)
+            log = _write_log(out_dir, name, *outs)
             report = spec.get("report")
             rsha = sha256_file(out_dir / report) if report and (out_dir / report).exists() else None
             if name == "prepare":
@@ -164,17 +170,42 @@ class DockerVerifier:
                 continue
             if timed_out:
                 res.steps.append(
-                    StepResult(name, "fail", None, ms, rsha, "E-H3-06", f"{name} timed out")
+                    StepResult(name, "fail", None, ms, rsha, "E-H3-06", f"{name} timed out", log)
                 )
             elif code == 0:
-                res.steps.append(StepResult(name, "pass", code, ms, rsha))
+                res.steps.append(StepResult(name, "pass", code, ms, rsha, log=log))
             elif code == SKIP_EXIT and name == "coverage":
                 res.steps.append(
-                    StepResult(name, "skip", code, ms, rsha, None, "project has no coverage script")
+                    StepResult(
+                        name, "skip", code, ms, rsha, None, "project has no coverage script", log
+                    )
                 )
             else:
                 err = "E-SEC-01" if name == "secrets" else STEP_CODE.get(name, "E-H3-01")
                 res.steps.append(
-                    StepResult(name, "fail", code, ms, rsha, err, f"{name} exit {code}")
+                    StepResult(name, "fail", code, ms, rsha, err, f"{name} exit {code}", log)
                 )
         return res
+
+
+def _write_log(
+    out_dir: Path, name: str, stdout: bytes | str | None, stderr: bytes | str | None
+) -> str | None:
+    """Keep the tail of a step's output as <name>.log so a retry can see why it failed."""
+    if name in NO_LOG_STEPS:
+        return None
+    parts = [x.encode() if isinstance(x, str) else x for x in (stdout, stderr) if x]
+    body = b"\n".join(parts)[-LOG_MAX_BYTES:]
+    (out_dir / f"{name}.log").write_bytes(body)
+    return f"{name}.log"
+
+
+def log_tail(path: Path, max_chars: int) -> str:
+    """Last lines of a step log, one line, at most max_chars."""
+    try:
+        text = path.read_bytes().decode("utf-8", "replace")
+    except OSError:
+        return ""
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    tail = " | ".join(lines[-8:])
+    return tail[-max_chars:]

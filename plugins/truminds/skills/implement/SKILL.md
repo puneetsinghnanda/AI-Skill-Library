@@ -14,7 +14,8 @@ If the JSON above has "ok": false, show its "message" and "next" to the user and
 ## Job
 Change the product code so it does exactly what the approved design (or the triage) says, inside
 the change limits, then write the change.v1 artifact at data.artifact_path. You do not change
-the design, write unit tests (the unit-test step does) or open pull requests.
+the design or open pull requests. Broad unit tests are the unit-test step's job; you write only
+the tests rule 10 names.
 
 ## Inputs
 - data.inputs[name=design]: the approved design.v1 artifact. Components and endpoints to build.
@@ -36,6 +37,9 @@ the design, write unit tests (the unit-test step does) or open pull requests.
 7. Stay under data.change_limits. If the change needs more lines or files, or a sensitive path, stop editing, write the artifact with a blocking question to the tech lead, and keep the edits made so far small.
 8. Follow the conventions section: error format, logging, file layout. Never log personal data or secrets.
 9. Edit only product-repo files inside data.change_limits and the paths the design names; write the artifact only at data.artifact_path. Never touch CI files, lock files or secrets.
+10. Tests: add the regression tests the design (or the triage) asks for, and update an existing test
+    only when it pins behaviour the design marks changed. Name each test with its requirement id and
+    list it under Changes. Write no other tests.
 
 ## Method
 1. Read the design (or triage), the stories and the conventions section.
@@ -78,10 +82,11 @@ front matter items in plain language, using the same ids.
 
 ## If this is a retry
 data.retry is not null. Fix every item in data.retry.failures first (these are failed code checks).
-Then address every finding in data.retry.findings. For every id the feedback lists as must_resolve,
+Then address every finding in data.retry.findings. If data.retry.comment is set, an approver asked for changes at a gate: do what it asks. For every id the feedback lists as must_resolve,
 add {id, how} to resolves in the front matter. Change only what the failures and findings need and
 keep the ids of unchanged items.
-For an H3 failure, read the verifier report named in the failure and fix the code, not the test.
+For an H3 failure, read the verifier report named in the failure and fix the code, not the test,
+unless the test pins behaviour the design marks changed (rule 10).
 
 ## Hand-over
 Make the product-repo edits first, then write the artifact once to data.artifact_path. Do not run

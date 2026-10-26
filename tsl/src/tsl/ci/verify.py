@@ -191,6 +191,12 @@ def ci_verify(
         if v == "bad":
             codes.append("E-CI-02")
             summary.append(f"signature {it['kind']} {it['key_id']}: {why}")
+    # The last code step must match the PR head; earlier ones match a commit on the way to it.
+    last_code = {
+        ch["repo"]: idx
+        for idx, (_s, rec, _a, _p) in enumerate(records)
+        for ch in rec.get("product_changes") or []
+    }
     for idx, (sid, rec, a, _p) in enumerate(records):
         row = {
             "step": sid,
@@ -245,8 +251,13 @@ def ci_verify(
                 continue
             g = Git(product or Path.cwd())
             try:
-                tree = g.tree_of(head)
-                diff = sha256_bytes(g.diff_bytes(ch["base_sha"], tree))
+                if last_code[ch["repo"]] == idx:
+                    tree = g.tree_of(head)
+                elif _tree_in_history(g, ch["base_sha"], head, ch["tree_sha"]):
+                    tree = ch["tree_sha"]
+                else:
+                    tree = ""
+                diff = sha256_bytes(g.diff_bytes(ch["base_sha"], tree)) if tree else ""
             except GitError:
                 codes.append("E-CI-04")
                 continue
@@ -271,6 +282,12 @@ def ci_verify(
         codes,
         "; ".join(summary),
     )
+
+
+def _tree_in_history(g: Git, base: str, head: str, tree: str) -> bool:
+    """True when a commit between base and head has exactly this tree."""
+    log = g.out("log", "--format=%T", f"{base}..{head}")
+    return tree in log.split()
 
 
 def _recheck(
