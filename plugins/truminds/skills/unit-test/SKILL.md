@@ -75,7 +75,7 @@ front matter items in plain language, using the same ids.
 
 ## If this is a retry
 data.retry is not null. Fix every item in data.retry.failures first (these are failed code checks).
-Then address every finding in data.retry.findings. For every id the feedback lists as must_resolve,
+Then address every finding in data.retry.findings. If data.retry.comment is set, an approver asked for changes at a gate: do what it asks. For every id the feedback lists as must_resolve,
 add {id, how} to resolves in the front matter. Change only what the failures and findings need and
 keep the ids of unchanged items.
 For an H3 failure, fix the failing test only if the test is wrong; if the code is wrong, say so under Unknown.

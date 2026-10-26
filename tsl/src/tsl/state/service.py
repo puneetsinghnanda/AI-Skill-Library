@@ -488,6 +488,7 @@ def _apply_decision(
                 "dropped": [],
                 "must_resolve": [],
                 "comment_sha256": block["comment_sha256"],
+                "comment": entry.get("comment"),
             }
             write_json(ctx.comp.path(feedback_path(ctx.run_id, target, int(last["n"]))), fb)
     stale: list[str] = []

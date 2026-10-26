@@ -18,7 +18,7 @@ from tsl.gitops.git import Git, GitError, worktree_tree
 from tsl.harness import artifact as artmod
 from tsl.harness import injection
 from tsl.harness.gates import ABORT_CODES, CheckInput, CheckRun, GateResult, run_all
-from tsl.harness.verifier import VerifierUnavailable
+from tsl.harness.verifier import StepResult, VerifierUnavailable, log_tail
 from tsl.identity.keys import public_key
 from tsl.orchestrator.run import RunCtx
 from tsl.state.session import compile_policy
@@ -136,8 +136,18 @@ def run_h3(
                 if s.code == "E-SEC-01":
                     out.setdefault("_h4_extra", []).append(s.detail)
                 else:
-                    g.fail(s.code, s.detail)
+                    rel_dir = f"runs/{ctx.run_id}/verifier/{out['step']}"
+                    g.fail(s.code, _with_log(s, outdir, rel_dir))
     return g, verifier
+
+
+def _with_log(s: StepResult, outdir: Path, rel_dir: str) -> str:
+    """Failure detail plus the step log path and its last lines, so the retry can fix it."""
+    if not s.log:
+        return s.detail
+    head = f"{s.detail}; log {rel_dir}/{s.log}"
+    tail = log_tail(outdir / s.log, max(0, 480 - len(head)))
+    return f"{head}: {tail}" if tail else head
 
 
 def _markers(rt: Runtime) -> injection.Markers | None:
@@ -478,6 +488,8 @@ def verify_inputs(
                 "failures": [{"gate": f["id"], "detail": f["detail"]} for f in fb["gate_failures"]],
                 "findings": fb["findings"],
             }
+            if fb.get("comment"):
+                retry["comment"] = fb["comment"]
     envelope = {
         "schema": sk.artifact_output["schema"],
         "run_id": run_id,

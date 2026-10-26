@@ -107,6 +107,14 @@
       },
       "uniqueItems": true
     },
+    "comment": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 4000,
+      "description": "The approver's comment on a changes decision (kind rework), passed to the next attempt."
+    },
     "comment_sha256": {
       "$ref": "#/$defs/sha256"
     }

@@ -754,7 +754,7 @@ glossary: [{term, found}]
 
 ## If this is a retry
 data.retry is not null. Fix every item in data.retry.failures first (these are failed
-code checks). Then address every finding in data.retry.findings. Change only what the
+code checks). Then address every finding in data.retry.findings. If data.retry.comment is set, an approver asked for changes at a gate: do what it asks. Change only what the
 failures and findings need. Keep the ids of unchanged requirements.
 
 ## Hand-over
