@@ -64,6 +64,11 @@ describe('StatusBadge (TC-POR-007: a word, never colour alone)', () => {
     expect(outcomeStatus('PASS', 2).word).toBe('Retry, then pass');
   });
 
+  it('shows the PR step from the run pull requests, not as Not started', () => {
+    expect(outcomeStatus('opened')).toEqual({ tone: 'find', word: 'PR opened' });
+    expect(outcomeStatus('merged')).toEqual({ tone: 'pass', word: 'Merged' });
+  });
+
   it('shows cancelled runs as grey Cancelled, not Completed or Aborted', () => {
     expect(runStatus('Cancelled')).toEqual({ tone: 'cancel', word: 'Cancelled' });
     render(<StatusBadge status={runStatus('Cancelled')} />);

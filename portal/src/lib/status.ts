@@ -25,6 +25,8 @@ export function outcomeStatus(outcome: string | null | undefined, attempts = 1):
   if (!outcome) return { tone: 'retry', word: 'Not started' };
   if (outcome === 'approved') return { tone: 'pass', word: 'Approved' };
   if (outcome === 'rejected') return { tone: 'abort', word: 'Rejected' };
+  if (outcome === 'opened') return { tone: 'find', word: 'PR opened' };
+  if (outcome === 'merged') return { tone: 'pass', word: 'Merged' };
   const s = OUTCOME[outcome as Outcome];
   if (!s) return { tone: 'retry', word: outcome };
   if (attempts > 1 && (outcome === 'PASS' || outcome === 'PASS-WITH-FINDINGS')) {
