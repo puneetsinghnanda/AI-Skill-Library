@@ -399,6 +399,9 @@ def run_detail(
         outcome = last.outcome if last else None
         if st.kind == "gate" and st.step_id in appr:
             outcome = appr[st.step_id].decision
+        if st.kind == "pr" and prs:
+            # The PR step sends no decision; its state is the run's pull requests.
+            outcome = "merged" if all(pr.state == "merged" for pr in prs) else "opened"
         steps_out.append(
             {
                 "seq": st.seq,

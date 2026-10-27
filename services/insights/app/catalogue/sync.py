@@ -201,6 +201,7 @@ def _workflows(
             ),
             {"i": wid, "t": d.get("title") or wid, "v": ver},
         )
+        params = {"i": wid, "v": ver, "d": json.dumps(d, default=str), "n": len(steps)}
         new = conn.execute(
             text(
                 "INSERT INTO workflow_versions (workflow_id, version, definition, step_count, "
@@ -208,8 +209,29 @@ def _workflows(
                 "VALUES (:i, :v, CAST(:d AS jsonb), :n, now()) ON CONFLICT DO NOTHING RETURNING "
                 "version"
             ),
-            {"i": wid, "v": ver, "d": json.dumps(d, default=str), "n": len(steps)},
+            params,
         ).scalar()
+        if not new:
+            # The file changed under the same version (no bump). Runs pin the version, not the
+            # file, so keep the stored steps in step with what that version now defines.
+            changed = conn.execute(
+                text(
+                    "UPDATE workflow_versions SET definition = CAST(:d AS jsonb), step_count = :n "
+                    "WHERE workflow_id = :i AND version = :v "
+                    "AND definition IS DISTINCT FROM CAST(:d AS jsonb) RETURNING version"
+                ),
+                params,
+            ).scalar()
+            if changed:
+                log.warning(
+                    "workflow changed without a version bump",
+                    extra={"code": f"{wid}@{ver}"},
+                )
+                conn.execute(
+                    text("DELETE FROM workflow_steps WHERE workflow_id = :i AND version = :v"),
+                    params,
+                )
+                new = changed
         if new:
             for w_seq, w_step, w_kind, w_skill, w_rng, w_role in steps:
                 conn.execute(
