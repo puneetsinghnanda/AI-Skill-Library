@@ -383,6 +383,8 @@ def test_run_detail(
         and design["attempts"][0]["record"]["decided_by"] == "tsl@0.1.0"
     )
     assert d["pull_requests"][0]["state"] == "merged"
+    pr_step = next((s for s in d["steps"] if s["kind"] == "pr"), None)
+    assert pr_step is not None and pr_step["outcome"] == "merged"  # from the run's PRs
     assert d["links"]["companion_runs_url"].endswith(dataset["runs_a"][0])
     p = client.get(f"/v1/runs/{dataset['paused']}", headers=h).json()["data"]
     assert p["questions"][0]["question_id"] == "Q-01" and "file_url" in p["questions"][0]
