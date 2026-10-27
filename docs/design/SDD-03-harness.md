@@ -143,7 +143,7 @@ The post-write hook has a 90 s hard timeout (SDD-05 §5.2). Build and test conta
 | H4 | Forbidden content | ABORT for secrets or PII; RETRY for invented values and client names | E-SEC-01, E-SEC-02, E-H4-03, E-H4-04 |
 | H5 | Trace links resolve; edits inside allowed scope | RETRY (trace, code[]); ABORT (scope) | E-H5-01, E-H5-02, E-H5-03, E-POL-01 |
 | H6 | Inputs current, not stale | RETRY of the stale upstream step | E-IN-01, E-IN-02, E-H6-03 |
-| H7 | Only permitted tools called | ABORT | E-POL-04, E-POL-05, and any E-POL-01/02/03 in the log |
+| H7 | Only permitted tools called | ABORT (RETRY for E-POL-06) | E-POL-04, E-POL-05, E-POL-06, and any E-POL-01/02/03 in the log |
 
 ### 4.3 H1 · Schema validation
 
@@ -265,7 +265,7 @@ The post-write hook has a 90 s hard timeout (SDD-05 §5.2). Build and test conta
 1. The log must exist, parse, and its lines up to the previous attempt must hash to the recorded `tool_log_sha256` (append-only check) → else E-POL-05.
 2. Select lines for this `step` and `attempt`.
 3. Any line with `decision: deny` → fail with that line's code (E-POL-01, E-POL-02 or E-POL-03). These already stopped the call; H7 makes them part of the record.
-4. Any allowed line whose `tool` is not in `allowed_tools ∪ {Bash(tsl *)}` → E-POL-04.
+4. Any allowed line whose `tool` is not in `allowed_tools ∪ {Bash(tsl *)}` → E-POL-04. A `tsl` command may carry a safe environment prefix (`PYTHONIOENCODING`, `PYTHONUTF8`, `NO_COLOR`, `FORCE_COLOR`, `LANG`, `LC_ALL`, `TERM`). A Bash line the pre-tool hook marked `read_only` (a pipeline of known read-only programs, no redirection, chaining or substitution) → E-POL-06 instead, which is not an abort code: the step retries with the feedback to use Read, Grep or Glob.
 
 **Pass rule:** no hits. **Outcome:** ABORT.
 

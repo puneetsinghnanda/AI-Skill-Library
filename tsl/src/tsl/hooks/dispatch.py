@@ -211,7 +211,14 @@ def policy_for(ctx: Ctx, idx: dict[str, Any]) -> dict[str, Any]:
     return compile_policy(ctx.rt, comp, idx["run_id"], idx["_state"]["pinned"]["tsl"])
 
 
-def log_tool(idx: dict[str, Any], ctx: Ctx, target: str, decision: str, code: str | None) -> None:
+def log_tool(
+    idx: dict[str, Any],
+    ctx: Ctx,
+    target: str,
+    decision: str,
+    code: str | None,
+    read_only: bool | None = None,
+) -> None:
     st = idx["_state"]
     cur = st.get("cursor") or {}
     line = {
@@ -224,6 +231,8 @@ def log_tool(idx: dict[str, Any], ctx: Ctx, target: str, decision: str, code: st
         "decision": decision,
         "code": code,
     }
+    if read_only is not None:
+        line["read_only"] = read_only
     p = Path(idx["companion"]) / "runs" / idx["run_id"] / "tool-log.jsonl"
     p.parent.mkdir(parents=True, exist_ok=True)
     with p.open("a", encoding="utf-8") as fh:

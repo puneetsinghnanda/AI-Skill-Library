@@ -54,6 +54,10 @@
           "type": "null"
         }
       ]
+    },
+    "read_only": {
+      "type": "boolean",
+      "description": "Bash only: the pre-tool hook found the whole command read-only (H7 retries instead of aborting)."
     }
   },
   "allOf": [
