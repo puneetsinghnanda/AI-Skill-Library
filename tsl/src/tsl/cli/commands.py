@@ -171,6 +171,7 @@ SENDS_EVENTS = {
     "decide",
     "approve",
     "pr",
+    "pr_sync",
 }
 
 
@@ -566,6 +567,18 @@ def pr(
 
     data = open_prs(rt(), comp(), run_id, draft, repo)
     return emit_ok(f"{len(data['prs'])} pull request(s) opened", data)
+
+
+@app.command("pr-sync")
+@command
+def pr_sync(
+    run_id: Annotated[str | None, typer.Argument(help="One run; all runs when omitted")] = None,
+) -> int:
+    """Report run PRs merged or closed on GitHub to the portal (backfills missed webhooks)."""
+    from tsl.services.pr import sync_prs
+
+    data = sync_prs(rt(), comp(), run_id)
+    return emit_ok(f"{data['sent']} merged or closed pull request(s) reported", data)
 
 
 @app.command("ci-verify")

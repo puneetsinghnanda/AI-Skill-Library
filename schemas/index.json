@@ -841,6 +841,18 @@
       "event_type": "pr.opened"
     },
     {
+      "name": "pr.closed",
+      "version": 1,
+      "id": "pr.closed.v1",
+      "file": "events/pr.closed.v1.json",
+      "$id": "https://schemas.truminds.internal/events/pr.closed.v1.json",
+      "kind": "event",
+      "owner": "SDD-08 §4.5",
+      "title": "Event body: pr.closed (schema_version 1)",
+      "description": "Sent by tsl pr-sync when a run's pull request is merged or closed on GitHub. Closed object; every string is length-capped (TM-08).",
+      "event_type": "pr.closed"
+    },
+    {
       "name": "ci.verified",
       "version": 1,
       "id": "ci.verified.v1",

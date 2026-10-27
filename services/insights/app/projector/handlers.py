@@ -656,6 +656,34 @@ def pr_opened(conn: Connection, ev: Ev) -> None:
     )
 
 
+def pr_closed(conn: Connection, ev: Ev) -> None:
+    """tsl pr-sync: a merge or close the webhook missed. A merged PR stays merged."""
+    run_id = _need_run(ev)
+    b = ev.body
+    run = ensure_run(conn, run_id, ev.t, ev.user_id)
+    if run.system_id is None:
+        raise Parked("run_partial", 120)
+    repo = conn.execute(
+        text("SELECT id::text FROM system_repos WHERE system_id = CAST(:s AS uuid) AND name = :n"),
+        {"s": run.system_id, "n": b["repo"]},
+    ).scalar()
+    if repo is None:
+        raise Parked("unknown_repo", 300)
+    state, col = ("merged", "merged_at") if b["merged"] else ("closed", "closed_at")
+    conn.execute(
+        text(
+            f"INSERT INTO pull_requests (repo_id, number, run_id, state, {col}) "
+            "VALUES (CAST(:p AS uuid), :n, :r, :st, CAST(:t AS timestamptz)) "
+            "ON CONFLICT (repo_id, number) DO UPDATE SET "
+            "run_id = coalesce(pull_requests.run_id, EXCLUDED.run_id), "
+            "state = CASE WHEN pull_requests.state = 'merged' THEN 'merged' "
+            "ELSE EXCLUDED.state END, "
+            f"{col} = coalesce(pull_requests.{col}, EXCLUDED.{col})"
+        ),
+        {"p": repo, "n": b["number"], "r": run_id, "st": state, "t": b["closed_at"]},
+    )
+
+
 def ci_verified(conn: Connection, ev: Ev) -> None:
     b = ev.body
     repos = (
@@ -846,6 +874,7 @@ HANDLERS: dict[tuple[str, int], Handler] = {
     ("approval.recorded", 1): approval_recorded,
     ("hook.decision", 1): hook_decision,
     ("pr.opened", 1): pr_opened,
+    ("pr.closed", 1): pr_closed,
     ("ci.verified", 1): ci_verified,
     ("context.signed", 1): context_event,
     ("context.drift", 1): context_event,
