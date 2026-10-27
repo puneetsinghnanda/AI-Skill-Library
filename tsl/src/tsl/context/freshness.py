@@ -31,6 +31,22 @@ def pack_present(comp: Companion) -> bool:
     return comp.path(MANIFEST).is_file() and comp.path(SIGNATURE).is_file()
 
 
+def behind_warnings(fs: dict[str, Any]) -> list[dict[str, str]]:
+    """E-CTX-10 per product repo a fresh pack is behind: within the limits, but not current."""
+    if fs.get("state") != "fresh":
+        return []
+    from tsl.core.errors import CATALOGUE, render
+
+    sb = fs["state_block"]
+    out = []
+    for repo, commits in sorted((sb.get("commits_behind") or {}).items()):
+        if commits:
+            files = (sb.get("drift_files") or {}).get(repo, 0)
+            msg = render(CATALOGUE["E-CTX-10"].message, repo=repo, commits=commits, files=files)
+            out.append({"code": "E-CTX-10", "message": msg})
+    return out
+
+
 def manifest_sha(manifest: dict[str, Any]) -> str:
     return sha256_raw(canonical(manifest))
 

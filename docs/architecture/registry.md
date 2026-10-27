@@ -78,6 +78,7 @@ Every code lives in `tsl/src/tsl/core/errors.py` (CLI codes) or the insights ser
 | E-CTX-07 | Pack lint failed (anchors or citations) | 2 | `context build`, `context sign` | SDD-06 §11 |
 | E-CTX-08 | Extractor failed; section not rebuilt | 2 | `context build` | SDD-06 §11 |
 | E-CTX-09 | Manifest out of date, or a product repo cannot be read at the SHA | 3 | `context build`, `context sign` | SDD-06 §11 |
+| E-CTX-10 | Pack is behind a product repo, within the drift limits (warning) | 0 | `context status`, `state start` | SDD-06 §11 |
 | E-DEC-01 | Gate still pending | 3 | `decide` | SDD-03 §14 |
 | E-DEC-02 | Artifact changed since checks ran | 3 | `decide` | SDD-03 §14 |
 | E-DEP-01 | Command, flag or item is deprecated (warning in `warnings[]`) | 0 | Any command | OPS-03 §7 |

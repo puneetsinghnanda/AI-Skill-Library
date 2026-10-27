@@ -209,6 +209,13 @@ CATALOGUE: dict[str, ErrorDef] = {
             "Manifest out of date, or product repo {repo} cannot be read.",
             "Run tsl context build; check .tsl/local.yaml and access",
         ),
+        _d(
+            "E-CTX-10",
+            OK,
+            "Context pack is behind {repo} by {commits} commits and {files} files; "
+            "skills cite facts from before those changes.",
+            "tsl context build, review, then tsl context sign",
+        ),
         _d("E-DEC-01", BLOCKED, "Gate {gate} still pending.", "tsl verify --status, then decide"),
         _d("E-DEC-02", BLOCKED, "Artifact changed since checks ran.", "Run tsl verify"),
         _d("E-DEP-01", OK, "{thing} is deprecated.", "Use {replacement}"),

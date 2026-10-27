@@ -100,6 +100,9 @@ def start(
                 "Band capped at Medium.",
             }
         )
+    from tsl.context.freshness import behind_warnings
+
+    warnings += behind_warnings(pk)
     info = active_info(rt)
     if not info:
         raise TslError("E-AUTH-02")
