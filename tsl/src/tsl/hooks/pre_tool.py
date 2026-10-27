@@ -131,7 +131,9 @@ def handle(ctx: Ctx) -> tuple[str, int]:
                 if any(_sensitive(tok, base, g) for g in pol.get("read_deny", [])):
                     log_tool(idx, ctx, cmd[:80], "deny", "E-POL-02")
                     return deny(ctx, "E-POL-02", f"Blocked: read of sensitive file {base}")
-            log_tool(idx, ctx, cmd[:80], "allow", None)
+            from tsl.harness.commands import is_read_only
+
+            log_tool(idx, ctx, cmd[:80], "allow", None, read_only=is_read_only(cmd))
             return allow(ctx)
         log_tool(idx, ctx, ctx.tool, "allow", None)
         return allow(ctx)

@@ -532,7 +532,10 @@ def _tool_allowed(entry: dict[str, Any], allowed: list[str]) -> bool:
     if tool.startswith("mcp__"):
         return False
     if tool == "Bash":
-        cmd = str(entry.get("target", ""))
+        from tsl.harness.commands import strip_safe_env
+
+        raw = str(entry.get("target", ""))
+        cmd = strip_safe_env(raw) or raw
         pats = [a[5:-1] for a in allowed if a.startswith("Bash(")] + ["tsl *"]
         return any(fnmatch.fnmatch(cmd, p) for p in pats)
     if tool == "NotebookEdit":
@@ -565,11 +568,20 @@ def h7(ci: CheckInput) -> GateResult:
         if e["decision"] == "deny":
             g.fail(str(e["code"]), f"denied {e['tool']} recorded in the tool log", "GEN-TOOLS-01")
         elif not _tool_allowed(e, ci.skill.allowed_tools):
-            g.fail(
-                "E-POL-04",
-                f"tool {e['tool']} not permitted for skill {ci.skill.id}",
-                "GEN-TOOLS-01",
-            )
+            if e["tool"] == "Bash" and e.get("read_only") is True:
+                # Only read: a slip, not a breach. The step retries with this as feedback.
+                g.fail(
+                    "E-POL-06",
+                    f"tool Bash ({str(e['target'])[:60]}) is outside skill {ci.skill.id}'s tools; "
+                    "it only read, so retry using Read, Grep or Glob",
+                    "GEN-TOOLS-01",
+                )
+            else:
+                g.fail(
+                    "E-POL-04",
+                    f"tool {e['tool']} not permitted for skill {ci.skill.id}",
+                    "GEN-TOOLS-01",
+                )
     return g
 
 

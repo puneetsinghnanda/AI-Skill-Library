@@ -389,6 +389,12 @@ CATALOGUE: dict[str, ErrorDef] = {
         ),
         _d("E-POL-04", ABORT, "Tool {tool} not permitted for skill {skill}.", "Run aborted"),
         _d(
+            "E-POL-06",
+            CHECK,
+            "Tool {tool} is outside skill {skill}'s tools; it only read, so the step retries.",
+            "On retry, read with Read, Grep or Glob",
+        ),
+        _d(
             "E-POL-05", ABORT, "Tool log missing or altered.", "Run aborted; tech lead investigates"
         ),
         _d(

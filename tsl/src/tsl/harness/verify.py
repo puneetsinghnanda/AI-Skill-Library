@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -362,7 +363,11 @@ def verify_artifact(
         raise TslError("E-H3-07", data=data)
     abort = [c for c in codes if c in ABORT_CODES]
     if abort:
-        raise TslError(abort[0], data=data, path=rel, tool="?", skill=sk.id)
+        h7 = next((g for g in rec["gates"] if g["id"] == "H7"), None)
+        m_tool = re.search(r"tool (\S+)", str((h7 or {}).get("detail", "")))
+        raise TslError(
+            abort[0], data=data, path=rel, tool=m_tool.group(1) if m_tool else "?", skill=sk.id
+        )
     if hard_failed:
         first = next(g for g in rec["gates"] if g["status"] == "fail")
         lim = ctx.retry_limits(m.group("step"))
