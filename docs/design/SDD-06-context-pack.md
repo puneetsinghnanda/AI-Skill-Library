@@ -697,6 +697,7 @@ E-CTX-01 to 03, E-AUTH-04 and E-CONS-01 exist in Doc 4 §5.2. E-CTX-04 to 09 are
 | E-CTX-07 | 2 | Pack lint failed: `<n>` broken anchors or citations. | Fix the listed anchors or `Sources:` lines |
 | E-CTX-08 | 2 | Extractor `<name>` failed on `<repo>` (`<reason>`); section `<id>` not rebuilt. | Report to the extractor owner; other sections are built |
 | E-CTX-09 | 3 | Manifest out of date, or product repo `<name>` cannot be read at `<sha>`. | Run `tsl context build`; check `.tsl/local.yaml` and access |
+| E-CTX-10 | 0 | Context pack is behind `<repo>` by `<n>` commits and `<m>` files; skills cite facts from before those changes. Warning only, within the limits. | `tsl context build`, review, then `tsl context sign` |
 
 ### 11.2 Security
 

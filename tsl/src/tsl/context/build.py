@@ -531,6 +531,9 @@ def status_cmd(rt: Runtime, comp: Companion) -> tuple[dict[str, Any], list[dict[
                 "Band capped at Medium.",
             }
         )
+    from tsl.context.freshness import behind_warnings
+
+    warnings += behind_warnings(fs)
     sb = fs["state_block"]
     return {
         "state": fs["state"],
