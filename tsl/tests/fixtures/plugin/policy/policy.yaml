@@ -10,6 +10,7 @@ write_scope:                     # applies only while this session holds a run l
 bash_in_run:
   deny_patterns: ["git push", "git commit --amend", "rm -rf"]   # tsl pr does pushes, not Claude
 mcp:
+  local_tools: ["mcp__ccd_*", "mcp__visualize__*"]
   read_tools: ["*__get*", "*__search*", "*__list*", "*__fetch*"]
   write_tools_need_approval: ["*__create*", "*__update*", "*__edit*", "*__add*", "*__transition*", "*__delete*"]
   unknown_tools: deny            # anything not classified is treated as a write
