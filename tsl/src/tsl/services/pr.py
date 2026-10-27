@@ -252,3 +252,51 @@ def open_prs(
     if not pushed:
         raise TslError("E-GIT-01", op="push", detail="run completion not pushed", data={"prs": prs})
     return {"prs": prs, "lowest_band": lowest}
+
+
+def sync_prs(rt: Runtime, comp: Companion, run_id: str | None = None) -> dict[str, Any]:
+    """Send pr.closed for run PRs merged or closed on GitHub that were not reported yet.
+
+    The portal hears about merges from the GitHub webhook; this backfills any it missed
+    (no webhook yet, or the service was asleep). Each close is sent once per machine.
+    """
+    from tsl.core.jsonio import write_json
+    from tsl.telemetry.emit import emit
+
+    seen_p = rt.home.cache / "pr-sync.json"
+    seen: dict[str, str] = read_json(seen_p) if seen_p.is_file() else {}
+    urls = {r.name: r.url for r in comp.config.product_repos}
+    rows: list[dict[str, Any]] = []
+    for st_p in sorted(comp.path("runs").glob("run_*/state.json")):
+        st = read_json(st_p)
+        if run_id not in (None, st.get("run_id")):
+            continue
+        for p in st.get("prs") or []:
+            if p.get("repo") not in urls:
+                continue
+            key = f"{st['run_id']}:{p['repo']}#{p['number']}"
+            try:
+                pr = rt.github.get_pull_request(repo_slug(urls[p["repo"]]), int(p["number"]))
+            except GitHubUnavailable as exc:
+                raise TslError("E-GIT-01", op="pull request", detail=str(exc)) from None
+            state = "merged" if pr.merged else pr.state
+            row = {"run_id": st["run_id"], "repo": p["repo"], "number": p["number"], "state": state}
+            if state != "open" and seen.get(key) != state and pr.closed_at:
+                emit(
+                    rt,
+                    "pr.closed",
+                    {
+                        "repo": p["repo"],
+                        "number": int(p["number"]),
+                        "merged": pr.merged,
+                        "closed_at": pr.closed_at,
+                    },
+                    st["run_id"],
+                    enabled=comp.config.telemetry_enabled,
+                )
+                seen[key] = state
+                row["sent"] = True
+            rows.append(row)
+    seen_p.parent.mkdir(parents=True, exist_ok=True)
+    write_json(seen_p, seen)
+    return {"prs": rows, "sent": sum(1 for r in rows if r.get("sent"))}

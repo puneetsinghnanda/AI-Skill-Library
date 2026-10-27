@@ -151,6 +151,7 @@ Schemas marked `"x-fields-status": "provisional"` cover formats whose owning doc
 | [`approval.recorded.v1`](events/approval.recorded.v1.json) | 1 | event | SDD-08 §4.5 | Sent by tsl approve. Closed object; every string is length-capped (TM-08). |
 | [`hook.decision.v1`](events/hook.decision.v1.json) | 1 | event | SDD-08 §4.5 | Sent by every hook invocation. Closed object; every string is length-capped (TM-08). |
 | [`pr.opened.v1`](events/pr.opened.v1.json) | 1 | event | SDD-08 §4.5 | Sent by tsl pr per product repo. Closed object; every string is length-capped (TM-08). |
+| [`pr.closed.v1`](events/pr.closed.v1.json) | 1 | event | SDD-08 §4.5 | Sent by tsl pr-sync when a run's pull request is merged or closed on GitHub. Closed object; every string is length-capped (TM-08). |
 | [`ci.verified.v1`](events/ci.verified.v1.json) | 1 | event | SDD-08 §4.5 | Sent by tsl ci-verify with the CI ingest token (the only type that token may send). Closed object; every string is length-capped (TM-08). |
 | [`context.signed.v1`](events/context.signed.v1.json) | 1 | event | SDD-08 §4.5 | Sent by tsl context sign. Closed object; every string is length-capped (TM-08). |
 | [`context.drift.v1`](events/context.drift.v1.json) | 1 | event | SDD-08 §4.5 | Sent by tsl context build --check. Closed object; every string is length-capped (TM-08). |

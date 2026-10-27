@@ -368,6 +368,7 @@ components:
 | `approval.recorded` | gate, decision, approver\_role | `tsl approve` |
 | `hook.decision` | hook, decision (allow/deny/feedback), code | hooks |
 | `pr.opened` | repo, number, draft, lowest\_band | `tsl pr` |
+| `pr.closed` | repo, number, merged, closed\_at | `tsl pr-sync` |
 | `ci.verified` | repo, number, result, codes\[\] | `tsl ci-verify` |
 | `context.signed` / `context.drift` | system, age\_days, drift\_files | `tsl context sign` / `tsl context build --check` |
 | `eval.recorded` | skill, version, cases, pass\_rate | `tsl eval run` |

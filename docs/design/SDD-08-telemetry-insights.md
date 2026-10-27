@@ -226,6 +226,7 @@ All bodies are closed objects. **New** marks a field or type that Doc 5 §5.3 do
 | `approval.recorded` | `gate` R · `decision` enum `approve\|reject\|changes` R · `approver_role` R · `step` **new** · `signature_block_sha256` **new** R · `key_id` **new** R (SDD-07 §7.2) | `tsl approve` |
 | `hook.decision` | `hook` enum `session-start\|pre-tool\|pre-mcp\|post-write\|session-end` R · `decision` enum `allow\|deny\|feedback` R · `code` (error code or null) R · `tool_kind` **new** enum `write\|edit\|bash\|mcp_read\|mcp_write\|other` · `session_id` | hooks |
 | `pr.opened` | `repo` (tsl.yaml product repo name) R · `number` R · `draft` R · `lowest_band` R | `tsl pr` |
+| `pr.closed` | `repo` R · `number` R · `merged` bool R · `closed_at` R | `tsl pr-sync` (backfill when the webhook missed a merge or close) |
 | `ci.verified` | `repo` R · `number` R · `result` enum `pass\|fail` R · `codes[]` R · `head_sha` **new** R | `tsl ci-verify` (CI token) |
 | `context.signed` | `system` R · `age_days` R · `drift_files` R · `status` **new** enum `fresh\|stale` R · `signature_sha256` **new** R · `key_id` **new** R (SDD-07 §7.2) | `tsl context sign` |
 | `context.drift` | `system` R · `age_days` R · `drift_files` R · `status` R | `tsl context build --check` |
@@ -435,6 +436,7 @@ flowchart LR
 | `approval.recorded` | `approvals` (decision, approver) |
 | `hook.decision` | `hook_daily` counter (`system_id` through the run, if any) |
 | `pr.opened` | `pull_requests` |
+| `pr.closed` | `pull_requests.state`, `merged_at` / `closed_at` |
 | `ci.verified` | `ci_checks` |
 | `context.*` | `systems.pack_*` (latest by `occurred_at`); `pack_signed_by` from the event's user for `context.signed` |
 | `eval.recorded` | `skill_versions.eval_*` |

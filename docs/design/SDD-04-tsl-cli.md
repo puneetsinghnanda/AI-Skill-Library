@@ -437,6 +437,8 @@ GitHub authentication uses the engineer's existing git credential (`git credenti
 
 `data.prs[{repo, number, url, draft, branch, head_sha}]`. Exits: 0; 3 (E-RUN-05); 10 (E-GIT-01).
 
+`tsl pr-sync [<run_id>]`. Network: G, S. Reads each run's `prs[]` from `runs/*/state.json` (one run when `run_id` is given), asks GitHub for each PR's state and queues `pr.closed` for every PR that is merged or closed and not yet reported from this machine (`~/.tsl/cache/pr-sync.json`). It backfills what the GitHub webhook missed: no webhook on the repo yet, or the service asleep when GitHub delivered. Never changes a PR. `data.prs[{run_id, repo, number, state, sent?}]`, `data.sent`. Exits: 0; 10 (E-GIT-01).
+
 ### 6.13 `tsl ci-verify`
 
 `tsl ci-verify --pr <n> --repo <owner/name> --companion <path> [--head <sha>]`. Network: G (read), S (key registry). No LLM.

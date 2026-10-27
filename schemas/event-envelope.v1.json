@@ -30,6 +30,7 @@
         "approval.recorded",
         "hook.decision",
         "pr.opened",
+        "pr.closed",
         "ci.verified",
         "context.signed",
         "context.drift",
@@ -70,6 +71,7 @@
               "question.answered",
               "approval.recorded",
               "pr.opened",
+              "pr.closed",
               "audit.recorded"
             ]
           }

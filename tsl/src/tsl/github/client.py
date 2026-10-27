@@ -25,6 +25,9 @@ class PullRequest:
     changed_files: list[str]
     base_ref: str = "main"
     head_ref: str = ""
+    state: str = "open"  # open | closed (GitHub's state; a merged PR is closed)
+    merged: bool = False
+    closed_at: str | None = None  # merged_at for a merged PR
 
 
 class GitHubClient(Protocol):
@@ -129,4 +132,7 @@ class HttpGitHubClient:
             [str(f["filename"]) for f in files],
             str(d["base"]["ref"]),
             str(d["head"]["ref"]),
+            str(d.get("state") or "open"),
+            bool(d.get("merged")),
+            d.get("merged_at") or d.get("closed_at"),
         )

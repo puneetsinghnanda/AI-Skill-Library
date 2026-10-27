@@ -311,6 +311,7 @@ Envelope: Doc 5 §5.2. Body schemas: `schemas/events/<type>.v<N>.json`. SDD-08 �
 | `approval.recorded` | `tsl approve` | `gate`, `decision`, `approver_role`; *add* `signature_block_sha256`, `key_id` (SDD-07) | SDD-08 §4.5 |
 | `hook.decision` | hooks | `hook`, `decision`, `code` | SDD-08 §4.5 |
 | `pr.opened` | `tsl pr` | `repo`, `number`, `draft`, `lowest_band` | SDD-08 §4.5 |
+| `pr.closed` | `tsl pr-sync` | `repo`, `number`, `merged`, `closed_at` | SDD-08 §4.5 |
 | `ci.verified` | `tsl ci-verify` (CI token) | `repo`, `number`, `result`, `codes[]`, `head_sha` | SDD-08 §4.5 |
 | `context.signed` | `tsl context sign` | `system`, `age_days`, `drift_files`, `status`; *add* `signature_sha256`, `key_id` (SDD-07) | SDD-08 §4.5 |
 | `context.drift` | `tsl context build --check` | Same as `context.signed` | SDD-08 §4.5 |

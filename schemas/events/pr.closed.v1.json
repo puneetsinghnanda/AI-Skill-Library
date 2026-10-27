@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.truminds.internal/events/pr.closed.v1.json",
+  "title": "Event body: pr.closed (schema_version 1)",
+  "description": "Sent by tsl pr-sync when a run's pull request is merged or closed on GitHub. Closed object; every string is length-capped (TM-08).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "repo",
+    "number",
+    "merged",
+    "closed_at"
+  ],
+  "properties": {
+    "repo": {
+      "$ref": "#/$defs/repo_name"
+    },
+    "number": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "merged": {
+      "type": "boolean"
+    },
+    "closed_at": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 40
+    }
+  },
+  "$defs": {
+    "repo_name": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,40}$",
+      "description": "Product repo short name from tsl.yaml."
+    }
+  },
+  "x-owner": "SDD-08 §4.5"
+}
