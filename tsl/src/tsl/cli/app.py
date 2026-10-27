@@ -13,7 +13,17 @@ from typing import Any
 from tsl import __version__
 
 
+def _utf8_streams() -> None:
+    """Read and write UTF-8 whatever the console code page (cp1252 on Windows cannot print the
+    status marks or non-ASCII names and crashed tsl mid-output)."""
+    for s in (sys.stdin, sys.stdout, sys.stderr):
+        enc = (getattr(s, "encoding", None) or "").lower().replace("-", "")
+        if enc != "utf8" and hasattr(s, "reconfigure"):
+            s.reconfigure(encoding="utf-8", errors="replace")
+
+
 def main(argv: list[str] | None = None) -> None:
+    _utf8_streams()
     args = list(sys.argv[1:] if argv is None else argv)
     if args[:1] == ["hook"] and len(args) >= 2:
         from tsl.hooks.dispatch import run
