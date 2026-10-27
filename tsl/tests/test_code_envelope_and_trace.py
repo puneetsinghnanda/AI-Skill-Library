@@ -45,7 +45,9 @@ def test_verify_inputs_envelope_carries_the_branch_diff_for_code_skills(world: W
 
 
 def _ci(tmp_path: Path, front: dict[str, Any], inputs: list[dict[str, Any]]) -> Any:
-    return SimpleNamespace(art=SimpleNamespace(front=front), root=tmp_path, expected_inputs=inputs)
+    return SimpleNamespace(
+        art=SimpleNamespace(front=front), root=tmp_path, expected_inputs=inputs, state=None
+    )
 
 
 def test_foundation_takes_trace_ids_from_upstream_artifacts(tmp_path: Path) -> None:
@@ -54,6 +56,13 @@ def test_foundation_takes_trace_ids_from_upstream_artifacts(tmp_path: Path) -> N
     assert {"REQ-1", "REQ-2"} <= _foundation(ci)
     ci = _ci(tmp_path, {}, [{"path": "design.md", "schema": None}])
     assert "REQ-1" not in _foundation(ci)
+
+
+def test_foundation_accepts_the_run_ticket_id(tmp_path: Path) -> None:
+    ci = _ci(tmp_path, {}, [])
+    assert "HMS-2" not in _foundation(ci)
+    ci.state = {"ticket": "HMS-2"}
+    assert "HMS-2" in _foundation(ci)
 
 
 def _code_ci(declared: list[dict[str, Any]]) -> Any:

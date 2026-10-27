@@ -282,6 +282,9 @@ def _invented_values(ci: CheckInput, g: GateResult, fields: list[str]) -> None:
 # ------------------------------------------------------------------------------------ H5
 def _foundation(ci: CheckInput) -> set[str]:
     ids: set[str] = {str(r["id"]) for r in ci.art.front.get("requirements", []) or []}
+    # A defect ticket has no REQ ids; triage and the code steps after it trace the ticket itself.
+    if ci.state and ci.state.get("ticket"):
+        ids.add(str(ci.state["ticket"]))
     base = ci.root / "context" / "intent-baseline.md"
     if base.is_file():
         ids |= set(re.findall(r"\b[A-Z]+-[0-9]+\b", base.read_text(encoding="utf-8")))
