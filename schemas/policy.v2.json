@@ -73,6 +73,16 @@
             "unknown_tools"
           ],
           "properties": {
+            "local_tools": {
+              "type": "array",
+              "description": "Tools of the Claude app itself (task list, panes, sessions, widgets). They write nothing outside this machine and are always allowed.",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "uniqueItems": true
+            },
             "read_tools": {
               "type": "array",
               "items": {

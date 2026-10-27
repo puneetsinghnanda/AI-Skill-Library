@@ -58,7 +58,10 @@ def handle(ctx: Ctx) -> tuple[str, int]:
         idx = None
     try:
         mcp = policy_for(ctx, idx)["mcp"] if idx else _org_mcp(ctx)
-        is_read = any(fnmatch.fnmatch(ctx.tool, g) for g in mcp.get("read_tools", []))
+        is_read = any(
+            fnmatch.fnmatch(ctx.tool, g)
+            for g in [*mcp.get("local_tools", []), *mcp.get("read_tools", [])]
+        )
         if is_read:
             if idx:
                 log_tool(idx, ctx, ctx.tool, "allow", None)
