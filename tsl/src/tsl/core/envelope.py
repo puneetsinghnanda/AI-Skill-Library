@@ -78,7 +78,8 @@ def human(env: Envelope, color: bool) -> str:
             if c["status"] != "pass" and c.get("fix"):
                 line += f"  → {c['fix']}"
             lines.append(line)
-    for r in env.data.get("runs") or []:  # tsl state show: one line per run
+    runs = env.data.get("runs")
+    for r in runs if isinstance(runs, list) else []:  # tsl state show: one line per run
         if isinstance(r, dict) and {"run_id", "status"} <= set(r):
             where = f" at {r['step']} a{r['attempt']}" if r.get("step") else ""
             end = f" ({r['end_reason']})" if r.get("end_reason") else ""
