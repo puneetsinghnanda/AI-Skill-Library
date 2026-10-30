@@ -32,7 +32,11 @@ runs/*/verifier/
 LIBRARY_URL = "https://github.com/puneetsinghnanda/AI-Skill-Library.git"
 
 CI_WORKFLOW = """name: tsl-companion-check
-on: [push, pull_request]
+# Pushes to main (run commits) and pull requests; a feature branch is checked by its pull request.
+on:
+  push:
+    branches: [main]
+  pull_request:
 permissions:
   contents: read
 jobs:
