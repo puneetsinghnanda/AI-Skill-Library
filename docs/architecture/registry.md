@@ -124,6 +124,7 @@ Every code lives in `tsl/src/tsl/core/errors.py` (CLI codes) or the insights ser
 | E-POL-04 | Tool not permitted for the skill (H7) | 5 | `verify` | SDD-03 §14 |
 | E-POL-05 | Tool log missing or altered | 5 | `verify` | SDD-03 §14 |
 | E-POL-06 | Bash call outside the skill's tools that only read (H7, retry) | 2 | `verify` | SDD-03 §14 |
+| E-POL-07 | Read, Grep or Glob of another ticket's or run's `artifacts/` or `runs/` files while a step is open; refused before it runs | 2 | pre-tool hook | docs/design/step-agents.md |
 | E-PR-01 | Run has records that are not pushed to the companion repo | 3 | `pr` | SDD-12 §4.2 |
 | E-REPO-01 | Not inside a companion repo | 1 | Repo-bound commands | SDD-04 §5 |
 | E-REV-01 | Cannot prepare review: checks missing or failing | 3 | `review prepare` | SDD-03 §14 |

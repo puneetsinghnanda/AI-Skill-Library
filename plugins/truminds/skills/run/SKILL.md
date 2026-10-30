@@ -3,7 +3,7 @@ name: run
 description: Start a Truminds workflow on a ticket. Only when the user types /truminds:run.
 argument-hint: <workflow> <ticket> [ticket-file]
 disable-model-invocation: true
-allowed-tools: Bash(tsl *), Read, Grep, Glob, Write, Edit
+allowed-tools: Bash(tsl *), Agent, Read, Grep, Glob, Write, Edit
 ---
 Run state from tsl (do not edit):
 !`tsl state start $0 $1 --ticket-file "$2" --json`
@@ -14,9 +14,13 @@ Markdown file as the third argument next time), then carry on.
 
 Loop:
 1. Run `tsl next <run_id> --json` and read "data.action".
-2. run_skill: use the skill named in "data.skill". Give it "data.inputs",
-   "data.feedback" and "data.answers". It must write exactly "data.artifact_path".
-   If the post-write hook blocks the write, fix what it says and write again.
+2. run_skill: dispatch the step to its own subagent with the Agent tool. Use
+   subagent_type "data.agent" (one agent per step skill; its tools are exactly that skill's
+   allowed-tools). The prompt is "data.artifact_path" on the first line, then
+   "feedback: <data.feedback>" and "answers: <data.answers>" for each that is not null.
+   Nothing else: the agent reads its inputs itself. Do not run the step's skill here and do
+   not read the inputs or the artifact yourself. Wait for its one-line reply. If the reply says
+   the post-write hook blocked the write, dispatch it once more with that message added.
 3. Run `tsl verify <artifact_path> --json`. It runs every check, including the verifier
    container (H3) for steps that change code; the post-write hook ran only the fast checks.
    If "ok" is false with any failing gate (E-CHK-*, E-SEC-*, E-POL-*), skip the review and

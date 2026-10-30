@@ -39,6 +39,11 @@
     "skill": {
       "$ref": "#/$defs/skill_ref"
     },
+    "agent": {
+      "type": "string",
+      "pattern": "^truminds:step-[a-z][a-z0-9-]{2,39}$",
+      "description": "Subagent that runs the step: one per step skill, its tools exactly the skill's allowed-tools (docs/design/step-agents.md)."
+    },
     "artifact_path": {
       "$ref": "#/$defs/rel_path"
     },

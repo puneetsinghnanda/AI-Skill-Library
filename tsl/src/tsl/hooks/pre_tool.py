@@ -3,6 +3,8 @@
 While a step's skill is open (tsl verify --inputs marked it launched and tsl decide has not run),
 a tool outside that skill's allowed-tools is refused before it runs, so H7 never has to fail the
 step for it afterwards. The run loop's own tools (tsl commands, the review skill) stay allowed.
+Read, Grep and Glob may not reach another ticket's or another run's files under artifacts/ or
+runs/ (E-POL-07): a step reads its declared inputs, the context pack and the product repos.
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from tsl.hooks.dispatch import Ctx, active_run, allow, deny, log_tool, policy_for, version_ok
 
@@ -20,10 +22,19 @@ BIND_WINDOW_S = 600
 # Tools the run loop itself uses between the skill and tsl decide; never step work.
 RUN_LOOP_TOOLS = frozenset({"Skill", "Agent", "Task", "ToolSearch", "AskUserQuestion", "TodoWrite"})
 LOGGED = ("Write", "Edit", "NotebookEdit", "Bash")
+READS = ("Read", "Grep", "Glob")
+RUN_DATA = ("artifacts", "runs")
 
 
-def _open_step(ctx: Ctx, idx: dict[str, Any]) -> tuple[str, list[str]] | None:
-    """(skill id, allowed tools) of the cursor step while its skill is open, else None."""
+class OpenStep(NamedTuple):
+    skill: str
+    allowed: list[str]
+    root: str  # companion root, normalised like _abs
+    own: list[str]  # companion-relative paths under artifacts/ or runs/ this step may read
+
+
+def _open_step(ctx: Ctx, idx: dict[str, Any]) -> OpenStep | None:
+    """The cursor step while its skill is open, else None."""
     st = idx["_state"]
     cur = st.get("cursor") or {}
     step = cur.get("step")
@@ -39,14 +50,46 @@ def _open_step(ctx: Ctx, idx: dict[str, Any]) -> tuple[str, list[str]] | None:
     try:
         run = RunCtx(ctx.rt, Companion(Path(idx["companion"])), idx["run_id"])
         sk = run.skill_for(str(step))
+        inputs = [str(i["path"]) for i in run.resolve_inputs(str(step))]
     except Exception:
         return None  # skill not loadable: H7 still checks the step afterwards
-    return sk.id, sk.allowed_tools
+    own = [f"artifacts/{run.ticket}/{run.run_id}", f"runs/{run.run_id}", *inputs]
+    root = os.path.normpath(str(idx["companion"])).replace("\\", "/")
+    return OpenStep(sk.id, sk.allowed_tools, root, own)
 
 
-def _off_step(ctx: Ctx, cmd: str, open_step: tuple[str, list[str]]) -> str | None:
+def _read_base(ctx: Ctx, ti: dict[str, Any]) -> str:
+    """The file a Read opens, or the folder a Grep or Glob searches (with the Glob's fixed part)."""
+    if ctx.tool == "Read":
+        return _abs(ctx, str(ti.get("file_path") or ""))
+    base = str(ti.get("path") or ctx.data.get("cwd") or ".")
+    if ctx.tool == "Glob":
+        pat = str(ti.get("pattern") or "").replace("\\", "/")
+        fixed = pat.split("*")[0].split("?")[0].split("[")[0].split("{")[0]
+        if "/" in fixed:
+            fixed = fixed.rsplit("/", 1)[0]
+            base = fixed if Path(fixed).is_absolute() else f"{base}/{fixed}"
+    return _abs(ctx, base)
+
+
+def _off_scope(target: str, step: OpenStep) -> str | None:
+    """Why a read of target is outside the step's scope (E-POL-07), or None when it is allowed."""
+    t, root = target.casefold(), step.root.casefold()
+    if t != root and not t.startswith(root + "/"):
+        return None  # product repos and the plugin
+    rel = t[len(root) + 1 :]
+    if rel == "" or rel in RUN_DATA:
+        return "search context/, this run's artifacts or a product repo, not the whole companion"
+    if rel.split("/", 1)[0] not in RUN_DATA:
+        return None  # context pack, tsl.yaml
+    if any(rel == o.casefold() or rel.startswith(o.casefold() + "/") for o in step.own):
+        return None
+    return f"{rel} belongs to another ticket or run; read only this step's inputs"
+
+
+def _off_step(ctx: Ctx, cmd: str, open_step: OpenStep) -> str | None:
     """Why this call is outside the open step's tools, or None when it is allowed."""
-    skill, allowed = open_step
+    skill, allowed = open_step.skill, open_step.allowed
     tool = ctx.tool
     if tool == "Bash":
         from tsl.harness.commands import bash_allowed, is_read_only
@@ -167,6 +210,10 @@ def handle(ctx: Ctx) -> tuple[str, int]:
                 # Refused before it runs and not written to the tool log: nothing happened,
                 # so H7 has nothing to fail. hook.log still records the refusal.
                 return deny(ctx, "E-POL-06", f"Refused: {why}. Carry on with the step's tools")
+            if ctx.tool in READS:
+                why = _off_scope(_read_base(ctx, ti), open_step)
+                if why is not None:
+                    return deny(ctx, "E-POL-07", f"Refused: {why}")
         if ctx.tool not in LOGGED:
             return allow(ctx)
         if ctx.tool in ("Write", "Edit", "NotebookEdit"):

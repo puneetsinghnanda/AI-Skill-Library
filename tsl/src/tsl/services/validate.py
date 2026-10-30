@@ -215,6 +215,13 @@ def validate_plugin(d: Path, rt: Runtime) -> list[dict[str, Any]]:
                 for x in m.get("hooks", []):
                     if "timeout" not in x:
                         perrs.append(("E-CFG-01", "/hooks", "every hook needs an explicit timeout"))
+    if (d / "skills").is_dir():
+        from tsl.orchestrator import agents as agentmod
+
+        for name in agentmod.stale(d):
+            perrs.append(
+                ("E-CFG-01", f"/agents/{name}", "stale; run python -m tsl.orchestrator.agents")
+            )
     out.append(_res(str(d / ".claude-plugin" / "plugin.json"), "plugin", perrs))
     pol = d / "policy" / "policy.yaml"
     if pol.is_file():
