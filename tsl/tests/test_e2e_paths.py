@@ -10,10 +10,10 @@ from helpers import World, git
 
 def _answer(world: World, run_id: str, answered_by: str = "Customer A <po@example.com>") -> None:
     p = world.companion / f"runs/{run_id}/open-questions.md"
-    text = p.read_text()
+    text = p.read_text(encoding="utf-8")
     text = text.replace("answer:\n", "answer: Keep 24 hours\n", 1)
     text = text.replace("answered_by:\n", f"answered_by: {answered_by}\n", 1)
-    p.write_text(text)
+    p.write_text(text, encoding="utf-8")
 
 
 def test_needs_input_then_resume(world: World) -> None:
@@ -22,7 +22,7 @@ def test_needs_input_then_resume(world: World) -> None:
     assert res["code"] == 4 and res["env"]["code"] == "E-RUN-01"
     assert res["env"]["data"]["action"] == "pause_input"
     qfile = world.companion / f"runs/{run_id}/open-questions.md"
-    assert "## Q-01 · blocking · ask: product owner" in qfile.read_text()
+    assert "## Q-01 · blocking · ask: product owner" in qfile.read_text(encoding="utf-8")
     code, env = next_action(world, run_id)
     assert code == 4 and env["data"]["action"] == "pause_input"
     # resume refused while the blocking question is unanswered (E-RUN-03)
@@ -33,9 +33,10 @@ def test_needs_input_then_resume(world: World) -> None:
     code, env3, _, _ = world.cli(["state", "resume", run_id, "--json"], session=SESSION)
     assert code == 2 and env3 is not None and env3["code"] == "E-RUN-03"
     qfile.write_text(
-        qfile.read_text().replace(
+        qfile.read_text(encoding="utf-8").replace(
             "answered_by: someone", "answered_by: Customer A <po@example.com>"
-        )
+        ),
+        encoding="utf-8",
     )
     code, env4, _, err = world.cli(["state", "resume", run_id, "--json"], session=SESSION)
     assert code == 0, (env4, err)
@@ -48,7 +49,8 @@ def test_needs_input_then_resume(world: World) -> None:
         world.companion / f"artifacts/ABC-142/{run_id}/history/req/a1/req.verification.json"
     ).exists()
     # editing a frozen answer is refused later (E-RUN-07)
-    qfile.write_text(qfile.read_text().replace("answer: Keep 24 hours", "answer: Extend"))
+    q = qfile.read_text(encoding="utf-8").replace("answer: Keep 24 hours", "answer: Extend")
+    qfile.write_text(q, encoding="utf-8")
     state = json.loads((world.companion / f"runs/{run_id}/state.json").read_text())
     assert "Q-01" in state["questions"]["answered_sha256"]
     import pytest
