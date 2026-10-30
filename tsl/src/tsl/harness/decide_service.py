@@ -149,14 +149,23 @@ def decide(
         if attempt.get("feedback") and comp.path(str(attempt["feedback"])).is_file():
             prev_fb = read_json(comp.path(str(attempt["feedback"])))
         pack = ctx.state.get("pack") or {}
-        shas = dict(pack.get("source_sha") or {})
-        shas.update(
-            {r: c["tree_sha"] for c in checks.get("product_changes") or [] for r in [c["repo"]]}
-        )
         from tsl.core.frontmatter import split
 
         front = split(comp.path(rel).read_text(encoding="utf-8")).front
+        # Product cites resolve against the code the reviewer saw: this step's tree, else the
+        # run branch head, else the pack commit. The pack commit lacks lines the run added.
+        shas = dict(pack.get("source_sha") or {})
         shas.update({k: v for k, v in (front.get("pack_sha") or {}).items()})
+        shas.update(
+            {
+                r: str(b["head_sha"])
+                for r, b in (ctx.state.get("branch") or {}).items()
+                if b.get("head_sha")
+            }
+        )
+        shas.update(
+            {r: c["tree_sha"] for c in checks.get("product_changes") or [] for r in [c["repo"]]}
+        )
         repos = {r.name for r in cfg.product_repos} | {str(r["name"]) for r in cfg.read_only_repos}
         gen_mm = comp.path("context/generated/module-map.json")
         inp = DecideInput(
