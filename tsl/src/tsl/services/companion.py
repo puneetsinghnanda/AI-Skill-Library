@@ -164,7 +164,26 @@ def _check_history(
         moved = {new for st, _old, new, p in rows if st == "A" and "/history/" in p}
         for st, old, _new, p in rows:
             if st in ("M", "D") and any_match(p, RECORD_GLOBS) and old not in moved:
+                if _working_record(comp, c, p):
+                    continue
                 out.append(Finding("E-COMP-03", p, 0, f"changed in {c[:12]}"))
+
+
+def _working_record(comp: Companion, commit: str, path: str) -> bool:
+    """checks.json and review.json are working files until tsl decide writes verification.json.
+
+    A sync point (resume, heartbeat) can commit them before the decision; re-running verify or
+    the review then changes them. They are append-only once the attempt has been decided.
+    """
+    for suffix in (".checks.json", ".review.json"):
+        if path.endswith(suffix) and "/history/" not in path:
+            ver = path[: -len(suffix)] + ".verification.json"
+            try:
+                comp.git.out("cat-file", "-e", f"{commit}^:{ver}")
+            except GitError:
+                return True  # not decided before this commit
+            return False
+    return False
 
 
 def _deny_hashes(path: Path | None) -> frozenset[str]:

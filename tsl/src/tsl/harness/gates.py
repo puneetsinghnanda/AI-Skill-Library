@@ -532,12 +532,9 @@ def _tool_allowed(entry: dict[str, Any], allowed: list[str]) -> bool:
     if tool.startswith("mcp__"):
         return False
     if tool == "Bash":
-        from tsl.harness.commands import strip_safe_env
+        from tsl.harness.commands import bash_allowed
 
-        raw = str(entry.get("target", ""))
-        cmd = strip_safe_env(raw) or raw
-        pats = [a[5:-1] for a in allowed if a.startswith("Bash(")] + ["tsl *"]
-        return any(fnmatch.fnmatch(cmd, p) for p in pats)
+        return bash_allowed(str(entry.get("target", "")), allowed)
     if tool == "NotebookEdit":
         return "Edit" in allowed
     return tool in allowed

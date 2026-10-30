@@ -64,6 +64,30 @@ def _answered(ctx: RunCtx) -> set[str]:
     return set((ctx.state.get("questions") or {}).get("answered_sha256", {}).keys())
 
 
+def failed_gates(comp: Companion, rel: str, attempt: int | None = None) -> list[str]:
+    """Hard gates that failed in the artifact's current checks.json; [] when there is none."""
+    crel = sibling(rel, ".checks.json")
+    if not comp.path(crel).is_file() or not comp.path(rel).is_file():
+        return []
+    checks = read_json(comp.path(crel))
+    if checks.get("artifact_sha256") != sha256_file(comp.path(rel)):
+        return []
+    if attempt is not None and int(checks.get("attempt", 0)) != attempt:
+        return []
+    return [str(g["id"]) for g in checks.get("gates", []) if g.get("status") == "fail"]
+
+
+def _record_skipped_review(rt: Runtime, comp: Companion, rel: str) -> None:
+    """A failing gate makes the review moot: record it as not done so decide can retry or abort."""
+    if comp.path(sibling(rel, ".review.json")).is_file():
+        return
+    failed = failed_gates(comp, rel)
+    if failed:
+        from tsl.review.service import record
+
+        record(rt, comp, rel, None, f"not reviewed: gate {', '.join(failed)} failed")
+
+
 def decide(
     rt: Runtime, comp: Companion, artifact: str
 ) -> tuple[dict[str, Any], Decision, list[dict[str, str]]]:
@@ -71,6 +95,7 @@ def decide(
     m = ARTIFACT_RE.match(rel)
     if not m or not comp.path(rel).is_file():
         raise TslError("E-USE-01", detail=f"{rel} is not an artifact of a run", cmd="decide")
+    _record_skipped_review(rt, comp, rel)
     ctx = RunCtx(rt, comp, m.group("run_id"))
     step = m.group("step")
     warnings: list[dict[str, str]] = []
@@ -231,7 +256,10 @@ def _record(
         "decided_by": f"tsl@{rt.tsl_version}",
         "decided_at": iso(rt.clock()),
     }
-    if attempt.get("cause") == "input_answered" and _defaults_accepted(ctx):
+    passed_on_defaults = d.outcome in ("PASS", "PASS-WITH-FINDINGS") and any(
+        not q["blocking"] for q in d.questions
+    )
+    if passed_on_defaults or (attempt.get("cause") == "input_answered" and _defaults_accepted(ctx)):
         rec["accepted_default"] = True
     signed = sign_object(rec, signer.key_id, signer.private)
     from tsl.schemas.registry import errors
@@ -318,7 +346,9 @@ def _apply(
 
         require_valid("feedback.v1", fb, fb_rel)
         write_json(comp.path(fb_rel), fb)
-    if outcome == "NEEDS-INPUT":
+    if outcome == "NEEDS-INPUT" or (outcome in ("PASS", "PASS-WITH-FINDINGS") and d.questions):
+        # On a pass every question is non-blocking: record the defaults the run goes on with,
+        # so they show in open-questions.md, the PR and the portal (SDD-02 §9.1).
         new_questions = _write_questions(ctx, step, attempt, d)
     if outcome == "ESCALATE":
         gate_id = f"G-escalate-{step}-a{attempt['n']}"
@@ -365,6 +395,13 @@ def _apply(
                     up["status"] = "STALE"
         elif outcome in ("PASS", "PASS-WITH-FINDINGS"):
             s["status"] = "DONE"
+            if new_questions:
+                q = st.setdefault(
+                    "questions",
+                    {"round": 0, "open_blocking": 0, "open_non_blocking": 0, "answered_sha256": {}},
+                )
+                q["round"] = int(q["round"]) + 1
+                q["open_non_blocking"] = int(q.get("open_non_blocking", 0)) + len(new_questions)
         elif outcome == "NEEDS-INPUT":
             s["status"] = "WAITING_INPUT"
             st["status"] = "PAUSED_INPUT"

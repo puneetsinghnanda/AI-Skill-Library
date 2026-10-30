@@ -6,6 +6,7 @@ first 80 characters plus the verdict. Anything this module cannot prove read-onl
 
 from __future__ import annotations
 
+import fnmatch
 import re
 
 # Variables that may prefix a command without changing which program runs or what it may touch.
@@ -46,6 +47,18 @@ _WRITING_FLAGS = {
 _UNSAFE = (">", "<", ";", "&", "`", "$(", "\n", "\r")
 
 
+# `cd <dir> &&` or `cd <dir>;` in front of a command only picks the folder it runs in.
+_CD = re.compile(r"""cd\s+("[^"]*"|'[^']*'|[^\s;&|'"]+)\s*(?:&&|;)\s*""")
+
+
+def strip_cd(cmd: str) -> str:
+    """The command without leading `cd <dir> &&` / `cd <dir>;` parts."""
+    rest = cmd.strip()
+    while m := _CD.match(rest):
+        rest = rest[m.end() :]
+    return rest
+
+
 def strip_safe_env(cmd: str) -> str | None:
     """The command without leading SAFE_ENV assignments; None when another variable is set."""
     rest = cmd.strip()
@@ -66,9 +79,17 @@ def _git_sub(args: list[str]) -> str | None:
     return args[i] if i < len(args) else None
 
 
+def bash_allowed(cmd: str, allowed: list[str]) -> bool:
+    """True when the command, after `cd` and safe env prefixes, matches a Bash(...) tool or tsl."""
+    body = strip_cd(cmd)
+    body = strip_safe_env(body) or body
+    pats = [a[5:-1] for a in allowed if a.startswith("Bash(") and a.endswith(")")] + ["tsl *"]
+    return any(fnmatch.fnmatch(body, p) for p in pats)
+
+
 def is_read_only(cmd: str) -> bool:
     """True only for a pipeline of known read-only programs with no writing flags."""
-    body = strip_safe_env(cmd)
+    body = strip_safe_env(strip_cd(cmd))
     if not body or any(u in body for u in _UNSAFE) or "||" in body:
         return False
     for segment in body.split("|"):

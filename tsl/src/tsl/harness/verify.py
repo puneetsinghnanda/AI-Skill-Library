@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -19,7 +20,7 @@ from tsl.gitops.git import Git, GitError, worktree_tree
 from tsl.harness import artifact as artmod
 from tsl.harness import injection
 from tsl.harness.gates import ABORT_CODES, CheckInput, CheckRun, GateResult, run_all
-from tsl.harness.verifier import StepResult, VerifierUnavailable, log_tail
+from tsl.harness.verifier import StepResult, VerifierUnavailable, export_source, log_tail
 from tsl.identity.keys import public_key
 from tsl.orchestrator.run import RunCtx
 from tsl.state.session import compile_policy
@@ -114,10 +115,16 @@ def run_h3(
             g.status = "skip"
             g.details.append(f"no verifier profile {cfg.verifier_profile}")
             continue
-        outdir = ctx.comp.path(f"runs/{ctx.run_id}/verifier/{out['step']}")
-        res = rt.verifier.run(
-            prof, clone, outdir, with_coverage=ctx.skill_for(out["step"]).id == "unit-test"
-        )
+        n = (latest(ctx.step(out["step"])) or {}).get("n", 1)
+        rel_dir = f"runs/{ctx.run_id}/verifier/{out['step']}/a{n}"
+        outdir = ctx.comp.path(rel_dir)
+        src = export_source(clone)
+        try:
+            res = rt.verifier.run(
+                prof, src, outdir, with_coverage=ctx.skill_for(out["step"]).id == "unit-test"
+            )
+        finally:
+            shutil.rmtree(src, ignore_errors=True)
         verifier = {
             "profile": res.profile,
             "image_digest": res.image_digest,
@@ -137,7 +144,6 @@ def run_h3(
                 if s.code == "E-SEC-01":
                     out.setdefault("_h4_extra", []).append(s.detail)
                 else:
-                    rel_dir = f"runs/{ctx.run_id}/verifier/{out['step']}"
                     g.fail(s.code, _with_log(s, outdir, rel_dir))
     return g, verifier
 
@@ -248,8 +254,8 @@ def compute(
         else:
             try:
                 h3, verifier = run_h3(rt, ctx, extra)
-            except VerifierUnavailable:
-                h3 = GateResult("H3", "pending", details=["docker unavailable"])
+            except VerifierUnavailable as exc:
+                h3 = GateResult("H3", "pending", details=[f"docker unavailable: {exc}"])
                 extra["_unavailable"] = True
     run = run_all(ci, h3)
     for d in extra.get("_h4_extra", []):
