@@ -497,6 +497,14 @@ def _apply_decision(
     stale: list[str] = []
     if decision == "reject" and target and kind == "workflow":
         stale = [target, *wfmod.downstream(ctx.snapshot, target)]
+    head_shas: dict[str, str] = {}
+    # An approved escalation accepts the step as it stands: commit its code to the run
+    # branch as a PASS does, or the pull request leaves it out.
+    if decision == "approve" and kind != "workflow" and target and ctx.skill_for(target).is_code:
+        from tsl.harness.decide_service import _checkpoint
+
+        sstate = next(x for x in ctx.state["steps"] if x["id"] == target)
+        head_shas = _checkpoint(ctx, target, sstate["attempts"][-1])
     now = iso(rt.clock())
 
     def apply(st: dict[str, Any]) -> None:
@@ -538,6 +546,9 @@ def _apply_decision(
                 if bu["rework"] == 0:
                     bu["checks"] = bu["review"] = bu["verifier"] = 0
                 bu["rework"] += 1
+        for repo, sha in head_shas.items():
+            if repo in st.get("branch", {}):
+                st["branch"][repo]["head_sha"] = sha
         if decision == "abort" or (decision == "reject" and (kind != "workflow" or not target)):
             st["status"], st["end_reason"] = "COMPLETED", "rejected"
         else:
