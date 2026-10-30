@@ -204,3 +204,42 @@ def test_review_cites_lines_the_run_added(world: World) -> None:
     rec = json.loads((world.companion / dec["data"]["verification_path"]).read_text())
     assert rec["findings_dropped"] == []
     assert [f["id"] for f in rec["findings_kept"]] == ["F-1"]
+
+
+def test_approved_escalation_commits_the_step_code(world: World) -> None:
+    """Approving an escalated code step puts its code on the run branch, so the PR carries it."""
+    run_id, info = _code_run(world)
+    art = info["artifact"]
+    code, env, _, err = world.cli(["verify", art, "--gates", "H3", "--json"], session=SESSION)
+    assert code == 0, (env, err)
+    code, pkg, _, _ = world.cli(["review", "prepare", art, "--json"], session=SESSION)
+    assert code == 0 and pkg is not None
+    package = json.loads((world.companion / pkg["data"]["package_path"]).read_text())
+    code, _, _, err = world.cli(
+        ["review", "record", art, "--json"],
+        session=SESSION,
+        stdin=review_json(package, rubric_ids=["IM-R1"], score=2),
+    )
+    assert code == 0, err
+    code, dec, _, err = world.cli(["decide", art, "--json"], session=SESSION)
+    assert dec is not None and dec["data"]["action"] == "pause_approval", (dec, err)
+    gate = dec["data"]["gate"]
+    appr = world.companion / f"runs/{run_id}/approvals.md"
+    appr.write_text(
+        appr.read_text().replace(
+            "decision:          # approve | reject | changes | abort",
+            "decision: approve\ncomment: Accepted as is",
+        )
+    )
+    git(world.companion, "commit", "-qam", "decision")
+    git(world.companion, "push", "-q", "origin", "main")
+    code, env, _, err = world.cli(["approve", run_id, gate, "--json"], user="tl")
+    assert code == 0, (env, err)
+    world.sync_companion()
+    code, env2, _, err = world.cli(["state", "resume", run_id, "--json"], session=SESSION)
+    assert code == 0, (env2, err)
+    state = json.loads((world.companion / f"runs/{run_id}/state.json").read_text())
+    head = state["branch"]["sample-orders"]["head_sha"]
+    assert head == git(world.product, "rev-parse", "HEAD")
+    assert "history: newest first" in git(world.product, "show", f"{head}:api/src/routes/orders.js")
+    assert git(world.product, "status", "--porcelain") == ""
