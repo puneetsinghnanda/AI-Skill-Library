@@ -149,7 +149,7 @@ def test_hooks_json_lists_exactly_the_sdd05_hooks_with_timeouts() -> None:
     assert sorted(seen, key=str) == sorted(
         [
             ("SessionStart", None, "session-start", 15),
-            ("PreToolUse", "Write|Edit|NotebookEdit|Bash", "pre-tool", 10),
+            ("PreToolUse", ".*", "pre-tool", 10),
             ("PreToolUse", "mcp__.*", "pre-mcp", 10),
             ("PostToolUse", "Write|Edit|NotebookEdit", "post-write", 90),
             ("SessionEnd", None, "session-end", 15),
@@ -171,8 +171,22 @@ def test_reviewer_agent_is_read_only_and_review_skill_forks() -> None:
         "context": "fork",
         "agent": "truminds:reviewer",
         "user-invocable": False,
+        "allowed-tools": "Bash(tsl review prepare *)",
     }
     assert "!`tsl review prepare $ARGUMENTS --json`" in body(SKILLS / "review" / "SKILL.md")
+
+
+def test_every_preamble_command_is_pre_approved() -> None:
+    """A skill's !`...` preamble cannot ask for permission, so allowed-tools must cover it."""
+    import fnmatch
+    import re
+
+    for path in sorted(SKILLS.glob("*/SKILL.md")):
+        fm = front_matter(path) or {}
+        pats = [t.strip()[5:-1] for t in str(fm.get("allowed-tools", "")).split(",")
+                if t.strip().startswith("Bash(")]
+        for cmd in re.findall(r"!`([^`]+)`", body(path)):
+            assert any(fnmatch.fnmatch(cmd, p) for p in pats), f"{path.parent.name}: {cmd}"
 
 
 @pytest.mark.parametrize("command", ["run", "resume"])
@@ -184,6 +198,7 @@ def test_run_loop_records_the_review_before_decide(command: str) -> None:
     review = text.index("run the `review` skill")
     assert verify < review < record < text.index("`tsl decide <artifact_path>")
     assert "E-REV-02" in text and "--unavailable" in text
+    assert "go straight to step 5" in text
 
 
 def test_every_skill_folder_is_a_command_the_review_step_or_an_sdlc_skill() -> None:

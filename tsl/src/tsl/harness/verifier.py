@@ -6,8 +6,10 @@ Tests use a fake runner, and Docker-dependent tests skip when Docker is absent.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -120,23 +122,69 @@ def docker_command(profile: dict[str, Any], step: str, worktree: Path, out_dir: 
     ]
 
 
+def export_source(repo: Path) -> Path:
+    """Copy the files git tracks or would track (not ignored ones) into a new temp folder.
+
+    The scanners then see the change being verified, not node_modules, build output or a local
+    .env. The caller deletes the folder.
+    """
+    out = Path(tempfile.mkdtemp(prefix="tsl-src-"))
+    names = subprocess.run(
+        ["git", "-C", str(repo), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        capture_output=True,
+        check=True,
+    ).stdout.split(b"\0")
+    for raw in names:
+        if not raw:
+            continue
+        rel = raw.decode("utf-8", "surrogateescape")
+        src = repo / rel
+        if not src.is_file() and not src.is_symlink():
+            continue  # tracked but deleted in the working copy
+        dst = out / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst, follow_symlinks=False)
+    return out
+
+
 class DockerVerifier:
     """docker run --rm --network none --read-only ... per step (SDD-03 §5.5)."""
 
-    def available(self) -> bool:
+    # Docker Desktop on Windows (WSL 2) often takes 3-10 s to answer `docker info` after idle.
+    INFO_TIMEOUT_S = int(os.environ.get("TSL_DOCKER_TIMEOUT_S", "30"))
+
+    def probe(self) -> str | None:
+        """None when Docker answers; otherwise why it counts as unavailable."""
         if shutil.which("docker") is None:
-            return False
-        try:
-            r = subprocess.run(["docker", "info"], capture_output=True, timeout=3, check=False)
-        except (OSError, subprocess.TimeoutExpired):
-            return False
-        return r.returncode == 0
+            return "docker not found on PATH"
+        why = "docker not running"
+        for _ in range(2):
+            try:
+                r = subprocess.run(
+                    ["docker", "info"],
+                    capture_output=True,
+                    timeout=self.INFO_TIMEOUT_S,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                why = f"docker info timed out after {self.INFO_TIMEOUT_S} s"
+                continue
+            except OSError as exc:
+                return f"docker could not start: {exc}"
+            if r.returncode == 0:
+                return None
+            why = "docker not running"
+        return why
+
+    def available(self) -> bool:
+        return self.probe() is None
 
     def run(
         self, profile: dict[str, Any], worktree: Path, out_dir: Path, with_coverage: bool
     ) -> VerifierResult:
-        if not self.available():
-            raise VerifierUnavailable("docker not running")
+        why = self.probe()
+        if why is not None:
+            raise VerifierUnavailable(why)
         from tsl.core.hashing import sha256_file
 
         digest = image_digest(profile)

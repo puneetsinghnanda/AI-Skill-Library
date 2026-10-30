@@ -19,9 +19,10 @@ Loop:
    If the post-write hook blocks the write, fix what it says and write again.
 3. Run `tsl verify <artifact_path> --json`. It runs every check, including the verifier
    container (H3) for steps that change code; the post-write hook ran only the fast checks.
-   If it reports a failing gate (E-CHK-01, E-SEC-*), skip the review: run
-   `tsl review record <artifact_path> --unavailable "<its message>" --json` and go to step 5;
-   decide turns the failure into a retry with feedback.
+   If "ok" is false with any failing gate (E-CHK-*, E-SEC-*, E-POL-*), skip the review and
+   go straight to step 5: decide records the review as skipped, then retries the step with
+   feedback or stops the run. Do not investigate with other tools while a step is open; the
+   pre-tool hook refuses tools outside the step's list.
    Otherwise run the `review` skill on "data.artifact_path". It only returns JSON; it records nothing.
 4. Save that JSON, unchanged, with the Write tool to
    `runs/<run_id>/review-input/<step>.review.json`, then run

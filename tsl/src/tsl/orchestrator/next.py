@@ -21,6 +21,12 @@ DONE_LIKE = ("DONE", "ACCEPTED", "APPROVED")
 STOPPED = ("aborted", "rejected", "cancelled", "lock_released", "archived")
 
 
+def failed_gates(comp: Companion, rel: str, attempt: int) -> list[str]:
+    from tsl.harness.decide_service import failed_gates as fg
+
+    return fg(comp, rel, attempt)
+
+
 def _budget(ctx: RunCtx, sid: str) -> dict[str, str]:
     lim = ctx.retry_limits(sid)
     used = ctx.step(sid).get("budget_used") or {}
@@ -338,10 +344,15 @@ def next_action(rt: Runtime, comp: Companion, run_id: str) -> tuple[dict[str, An
         if st.get("cursor"):
             sid = str(st["cursor"]["step"])
             rel = ctx.artifact_rel(sid)
+            a = latest(ctx.step(sid))
             if (
                 comp.path(rel).is_file()
-                and comp.path(sibling(rel, ".review.json")).is_file()
                 and not comp.path(sibling(rel, ".verification.json")).is_file()
+                and (
+                    comp.path(sibling(rel, ".review.json")).is_file()
+                    # failed checks: decide records the skipped review and retries or aborts
+                    or (a is not None and failed_gates(comp, rel, int(a["n"])))
+                )
             ):
                 data = _action_for_attempt(ctx, sid, "run_decide")
                 return data, f"run tsl decide {rel}"

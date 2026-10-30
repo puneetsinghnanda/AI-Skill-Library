@@ -24,7 +24,12 @@ build/
 .env.*
 *.pem
 *.key
+# verifier output stays local: scanner reports can quote what they found (hashes are recorded)
+runs/*/verifier/
 """
+
+# Where CI installs tsl from; the plugin marketplace repo (SDD-05 §6.2).
+LIBRARY_URL = "https://github.com/puneetsinghnanda/AI-Skill-Library.git"
 
 CI_WORKFLOW = """name: tsl-companion-check
 on: [push, pull_request]
@@ -37,8 +42,26 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - run: uv tool install truminds-tsl
-      - run: tsl companion check --json
+      - uses: astral-sh/setup-uv@v6
+      - name: Install tsl from the skill library (it is not on PyPI; the check needs no org file)
+        run: |
+          git clone --depth 1 "$TSL_LIBRARY" "$RUNNER_TEMP/lib"
+          uv tool install --python 3.12 "$RUNNER_TEMP/lib/tsl"
+        env:
+          TSL_LIBRARY: {library}
+      - name: tsl companion check (only the commits this push or pull request adds)
+        env:
+          EVENT: ${{{{ github.event_name }}}}
+          BEFORE: ${{{{ github.event.before }}}}
+          PR_BASE: ${{{{ github.event.pull_request.base.sha }}}}
+        run: |
+          base="$BEFORE"
+          if [ "$EVENT" = pull_request ]; then base="$PR_BASE"; fi
+          args=(--event "$EVENT" --json)
+          if [ -n "$base" ] && [ "$base" != 0000000000000000000000000000000000000000 ]; then
+            args+=(--base "$base")
+          fi
+          tsl companion check "${{args[@]}}"
 """
 
 
@@ -123,7 +146,7 @@ def init(
             f"# {companion}\n\nCompanion repo for system {rec.get('code', system)}: run state, "
             "artifacts, signed records and the context pack. Written by `tsl`; see SDD-12.\n"
         ),
-        ".github/workflows/tsl-companion-check.yml": CI_WORKFLOW,
+        ".github/workflows/tsl-companion-check.yml": CI_WORKFLOW.format(library=LIBRARY_URL),
         "runs/active/.gitkeep": "",
         "artifacts/.gitkeep": "",
     }

@@ -486,7 +486,8 @@ def state_show(
     from tsl.state.service import show
 
     data = show(rt(), comp(), run_id, all_)
-    return emit_ok(f"{len(data['runs'])} run(s)", data)
+    hint = None if all_ or run_id else "tsl state show --all (also lists finished runs)"
+    return emit_ok(f"{len(data['runs'])} run(s)", data, next_=hint)
 
 
 @state_app.command("unlock")

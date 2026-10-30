@@ -269,7 +269,9 @@ The post-write hook has a 90 s hard timeout (SDD-05 §5.2). Build and test conta
 
 **Pass rule:** no hits. **Outcome:** ABORT.
 
-**Limit:** the SDD-05 hooks match Write, Edit, NotebookEdit, Bash and MCP tools only. Read, Grep and Glob are not logged, so H7 cannot see them. They are read-only and the managed deny rules still block sensitive reads. See open item OI-03.
+**Before the call:** while the step's skill is open, the pre-tool hook refuses any tool outside `allowed_tools` (plus `tsl` commands and the run loop's own tools) with E-POL-06 and does not log it (SDD-05 §5.3). A leading `cd <dir> &&` or `cd <dir>;` is ignored when matching, here and in rule 4. H7 is the record that this held.
+
+**Limit:** only Write, Edit, NotebookEdit and Bash are written to the tool log. Read, Grep and Glob are not logged, so H7 cannot see them. They are read-only and the managed deny rules still block sensitive reads. See open item OI-03.
 
 **Example:** `requirement-review` allows `[Read, Grep, Glob, Write]`, and the log shows an allowed `Bash` call `npm install` in its step → `E-POL-04 tool Bash not permitted for skill requirement-review`. Outcome ABORT.
 
@@ -402,7 +404,9 @@ The scanner tools named above (ESLint, Semgrep, gitleaks) are proposals; the fin
 | --- | --- |
 | Command | `docker run --rm --network none --read-only --tmpfs /tmp --user 1000:1000 --cpus 2 --memory 4g --pids-limit 512 -v <worktree>:/src:ro -v <cache-volume>:/cache -v <out>:/out <image> sh -c "<cmd>"` |
 | Network | `none` for every step except `prepare`. `prepare` uses the default network to reach the package registry and writes only to the cache volume. Its lock file must be unchanged in the diff, or the change counts as a sensitive path (S6) |
-| Source mount | Read-only. Build output goes to `/tmp` or `/out` |
+| Source mount | Read-only. `<worktree>` is a temporary copy of the files git tracks or would track in the product clone (`git ls-files --cached --others --exclude-standard`), so ignored files such as `node_modules` or a local `.env` are never built or scanned. Build output goes to `/tmp` or `/out` |
+| Docker probe | `docker info`, timeout 30 s (`TSL_DOCKER_TIMEOUT_S`), tried twice. The H3 detail says why Docker counts as unavailable: not found, not running, or timed out |
+| Logs | Step logs and reports go to `runs/<run_id>/verifier/<step>/a<n>/`, one folder per attempt, so a retry keeps the failed attempt's output. The companion repo ignores `runs/*/verifier/`; `checks.json` keeps each report's sha256 |
 | Timeout | Per step `timeout_s`; on expiry `docker kill`, step fails with E-HG3-06 semantics (E-H3-06). Whole profile capped by `total_timeout_s` |
 | Detach | `--detach` starts a background runner that writes progress to `runs/<run_id>/verifier/<step>.status.json`; `--status` reads it |
 | Evidence | Each step records `image_digest`, `exit_code`, `duration_ms` and `sha256` of each report file in `checks.json` |
