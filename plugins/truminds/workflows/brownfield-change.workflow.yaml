@@ -1,4 +1,4 @@
-# SDD-02 §4, verbatim (pin ^1.0 and input name intent_baseline per registry §10 #44). Only change: `status`, which registry §10 row 24 made a required workflow.v1 field.
+# SDD-02 §4, verbatim (no design gate; decided 30 Oct 2026). Only change: `status`, which registry §10 row 24 made a required workflow.v1 field.
 # status is draft because requirement-review is draft (SDD-01 §7: a workflow that references a draft skill must be draft).
 schema: workflow.v1
 id: brownfield-change

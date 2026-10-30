@@ -251,16 +251,10 @@ steps:
   - id: design
     skill: design@^1.4
     after: [split, impact]
-    inputs: {impact: impact.impact, stories: split.stories}
-  - gate: G-design
-    role: tech_lead
-    after: [design]
-    artifacts: [design]
-    on_reject: req                      # requirement was wrong: start again from req
-    on_changes: design                  # design needs rework: re-run design with the comment
+    inputs: {impact: impact.impact, stories: split.stories, intent: req.intent}
   - id: threat
     skill: threat-model@^1.0
-    after: [G-design]
+    after: [design]
     inputs: {design: design.design}
   - id: impl
     skill: implement@^1.0
@@ -276,7 +270,7 @@ steps:
     inputs: {change: impl.change}
   - id: tplan
     skill: test-plan@^1.0
-    after: [G-design]
+    after: [design]
     inputs: {stories: split.stories, design: design.design}
   - pr: true
     after: [ut, secrev, tplan]
@@ -284,9 +278,9 @@ steps:
     repos: changed
 ```
 
-**Execution order.** `tsl next` runs ready steps one at a time, in list order (§6.2). The resulting order is `req → split → impact → design → G-design → threat → impl → ut → secrev → tplan → pr`, the same as the prototype.
+**Execution order.** `tsl next` runs ready steps one at a time, in list order (§6.2). The resulting order is `req → split → impact → design → threat → impl → ut → secrev → tplan → pr`.
 
-**Change from Doc 5 §3.3:** `tplan` now waits for `G-design` instead of `design`. A test plan for a design the tech lead has not approved is wasted work. The gate step also gains `artifacts`, `on_reject` and `on_changes`.
+**No design gate (decided 30 Oct 2026, Puneet).** The brownfield workflow has no human gate before code: threat model and test plan run right after design (commit `4d87286`). Runs still stop for blocking questions and for escalation, and the tech lead reviews the pull request. A step that passes on non-blocking questions records them in `open-questions.md` with `accepted_default`, so the defaults are visible in the PR and the portal. Gate steps (`gate`, `role`, `artifacts`, `on_reject`, `on_changes`) remain part of `workflow.v1`; the `G-design` examples in §5 to §9 show how a workflow that adds one behaves.
 
 **Resulting artifacts** in `artifacts/ABC-142/<run_id>/`: `req.md` (`intent.v1`), `split.md` (`stories.v1`), `impact.md` (`impact.v1`), `design.md` (`design.v1`), `threat.md` (`threat-model.v1`), `impl.md` (`change.v1` + code on the run branch), `ut.md` (`ut-result.v1`), `secrev.md` (`secure-review.v1`), `tplan.md` (`test-plan.v1`). Each has its `.checks.json`, `.review.json` and `.verification.json`.
 
