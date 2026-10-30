@@ -398,6 +398,12 @@ CATALOGUE: dict[str, ErrorDef] = {
             "E-POL-05", ABORT, "Tool log missing or altered.", "Run aborted; tech lead investigates"
         ),
         _d(
+            "E-POL-07",
+            CHECK,
+            "Read of {path} is outside the step's inputs (another ticket or run).",
+            "Read only the step's inputs, the context pack and the product repos",
+        ),
+        _d(
             "E-PR-01",
             BLOCKED,
             "Run {run_id} has records that are not pushed to the companion repo.",

@@ -11,6 +11,7 @@ from tsl.core.paths import RECORD_SUFFIXES, approvals_path, feedback_path, histo
 from tsl.core.repo import Companion
 from tsl.core.runtime import Runtime
 from tsl.gitops.git import Git, GitError
+from tsl.orchestrator.agents import agent_ref
 from tsl.orchestrator.run import RunCtx
 from tsl.orchestrator.workflow import downstream, step_id, step_kind
 from tsl.state import lock as lockmod
@@ -57,6 +58,7 @@ def _action_for_attempt(ctx: RunCtx, sid: str, action: str) -> dict[str, Any]:
         "attempt": a["n"],
         "cause": a["cause"],
         "skill": sk.ref,
+        "agent": agent_ref(sk.id),
         "artifact_path": a["artifact"],
         "inputs": inputs,
         "feedback": a.get("feedback"),

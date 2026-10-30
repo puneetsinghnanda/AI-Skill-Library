@@ -6,6 +6,7 @@
   "attempt": 2,
   "cause": "retry_review",
   "skill": "design@1.4.0",
+  "agent": "truminds:step-design",
   "artifact_path": "artifacts/T-1/run_01JA0B3C4D5E6F7G8H9JKMNPQR/design.md",
   "inputs": [
     {

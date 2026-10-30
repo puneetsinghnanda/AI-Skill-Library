@@ -201,6 +201,35 @@ def test_run_loop_records_the_review_before_decide(command: str) -> None:
     assert "go straight to step 5" in text
 
 
+@pytest.mark.parametrize("command", ["run", "resume"])
+def test_run_loop_dispatches_each_step_to_its_agent(command: str) -> None:
+    """HMS-6 issue 4: a step runs in its own subagent, so the main session never reads its inputs."""
+    path = SKILLS / command / "SKILL.md"
+    tools = [t.strip() for t in (front_matter(path) or {})["allowed-tools"].split(",")]
+    assert "Agent" in tools
+    text = body(path)
+    assert 'subagent_type "data.agent"' in text
+    assert "use the skill named in" not in text
+    assert text.index("subagent_type") < text.index("`tsl verify <artifact_path> --json`")
+
+
+def test_every_step_skill_has_its_generated_agent() -> None:
+    """agents/step-<id>.md: tools exactly the skill's allowed-tools, body the skill's (tsl.orchestrator.agents)."""
+    want = {f"step-{d.name}.md" for d in sdlc_skill_dirs()}
+    assert {p.name for p in (PLUGIN / "agents").glob("step-*.md")} == want
+    for d in sdlc_skill_dirs():
+        path = PLUGIN / "agents" / f"step-{d.name}.md"
+        fm = front_matter(path)
+        assert fm and fm["name"] == f"step-{d.name}" and fm["model"] == "inherit", d.name
+        tools = [t.strip() for t in fm["tools"].split(",")]
+        assert tools == [*skill_meta()[d.name]["allowed_tools"], "Bash(tsl verify *)"], d.name
+        skill_tools = {t.strip() for t in (front_matter(d / "SKILL.md") or {})["allowed-tools"].split(",")}
+        assert set(tools) == skill_tools, f"{d.name}: agent tools differ from SKILL.md allowed-tools"
+        text = body(path)
+        assert "`tsl verify <artifact path> --inputs --json`" in text, d.name
+        assert text.endswith(body(d / "SKILL.md").split("\n## ", 1)[1]), f"{d.name}: regenerate the agent"
+
+
 def test_every_skill_folder_is_a_command_the_review_step_or_an_sdlc_skill() -> None:
     commands = set(registry_command_skills().values())
     for d in sorted(p for p in SKILLS.iterdir() if p.is_dir()):
