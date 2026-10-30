@@ -182,6 +182,41 @@ def test_records_are_working_files_until_decided(tmp_path: Path) -> None:
     assert not _working_record(C(), c4, "artifacts/T-1/run_x/req.verification.json")  # type: ignore[arg-type]
 
 
+def test_merged_branch_commits_are_not_direct_pushes(tmp_path: Path) -> None:
+    from tsl.services.companion import Finding, _check_history
+
+    repo = tmp_path / "c"
+    (repo / ".github").mkdir(parents=True)
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "config", "user.email", "t@example.com")
+    _git(repo, "config", "user.name", "t")
+
+    def commit(text: str, msg: str) -> str:
+        (repo / ".github" / "ci.yml").write_text(text)
+        _git(repo, "add", "-A")
+        _git(repo, "commit", "-q", "-m", msg)
+        return Git(repo).out("rev-parse", "HEAD")
+
+    base = commit("0", "ci: first")
+    _git(repo, "checkout", "-q", "-b", "fix")
+    commit("1", "ci: from a branch")
+    _git(repo, "checkout", "-q", "main")
+    _git(repo, "merge", "-q", "--no-ff", "fix", "-m", "Merge pull request #1 from x/fix")
+
+    class C:
+        git = Git(repo)
+
+    def findings() -> list[Finding]:
+        commits = Git(repo).out("rev-list", "--reverse", f"{base}..HEAD").split()
+        out: list[Finding] = []
+        _check_history(C(), commits, base, "push", out)  # type: ignore[arg-type]
+        return [f for f in out if f.code == "E-COMP-02"]
+
+    assert findings() == []  # came in through the merge commit
+    commit("2", "ci: straight onto main")
+    assert len(findings()) == 1  # a direct push is still caught
+
+
 # --------------------------------------------------------------------------- state show
 def test_state_show_lists_each_run(world: World) -> None:
     run_id = start_run(world)
