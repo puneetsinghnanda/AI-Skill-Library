@@ -62,6 +62,8 @@ findings: [{id: PF-1, job, step, severity, cites: []}]
 ## Unknown          (U ids and the question each raises)
 ## Open questions   (each Q with blocking/non-blocking and who to ask)
 
+known, assumed and unknown hold plain ids such as REQ-1, S-1, TP-1 or U-1, never S-1/AC1.
+Write each unknown item as {id: U-1, blocking: true|false}, with only those two keys.
 Every id in the front matter appears in its body section. Each body section renders the matching
 front matter items in plain language, using the same ids.
 

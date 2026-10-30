@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from tsl.core.clock import parse_iso
-from tsl.core.errors import TslError
+from tsl.core.errors import UPDATE_HINT, TslError
 from tsl.core.repo import find_root
 from tsl.core.runtime import Runtime
 
@@ -231,7 +231,7 @@ def doctor(
                 "version",
                 "pass" if want == rt.tsl_version else "fail",
                 f"tsl {rt.tsl_version}, plugin {want}",
-                f"uv tool install truminds-tsl=={want}",
+                UPDATE_HINT,
             )
         )
     try:

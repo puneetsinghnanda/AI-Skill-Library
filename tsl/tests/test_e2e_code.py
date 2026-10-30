@@ -168,3 +168,39 @@ def test_h3_failure_retries_in_fix_loop(world: World) -> None:
         ["verify", info["artifact"], "--gates", "H3", "--json"], session=SESSION
     )
     assert code == 3 and env is not None and env["code"] == "E-H3-07"
+
+
+def test_review_cites_lines_the_run_added(world: World) -> None:
+    """A finding on a line the run added resolves against the run's tree, not the pack commit."""
+    _run_id, info = _code_run(world)
+    art = info["artifact"]
+    lines = (world.product / "api/src/routes/orders.js").read_text().split("\n")
+    n = next(i for i, x in enumerate(lines, 1) if "history: newest first" in x)
+    code, env, _, err = world.cli(["verify", art, "--gates", "H3", "--json"], session=SESSION)
+    assert code == 0, (env, err)
+    code, pkg, _, _ = world.cli(["review", "prepare", art, "--json"], session=SESSION)
+    assert code == 0 and pkg is not None
+    package = json.loads((world.companion / pkg["data"]["package_path"]).read_text())
+    finding = {
+        "id": "F-1",
+        "severity": "minor",
+        "category": "style",
+        "text": "The new comment says history is newest first.",
+        "cites": [
+            {
+                "ref": f"sample-orders:api/src/routes/orders.js#L{n}",
+                "quote": "history: newest first",
+            }
+        ],
+    }
+    code, _, _, err = world.cli(
+        ["review", "record", art, "--json"],
+        session=SESSION,
+        stdin=review_json(package, rubric_ids=["IM-R1"], findings=[finding]),
+    )
+    assert code == 0, err
+    code, dec, _, err = world.cli(["decide", art, "--json"], session=SESSION)
+    assert dec is not None, err
+    rec = json.loads((world.companion / dec["data"]["verification_path"]).read_text())
+    assert rec["findings_dropped"] == []
+    assert [f["id"] for f in rec["findings_kept"]] == ["F-1"]

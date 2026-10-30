@@ -2,7 +2,7 @@
   "setup": "none+old-plugin",
   "exit": 0,
   "stdout": {
-    "systemMessage": "E-VER-01 tsl 0.1.3 does not match plugin 9.9.9. Run: uv tool install truminds-tsl==9.9.9"
+    "systemMessage": "E-VER-01 tsl 0.1.4 does not match plugin 9.9.9: update tsl and the plugin from your AI-Skill-Library clone: git pull; uv tool install --python 3.12 --reinstall --no-cache ./tsl (TSL_ORG_FILE set, see the pilot guide); claude plugin marketplace update truminds-skill-library; claude plugin update truminds@truminds-skill-library"
   },
   "log_contains": "\"decision\": \"allow\"",
   "event": {

@@ -22,7 +22,6 @@ if ($Valid -notcontains $HookEvent) { [Console]::Error.WriteLine("tsl-hook: unkn
 $PluginRoot = $env:CLAUDE_PLUGIN_ROOT
 $TrumindsDir = Join-Path $env:USERPROFILE '.truminds'
 $HookLog = Join-Path $TrumindsDir 'logs\hook.log'
-$RepoUrl = 'https://github.com/puneetsinghnanda/AI-Skill-Library'
 $Budget = @{ 'session-start' = 12; 'session-end' = 12; 'pre-tool' = 8; 'pre-mcp' = 8; 'post-write' = 85 }[$HookEvent]
 $Override = 0
 if ([int]::TryParse("$env:TSL_HOOK_BUDGET_S", [ref]$Override) -and $Override -ge 1 -and $Override -lt $Budget) { $Budget = $Override }
@@ -94,7 +93,8 @@ function Test-RunActive {
   return $false
 }
 
-function Get-InstallHint([string]$V) { "uv tool install `"truminds-tsl @ $RepoUrl/releases/download/v$V/truminds_tsl-$V-py3-none-any.whl`"" }
+# No published package: tsl and the plugin both come from the library clone.
+function Get-InstallHint([string]$V) { 'update tsl and the plugin from your AI-Skill-Library clone: git pull; uv tool install --python 3.12 --reinstall --no-cache ./tsl (TSL_ORG_FILE set, see the pilot guide); claude plugin marketplace update truminds-skill-library; claude plugin update truminds@truminds-skill-library' }
 
 function Out-Json($Obj) { [Console]::Out.WriteLine(($Obj | ConvertTo-Json -Compress -Depth 5)) }
 

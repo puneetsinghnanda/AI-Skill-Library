@@ -9,6 +9,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+# There is no published package: tsl and the plugin both come from the library clone.
+UPDATE_HINT = (
+    "update tsl and the plugin from your AI-Skill-Library clone: git pull; "
+    "uv tool install --python 3.12 --reinstall --no-cache ./tsl "
+    "(TSL_ORG_FILE set, see the pilot guide); "
+    "claude plugin marketplace update truminds-skill-library; "
+    "claude plugin update truminds@truminds-skill-library"
+)
+
 
 @dataclass(frozen=True)
 class ErrorDef:
@@ -279,7 +288,7 @@ CATALOGUE: dict[str, ErrorDef] = {
             OK,
             "Write blocked: tsl is missing, the wrong version, or did not answer "
             "while a run is active.",
-            "uv tool install truminds-tsl, then tsl doctor",
+            UPDATE_HINT + ", then tsl doctor",
         ),
         _d(
             "E-IN-01",
@@ -503,7 +512,7 @@ CATALOGUE: dict[str, ErrorDef] = {
             "E-VER-01",
             BLOCKED,
             "tsl {a} does not match {what} {b}.",
-            "uv tool install truminds-tsl=={b}",
+            UPDATE_HINT,
         ),
         _d(
             "E-WFL-01",
