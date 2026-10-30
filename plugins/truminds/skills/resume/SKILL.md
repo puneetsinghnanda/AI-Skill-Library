@@ -14,7 +14,8 @@ Show the question ids from "data" and stop. Never fill in answers yourself.)
 
 Loop:
 1. Run `tsl next <run_id> --json` and read "data.action".
-2. run_skill: use the skill named in "data.skill". Give it "data.inputs",
+2. run_skill: invoke the skill named in "data.skill" with "data.artifact_path" as its argument
+   (its preamble runs `tsl verify <path> --inputs` from it). Give it "data.inputs",
    "data.feedback" and "data.answers". It must write exactly "data.artifact_path".
    If the post-write hook blocks the write, fix what it says and write again.
 3. Run `tsl verify <artifact_path> --json`. It runs every check, including the verifier
