@@ -30,7 +30,6 @@ SCRIPT_DIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT:-$(dirname -- "$SCRIPT_DIR")}
 TRUMINDS_DIR="${HOME:-}/.truminds"
 HOOK_LOG="$TRUMINDS_DIR/logs/hook.log"
-REPO_URL="https://github.com/puneetsinghnanda/AI-Skill-Library"
 
 # Time budget per event, a little under the hooks.json timeouts (15, 10, 10, 90, 15 s), so this launcher, not
 # Claude Code, decides what a slow tsl means (what Claude Code does on its own timeout is spike S-15).
@@ -140,8 +139,8 @@ run_active() {
   return 1
 }
 
-install_hint() {
-  printf 'uv tool install "truminds-tsl @ %s/releases/download/v%s/truminds_tsl-%s-py3-none-any.whl"' "$REPO_URL" "$1" "$1"
+install_hint() { # no published package: tsl and the plugin both come from the library clone
+  printf '%s' 'update tsl and the plugin from your AI-Skill-Library clone: git pull; uv tool install --python 3.12 --reinstall --no-cache ./tsl (TSL_ORG_FILE set, see the pilot guide); claude plugin marketplace update truminds-skill-library; claude plugin update truminds@truminds-skill-library'
 }
 
 deny_pre() { # reason

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from tsl import __version__
+from tsl.core.errors import UPDATE_HINT
 from tsl.hooks.dispatch import Ctx, _finish
 
 OS = {"Darwin": "macos", "Windows": "windows", "Linux": "linux"}
@@ -31,8 +32,8 @@ def start(ctx: Ctx) -> tuple[str, int]:
             )["version"]
             if plugin_version != __version__:
                 msgs.append(
-                    f"E-VER-01 tsl {__version__} does not match plugin {plugin_version}. Run: "
-                    f"uv tool install truminds-tsl=={plugin_version}"
+                    f"E-VER-01 tsl {__version__} does not match plugin {plugin_version}: "
+                    + UPDATE_HINT
                 )
         rt = ctx.rt
         logged_in = True
