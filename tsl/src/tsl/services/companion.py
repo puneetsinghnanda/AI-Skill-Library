@@ -138,13 +138,21 @@ def _raw_diff(comp: Companion, commit: str) -> list[tuple[str, str, str, str]]:
 
 
 def _check_history(
-    comp: Companion, commits: list[str], event: str | None, out: list[Finding]
+    comp: Companion,
+    commits: list[str],
+    base: str | None,
+    event: str | None,
+    out: list[Finding],
 ) -> None:
+    # Only commits on the pushed branch's own first-parent line were pushed directly; the
+    # others arrived through a merge commit, i.e. a reviewed pull request.
+    rng = f"{base}..HEAD" if base else "HEAD"
+    direct = set(comp.git.out("rev-list", "--first-parent", rng).split()) if commits else set()
     for c in commits:
         rows = _raw_diff(comp, c)
         paths = [r[3] for r in rows]
         parents = comp.git.out("rev-list", "--parents", "-n", "1", c).split()[1:]
-        if event == "push" and len(parents) == 1:
+        if event == "push" and len(parents) == 1 and c in direct:
             subject = comp.git.out("log", "-1", "--format=%s", c)
             if not SQUASH_MARK.search(subject):
                 for p in paths:
@@ -238,7 +246,7 @@ def check(
     files = _tracked(comp)
     _check_schemas(comp, files, findings)
     commits = _commits(comp, base)
-    _check_history(comp, commits, event, findings)
+    _check_history(comp, commits, base, event, findings)
     total = _check_content(comp, files, _deny_hashes(deny_hashes), findings)
     if total > MAX_REPO_BYTES:
         findings.append(Finding("E-COMP-05", ".", 0, f"repository {total} bytes"))

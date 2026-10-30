@@ -182,9 +182,8 @@ class DockerVerifier:
     def run(
         self, profile: dict[str, Any], worktree: Path, out_dir: Path, with_coverage: bool
     ) -> VerifierResult:
-        why = self.probe()
-        if why is not None:
-            raise VerifierUnavailable(why)
+        if not self.available():
+            raise VerifierUnavailable(self.probe() or "docker not running")
         from tsl.core.hashing import sha256_file
 
         digest = image_digest(profile)
