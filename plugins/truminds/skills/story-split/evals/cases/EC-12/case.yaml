@@ -1,0 +1,27 @@
+schema: eval-case.v1
+id: EC-12
+title: Unchanged Last visit column is tested for patients with and without an upcoming appointment
+kind: edge
+inputs:
+  intent: inputs/intent.md
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+    H5: pass
+  assert:
+  - path: stories[].trace[]
+    any_matches: ^REQ-2$
+  # REQ-2 (Last visit unchanged) has two partitions: patients with an upcoming Booked appointment
+  # and patients without one. An AC on Last visit must cover each.
+  - path: stories[].acceptance_criteria[].text
+    any_matches: (?i)^(?=.*\blast visit\b)(?=.*\b(with|has) (an? )?(upcoming|booked)\b)
+  - path: stories[].acceptance_criteria[].text
+    any_matches: (?i)^(?=.*\blast visit\b)(?=.*\b(no|without)\b[^.;]*\b(upcoming|booked|next)\b)
+provenance: invented
+attestation:
+  by: skill-owner-4c1d
+  statement: All inputs are invented for an invented system; no client material was used.

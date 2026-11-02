@@ -9,7 +9,7 @@ criteria:
   name: Small and independent
   weight: 0.2
 - id: SS-R3
-  name: Testable criteria
+  name: Testable and discriminating criteria
   weight: 0.25
 - id: SS-R4
   name: No invented values
@@ -23,11 +23,14 @@ severity_triggers:
   major:
   - Known REQ not traced by any story
   - Criterion not testable
-  - Value in a criterion not found in the intent
+  - Criterion cannot fail under the likeliest wrong implementation
+  - Boundary case from the checklist missing where the requirement calls for it
+  - Value in a criterion not found in the intent and not derived inline from a cited value
   minor:
   - Wording
   - Story order
   - Title not user-facing
+  - Two ACs in different stories share the same Given and Then
 ---
 # Rubric: story-split
 
@@ -41,8 +44,8 @@ tsl computes S3 as the weighted mean. You never compute it.
 | --- | --- | --- | --- | --- | --- |
 | SS-R1 | Coverage | 0.30 | Several REQs not traced | One REQ missed | Every known and assumed REQ traced |
 | SS-R2 | Small and independent | 0.20 | Stories bundle many outcomes | Some stories too big | One outcome per story |
-| SS-R3 | Testable criteria | 0.25 | Criteria vague or missing | Some criteria not observable | Every criterion Given/When/Then and checkable |
-| SS-R4 | No invented values | 0.15 | Invented limits in criteria | A weakly sourced value | Every value from the intent |
+| SS-R3 | Testable and discriminating criteria | 0.25 | Criteria vague or missing | Some criteria not observable, or would pass under the likeliest wrong implementation | Each AC is Given/When/Then, checkable and distinguishes a correct implementation from the likeliest incorrect one; boundary cases from the checklist (SKILL.md Rule 10) are present where the requirement calls for them |
+| SS-R4 | No invented values | 0.15 | Invented limits in criteria | A weakly sourced value, or a derived value without its derivation | Every value from the intent or derived inline from a cited value |
 | SS-R5 | Clarity | 0.10 | Hard to read | Readable | Clear, consistent terms |
 
 ## Severity triggers (DEF-09)
@@ -52,10 +55,13 @@ tsl computes S3 as the weighted mean. You never compute it.
 | Blocker | A story built on a blocking unknown as if it were decided |
 | Major | Known REQ not traced by any story |
 | Major | Criterion not testable |
-| Major | Value in a criterion not found in the intent |
+| Major | Criterion cannot fail under the likeliest wrong implementation (for example a time-zone AC whose instant has the same local and UTC date) |
+| Major | Boundary case from the checklist missing where the requirement calls for it (time zone, limit, exclusion, each partition of an unchanged requirement) |
+| Major | Value in a criterion not found in the intent and not derived inline from a cited value |
 | Minor | Wording |
 | Minor | Story order |
 | Minor | Title not user-facing |
+| Minor | Two ACs in different stories share the same Given and Then |
 
 ## Citations
 
