@@ -1,7 +1,7 @@
 # Skill code: RR (SDD-01 §12). Reference skill, SDD-01 §13.
 schema: skill-metadata.v1
 id: requirement-review
-version: 1.0.0
+version: 1.1.0
 agent: business-analyst
 status: draft
 owner: skill-owner-3b7e

@@ -112,6 +112,11 @@ def approvals_path(run_id: str) -> str:
     return f"runs/{run_id}/approvals.md"
 
 
+def ide_answers_path(run_id: str) -> str:
+    """Answers the user gave in the IDE (AskUserQuestion), written only by the post-tool hook."""
+    return f"runs/{run_id}/ide-answers.md"
+
+
 def tool_log_path(run_id: str) -> str:
     return f"runs/{run_id}/tool-log.jsonl"
 

@@ -151,7 +151,7 @@ def test_hooks_json_lists_exactly_the_sdd05_hooks_with_timeouts() -> None:
             ("SessionStart", None, "session-start", 15),
             ("PreToolUse", ".*", "pre-tool", 10),
             ("PreToolUse", "mcp__.*", "pre-mcp", 10),
-            ("PostToolUse", "Write|Edit|NotebookEdit", "post-write", 90),
+            ("PostToolUse", "Write|Edit|NotebookEdit|AskUserQuestion", "post-write", 90),
             ("SessionEnd", None, "session-end", 15),
         ],
         key=str,

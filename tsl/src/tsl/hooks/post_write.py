@@ -9,6 +9,10 @@ from tsl.hooks.dispatch import Ctx, _finish
 
 
 def handle(ctx: Ctx) -> tuple[str, int]:
+    if ctx.tool == "AskUserQuestion":
+        from tsl.hooks import post_ask
+
+        return post_ask.handle(ctx)
     ti = ctx.data.get("tool_input") or {}
     raw = str(ti.get("file_path") or ti.get("notebook_path") or "").replace("\\", "/")
     if "artifacts/" not in raw or not raw.endswith(".md") or "/history/" in raw:
