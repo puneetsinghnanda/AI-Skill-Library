@@ -10,7 +10,7 @@
         "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/tsl-hook\" pre-mcp", "timeout": 10 } ] }
     ],
     "PostToolUse": [
-      { "matcher": "Write|Edit|NotebookEdit",
+      { "matcher": "Write|Edit|NotebookEdit|AskUserQuestion",
         "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/tsl-hook\" post-write", "timeout": 90 } ] }
     ],
     "SessionEnd": [

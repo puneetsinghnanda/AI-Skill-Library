@@ -797,6 +797,7 @@ The run loop does that and tells you if a retry is needed.
 | RR-C10 | `glossary.terms` | soft | Terms marked `found: true` exist as headings in `context/glossary.md` | S2 |
 | RR-C11 | `text.vague_terms` | soft | No unqualified "fast", "easy", "user-friendly", "etc.", "as appropriate" in statements | S2 |
 | RR-C12 | `size.limits` | soft | 1 ≤ requirements ≤ 60; summary ≤ 5 sentences | S2 |
+| RR-C13 | `answers.logged` | H4 | (1.1.0) Every `answers[]` entry matches `runs/<run_id>/ide-answers.md` for this step; no logged answer is left out; every answer decides ≥ 1 requirement that cites it, unless its question stays open | RETRY |
 
 Blocking questions in `questions[]` are counted by `tsl decide` into S4, which gives NEEDS-INPUT and writes them to `open-questions.md` (Doc 4 §3). H4 secrets/PII, H6 and H7 run as always.
 

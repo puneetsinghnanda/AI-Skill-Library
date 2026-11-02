@@ -62,3 +62,6 @@ checks:
   uses: size.limits
   soft: true
   with: {requirements: {min: 1, max: 60}, summary_sentences: {max: 5}}
+- id: RR-C13                                             # answers match runs/<run_id>/ide-answers.md; none dropped; cited by the REQs they decided
+  uses: answers.logged
+  gate: H4

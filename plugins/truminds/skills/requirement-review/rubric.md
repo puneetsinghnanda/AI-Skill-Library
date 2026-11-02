@@ -45,6 +45,18 @@ cites. Score every criterion 1 to 5 using the descriptors below; 2 and 4 sit bet
 | --- | --- |
 | Blocker | A contradiction between ticket and baseline that the artifact resolved silently instead of asking |
 | Major | Invented value marked known; ask missing; compound requirement; question routed to the wrong role; conflict raised without both cites |
+
+## Answers given in the IDE
+
+Answers the user gave in the IDE are in `runs/<run_id>/ide-answers.md` (cite as
+`runs/<run_id>/ide-answers.md#a-01`). The user's answer decides the requirement, even when it
+differs from the ticket or the baseline.
+
+- A requirement written from an answer, citing it, is honest status (RR-R3). It is not a
+  finding, even when the ticket or baseline says something else.
+- A conflict the user answered is resolved, not silent: it is not the blocker above.
+- When the answer differs from the ticket or baseline, the artifact records the difference
+  in that answer's `mismatch`. A missing `mismatch` is a minor finding, never major.
 | Minor | Wording, ordering, a missing Out-of-scope reason, glossary inconsistency |
 
 ## Citations

@@ -102,9 +102,19 @@ def _cite_path(c: Any) -> str:
     return left.split(":", 1)[1] if ":" in left and not left.startswith("context/") else left
 
 
+def _ide_answers_rel(env: CheckEnv) -> str | None:
+    from tsl.core.paths import ide_answers_path
+
+    run_id = str(env.front.get("run_id") or "")
+    return ide_answers_path(run_id) if run_id else None
+
+
 def c_cites_present(env: CheckEnv, w: dict[str, Any]) -> str | None:
     items = list(env.front.get("requirements", [])) + list(env.front.get("claims", []))
     allowed = set(env.input_paths)
+    ide = _ide_answers_rel(env)
+    if ide and (env.root / ide).is_file():
+        allowed.add(ide)  # the user's own answers, recorded by the post-tool hook
     for it in items:
         cites = it.get("cites") or []
         if not cites:
@@ -141,6 +151,15 @@ def c_values_sourced(env: CheckEnv, w: dict[str, Any]) -> str | None:
                 lines = text.split("\n")
                 lo, hi = int(m.group(1)), int(m.group(2) or m.group(1))
                 cited += "\n".join(lines[max(0, lo - 1) : hi]) + "\n"
+            elif path == _ide_answers_rel(env):
+                # Only the cited answer counts, never another answer in the same log.
+                from tsl.approvals import ide_answers
+
+                cited += "".join(
+                    f"{e.get('question', '')}\n{e.get('answer', '')}\n"
+                    for e in ide_answers.parse(text)
+                    if e["id"].lower() == anchor.lower()
+                )
             else:
                 cited += text
         for v in NUM.findall(str(r.get("statement", ""))):
@@ -159,6 +178,71 @@ def c_questions_linked(env: CheckEnv, w: dict[str, Any]) -> str | None:
             return f"{q['id']} lacks ask, why or evidence"
         if q.get("blocking") and q.get("default") is not None:
             return f"{q['id']} is blocking but has a default"
+    return None
+
+
+def c_answers_logged(env: CheckEnv, w: dict[str, Any]) -> str | None:
+    """Answers the artifact says the user gave match ide-answers.md, and none were dropped.
+
+    - every answers[] entry is in the log for this step, at this or an earlier attempt, with
+      the same answer text;
+    - every answer logged for this step and attempt is listed in answers[];
+    - every requirement an answer names exists and cites that answer, and every cite of the
+      log points at an answer listed in answers[];
+    - every answer is used: it decides at least one requirement (an answered assumption
+      decides its own REQ), unless the answer left its question open ("don't know"), in
+      which case it decides none and the question stays in questions[].
+    The answer wins over the ticket and baseline; the artifact records any difference in
+    the answer's `mismatch`, which is not checked here.
+    """
+    from tsl.approvals import ide_answers
+
+    f = env.front
+    ide = _ide_answers_rel(env)
+    log = ide_answers.read(env.root / ide) if ide else []
+    step, attempt = str(f.get("step") or ""), int(f.get("attempt") or 1)
+    logged = {e["id"]: e for e in log if e.get("step") == step and e["attempt"] <= attempt}
+    answers = list(f.get("answers") or [])
+    listed = {str(a.get("id")) for a in answers}
+    reqs = {r["id"]: r for r in f.get("requirements", [])}
+    open_q = {q["id"] for q in f.get("questions", [])}
+
+    def cites_answer(r: dict[str, Any], aid: str) -> bool:
+        want = f"{ide}#{aid}".lower()
+        return any(
+            str(c["ref"] if isinstance(c, dict) else c).lower() == want for c in r.get("cites", [])
+        )
+
+    for a in answers:
+        aid = str(a.get("id"))
+        e = logged.get(aid)
+        if e is None:
+            return f"{aid} is not an answer the user gave for step {step} (see {ide})"
+        if ide_answers.norm(a.get("answer")) != ide_answers.norm(e.get("answer")):
+            return f"{aid} answer differs from the recorded answer"
+        about, decided = a.get("about"), list(a.get("requirements") or [])
+        if about in open_q and decided:
+            return f"{about} was answered in {aid} but is still an open question"
+        if about not in open_q and not decided:
+            return f"{aid} is not used: it decides no requirement and {about} is not kept open"
+        if a.get("kind") == "assumption" and about not in decided:
+            return f"{aid} answers the assumption in {about} but does not decide it"
+        for rid in decided:
+            if rid not in reqs:
+                return f"{aid} names {rid}, which is not a requirement"
+            if not cites_answer(reqs[rid], aid):
+                return f"{rid} does not cite {ide}#{aid.lower()}"
+    for e in log:
+        if e.get("step") == step and e["attempt"] == attempt and e["id"] not in listed:
+            return f"{e['id']} was answered by the user but is not in answers"
+    prefix = f"{ide}#".lower() if ide else None
+    for r in reqs.values():
+        for c in r.get("cites", []):
+            ref = str(c["ref"] if isinstance(c, dict) else c)
+            if prefix and ref.lower().startswith(prefix):
+                aid = ref.split("#", 1)[1].upper()
+                if aid not in listed:
+                    return f"{r['id']} cites {aid}, which is not listed in answers"
     return None
 
 
@@ -215,6 +299,7 @@ LIBRARY: dict[str, Fn] = {
     "cites.present": c_cites_present,
     "values.sourced": c_values_sourced,
     "questions.linked": c_questions_linked,
+    "answers.logged": c_answers_logged,
     "assumed.basis": c_assumed_basis,
     "glossary.terms": c_glossary_terms,
     "text.vague_terms": c_vague_terms,

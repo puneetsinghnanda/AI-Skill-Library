@@ -172,6 +172,14 @@ def handle(ctx: Ctx) -> tuple[str, int]:
         if ctx.tool in ("Write", "Edit", "NotebookEdit"):
             raw = str(ti.get("file_path") or ti.get("notebook_path") or "")
             target = _abs(ctx, raw)
+            if fnmatch.fnmatch(target, "*/runs/*/ide-answers.md"):
+                # Only the post-tool hook records the user's IDE answers; artifacts cite them.
+                log_tool(idx, ctx, target, "deny", "E-POL-01")
+                return deny(
+                    ctx,
+                    "E-POL-01",
+                    "Blocked: ide-answers.md is written by tsl from AskUserQuestion only",
+                )
             if not raw or not _allowed(target, pol):
                 log_tool(idx, ctx, target, "deny", "E-POL-01")
                 return deny(ctx, "E-POL-01", f"Blocked: write outside allowed paths {target}")
