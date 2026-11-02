@@ -194,17 +194,29 @@ def c_answers_logged(env: CheckEnv, w: dict[str, Any]) -> str | None:
       which case it decides none and the question stays in questions[].
     The answer wins over the ticket and baseline; the artifact records any difference in
     the answer's `mismatch`, which is not checked here.
+
+    `with` (all optional; the defaults are the intent.v1 form used by requirement-review):
+    targets: front-matter lists whose items an answer may decide (default ["requirements"]);
+    field: the key on each answer that lists the ids it decided (default "requirements");
+    noun: the word for one decided item in failure messages (default "requirement").
     """
     from tsl.approvals import ide_answers
 
     f = env.front
+    targets = [str(t) for t in (w.get("targets") or ["requirements"])]
+    field_name = str(w.get("field") or "requirements")
+    noun = str(w.get("noun") or "requirement")
+    a_noun = f"an {noun}" if noun[:1].lower() in "aeiou" else f"a {noun}"
     ide = _ide_answers_rel(env)
     log = ide_answers.read(env.root / ide) if ide else []
     step, attempt = str(f.get("step") or ""), int(f.get("attempt") or 1)
     logged = {e["id"]: e for e in log if e.get("step") == step and e["attempt"] <= attempt}
     answers = list(f.get("answers") or [])
     listed = {str(a.get("id")) for a in answers}
-    reqs = {r["id"]: r for r in f.get("requirements", [])}
+    reqs: dict[str, dict[str, Any]] = {}
+    for t in targets:  # with one target this is the original {r["id"]: r} map, last one wins
+        for r in f.get(t) or []:
+            reqs[r["id"]] = r
     open_q = {q["id"] for q in f.get("questions", [])}
 
     def cites_answer(r: dict[str, Any], aid: str) -> bool:
@@ -220,16 +232,16 @@ def c_answers_logged(env: CheckEnv, w: dict[str, Any]) -> str | None:
             return f"{aid} is not an answer the user gave for step {step} (see {ide})"
         if ide_answers.norm(a.get("answer")) != ide_answers.norm(e.get("answer")):
             return f"{aid} answer differs from the recorded answer"
-        about, decided = a.get("about"), list(a.get("requirements") or [])
+        about, decided = a.get("about"), [str(x) for x in (a.get(field_name) or [])]
         if about in open_q and decided:
             return f"{about} was answered in {aid} but is still an open question"
         if about not in open_q and not decided:
-            return f"{aid} is not used: it decides no requirement and {about} is not kept open"
+            return f"{aid} is not used: it decides no {noun} and {about} is not kept open"
         if a.get("kind") == "assumption" and about not in decided:
             return f"{aid} answers the assumption in {about} but does not decide it"
         for rid in decided:
             if rid not in reqs:
-                return f"{aid} names {rid}, which is not a requirement"
+                return f"{aid} names {rid}, which is not {a_noun}"
             if not cites_answer(reqs[rid], aid):
                 return f"{rid} does not cite {ide}#{aid.lower()}"
     for e in log:
@@ -237,7 +249,7 @@ def c_answers_logged(env: CheckEnv, w: dict[str, Any]) -> str | None:
             return f"{e['id']} was answered by the user but is not in answers"
     prefix = f"{ide}#".lower() if ide else None
     for r in reqs.values():
-        for c in r.get("cites", []):
+        for c in r.get("cites") or []:
             ref = str(c["ref"] if isinstance(c, dict) else c)
             if prefix and ref.lower().startswith(prefix):
                 aid = ref.split("#", 1)[1].upper()

@@ -1,0 +1,50 @@
+{
+  "schema": "context-facts.v1",
+  "section": "module-map",
+  "extractor": {
+    "name": "js-module",
+    "version": "1.0.0"
+  },
+  "sources": {
+    "sample-orders": "c4d2f1eb943933a8bf884b1c3c44d5e8ac720c74"
+  },
+  "empty_reason": null,
+  "facts": [
+    {
+      "id": "module:sample-orders:api/src/orders",
+      "kind": "module",
+      "source": {
+        "repo": "sample-orders",
+        "path": "api/src/orders/index.js",
+        "line": 1
+      }
+    },
+    {
+      "id": "module:sample-orders:web/src/orders",
+      "kind": "module",
+      "source": {
+        "repo": "sample-orders",
+        "path": "web/src/orders/index.jsx",
+        "line": 1
+      }
+    },
+    {
+      "id": "module:sample-orders:web/src/reorder",
+      "kind": "module",
+      "source": {
+        "repo": "sample-orders",
+        "path": "web/src/reorder/index.jsx",
+        "line": 1
+      }
+    },
+    {
+      "id": "module:sample-orders:web/src/account",
+      "kind": "module",
+      "source": {
+        "repo": "sample-orders",
+        "path": "web/src/account/index.jsx",
+        "line": 1
+      }
+    }
+  ]
+}

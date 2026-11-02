@@ -24,10 +24,12 @@ severity_triggers:
   - Changed table without its readers
   - Module id not in the generated facts
   - Missing trace to a REQ
+  - Unproven exclusive claim (only/all/none) not asked or marked assumed
   minor:
   - Wording
   - Ordering
   - Existing item marked changed without effect
+  - Answer that differs from the facts without a mismatch record
 ---
 # Rubric: impact-analysis
 
@@ -42,7 +44,7 @@ tsl computes S3 as the weighted mean. You never compute it.
 | IA-R1 | Complete impact | 0.30 | Touched modules or tables missing | One indirect effect missed | Every touched element listed |
 | IA-R2 | Grounded in facts | 0.25 | Ids not in the generated facts | Some ids weakly cited | Every id from the facts, cited |
 | IA-R3 | Indirect effects | 0.20 | No callers or jobs considered | Some readers missed | Callers, jobs and readers covered |
-| IA-R4 | Honest status | 0.15 | Guesses stated as facts | Weak bases on assumed items | Every status justified |
+| IA-R4 | Honest status | 0.15 | Guesses stated as facts where a question was possible | Weak bases on assumed items | Every status justified by a fact or a cited answer |
 | IA-R5 | Clarity | 0.10 | Hard to read | Readable | Clear and ordered by risk |
 
 ## Severity triggers (DEF-09)
@@ -53,9 +55,24 @@ tsl computes S3 as the weighted mean. You never compute it.
 | Major | Changed table without its readers |
 | Major | Module id not in the generated facts |
 | Major | Missing trace to a REQ |
+| Major | Unproven exclusive claim (only/all/none) not asked or marked assumed |
 | Minor | Wording |
 | Minor | Ordering |
 | Minor | Existing item marked changed without effect |
+| Minor | Answer that differs from the facts without a mismatch record |
+
+## Answers given in the IDE
+
+Answers the user gave in the IDE are in `runs/<run_id>/ide-answers.md` (cite as
+`runs/<run_id>/ide-answers.md#a-01`). The user's answer decides the item, even when it differs
+from the generated facts or the context pack.
+
+- An item or claim decided by an answer, citing it, is honest status (IA-R4). It is not a
+  finding, even when the facts say something else.
+- A guess stated as fact where a question was possible scores IA-R4 low, for example "its only
+  caller is X" when the facts have no call edges.
+- When the answer differs from the facts, the artifact records the difference in that answer's
+  `mismatch`. A missing `mismatch` is a minor finding, never major.
 
 ## Citations
 
