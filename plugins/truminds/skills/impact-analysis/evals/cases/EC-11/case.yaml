@@ -1,0 +1,34 @@
+schema: eval-case.v1
+id: EC-11
+title: The facts cannot show who calls a changed API, so the caller set stays an open question
+kind: edge
+inputs:
+  intent: inputs/intent.md
+  module_map: inputs/module-map.json
+  api_inventory: inputs/api-inventory.json
+  db_schema: inputs/db-schema.json
+  architecture: inputs/architecture.md
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+    H4: pass
+    H5: pass
+  assert:
+  - path: apis[].id
+    any_matches: ^http:GET:/api/orders$
+  # No IDE in an eval run: the caller set of the changed route is an open, non-blocking question.
+  - path: questions[?blocking==`false`].text
+    any_matches: (?i)call
+  # The facts have no call edges, so no claim may say the set of callers is complete.
+  - path: claims[].text
+    none_matches: (?i)\b(only|sole|single)\b[^.]*\bcaller|\bno other\b[^.]*\bcall|\ball (the )?callers\b
+  - path: answers[]
+    count_max: 0
+provenance: invented
+attestation:
+  by: skill-owner-5e2a
+  statement: All inputs are invented for an invented system; no client material was used.

@@ -27,10 +27,12 @@ severity_triggers:
   - Endpoint clash marked new
   - Story not served
   - Component on a module that does not exist
+  - New or changed field without a type and a format
   minor:
   - Wording
   - Ordering
   - Missing trade-off line
+  - IDE answer that differs from an input without a mismatch
 ---
 # Rubric: design
 
@@ -44,8 +46,8 @@ tsl computes S3 as the weighted mean. You never compute it.
 | --- | --- | --- | --- | --- | --- |
 | DS-R1 | Fits the architecture | 0.25 | Ignores existing modules | Some needless new parts | Built on existing modules and rules |
 | DS-R2 | Serves every story | 0.25 | Stories unserved | One criterion unserved | Every story and criterion served |
-| DS-R3 | Precise interfaces | 0.20 | Endpoints vague | Some shapes missing | Methods, paths and data precise |
-| DS-R4 | Honest status | 0.15 | Invented infrastructure | Weak assumptions | Every choice cited or asked |
+| DS-R3 | Precise interfaces | 0.20 | Endpoints vague, or a changed field without a type and format | Some shapes missing | Every new or changed field has name, type, nullability, format and example; ACs can test it exactly |
+| DS-R4 | Honest status | 0.15 | Invented infrastructure, or a changed file or type cited only by a sibling symbol | Weak assumptions, or a guess stated as fact where an IDE question was possible | Every choice cited, asked or decided by a cited IDE answer; unproven files and types are Assumed with "implement must confirm" |
 | DS-R5 | Trade-offs explained | 0.10 | No reasons | Some reasons | Every non-obvious choice explained |
 | DS-R6 | Clarity | 0.05 | Hard to read | Readable | Clear and consistent |
 
@@ -57,9 +59,11 @@ tsl computes S3 as the weighted mean. You never compute it.
 | Major | Endpoint clash marked new |
 | Major | Story not served |
 | Major | Component on a module that does not exist |
+| Major | New or changed field without a type and a format (DS-R3) |
 | Minor | Wording |
 | Minor | Ordering |
 | Minor | Missing trade-off line |
+| Minor | IDE answer that differs from an input without a mismatch |
 
 ## Citations
 

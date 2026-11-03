@@ -351,6 +351,16 @@ def _apply(
             "dropped": [x["id"] for x in d.dropped],
             "must_resolve": list(dict.fromkeys(must)),
         }
+        if d.dropped:
+            fb["dropped_findings"] = [
+                {
+                    "id": x["id"],
+                    "severity": x.get("severity", "minor"),
+                    "text": x.get("text", ""),
+                    "reason": x["reason"],
+                }
+                for x in d.dropped
+            ]
         from tsl.schemas.registry import require_valid
 
         require_valid("feedback.v1", fb, fb_rel)

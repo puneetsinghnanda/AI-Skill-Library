@@ -254,7 +254,10 @@ def test_severity_raised_never_lowered(root: Path) -> None:
 def test_dropped_finding_counts_against_s1(root: Path) -> None:
     bad = finding("F-9", "minor", ref="context/missing.md#x", quote="no such text here")
     d = evaluate(make(root, review=review(findings=[bad])))
-    assert d.dropped == [{"id": "F-9", "reason": "path not found"}]
+    # severity and text ride along so the next attempt can see the dropped finding (retry.dropped)
+    assert d.dropped == [
+        {"id": "F-9", "reason": "path not found", "severity": "minor", "text": "x"}
+    ]
     assert d.signals["S1"] == 0.5  # 1 verified claim of 1 claim + 1 finding
 
 

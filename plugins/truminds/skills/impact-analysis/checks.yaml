@@ -1,5 +1,6 @@
 # SDD-03 §5.2 kind form; check ids follow SDD-03 §5.4. H1, H4, H6 and H7 run for every skill.
 # Container checks carry no gate: H3 applies to every skill with a code output (SDD-03 §4.1).
+# The library (uses) form needs an IA-Cnn id (skill-checks.v1); it sits beside the kind form.
 schema: skill-checks.v1
 skill: impact-analysis
 artifact_schema: impact.v1
@@ -29,3 +30,7 @@ checks:
   kind: cites-required
   gate: soft
   select: $.modules[*]
+- id: IA-C01                                             # answers-logged: answers match runs/<run_id>/ide-answers.md; none dropped; cited by the items they decided (1.2.0)
+  uses: answers.logged
+  gate: H4
+  with: {targets: [modules, apis, tables, claims], field: decides, noun: item}

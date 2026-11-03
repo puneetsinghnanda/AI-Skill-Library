@@ -115,6 +115,74 @@
           }
         }
       }
+    },
+    "answers": {
+      "description": "Answers the user gave in the IDE (AskUserQuestion), each recorded by the post-tool hook in runs/<run_id>/ide-answers.md under the same A-id. Additive and optional (impact-analysis 1.2.0).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "about",
+          "answer",
+          "decides"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^A-[0-9]{2,}$"
+          },
+          "kind": {
+            "enum": [
+              "question",
+              "assumption"
+            ]
+          },
+          "about": {
+            "description": "The open question (Q-nn) or the claim (C<n>) that states the assumption.",
+            "type": "string",
+            "pattern": "^(Q-[0-9]{2,}|C[0-9]+)$"
+          },
+          "answer": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "decides": {
+            "description": "Ids of the modules, apis, tables or claims this answer decided.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          "mismatch": {
+            "description": "Where the answer differs from the generated facts or context pack. The item follows the answer; this records what the source said.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "text",
+              "cites"
+            ],
+            "properties": {
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "cites": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/cite_string"
+                },
+                "minItems": 1
+              }
+            }
+          }
+        }
+      }
     }
   },
   "x-required-sections": [

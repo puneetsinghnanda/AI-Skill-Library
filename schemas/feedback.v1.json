@@ -99,6 +99,41 @@
         "pattern": "^F-[0-9]+$"
       }
     },
+    "dropped_findings": {
+      "description": "Optional: the dropped findings with their severity, text and why decide dropped them (cite not verified). Passed to the next attempt as data.retry.dropped so the skill can fix a real issue the reviewer may raise again. Not in must_resolve.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "severity",
+          "text",
+          "reason"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^F-[0-9]+$"
+          },
+          "severity": {
+            "enum": [
+              "blocker",
+              "major",
+              "minor"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 200
+          }
+        }
+      }
+    },
     "must_resolve": {
       "type": "array",
       "items": {

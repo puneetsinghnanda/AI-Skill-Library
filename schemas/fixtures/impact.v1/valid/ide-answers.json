@@ -1,0 +1,87 @@
+{
+  "schema": "impact.v1",
+  "step": "impact",
+  "skill": "impact-analysis@1.2.0",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "attempt": 1,
+  "inputs": [
+    {
+      "path": "artifacts/T-1/run_01JA0B3C4D5E6F7G8H9JKMNPQR/intent.md",
+      "sha256": "14069429150abcbf244c4c2fb2c4c46a49c93ca9457263ecd9ebb176de3a58bb"
+    }
+  ],
+  "pack_sha": {
+    "orders-api": "86f7e437faa5a7fce15d1ddcb9eaeaea377667b8"
+  },
+  "claims": [
+    {
+      "id": "C1",
+      "text": "`OrderHistoryPage` calls the changed route",
+      "cites": [
+        "context/architecture.md#ui-routes",
+        "runs/run_01JA0B3C4D5E6F7G8H9JKMNPQR/ide-answers.md#a-02"
+      ]
+    }
+  ],
+  "trace": [
+    "REQ-1"
+  ],
+  "known": [
+    "REQ-1"
+  ],
+  "assumed": [],
+  "unknown": [],
+  "modules": [
+    {
+      "id": "module:orders-api:src/orders",
+      "change": "changed",
+      "cites": [
+        "context/generated/module-map.json#module:orders-api:src/orders"
+      ]
+    },
+    {
+      "id": "module:orders-web:src/pages/reorder",
+      "change": "existing",
+      "cites": [
+        "context/generated/module-map.json#module:orders-web:src/pages/reorder",
+        "runs/run_01JA0B3C4D5E6F7G8H9JKMNPQR/ide-answers.md#a-01"
+      ]
+    }
+  ],
+  "apis": [
+    {
+      "id": "http:GET:/api/orders",
+      "change": "changed",
+      "cites": [
+        "context/generated/api-inventory.json#http:GET:/api/orders"
+      ]
+    }
+  ],
+  "tables": [],
+  "answers": [
+    {
+      "id": "A-01",
+      "kind": "question",
+      "about": "Q-01",
+      "answer": "Also the reorder page",
+      "decides": [
+        "module:orders-web:src/pages/reorder"
+      ],
+      "mismatch": {
+        "text": "The architecture lists only the order history page under the route; the user added the reorder page",
+        "cites": [
+          "context/architecture.md#ui-routes"
+        ]
+      }
+    },
+    {
+      "id": "A-02",
+      "kind": "assumption",
+      "about": "C1",
+      "answer": "Yes, confirm",
+      "decides": [
+        "C1"
+      ]
+    }
+  ]
+}

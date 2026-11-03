@@ -1,0 +1,62 @@
+schema: design.v1
+step: design
+skill: design@1.6.0
+run_id: run_01JA0B3C4D5E6F7G8H9JKMNPQR
+attempt: 1
+inputs:
+- path: artifacts/T-1/run_01JA0B3C4D5E6F7G8H9JKMNPQR/stories.md
+  sha256: 14069429150abcbf244c4c2fb2c4c46a49c93ca9457263ecd9ebb176de3a58bb
+pack_sha:
+  orders-api: 86f7e437faa5a7fce15d1ddcb9eaeaea377667b8
+claims:
+- id: C1
+  text: The order list row type is declared in `api/src/orders/types.ts`
+  cites:
+  - context/generated/module-map.json#module:orders-api:src/orders
+  - runs/run_01JA0B3C4D5E6F7G8H9JKMNPQR/ide-answers.md#a-02
+trace:
+- REQ-1
+known:
+- REQ-1
+assumed: []
+unknown: []
+questions: []
+components:
+- id: CO-1
+  name: Order list service
+  module: module:orders-api:src/orders
+  change: changed
+  cites:
+  - context/generated/module-map.json#module:orders-api:src/orders
+endpoints:
+- id: EP-1
+  method: GET
+  path: /api/orders
+  change: changed
+  fields:
+  - name: last_shipped_on
+    type: string
+    nullable: true
+    format: YYYY-MM-DD in the store time zone
+    example: '2026-10-31'
+    status: known
+  cites:
+  - context/generated/api-inventory.json#http:GET:/api/orders
+  - runs/run_01JA0B3C4D5E6F7G8H9JKMNPQR/ide-answers.md#a-01
+answers:
+- id: A-01
+  kind: question
+  about: Q-01
+  answer: last_shipped_on, YYYY-MM-DD in the store time zone
+  decides:
+  - EP-1
+- id: A-02
+  kind: assumption
+  about: C1
+  answer: No, it is in api/src/orders/types.ts
+  decides:
+  - C1
+  mismatch:
+    text: The draft assumed api/src/types.ts; the user named api/src/orders/types.ts
+    cites:
+    - context/generated/module-map.json#module:orders-api:src/orders

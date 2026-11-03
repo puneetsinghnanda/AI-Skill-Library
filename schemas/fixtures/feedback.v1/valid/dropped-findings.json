@@ -1,0 +1,32 @@
+{
+  "schema": "feedback.v1",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "step": "design",
+  "from_attempt": 1,
+  "kind": "review",
+  "gate_failures": [],
+  "findings": [
+    {
+      "id": "F-1",
+      "severity": "major",
+      "text": "The new response field is never named, typed or formatted.",
+      "cites": [
+        "artifacts/T-1/run_01JA0B3C4D5E6F7G8H9JKMNPQR/design.md#components"
+      ]
+    }
+  ],
+  "dropped": [
+    "F-2"
+  ],
+  "dropped_findings": [
+    {
+      "id": "F-2",
+      "severity": "major",
+      "text": "The list row types in api/src/types.ts and web/src/api/types.ts are marked changed with no citation.",
+      "reason": "quote not found at anchor"
+    }
+  ],
+  "must_resolve": [
+    "F-1"
+  ]
+}

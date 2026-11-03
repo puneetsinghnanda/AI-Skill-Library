@@ -67,9 +67,9 @@ Every command skill sets `disable-model-invocation: true`, so only a person typi
 | Skill | Code | Role | Phase | Output | Version | Status | Eval cases |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `requirement-review` (reference, SDD-01 §13) | RR | business-analyst | requirements | `intent.v1` | 1.0.0 | draft | 10 |
-| `story-split` | SS | business-analyst | requirements | `stories.v1` | 1.0.1 | production | 10 |
-| `impact-analysis` | IA | solution-architect | design | `impact.v1` | 1.1.1 | production | 10 |
-| `design` | DS | solution-architect | design | `design.v1` | 1.4.1 | production | 10 |
+| `story-split` | SS | business-analyst | requirements | `stories.v1` | 1.1.0 | production | 12 |
+| `impact-analysis` | IA | solution-architect | design | `impact.v1` | 1.2.0 | production | 11 |
+| `design` | DS | solution-architect | design | `design.v1` | 1.6.0 | production | 12 |
 | `implement` | IM | developer | build | code + `change.v1` | 1.0.1 | production | 10 |
 | `unit-test` | UT | developer | build | tests + `ut-result.v1` | 1.0.1 | production | 10 |
 | `defect-triage` | DT | developer | operate | `triage.v1` | 1.0.1 | production | 10 |
