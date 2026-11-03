@@ -197,6 +197,7 @@ def c_answers_logged(env: CheckEnv, w: dict[str, Any]) -> str | None:
 
     `with` (all optional; the defaults are the intent.v1 form used by requirement-review):
     targets: front-matter lists whose items an answer may decide (default ["requirements"]);
+      items without an `id` are skipped;
     field: the key on each answer that lists the ids it decided (default "requirements");
     noun: the word for one decided item in failure messages (default "requirement").
     """
@@ -216,7 +217,10 @@ def c_answers_logged(env: CheckEnv, w: dict[str, Any]) -> str | None:
     reqs: dict[str, dict[str, Any]] = {}
     for t in targets:  # with one target this is the original {r["id"]: r} map, last one wins
         for r in f.get(t) or []:
-            reqs[r["id"]] = r
+            # Items without an id (design.v1 components and endpoints may omit one) cannot be
+            # decided by an answer; an answer that names them fails below as an unknown id.
+            if isinstance(r, dict) and r.get("id"):
+                reqs[str(r["id"])] = r
     open_q = {q["id"] for q in f.get("questions", [])}
 
     def cites_answer(r: dict[str, Any], aid: str) -> bool:

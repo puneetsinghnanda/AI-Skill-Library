@@ -25,6 +25,10 @@ checks:
   uses: contract.stated
   gate: H4
   with: {items: endpoints, field: fields, change: [new, changed]}
+- id: DS-C02                          # answers-logged: answers match runs/<run_id>/ide-answers.md; none dropped; cited by the items they decided (1.6.0)
+  uses: answers.logged
+  gate: H4
+  with: {targets: [components, endpoints, claims], field: decides, noun: item}
 - id: design.claims-cited
   kind: cites-required
   gate: soft

@@ -1,5 +1,22 @@
 # Changelog: design
 
+## 1.6.0
+- Asks the user in the IDE before writing (AskUserQuestion), the same way impact-analysis 1.2.0
+  does: an open question Q-nn for each contract choice no input fixes (field name, format or unit)
+  and an assumption claim for each unproven file or type location. Writes the design from the
+  answers; rule 12: never write an answer the user did not give.
+- design.v1: optional `id` (CO-n, EP-n) and `cites` on components and endpoints, and an optional
+  `answers` list (id, kind, about, answer, decides, mismatch). Backward compatible; fixture added.
+- New check DS-C02 answers.logged (H4) with targets components, endpoints and claims, field
+  decides, noun item. Claims are a target because a confirmed or corrected assumption decides its
+  own claim id. answers.logged now skips target items without an `id`, so design artifacts
+  written before 1.6.0 pass and requirement-review and impact-analysis are unchanged.
+- Retry: tsl now passes dropped findings as `data.retry.dropped` ({id, severity, text, reason});
+  the skill fixes the real ones and lists them in resolves.
+- Rubric DS-R4: an item decided by a cited IDE answer is honest status; a guess stated as fact
+  where a question was possible scores low. Minor trigger for an answer that differs from an input
+  without a mismatch.
+
 ## 1.5.0
 - Run HMS-4 needed 3 attempts: a1 described the new response field only as "a nullable last-visit date
   field", and marked the api and web list row types changed with no cite (the review finding was
