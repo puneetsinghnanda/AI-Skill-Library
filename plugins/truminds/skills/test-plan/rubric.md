@@ -26,6 +26,7 @@ severity_triggers:
   minor:
   - Test naming
   - Level could be lower
+  - Question asked that the context pack or product code answers
 ---
 # Rubric: test-plan
 
@@ -52,6 +53,7 @@ tsl computes S3 as the weighted mean. You never compute it.
 | Major | No negative test for a new endpoint |
 | Minor | Test naming |
 | Minor | Level could be lower |
+| Minor | Question asked that the context pack or product code answers: each such question is one finding; cite the fact or line that answers it |
 
 ## Citations
 

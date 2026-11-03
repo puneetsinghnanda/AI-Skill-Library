@@ -37,7 +37,21 @@ def handle(ctx: Ctx) -> tuple[str, int]:
         ctx.run_id = m.group("run_id")
         try:
             verify_artifact(ctx.rt, comp, rel, fast=True)
-            return _finish(ctx, None)
+            weak = _weak_claims(ctx, comp, rel)
+            if not weak:
+                return _finish(ctx, None)
+            return _finish(
+                ctx,
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PostToolUse",
+                        "additionalContext": (
+                            "tsl checks passed. " + weak + " Fix them now if you can: an "
+                            "unverified claim lowers S1 at decide."
+                        )[:4000],
+                    }
+                },
+            )
         except TslError as exc:
             if exc.code in ("E-CHK-01", "E-SEC-01", "E-SEC-02") or exc.code.startswith("E-POL-"):
                 return _block(ctx, comp, rel, m.group("step"), exc)
@@ -57,31 +71,62 @@ def handle(ctx: Ctx) -> tuple[str, int]:
         )
 
 
+def _weak_claims(ctx: Ctx, comp: Any, rel: str) -> str:
+    """Soft warning (B6): claims tsl decide would not count as verified. Never blocks."""
+    try:
+        from tsl.harness.decide_service import unverified_claims
+
+        weak = unverified_claims(ctx.rt, comp, rel)
+    except Exception:  # a warning only; decide reports the same claims
+        return ""
+    if not weak:
+        return ""
+    return (
+        "Claims that will not verify: " + "; ".join(f"{w['id']}: {w['reason']}" for w in weak) + "."
+    )
+
+
 def _block(ctx: Ctx, comp: Any, rel: str, step: str, exc: Any) -> tuple[str, int]:
     from tsl.orchestrator.run import RunCtx
+    from tsl.state.store import latest
 
     gates = [g for g in (exc.data or {}).get("gates", []) if g.get("status") == "fail"]
-    parts = [f"{g['id']} failed: {g['detail']}" for g in gates][:3]
-    kind = "verifier" if any(g["id"] == "H3" for g in gates) else "checks"
+    # Every failing gate, with every detail (B5): one write can fix them all.
+    parts = [
+        f"{g['id']} failed: " + "; ".join(g.get("details") or [g.get("detail", "")]) for g in gates
+    ]
     extra = ""
     if exc.code == "E-CHK-01":
+        # Fast-check rejections count against retry.write, per attempt (B5). retry.checks is
+        # left for the decide-time retries, so a write rejected here costs no decide retry.
+        is_h3 = any(g["id"] == "H3" for g in gates)
         ctx_run = RunCtx(ctx.rt, comp, ctx.run_id or "")
         used: dict[str, int] = {}
 
         def bump(st: dict[str, Any]) -> None:
             s = next(x for x in st["steps"] if x["id"] == step)
-            s["budget_used"][kind] += 1
-            used.update(s["budget_used"])
+            if is_h3:
+                s["budget_used"]["verifier"] += 1
+                used["n"] = int(s["budget_used"]["verifier"])
+                return
+            a = latest(s)
+            if a is None:
+                return
+            a["write_rejects"] = int(a.get("write_rejects", 0)) + 1
+            used["n"] = a["write_rejects"]
 
         ctx_run.store.update(bump)
-        lim = ctx_run.retry_limits(step)[kind]
-        if used.get(kind, 0) >= lim:
+        lims = ctx_run.retry_limits(step)
+        lim = lims["verifier"] if is_h3 else lims.get("write", lims["checks"])
+        if used.get("n", 0) >= lim:
             extra = f" Retry budget used up: run tsl decide {rel} now."
     ctx.decision, ctx.code = "feedback", exc.code
+    weak = _weak_claims(ctx, comp, rel) if exc.code == "E-CHK-01" else ""
     reason = (
         f"{exc.code} "
         + ("; ".join(parts) if parts else exc.message)
         + ". Fix it and write again."
+        + (f" {weak}" if weak else "")
         + extra
     )
-    return _finish(ctx, {"decision": "block", "reason": reason[:1000]})
+    return _finish(ctx, {"decision": "block", "reason": reason[:8000]})

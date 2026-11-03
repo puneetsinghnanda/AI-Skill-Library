@@ -1,0 +1,26 @@
+schema: eval-case.v1
+id: EC-11
+title: 'The time zone was answered in an earlier run of the ticket: reused and cited, not asked again'
+kind: edge
+inputs:
+  ticket: inputs/ticket.md
+  intent_baseline: inputs/intent-baseline.md
+  glossary: inputs/glossary.md
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+    H4: pass
+    H5: pass
+  assert:
+  - path: questions[].text
+    none_matches: (?i)time ?zone|\butc\b|local time
+  - path: requirements[].cites[]
+    any_matches: runs/run_01JA9AAAAAAAAAAAAAAAAAAAAA/ide-answers\.md#a-01$
+provenance: invented
+attestation:
+  by: skill-owner-3b7e
+  statement: All inputs are invented for an invented system; no client material was used.

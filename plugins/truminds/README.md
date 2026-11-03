@@ -66,17 +66,17 @@ Every command skill sets `disable-model-invocation: true`, so only a person typi
 
 | Skill | Code | Role | Phase | Output | Version | Status | Eval cases |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `requirement-review` (reference, SDD-01 §13) | RR | business-analyst | requirements | `intent.v1` | 1.0.0 | draft | 10 |
-| `story-split` | SS | business-analyst | requirements | `stories.v1` | 1.1.0 | production | 12 |
-| `impact-analysis` | IA | solution-architect | design | `impact.v1` | 1.2.0 | production | 11 |
-| `design` | DS | solution-architect | design | `design.v1` | 1.6.0 | production | 12 |
-| `implement` | IM | developer | build | code + `change.v1` | 1.0.1 | production | 10 |
-| `unit-test` | UT | developer | build | tests + `ut-result.v1` | 1.0.1 | production | 10 |
+| `requirement-review` (reference, SDD-01 §13) | RR | business-analyst | requirements | `intent.v1` | 1.2.0 | draft | 13 |
+| `story-split` | SS | business-analyst | requirements | `stories.v1` | 1.2.0 | production | 15 |
+| `impact-analysis` | IA | solution-architect | design | `impact.v1` | 1.3.0 | production | 14 |
+| `design` | DS | solution-architect | design | `design.v1` | 1.7.0 | production | 15 |
+| `implement` | IM | developer | build | code + `change.v1` | 1.1.0 | production | 13 |
+| `unit-test` | UT | developer | build | tests + `ut-result.v1` | 1.1.0 | production | 13 |
 | `defect-triage` | DT | developer | operate | `triage.v1` | 1.0.1 | production | 10 |
-| `test-plan` | TP | qa-engineer | test | `test-plan.v1` | 1.0.1 | production | 10 |
+| `test-plan` | TP | qa-engineer | test | `test-plan.v1` | 1.1.0 | production | 13 |
 | `test-automation` | TA | qa-engineer | test | test code + `test-result.v1` | 1.0.1 | pilot | 10 |
-| `threat-model` | TM | security | design | `threat-model.v1` | 1.0.1 | production | 10 |
-| `secure-code-review` | SC | security | build | `secure-review.v1` | 1.0.1 | production | 10 |
+| `threat-model` | TM | security | design | `threat-model.v1` | 1.1.0 | production | 13 |
+| `secure-code-review` | SC | security | build | `secure-review.v1` | 1.1.0 | production | 13 |
 | `pipeline-review` | PL | devops | operate | `pipeline-review.v1` | 1.0.1 | pilot | 10 |
 | `deployment-failure-analysis` | DF | devops | operate | `deploy-failure.v1` | 1.0.1 | pilot | 10 |
 | `ux-flow-review` | UF | ux-designer | design | `ux-flow.v1` | 1.0.1 | pilot | 10 |

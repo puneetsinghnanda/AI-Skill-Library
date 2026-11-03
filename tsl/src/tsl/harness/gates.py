@@ -166,7 +166,8 @@ def h1(ci: CheckInput) -> GateResult:
         if citations.parse(ref_of(c), ci.repos) is None:
             g.fail(
                 "E-H1-05",
-                f"citation {ref_of(c)[:120]} at /{where} does not match the format",
+                f"citation {ref_of(c)[:120]} at /{where} does not match the format "
+                f"({citations.format_error(ref_of(c), ci.repos).split(': ', 1)[-1]})",
                 "GEN-CITE-01",
             )
     return g

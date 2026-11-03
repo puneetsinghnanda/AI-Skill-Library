@@ -2,7 +2,7 @@
 # evals: 10 cases with the SDD-01 §10.3 mix (GAP-03); a signed eval result is still needed (SKL-V13).
 schema: skill-metadata.v1
 id: threat-model
-version: 1.0.1
+version: 1.1.0
 agent: security
 status: production
 owner: skill-owner-8b5d

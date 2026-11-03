@@ -1,0 +1,24 @@
+schema: eval-case.v1
+id: EC-12
+title: 'Where status changes are stored is in the baseline: cited as a fact, not asked'
+kind: edge
+inputs:
+  ticket: inputs/ticket.md
+  intent_baseline: inputs/intent-baseline.md
+  glossary: inputs/glossary.md
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+    H4: pass
+    H5: pass
+  assert:
+  - path: questions[].text
+    none_matches: (?i)(stor|record|kept|keep|table).*(status|change|history)
+provenance: invented
+attestation:
+  by: skill-owner-3b7e
+  statement: All inputs are invented for an invented system; no client material was used.

@@ -2,7 +2,7 @@
 # evals: 11 cases with the SDD-01 §10.3 mix (GAP-03); a signed eval result is still needed (SKL-V13).
 schema: skill-metadata.v1
 id: impact-analysis
-version: 1.2.0
+version: 1.3.0
 agent: solution-architect
 status: production
 owner: skill-owner-5e2a

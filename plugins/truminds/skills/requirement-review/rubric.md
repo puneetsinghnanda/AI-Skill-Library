@@ -22,6 +22,7 @@ severity_triggers:
   - Ordering
   - A missing Out-of-scope reason
   - Glossary inconsistency
+  - Question asked that the context pack or product code answers
 ---
 
 # Rubric: requirement-review
@@ -58,6 +59,7 @@ differs from the ticket or the baseline.
 - When the answer differs from the ticket or baseline, the artifact records the difference
   in that answer's `mismatch`. A missing `mismatch` is a minor finding, never major.
 | Minor | Wording, ordering, a missing Out-of-scope reason, glossary inconsistency |
+| Minor | Question asked that the context pack or product code answers: each such question is one finding; cite the fact or line that answers it |
 
 ## Citations
 

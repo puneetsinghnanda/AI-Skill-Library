@@ -64,6 +64,7 @@ class Decision:
     rerun_step: str | None = None
     questions: list[dict[str, Any]] = field(default_factory=list)
     s3_note: str | None = None
+    unverified_claims: list[dict[str, str]] = field(default_factory=list)
 
 
 def _sensitive(path: str, globs: list[str]) -> bool:
@@ -121,7 +122,11 @@ def verify_findings(inp: DecideInput) -> tuple[list[dict[str, Any]], list[dict[s
 
 
 def verify_claims(inp: DecideInput) -> tuple[int, int, bool]:
-    claims = inp.front.get("claims", []) or []
+    total, verified, format_only, _ = verify_claims_detail(inp)
+    return total, verified, format_only
+
+
+def _unsupported_by_review(inp: DecideInput) -> set[str]:
     unsupported: set[str] = set()
     if inp.review and inp.review.get("status") == "ok":
         for cc in inp.review.get("claims_checked", []):
@@ -137,30 +142,33 @@ def verify_claims(inp: DecideInput) -> tuple[int, int, bool]:
                     ok = True
             if ok:
                 unsupported.add(str(cc["claim_id"]))
+    return unsupported
+
+
+def verify_claims_detail(
+    inp: DecideInput,
+) -> tuple[int, int, bool, list[dict[str, str]]]:
+    """Claims verified, plus {id, reason} for each claim that did not verify (B6).
+
+    A claim verifies when every cite resolves and each backticked key term is found in at least
+    one of its cites (citations.verify_claim). A claim the reviewer showed unsupported, with a
+    quote that verifies, does not count."""
+    claims = inp.front.get("claims", []) or []
+    unsupported = _unsupported_by_review(inp)
     verified = 0
     format_only = False
+    failed: list[dict[str, str]] = []
     for cl in claims:
-        cites = cl.get("cites") or []
-        good = bool(cites)
-        fo = False
-        for c in cites:
-            ref = str(c["ref"]) if isinstance(c, dict) else str(c)
-            quote = str(c["quote"]) if isinstance(c, dict) else None
-            cite = citations.parse(ref, inp.repos)
-            if cite is None:
-                good = False
-                break
-            r = citations.verify(
-                cite, quote, citations.elements_of(cl), inp.resolver, inp.generated
-            )
-            if not r.ok:
-                good = False
-                break
-            fo = fo or r.format_only
-        if good and str(cl.get("id")) not in unsupported:
+        r = citations.verify_claim(cl, inp.resolver, inp.repos, inp.generated)
+        cid = str(cl.get("id"))
+        if r.ok and cid in unsupported:
+            r = citations.CiteResult(False, "reviewer: unsupported")
+        if r.ok:
             verified += 1
-            format_only = format_only or fo
-    return len(claims), verified, format_only
+            format_only = format_only or r.format_only
+        else:
+            failed.append({"id": cid, "reason": (r.reason or "not verified")[:200]})
+    return len(claims), verified, format_only, failed
 
 
 def _evidence_ok(inp: DecideInput, refs: list[Any]) -> bool:
@@ -317,7 +325,7 @@ def evaluate(inp: DecideInput) -> Decision:
     failed = [g["id"] for g in inp.checks["gates"] if g.get("status") == "fail"]
     codes = [c for g in inp.checks["gates"] for c in g.get("codes", [])]
     kept, dropped, fo_f = verify_findings(inp)
-    total, verified, fo_c = verify_claims(inp)
+    total, verified, fo_c, unverified = verify_claims_detail(inp)
     denom = total + len(kept) + len(dropped)
     s1 = 1.0 if denom == 0 else round((verified + len(kept)) / denom, 4)
     soft = [x for x in inp.checks.get("soft", [])]
@@ -364,6 +372,7 @@ def evaluate(inp: DecideInput) -> Decision:
             row,
             questions=questions,
             s3_note=note,
+            unverified_claims=unverified,
             **kw,
         )
 

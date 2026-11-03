@@ -109,6 +109,14 @@ def _ide_answers_rel(env: CheckEnv) -> str | None:
     return ide_answers_path(run_id) if run_id else None
 
 
+def _prior_answer_log(env: CheckEnv, path: str) -> bool:
+    """runs/<run_id>/ide-answers.md of another run (data.prior_answers, B3). Only the post-tool
+    hook writes these files, so a cite of one is the user's own earlier answer."""
+    from tsl.harness.citations import IDE_ANSWERS
+
+    return bool(IDE_ANSWERS.match(path)) and (env.root / path).is_file()
+
+
 def c_cites_present(env: CheckEnv, w: dict[str, Any]) -> str | None:
     items = list(env.front.get("requirements", [])) + list(env.front.get("claims", []))
     allowed = set(env.input_paths)
@@ -121,7 +129,7 @@ def c_cites_present(env: CheckEnv, w: dict[str, Any]) -> str | None:
             return f"{it.get('id')} has no citation"
         for c in cites:
             p = _cite_path(c)
-            if not (p in allowed or p.startswith("context/")):
+            if not (p in allowed or p.startswith("context/") or _prior_answer_log(env, p)):
                 return f"{it.get('id')} cites {p}, not a declared input"
     return None
 
@@ -192,6 +200,9 @@ def c_answers_logged(env: CheckEnv, w: dict[str, Any]) -> str | None:
     - every answer is used: it decides at least one requirement (an answered assumption
       decides its own REQ), unless the answer left its question open ("don't know"), in
       which case it decides none and the question stays in questions[].
+    An item may also cite an answer logged for an earlier step of the same run (a decision
+    already made upstream); it must exist in the log and is not listed in answers[].
+    Every failure is reported, joined by "; ", so one write can fix them all.
     The answer wins over the ticket and baseline; the artifact records any difference in
     the answer's `mismatch`, which is not checked here.
 
@@ -229,37 +240,48 @@ def c_answers_logged(env: CheckEnv, w: dict[str, Any]) -> str | None:
             str(c["ref"] if isinstance(c, dict) else c).lower() == want for c in r.get("cites", [])
         )
 
+    fails: list[str] = []
     for a in answers:
         aid = str(a.get("id"))
         e = logged.get(aid)
         if e is None:
-            return f"{aid} is not an answer the user gave for step {step} (see {ide})"
+            fails.append(f"{aid} is not an answer the user gave for step {step} (see {ide})")
+            continue
         if ide_answers.norm(a.get("answer")) != ide_answers.norm(e.get("answer")):
-            return f"{aid} answer differs from the recorded answer"
+            fails.append(f"{aid} answer differs from the recorded answer")
         about, decided = a.get("about"), [str(x) for x in (a.get(field_name) or [])]
         if about in open_q and decided:
-            return f"{about} was answered in {aid} but is still an open question"
+            fails.append(f"{about} was answered in {aid} but is still an open question")
         if about not in open_q and not decided:
-            return f"{aid} is not used: it decides no {noun} and {about} is not kept open"
+            fails.append(f"{aid} is not used: it decides no {noun} and {about} is not kept open")
         if a.get("kind") == "assumption" and about not in decided:
-            return f"{aid} answers the assumption in {about} but does not decide it"
+            fails.append(f"{aid} answers the assumption in {about} but does not decide it")
         for rid in decided:
             if rid not in reqs:
-                return f"{aid} names {rid}, which is not {a_noun}"
-            if not cites_answer(reqs[rid], aid):
-                return f"{rid} does not cite {ide}#{aid.lower()}"
+                fails.append(f"{aid} names {rid}, which is not {a_noun}")
+            elif not cites_answer(reqs[rid], aid):
+                fails.append(f"{rid} does not cite {ide}#{aid.lower()}")
     for e in log:
         if e.get("step") == step and e["attempt"] == attempt and e["id"] not in listed:
-            return f"{e['id']} was answered by the user but is not in answers"
+            fails.append(f"{e['id']} was answered by the user but is not in answers")
+    # Cites of the log: an answer of this step must be listed in answers[]; an answer logged
+    # for an earlier step of the same run may be cited as a decision already made (B2).
+    by_id = {str(e["id"]).upper(): e for e in log}
     prefix = f"{ide}#".lower() if ide else None
     for r in reqs.values():
         for c in r.get("cites") or []:
             ref = str(c["ref"] if isinstance(c, dict) else c)
-            if prefix and ref.lower().startswith(prefix):
-                aid = ref.split("#", 1)[1].upper()
-                if aid not in listed:
-                    return f"{r['id']} cites {aid}, which is not listed in answers"
-    return None
+            if not (prefix and ref.lower().startswith(prefix)):
+                continue
+            aid = ref.split("#", 1)[1].upper()
+            if aid in listed:
+                continue
+            e = by_id.get(aid)
+            if e is None:
+                fails.append(f"{r['id']} cites {aid}, which is not in {ide}")
+            elif e.get("step") == step:
+                fails.append(f"{r['id']} cites {aid}, which is not listed in answers")
+    return "; ".join(dict.fromkeys(fails)) or None
 
 
 def c_assumed_basis(env: CheckEnv, w: dict[str, Any]) -> str | None:

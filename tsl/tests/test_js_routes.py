@@ -59,3 +59,34 @@ def test_default_import_and_require_still_resolve() -> None:
         }
     )
     assert {"http:POST:/api/orders", "http:GET:/x/y"} <= ids
+
+
+def test_api_helper_and_base_url_calls_are_client_facts() -> None:
+    # B7: "which page calls GET /api/patients" is answered by a call fact, not a question.
+    page = (
+        "import { api } from '../lib/api';\n"
+        "export function PatientsPage() {\n  return api.get('/api/patients');\n}\n"
+        "const r = fetch(`${API_BASE}/api/visits`, { method: 'POST' });\n"
+        "router.get('/x', h);\n"
+    )
+    facts = JsRoutes().extract(FakeView({"web/src/pages/Patients.tsx": page})).facts  # type: ignore[arg-type]
+    by_id = {f["id"]: f for f in facts}
+    assert by_id["call:GET:/api/patients"]["source"]["path"] == "web/src/pages/Patients.tsx"
+    assert by_id["call:GET:/api/patients"]["client"] == "api"
+    assert by_id["call:POST:/api/visits"]["confidence"] == "partial"
+    assert not any(i.startswith("call:GET:/x") for i in by_id)
+
+
+def test_type_declarations_are_symbol_facts() -> None:
+    from tsl.context.extractors import RepoTree
+
+    src = (
+        "export interface PatientRow {\n  id: string;\n  lastVisitOn: string | null;\n}\n"
+        "export type PatientId = string;\nenum Kind { A, B }\n"
+    )
+    facts = RepoTree().extract(FakeView({"api/src/types.ts": src})).facts  # type: ignore[arg-type]
+    syms = {f["name"]: f for f in facts if f["kind"] == "symbol"}
+    assert syms["PatientRow"]["decl"] == "interface"
+    assert (syms["PatientRow"]["source"]["line"], syms["PatientRow"]["end_line"]) == (1, 4)
+    assert syms["PatientId"]["decl"] == "type" and syms["PatientId"]["end_line"] == 5
+    assert syms["Kind"]["decl"] == "enum"
