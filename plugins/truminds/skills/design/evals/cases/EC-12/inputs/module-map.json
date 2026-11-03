@@ -1,0 +1,92 @@
+{
+  "schema": "context-facts.v1",
+  "section": "module-map",
+  "extractor": {
+    "name": "js-module",
+    "version": "1.0.0"
+  },
+  "sources": {
+    "sample-orders": "c4d2f1eb943933a8bf884b1c3c44d5e8ac720c74"
+  },
+  "empty_reason": null,
+  "facts": [
+    {
+      "id": "module:sample-orders:api/src/orders",
+      "kind": "module",
+      "source": {
+        "repo": "sample-orders",
+        "path": "api/src/orders/index.js",
+        "line": 1
+      }
+    },
+    {
+      "id": "module:sample-orders:api/src/jobs",
+      "kind": "module",
+      "source": {
+        "repo": "sample-orders",
+        "path": "api/src/jobs/index.js",
+        "line": 1
+      }
+    },
+    {
+      "id": "module:sample-orders:api/src/notes",
+      "kind": "module",
+      "source": {
+        "repo": "sample-orders",
+        "path": "api/src/notes/index.js",
+        "line": 1
+      }
+    },
+    {
+      "id": "module:sample-orders:api/src/customers",
+      "kind": "module",
+      "source": {
+        "repo": "sample-orders",
+        "path": "api/src/customers/index.js",
+        "line": 1
+      }
+    },
+    {
+      "id": "module:sample-orders:web/src/orders",
+      "kind": "module",
+      "source": {
+        "repo": "sample-orders",
+        "path": "web/src/orders/index.jsx",
+        "line": 1
+      }
+    },
+    {
+      "id": "sym:sample-orders:api/src/types.js:ORDER_STATUSES",
+      "kind": "symbol",
+      "name": "ORDER_STATUSES",
+      "source": {
+        "repo": "sample-orders",
+        "path": "api/src/types.js",
+        "line": 3
+      },
+      "end_line": 9
+    },
+    {
+      "id": "sym:sample-orders:api/src/orders/list.js:listOrders",
+      "kind": "symbol",
+      "name": "listOrders",
+      "source": {
+        "repo": "sample-orders",
+        "path": "api/src/orders/list.js",
+        "line": 12
+      },
+      "end_line": 40
+    },
+    {
+      "id": "sym:sample-orders:web/src/orders/OrderList.jsx:OrderList",
+      "kind": "symbol",
+      "name": "OrderList",
+      "source": {
+        "repo": "sample-orders",
+        "path": "web/src/orders/OrderList.jsx",
+        "line": 8
+      },
+      "end_line": 64
+    }
+  ]
+}

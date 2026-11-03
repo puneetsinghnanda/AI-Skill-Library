@@ -79,6 +79,55 @@
               "existing",
               "removed"
             ]
+          },
+          "fields": {
+            "type": "array",
+            "description": "Optional contract of a new or changed endpoint: one entry per new or changed field of the request or response. Optional so design.v1 stays backward compatible; design.contract-stated requires at least one entry when change is new or changed.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "type",
+                "nullable",
+                "status"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "type": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                "nullable": {
+                  "type": "boolean"
+                },
+                "format": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "example": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean",
+                    "null"
+                  ],
+                  "maxLength": 200
+                },
+                "status": {
+                  "enum": [
+                    "known",
+                    "assumed"
+                  ]
+                }
+              }
+            }
           }
         }
       }

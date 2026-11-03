@@ -21,6 +21,10 @@ checks:
   key:
   - method
   - path
+- id: DS-C01                          # contract-stated: every new or changed endpoint lists >= 1 fields entry
+  uses: contract.stated
+  gate: H4
+  with: {items: endpoints, field: fields, change: [new, changed]}
 - id: design.claims-cited
   kind: cites-required
   gate: soft
