@@ -265,6 +265,18 @@ def c_assumed_basis(env: CheckEnv, w: dict[str, Any]) -> str | None:
     return None
 
 
+def c_contract_stated(env: CheckEnv, w: dict[str, Any]) -> str | None:
+    """Every endpoint whose change is new or changed states its contract: at least one entry in
+    `fields` (design.v1 endpoints[].fields). Existing and removed endpoints need none."""
+    items, key = str(w.get("items", "endpoints")), str(w.get("field", "fields"))
+    changes = list(w.get("change") or ["new", "changed"])
+    for e in env.front.get(items) or []:
+        if isinstance(e, dict) and e.get("change") in changes and not e.get(key):
+            name = f"{e.get('method', '')} {e.get('path', '')}".strip() or str(e.get("name"))
+            return f"{name} is {e.get('change')} but states no {key}"
+    return None
+
+
 def c_glossary_terms(env: CheckEnv, w: dict[str, Any]) -> str | None:
     p = env.root / "context" / "glossary.md"
     if not p.is_file():
@@ -313,6 +325,7 @@ LIBRARY: dict[str, Fn] = {
     "questions.linked": c_questions_linked,
     "answers.logged": c_answers_logged,
     "assumed.basis": c_assumed_basis,
+    "contract.stated": c_contract_stated,
     "glossary.terms": c_glossary_terms,
     "text.vague_terms": c_vague_terms,
     "size.limits": c_size_limits,
