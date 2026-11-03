@@ -148,6 +148,21 @@ def run_h3(
     return g, verifier
 
 
+def _retry_from_feedback(fb: dict[str, Any]) -> dict[str, Any]:
+    """data.retry for attempt N+1 from the feedback.v1 that tsl decide wrote at attempt N.
+    `dropped` lists the findings decide dropped (cite not verified) with their text, so the
+    skill can still fix a real issue the reviewer may raise again; set only when there are any."""
+    retry: dict[str, Any] = {
+        "failures": [{"gate": f["id"], "detail": f["detail"]} for f in fb["gate_failures"]],
+        "findings": fb["findings"],
+    }
+    if fb.get("comment"):
+        retry["comment"] = fb["comment"]
+    if fb.get("dropped_findings"):
+        retry["dropped"] = fb["dropped_findings"]
+    return retry
+
+
 def _with_log(s: StepResult, outdir: Path, rel_dir: str) -> str:
     """Failure detail plus the step log path and its last lines, so the retry can fix it."""
     if not s.log:
@@ -494,13 +509,7 @@ def verify_inputs(
     if attempt["n"] > 1 and attempt.get("feedback"):
         fb_path = comp.path(str(attempt["feedback"]))
         if fb_path.is_file():
-            fb = read_json(fb_path)
-            retry = {
-                "failures": [{"gate": f["id"], "detail": f["detail"]} for f in fb["gate_failures"]],
-                "findings": fb["findings"],
-            }
-            if fb.get("comment"):
-                retry["comment"] = fb["comment"]
+            retry = _retry_from_feedback(read_json(fb_path))
     envelope = {
         "schema": sk.artifact_output["schema"],
         "run_id": run_id,

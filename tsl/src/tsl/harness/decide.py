@@ -90,7 +90,16 @@ def verify_findings(inp: DecideInput) -> tuple[list[dict[str, Any]], list[dict[s
                 break
             fo = fo or r.format_only
         if reason:
-            dropped.append({"id": str(f["id"]), "reason": reason[:200]})
+            # severity and text go to the next attempt (feedback dropped_findings ->
+            # data.retry.dropped) so a skill can fix a real issue whose cite failed.
+            dropped.append(
+                {
+                    "id": str(f["id"]),
+                    "reason": reason[:200],
+                    "severity": str(f.get("severity", "minor")),
+                    "text": str(f.get("text", ""))[:300],
+                }
+            )
             continue
         item = {
             "id": str(f["id"]),
