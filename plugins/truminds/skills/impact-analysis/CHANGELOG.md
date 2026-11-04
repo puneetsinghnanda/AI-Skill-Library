@@ -1,5 +1,28 @@
 # Changelog: impact-analysis
 
+## 1.3.0
+- Run HMS-4 (brownfield-change 1.3.0): impact escalated with band Low (S1 0.6, 8 of 14 claims
+  verified) and design used up its checks budget on cite errors; about 8 of 19 questions asked
+  were facts the pack or product code answers, and answered questions were asked again.
+- New section "Look before you ask": reuse answers already given (runs/<run_id>/ide-answers.md
+  and data.prior_answers); only decisions are put to the user in the IDE; facts are looked up in
+  the listed sections, then the generated facts, then the product code at the pinned SHA, and
+  stated as cited claims; only assumptions that cannot be checked are confirmed; trivial names
+  get a default with a one-line trade-off.
+- Inputs: the listed context sections are read first; product code at the pinned SHA may be read
+  when a fact needs it (replaces "Read only these sections ... Never read the whole context pack").
+- New citation rule: valid anchor forms (never <artifact>.md#C7 or manifest.json#...), one
+  verbatim backticked key term per claim, IDE answers cited only when they exist, every decided
+  item cites its answer, resolves[].how repeated word for word in the body.
+- Method step 4: call, ui and sym facts and the product code settle most caller, renderer
+  and type-location questions; only what they cannot settle becomes a question.
+- Rubric: minor trigger "Question asked that the context pack or product code answers" (one
+  finding per such question).
+- Eval cases EC-12, EC-13 and EC-14: an answer already in ide-answers.md is reused, not asked;
+  a fact in the pack is cited, not asked; a claim with a supporting cite uses valid anchors and
+  one key term. MINOR: new rules and eval cases, no output change (SDD-01 §6.2). Needs a
+  signed eval result for this version.
+
 ## 1.2.0
 - Before writing, the skill asks the user every open question and confirms every assumption in
   the IDE (AskUserQuestion), then writes the impact from the answers. Questions cover what the

@@ -213,6 +213,12 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 3
+        },
+        "write": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4,
+          "description": "Fast-check rejections allowed per attempt in the post-write hook, separate from checks (decide-time retries). Optional; the org default is 4."
         }
       }
     },

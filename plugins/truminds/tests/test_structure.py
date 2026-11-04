@@ -396,7 +396,9 @@ def test_requirement_review_eval_set_matches_sdd01_13_6() -> None:
         yaml.safe_load(c.read_text(encoding="utf-8"))["id"]: yaml.safe_load(c.read_text(encoding="utf-8"))
         for c in _cases("requirement-review")
     }
-    assert sorted(cases) == [f"EC-{n:02d}" for n in range(1, 11)]
+    # SDD-01 §13.6 pins EC-01..EC-10; later versions may add cases after them (1.2.0: EC-11..EC-13).
+    assert sorted(cases)[:10] == [f"EC-{n:02d}" for n in range(1, 11)]
+    cases = {k: v for k, v in cases.items() if int(k[3:]) <= 10}
     kinds = {k: v["kind"] for k, v in cases.items()}
     assert kinds == {
         "EC-01": "normal",
@@ -457,6 +459,9 @@ def test_brownfield_change_matches_sdd02_exactly() -> None:
     expected = yaml.safe_load(block)
     actual = dict(workflows()["brownfield-change"])
     assert actual.pop("status") in ("draft", "pilot", "production")  # registry §10 row 24 added `status`
+    # 1.4.0 (HMS-4): a separate post-write budget retry.write; checks stays the decide-time budget.
+    assert actual.pop("version") >= expected.pop("version")
+    assert actual["defaults"]["retry"].pop("write") == 4
     assert actual == expected
 
 

@@ -148,3 +148,67 @@ def test_design_without_ids_or_answers_passes(tmp_path: Path) -> None:
     ]
     f["endpoints"] = [{"method": "GET", "path": "/api/orders", "change": "existing"}]
     assert _run(tmp_path, f) == ("pass", "")
+
+
+# ---- B2: answers logged for an earlier step of the same run; every failure reported
+
+
+def _impact_answer(root: Path) -> None:
+    """A-02: what the user told impact-analysis earlier in the same run."""
+    ide_answers.append(
+        root / LOG,
+        RUN,
+        "impact",
+        1,
+        "t",
+        "Jane <jane@example.com>",
+        "toolu_0",
+        [
+            {
+                "question": "Q-02: Which page renders /patients?",
+                "options": [],
+                "answer": "PatientsPage",
+            }
+        ],
+    )
+
+
+def test_cite_of_an_earlier_step_answer_passes(tmp_path: Path) -> None:
+    # HMS-4: design cited ide-answers.md#a-05, an answer the impact step logged.
+    root = _world(tmp_path)
+    _impact_answer(root)
+    f = _front()
+    f["components"][0]["cites"] = [MOD, f"{LOG}#a-02"]
+    assert _run(root, f) == ("pass", "")
+
+
+def test_cite_of_an_answer_missing_from_the_log_fails(tmp_path: Path) -> None:
+    f = _front()
+    f["components"][0]["cites"] = [MOD, f"{LOG}#a-07"]
+    status, detail = _run(_world(tmp_path), f)
+    assert status == "fail" and detail == f"CO-1 cites A-07, which is not in {LOG}"
+
+
+def test_this_steps_answer_must_still_be_listed(tmp_path: Path) -> None:
+    root = _world(tmp_path)
+    _log(root, [{"question": "Q-03: name?", "options": [], "answer": "x"}], attempt=2)
+    f = _front(attempt=2)
+    f["components"][0]["cites"] = [MOD, f"{LOG}#a-02"]
+    status, detail = _run(root, f)
+    assert status == "fail"
+    assert "CO-1 cites A-02, which is not listed in answers" in detail
+
+
+def test_every_failure_is_reported_not_just_the_first(tmp_path: Path) -> None:
+    f = _front()
+    f["endpoints"][0]["cites"] = [API]  # EP-1 no longer cites its answer
+    f["components"][0]["cites"] = [MOD, f"{LOG}#a-09"]  # cites an answer that does not exist
+    f["answers"].append(
+        {"id": "A-08", "kind": "question", "about": "Q-08", "answer": "x", "decides": ["CO-1"]}
+    )
+    status, detail = _run(_world(tmp_path), f)
+    assert status == "fail"
+    parts = detail.split("; ")
+    assert f"EP-1 does not cite {LOG}#a-01" in parts
+    assert "A-08 is not an answer the user gave for step design (see " + LOG + ")" in parts
+    assert f"CO-1 cites A-09, which is not in {LOG}" in parts

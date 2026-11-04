@@ -30,6 +30,7 @@ severity_triggers:
   - Ordering
   - Existing item marked changed without effect
   - Answer that differs from the facts without a mismatch record
+  - Question asked that the context pack or product code answers
 ---
 # Rubric: impact-analysis
 
@@ -60,6 +61,7 @@ tsl computes S3 as the weighted mean. You never compute it.
 | Minor | Ordering |
 | Minor | Existing item marked changed without effect |
 | Minor | Answer that differs from the facts without a mismatch record |
+| Minor | Question asked that the context pack or product code answers: each such question is one finding; cite the fact or line that answers it |
 
 ## Answers given in the IDE
 

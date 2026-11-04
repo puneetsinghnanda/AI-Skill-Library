@@ -249,7 +249,11 @@ def _record(
             {k: f[k] for k in ("id", "severity", "raised_from") if k in f} for f in d.kept
         ],
         "findings_dropped": [{"id": x["id"], "reason": x["reason"]} for x in d.dropped],
-        "claims": {"total": d.claims_total, "verified": d.claims_verified},
+        "claims": {
+            "total": d.claims_total,
+            "verified": d.claims_verified,
+            **({"unverified": d.unverified_claims} if d.unverified_claims else {}),
+        },
         "signals": signals,
         "band": d.band,
         "outcome": d.outcome,
@@ -605,4 +609,46 @@ def _checkpoint(ctx: RunCtx, step: str, attempt: dict[str, Any]) -> dict[str, st
             out[repo] = g.head()
         except GitError as exc:
             raise exc.tsl() from None
+    return out
+
+
+def unverified_claims(rt: Runtime, comp: Companion, rel: str) -> list[dict[str, str]]:
+    """Claims of an artifact that tsl decide would not count as verified (B6).
+
+    The post-write hook reports these as a soft warning, so weak claims are fixed before the
+    review. Product cites resolve at the run branch head, else the pack commit (no product
+    changes are known yet at write time)."""
+    from tsl.core.frontmatter import split
+    from tsl.orchestrator.run import RunCtx
+
+    m = ARTIFACT_RE.match(rel)
+    if not m:
+        return []
+    ctx = RunCtx(rt, comp, m.group("run_id"))
+    front = split(comp.path(rel).read_text(encoding="utf-8")).front
+    claims = front.get("claims") or []
+    if not claims:
+        return []
+    pack = ctx.state.get("pack") or {}
+    shas = dict(pack.get("source_sha") or {})
+    shas.update({k: v for k, v in (front.get("pack_sha") or {}).items()})
+    shas.update(
+        {
+            r: str(b["head_sha"])
+            for r, b in (ctx.state.get("branch") or {}).items()
+            if b.get("head_sha")
+        }
+    )
+    cfg = comp.config
+    repos = {r.name for r in cfg.product_repos} | {str(r["name"]) for r in cfg.read_only_repos}
+    gen_mm = comp.path("context/generated/module-map.json")
+    generated = read_json(gen_mm) if gen_mm.is_file() else None
+    resolver = citations.Resolver(comp.root, comp.local_paths(), shas)
+    out: list[dict[str, str]] = []
+    for cl in claims:
+        if not isinstance(cl, dict):
+            continue
+        r = citations.verify_claim(cl, resolver, repos, generated)
+        if not r.ok:
+            out.append({"id": str(cl.get("id")), "reason": (r.reason or "not verified")[:200]})
     return out

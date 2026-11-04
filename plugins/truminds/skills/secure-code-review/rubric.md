@@ -27,6 +27,7 @@ severity_triggers:
   minor:
   - Wording
   - Severity one level off
+  - Question asked that the context pack or product code answers
 ---
 # Rubric: secure-code-review
 
@@ -54,6 +55,7 @@ tsl computes S3 as the weighted mean. You never compute it.
 | Major | Scan not attached |
 | Minor | Wording |
 | Minor | Severity one level off |
+| Minor | Question asked that the context pack or product code answers: each such question is one finding; cite the fact or line that answers it |
 
 ## Citations
 

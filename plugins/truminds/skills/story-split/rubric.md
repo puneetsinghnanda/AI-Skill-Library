@@ -31,6 +31,7 @@ severity_triggers:
   - Story order
   - Title not user-facing
   - Two ACs in different stories share the same Given and Then
+  - Question asked that the context pack or product code answers
 ---
 # Rubric: story-split
 
@@ -62,6 +63,7 @@ tsl computes S3 as the weighted mean. You never compute it.
 | Minor | Story order |
 | Minor | Title not user-facing |
 | Minor | Two ACs in different stories share the same Given and Then |
+| Minor | Question asked that the context pack or product code answers: each such question is one finding; cite the fact or line that answers it |
 
 ## Citations
 

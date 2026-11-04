@@ -27,6 +27,7 @@ severity_triggers:
   minor:
   - Wording
   - Ordering
+  - Question asked that the context pack or product code answers
 ---
 # Rubric: threat-model
 
@@ -54,6 +55,7 @@ tsl computes S3 as the weighted mean. You never compute it.
 | Major | Exploit detail included |
 | Minor | Wording |
 | Minor | Ordering |
+| Minor | Question asked that the context pack or product code answers: each such question is one finding; cite the fact or line that answers it |
 
 ## Citations
 

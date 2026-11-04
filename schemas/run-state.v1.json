@@ -441,6 +441,11 @@
                 },
                 "accepted_default": {
                   "type": "boolean"
+                },
+                "write_rejects": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Fast-check rejections of this attempt in the post-write hook; counted against retry.write, not retry.checks. Optional (additive)."
                 }
               }
             }

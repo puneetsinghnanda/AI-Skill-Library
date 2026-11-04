@@ -213,3 +213,22 @@ def test_without_with_params_impact_items_are_not_decidable(tmp_path: Path) -> N
     env = CheckEnv(f, "", _world(tmp_path), [INTENT], {}, {"intent": INTENT})
     (o,) = run_declared(env, checks)
     assert o.status == "fail" and o.detail == f"A-01 names {REORDER}, which is not a requirement"
+
+
+def test_impact_cites_a_requirement_review_answer(tmp_path: Path) -> None:
+    """B2: an answer the req step logged may be cited by impact as a decision already made."""
+    root = _world(tmp_path)
+    ide_answers.append(
+        root / LOG,
+        RUN,
+        "req",
+        1,
+        "t",
+        "Jane <jane@example.com>",
+        "toolu_0",
+        [{"question": "Q-01: Date only?", "options": [], "answer": "Date only, no time"}],
+    )
+    f = _front()
+    f["claims"] = [{"id": "C1", "text": "The value is a date", "cites": [f"{LOG}#a-02"]}]
+    out = run_declared(CheckEnv(f, "", root, [INTENT], {}, {"intent": INTENT}), CHECKS)
+    assert [(o.status, o.detail) for o in out] == [("pass", "")]

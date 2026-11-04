@@ -1,0 +1,25 @@
+schema: eval-case.v1
+id: EC-11
+title: 'Where the notes tests go was answered earlier in the run: reused, not asked again'
+kind: edge
+inputs:
+  change: inputs/change.md
+  test_strategy: inputs/test-strategy.md
+  test_layout: inputs/test-layout.json
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H3: pass
+    H5: pass
+  assert:
+  - path: questions[].text
+    none_matches: (?i)where|location|file
+  - path: code[].files[]
+    any_matches: ^api/test/notes\.test\.js$
+provenance: invented
+attestation:
+  by: skill-owner-6f3b
+  statement: All inputs are invented for an invented system; no client material was used.

@@ -1,0 +1,32 @@
+{
+  "schema": "context-facts.v1",
+  "section": "test-layout",
+  "extractor": {
+    "name": "js-test",
+    "version": "1.0.0"
+  },
+  "sources": {
+    "sample-orders": "69a28f92e859d61ce734c81b2c3a259f7e65493e"
+  },
+  "empty_reason": null,
+  "facts": [
+    {
+      "id": "test:sample-orders:api/test/orders.test.js",
+      "kind": "test",
+      "source": {
+        "repo": "sample-orders",
+        "path": "api/test/orders.test.js",
+        "line": 1
+      }
+    },
+    {
+      "id": "test:sample-orders:web/src/orders/OrderPage.test.jsx",
+      "kind": "test",
+      "source": {
+        "repo": "sample-orders",
+        "path": "web/src/orders/OrderPage.test.jsx",
+        "line": 1
+      }
+    }
+  ]
+}

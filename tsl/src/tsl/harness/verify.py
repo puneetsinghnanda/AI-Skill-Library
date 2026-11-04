@@ -372,6 +372,7 @@ def verify_artifact(
                 "status": g["status"],
                 "codes": g["codes"],
                 "detail": g["detail"],
+                "details": list(run.gates[g["id"]].details),
             }
             for g in rec["gates"]
         ],
@@ -555,6 +556,9 @@ def verify_inputs(
     scans = _upstream_scans(comp, out_inputs)
     if scans:
         data["scans"] = scans
+    prior = prior_answers(comp, run_id, ctx.ticket, step, int(attempt["n"]))
+    if prior:
+        data["prior_answers"] = prior
     if status == "missing" and ctx.requires_fresh_pack:
         raise TslError("E-CTX-01", detail="", data=data)
     if missing:
@@ -562,6 +566,56 @@ def verify_inputs(
     if stale:
         raise TslError("E-IN-02", artifact=stale[0][0], step=stale[0][1], data=data)
     return data
+
+
+PRIOR_ENDS = ("completed", "pr_opened", "cancelled", "aborted", "lock_released", "rejected")
+PRIOR_MAX = 200
+
+
+def prior_answers(
+    comp: Companion, run_id: str, ticket: str, step: str, attempt: int
+) -> list[dict[str, Any]]:
+    """Answers the user already gave (B3): earlier steps and attempts of this run, then ended
+    runs of the same ticket, newest run first. Each entry carries the cite to use."""
+    from tsl.approvals import ide_answers
+    from tsl.core.paths import ide_answers_path
+    from tsl.state.store import all_runs, read_state_raw
+
+    def entries(rid: str, this_run: bool, end: str | None) -> list[dict[str, Any]]:
+        rel = ide_answers_path(rid)
+        out = []
+        for e in ide_answers.read(comp.path(rel)):
+            if this_run and e.get("step") == step and int(e.get("attempt", 0)) >= attempt:
+                continue  # this attempt's own answers come back from the post-tool hook
+            item = {
+                "run_id": rid,
+                "id": e["id"],
+                "step": e.get("step"),
+                "attempt": e.get("attempt"),
+                "question": e.get("question", ""),
+                "answer": e.get("answer", ""),
+                "cite": f"{rel}#{e['id'].lower()}",
+                "this_run": this_run,
+            }
+            if end:
+                item["run_end"] = end
+            out.append(item)
+        return out
+
+    found = entries(run_id, True, None)
+    others: list[tuple[str, str, str]] = []
+    for rid in all_runs(comp):
+        if rid == run_id:
+            continue
+        st = read_state_raw(comp, rid) or {}
+        if st.get("ticket") != ticket or st.get("status") != "COMPLETED":
+            continue
+        end = str(st.get("end_reason") or "")
+        if end in PRIOR_ENDS:
+            others.append((str(st.get("updated_at") or ""), rid, end))
+    for _, rid, end in sorted(others, reverse=True):
+        found.extend(entries(rid, False, end))
+    return found[:PRIOR_MAX]
 
 
 def _upstream_scans(comp: Companion, inputs: list[dict[str, Any]]) -> list[dict[str, Any]]:

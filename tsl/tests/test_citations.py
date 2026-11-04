@@ -201,3 +201,117 @@ def test_claims_verified_and_unsupported(repo: tuple[Path, Path, str]) -> None:
     d = _decide(comp, clone, sha, [], claims)
     assert (d.claims_total, d.claims_verified) == (3, 1)
     assert d.signals["S1"] == round(1 / 3, 4)
+
+
+# ---- B1/B4/B6: a claim verifies when every cite resolves and each key term is in one cite
+
+RUN = "run_01JA0B3C4D5E6F7G8H9JKMNPQR"
+LOG = f"runs/{RUN}/ide-answers.md"
+IMPACT = f"artifacts/T-1/{RUN}/impact.md"
+
+
+@pytest.fixture
+def world(repo: tuple[Path, Path, str]) -> tuple[Path, Path, str]:
+    comp, clone, sha = repo
+    from tsl.approvals import ide_answers
+
+    ide_answers.append(
+        comp / LOG,
+        RUN,
+        "impact",
+        1,
+        "t",
+        "Jane <jane@example.com>",
+        "toolu_1",
+        [{"question": "Q-01: Which pages call it?", "options": ["A"], "answer": "Only the list"}],
+    )
+    (comp / IMPACT).parent.mkdir(parents=True)
+    (comp / IMPACT).write_text(
+        "---\nschema: impact.v1\nclaims:\n- id: C7\n  text: Rows are typed by `PatientRow`\n"
+        "  cites: [context/data-model.md#orders]\nmodules:\n- id: module:orders-api:src\n"
+        "  change: changed\n---\n# Impact\n",
+        encoding="utf-8",
+    )
+    return comp, clone, sha
+
+
+def _claim(r: cit.Resolver, text: str, *cites: Any) -> cit.CiteResult:
+    return cit.verify_claim({"id": "C1", "text": text, "cites": list(cites)}, r, REPOS)
+
+
+def test_supporting_cite_no_longer_fails_a_good_claim(world: tuple[Path, Path, str]) -> None:
+    comp, clone, sha = world
+    r = cit.Resolver(comp, {"orders-api": clone}, {"orders-api": sha})
+    # HMS-4 impact: the key term is in the first cite; the second cite is a supporting fact.
+    assert _claim(
+        r,
+        "Order events are kept `24 hours`",
+        "context/data-model.md#retention",
+        "context/data-model.md#orders",
+    ).ok
+    # An ide-answers cite must exist but needs no key term of its own.
+    assert _claim(
+        r, "Order events are kept `24 hours`", "context/data-model.md#retention", f"{LOG}#a-01"
+    ).ok
+    # Each key term must be in at least one cite.
+    res = _claim(
+        r,
+        "`orders` keep events `90 days`",
+        "context/data-model.md#retention",
+        "context/data-model.md#orders",
+    )
+    assert not res.ok and res.reason == "element absent: `90 days` is in none of the cites"
+
+
+def test_every_cite_must_resolve(world: tuple[Path, Path, str]) -> None:
+    comp, clone, sha = world
+    r = cit.Resolver(comp, {"orders-api": clone}, {"orders-api": sha})
+    res = _claim(r, "Kept `24 hours`", "context/data-model.md#retention", f"{LOG}#a-09")
+    assert not res.ok and res.reason == f"{LOG}#a-09: anchor not found"
+    res = _claim(r, "Kept `24 hours`", "context/data-model.md#retention", "context/nope.md#x")
+    assert not res.ok and str(res.reason).endswith("path not found")
+    # HMS-4: context/manifest.json#sources is a slug on a JSON file, which has no headings.
+    (comp / "context" / "manifest.json").write_text('{"sources": []}', encoding="utf-8")
+    res = _claim(r, "Kept `24 hours`", "context/manifest.json#sources")
+    assert not res.ok and "anchor not found" in str(res.reason)
+    # Product code at the pinned SHA is a valid source (A2).
+    assert _claim(r, "Reads `order_archive`", "orders-api:src/orders.js#L45").ok
+    res = _claim(r, "Kept `24 hours`", "context/data-model.md#retention")
+    assert res.ok
+
+
+def test_upstream_artifact_item_anchor(world: tuple[Path, Path, str]) -> None:
+    comp, clone, sha = world
+    r = cit.Resolver(comp, {"orders-api": clone}, {"orders-api": sha})
+    assert cit.parse(f"{IMPACT}#C7", REPOS) is None  # upper case is not a slug
+    assert cit.parse(f"{IMPACT}#claim:C7", REPOS) is not None
+    assert _claim(r, "Rows use `PatientRow`", f"{IMPACT}#claim:C7").ok
+    assert _claim(r, "`module:orders-api:src` changes", f"{IMPACT}#item:module:orders-api:src").ok
+    res = _claim(r, "Rows use `PatientRow`", f"{IMPACT}#claim:C9")
+    assert not res.ok and str(res.reason).endswith("claim C9 not found")
+    # A bad anchor is rejected with the allowed forms named.
+    res = _claim(r, "Rows use `PatientRow`", f"{IMPACT}#C7")
+    assert not res.ok
+    assert f"{IMPACT}#claim:C7" in str(res.reason)
+    assert "heading slug" in cit.format_error("context/a.md#Not_A_Slug", REPOS)
+
+
+def test_unverified_claims_are_listed_with_reasons(world: tuple[Path, Path, str]) -> None:
+    comp, clone, sha = world
+    claims: list[dict[str, Any]] = [
+        {
+            "id": "C1",
+            "text": "Kept `24 hours`",
+            "cites": ["context/data-model.md#retention", f"{LOG}#a-01"],
+        },
+        {"id": "C2", "text": "Kept `90 days`", "cites": ["context/data-model.md#retention"]},
+        {"id": "C3", "text": "Kept `24 hours`", "cites": ["context/data-model.md#nope"]},
+        {"id": "C4", "text": "Kept `24 hours`", "cites": ["impact.md#C7"]},
+    ]
+    d = _decide(comp, clone, sha, [], claims)
+    assert (d.claims_total, d.claims_verified) == (4, 1)
+    reasons = {u["id"]: u["reason"] for u in d.unverified_claims}
+    assert set(reasons) == {"C2", "C3", "C4"}
+    assert reasons["C2"].startswith("element absent")
+    assert reasons["C3"].endswith("anchor not found")
+    assert reasons["C4"].startswith("bad citation format")

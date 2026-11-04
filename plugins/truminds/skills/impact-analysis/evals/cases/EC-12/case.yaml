@@ -1,0 +1,28 @@
+schema: eval-case.v1
+id: EC-12
+title: 'The callers of GET /api/orders were answered at the req step: cited, not asked again'
+kind: edge
+inputs:
+  intent: inputs/intent.md
+  module_map: inputs/module-map.json
+  api_inventory: inputs/api-inventory.json
+  db_schema: inputs/db-schema.json
+  architecture: inputs/architecture.md
+expect:
+  outcome_in:
+  - PASS
+  - PASS-WITH-FINDINGS
+  gates:
+    H1: pass
+    H2: pass
+    H4: pass
+    H5: pass
+  assert:
+  - path: questions[].text
+    none_matches: (?i)\bcall
+  - path: apis[].cites[]
+    any_matches: ide-answers\.md#a-01$
+provenance: invented
+attestation:
+  by: skill-owner-5e2a
+  statement: All inputs are invented for an invented system; no client material was used.

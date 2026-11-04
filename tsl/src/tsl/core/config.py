@@ -34,7 +34,9 @@ ORG_DEFAULTS: dict[str, Any] = {
         "files": 15,
         "sensitive_paths": ["**/auth/**", "**/migrations/**", ".github/**"],
     },
-    "retry": {"checks": 2, "review": 2, "verifier": 3},
+    # write: fast-check rejections in the post-write hook, per attempt (B5); checks stays the
+    # decide-time retry budget.
+    "retry": {"checks": 2, "review": 2, "verifier": 3, "write": 4},
     "max_rework": 2,
     "gates": {"self_approval": False, "lock_timeout_hours": 24},
     "pr": {"branch_prefix": "tsl/", "labels": []},

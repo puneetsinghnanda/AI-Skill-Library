@@ -63,10 +63,12 @@ def module_for(path: str, modules: list[str]) -> str:
 
 
 class RepoTree:
-    name, version, section = "repo-tree", "1.0.0", "module-map"
+    name, version, section = "repo-tree", "1.1.0", "module-map"
     SYM = re.compile(
         r"^\s*(?:export\s+(?:default\s+)?)?(?:async\s+)?(function|class)\s+([A-Za-z_$][\w$]*)"
-        r"|^\s*export\s+const\s+([A-Za-z_$][\w$]*)\s*=",
+        r"|^\s*export\s+const\s+([A-Za-z_$][\w$]*)\s*="
+        # 1.1.0: TypeScript type declarations, so "where is type Y declared" is a fact (B7).
+        r"|^\s*(?:export\s+)?(?:declare\s+)?(interface|type|enum)\s+([A-Za-z_$][\w$]*)\b",
         re.M,
     )
 
@@ -105,18 +107,25 @@ class RepoTree:
             if text is None:
                 continue
             for mm in self.SYM.finditer(text):
-                name = mm.group(2) or mm.group(3)
+                name = mm.group(2) or mm.group(3) or mm.group(5)
                 start = _line(text, mm.start())
-                end = _block_end(text, mm.start())
-                res.facts.append(
-                    {
-                        "id": f"sym:{view.repo}:{f}:{name}",
-                        "kind": "symbol",
-                        "name": name,
-                        "end_line": end,
-                        "source": _src(view, f, start),
-                    }
+                eol = text.find("\n", mm.start())
+                first = text[mm.start() : eol if eol != -1 else len(text)]
+                end = (
+                    start
+                    if mm.group(4) == "type" and "{" not in first
+                    else _block_end(text, mm.start())
                 )
+                fact: dict[str, Any] = {
+                    "id": f"sym:{view.repo}:{f}:{name}",
+                    "kind": "symbol",
+                    "name": name,
+                    "end_line": end,
+                    "source": _src(view, f, start),
+                }
+                if mm.group(4):
+                    fact["decl"] = mm.group(4)  # interface | type | enum
+                res.facts.append(fact)
         if not res.facts:
             res.empty_reason = "no tracked files in scope"
         return res
@@ -221,10 +230,15 @@ UI = re.compile(r"<Route\b[^>]*\bpath=\{?['\"]([^'\"]+)['\"]")
 UI_OBJ = re.compile(r"\bpath\s*:\s*['\"](/[^'\"]*)['\"]")
 FETCH = re.compile(r"\bfetch\(\s*(['\"`])(/[^'\"`]*)\1([^)]*)\)")
 AXIOS = re.compile(r"\baxios\.(get|post|put|patch|delete)\(\s*(['\"`])(/[^'\"`]*)\2")
+# 1.1.0 (B7): calls through an API helper object (api.get('/patients'), apiClient.post(...))
+# and fetch with a base-URL prefix (fetch(`${API_BASE}/api/patients`)), so "who calls X" is a fact.
+CLIENT = re.compile(r"\b([A-Za-z_$][\w$]*)\.(get|post|put|patch|delete)\(\s*(['\"`])(/[^'\"`]*)\3")
+CLIENT_NAME = re.compile(r"(?i)^(?!axios$)\w*(api|client|http|request|fetcher)\w*$")
+FETCH_BASE = re.compile(r"\bfetch\(\s*`\$\{[A-Za-z_$][\w$.]*\}(/[^`$]*)`([^)]*)\)")
 
 
 class JsRoutes:
-    name, version, section = "js-routes", "1.0.0", "api-inventory"
+    name, version, section = "js-routes", "1.1.0", "api-inventory"
 
     def applies(self, view: RepoView) -> bool:
         return any(f.endswith(JS_EXT) for f in view.list_files())
@@ -337,6 +351,40 @@ class JsRoutes:
                         "path": m.group(3),
                         "source": _src(view, f, line),
                         "confidence": "resolved",
+                    },
+                )
+            for m in CLIENT.finditer(text):
+                if not CLIENT_NAME.match(m.group(1)) or ROUTE.match(m.group(0)):
+                    continue
+                line = _line(text, m.start())
+                if m.group(3) == "`" and "${" in m.group(4):
+                    res.unresolved.append(
+                        {"source": _src(view, f, line), "reason": "dynamic path expression"}
+                    )
+                    continue
+                method = m.group(2).upper()
+                add(
+                    f"call:{method}:{m.group(4)}",
+                    {
+                        "kind": "call",
+                        "method": method,
+                        "path": m.group(4),
+                        "client": m.group(1),
+                        "source": _src(view, f, line),
+                        "confidence": "resolved",
+                    },
+                )
+            for m in FETCH_BASE.finditer(text):
+                mm = re.search(r"method\s*:\s*['\"](\w+)['\"]", m.group(2))
+                method = (mm.group(1) if mm else "GET").upper()
+                add(
+                    f"call:{method}:{m.group(1)}",
+                    {
+                        "kind": "call",
+                        "method": method,
+                        "path": m.group(1),
+                        "source": _src(view, f, _line(text, m.start())),
+                        "confidence": "partial",
                     },
                 )
         if not res.facts:

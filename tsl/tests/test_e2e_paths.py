@@ -73,7 +73,9 @@ def test_retry_from_post_write_block_and_feedback(world: World) -> None:
     reason = res["blocked"]["reason"]
     assert reason.startswith("E-CHK-01") and "H2" in reason
     state = json.loads((world.companion / f"runs/{run_id}/state.json").read_text())
-    assert state["steps"][0]["budget_used"]["checks"] == 1
+    # A post-write rejection counts against retry.write on the attempt, not retry.checks (B5).
+    assert state["steps"][0]["budget_used"]["checks"] == 0
+    assert state["steps"][0]["attempts"][-1]["write_rejects"] == 1
     checks = json.loads(
         (world.companion / res["artifact"].replace(".md", ".checks.json")).read_text()
     )
