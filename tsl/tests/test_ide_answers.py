@@ -51,7 +51,7 @@ def test_append_and_parse_round_trip_and_flatten_injected_markdown(tmp_path: Pat
         "req",
         1,
         "2026-11-02T10:00:00Z",
-        "Jane <jane@example.com>",
+        "eng-4f2a",
         "toolu_1",
         [
             {
@@ -73,14 +73,14 @@ def test_append_and_parse_round_trip_and_flatten_injected_markdown(tmp_path: Pat
         "req",
         2,
         "t",
-        "Jane <jane@example.com>",
+        "eng-4f2a",
         "toolu_2",
         [{"question": "Q-02: x?", "options": [], "answer": "y"}],
     )
     assert more == ["A-03"]
     log = ide_answers.read(p)
     assert [e["id"] for e in log] == ["A-01", "A-02", "A-03"]  # no forged A-99 entry
-    assert log[0]["answer"] == "30 days" and log[0]["answered_by"] == "Jane <jane@example.com>"
+    assert log[0]["answer"] == "30 days" and log[0]["answered_by"] == "eng-4f2a"
     assert log[1]["answer"].startswith("No ## A-99")
     assert log[2]["attempt"] == 2
 
@@ -179,7 +179,7 @@ def _world(tmp_path: Path, attempt: int = 1) -> Path:
         "req",
         attempt,
         "t",
-        "Jane <jane@example.com>",
+        "eng-4f2a",
         "toolu_1",
         [
             {

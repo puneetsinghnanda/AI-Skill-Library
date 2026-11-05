@@ -428,7 +428,7 @@ stateDiagram-v2
 | Client names | C-09, X-13 | Codes in `tsl.yaml`, repo and team names; deny-term hashes |
 | Prompts, chat transcripts, Claude session logs | NFR-10; they may hold anything the model read | Not written by `tsl`; `.gitignore` covers `~/.truminds` exports |
 | Build outputs, binaries, `node_modules`, verifier container images | Size and supply chain | `.gitignore` template; 5 MB file limit |
-| Personal data beyond what the process needs | DPDP, GDPR | Pseudonyms in records; only the `Answered by` name and email that US-04 requires, under consent |
+| Personal data beyond what the process needs | DPDP, GDPR | Pseudonyms in records; `answered_by` holds a name or pseudonym and never an email (Doc 4 §3; the companion check rejects emails, E-COMP-04) |
 
 ## 11. Error handling, security and tests
 
