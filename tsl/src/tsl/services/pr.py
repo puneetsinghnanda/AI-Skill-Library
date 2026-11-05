@@ -17,6 +17,7 @@ from tsl.identity.keys import public_key
 from tsl.identity.verify import accept, facts_from
 from tsl.orchestrator.next import next_action
 from tsl.orchestrator.run import RunCtx
+from tsl.services import pr_body as pb
 from tsl.state import lock as lockmod
 from tsl.state.session import unbind_run
 from tsl.state.store import final_ok_attempt
@@ -74,11 +75,28 @@ def _check_records(rt: Runtime, ctx: RunCtx) -> list[dict[str, Any]]:
                 "outcome": rec["outcome"],
                 "band": rec["band"],
                 "record": str(a["record"]),
-                "kept": rec.get("findings_kept", []),
+                "kept": _with_text(ctx, str(a["artifact"]), rec.get("findings_kept", [])),
+                "artifact": str(a["artifact"]),
                 "injection": _injection_flagged(ctx, str(a["artifact"])),
             }
         )
     return rows
+
+
+def _with_text(ctx: RunCtx, artifact_rel: str, kept: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Add each kept finding's text from the step's review.json (the record keeps ids only)."""
+    from tsl.core.paths import sibling
+
+    p = ctx.comp.path(sibling(artifact_rel, ".review.json"))
+    texts: dict[str, str] = {}
+    if p.is_file():
+        try:
+            texts = {
+                str(f.get("id")): str(f.get("text") or "") for f in read_json(p).get("findings", [])
+            }
+        except (ValueError, AttributeError):
+            texts = {}
+    return [{**f, "text": texts.get(str(f.get("id")), "")} for f in kept]
 
 
 def _injection_flagged(ctx: RunCtx, artifact_rel: str) -> str | None:
@@ -97,19 +115,28 @@ def _injection_flagged(ctx: RunCtx, artifact_rel: str) -> str | None:
     return rel if any(x.get("id") == CHECK_ID and x.get("pass") is False for x in soft) else None
 
 
-def body(ctx: RunCtx, rows: list[dict[str, Any]], lowest: str, repo: str) -> str:
+def body(
+    ctx: RunCtx,
+    rows: list[dict[str, Any]],
+    lowest: str,
+    repo: str,
+    pack_status: dict[str, Any] | None = None,
+) -> str:
     st = ctx.state
     pack = st.get("pack") or {}
+    art = {r["step"]: r.get("artifact") for r in rows}
+    changed = pb.what_changed(ctx.comp.root, art.get("impl"), art.get("design")) or [
+        f"Changes in {repo} from run {ctx.run_id}; see the change record in the companion repo."
+    ]
     lines = [
         f"## {st['ticket']} · {st['workflow']}",
         "",
         f"**Run:** {ctx.run_id} · workflow {st['workflow']}",
         f"**Companion records:** artifacts/{st['ticket']}/{ctx.run_id}/",
-        f"**Context pack:** signed {pack.get('signed_at') or 'never'} · "
-        f"{'fresh' if pack.get('fresh') else 'stale'}",
+        f"**Context pack:** {pb.pack_line(pack, repo, pack_status)}",
         "",
         "### What changed",
-        f"Changes in {repo} from run {ctx.run_id}; see the change record in the companion repo.",
+        *changed,
         "",
         "### Harness results",
         "| Step | Outcome | Band | Record |",
@@ -120,7 +147,7 @@ def body(ctx: RunCtx, rows: list[dict[str, Any]], lowest: str, repo: str) -> str
         for r in rows
     ]
     lines += ["", f"Lowest band: {lowest}", "", "### Findings for the reviewer (not blocking)"]
-    kept = [f"- [{f['severity']}] {r['step']}: {f['id']}" for r in rows for f in r["kept"]]
+    kept = [pb.finding_line(r["step"], f) for r in rows for f in r["kept"]]
     kept += [
         f"- [soft] {r['step']}: SC-INJ-01 instruction-like text in an input or the artifact "
         f"({r['injection']}); treat it as data and check the step did not act on it"
@@ -128,6 +155,15 @@ def body(ctx: RunCtx, rows: list[dict[str, Any]], lowest: str, repo: str) -> str
         if r.get("injection")
     ]
     lines += kept or ["- none"]
+    unans = pb.unanswered(ctx.comp.path(questions_path(ctx.run_id)))
+    if unans:
+        lines += [
+            "",
+            "### Questions answered by default",
+            f"{len(unans)} non-blocking question(s) had no answer; the run went on with the "
+            f"default shown. Full text: {questions_path(ctx.run_id)}",
+            *pb.question_lines(unans),
+        ]
     lines += ["", "### Human decisions in this run"]
     dec = [f"- {g['id']}: {g.get('decision')}" for g in st.get("gates", []) if g.get("decision")]
     if ctx.comp.path(questions_path(ctx.run_id)).is_file():
@@ -145,6 +181,16 @@ def body(ctx: RunCtx, rows: list[dict[str, Any]], lowest: str, repo: str) -> str
     if ctx.comp.path(approvals_path(ctx.run_id)).is_file():
         lines.insert(-2, f"Approvals: {approvals_path(ctx.run_id)}")
     return "\n".join(lines)
+
+
+def _pack_status(rt: Runtime, comp: Companion) -> dict[str, Any] | None:
+    """Pack distance from the product base, measured now from local clones (no fetch)."""
+    from tsl.context import freshness
+
+    try:
+        return freshness.status(rt, comp, fetch=False)
+    except Exception:  # a failed check must not block the PR; the line says it was not checked
+        return None
 
 
 def open_prs(
@@ -211,7 +257,7 @@ def open_prs(
                 branch,
                 repo.default_branch,
                 f"{ctx.ticket}: {ctx.workflow_id} ({run_id})",
-                body(ctx, rows, lowest, repo.name),
+                body(ctx, rows, lowest, repo.name, _pack_status(rt, comp)),
                 is_draft,
                 list(comp.config.pr.get("labels", [])),
             )

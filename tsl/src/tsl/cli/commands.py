@@ -386,7 +386,17 @@ def decide(artifact: str) -> int:
     run_id = data["verification_path"].split("/")[2]
     o = d.outcome
     if o in ("PASS", "PASS-WITH-FINDINGS"):
-        return emit_ok(f"Step passed [{o} · {d.band}]", data, warnings, "continue")
+        from tsl.core.paths import questions_path
+        from tsl.services.pr_body import unanswered
+
+        n = len(unanswered(comp().path(questions_path(run_id))))
+        note = (
+            f"; {n} non-blocking question(s) unanswered, the run uses their defaults "
+            f"(see {questions_path(run_id)})"
+            if n
+            else ""
+        )
+        return emit_ok(f"Step passed [{o} · {d.band}]{note}", data, warnings, "continue")
     if o == "RETRY":
         why = ", ".join(d.gate_failures) or (
             "major findings" if d.budget_kind == "review" else "checks"
