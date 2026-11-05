@@ -26,7 +26,7 @@ CASES = sorted(p for p in FIX.glob("*/*.stdin.json"))
 def _fill(obj: Any, subs: dict[str, str]) -> Any:
     text = json.dumps(obj)
     for k, v in subs.items():
-        text = text.replace("{" + k + "}", v)
+        text = text.replace("{" + k + "}", json.dumps(v)[1:-1])
     return json.loads(text)
 
 

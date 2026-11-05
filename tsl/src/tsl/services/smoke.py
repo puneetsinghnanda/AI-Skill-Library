@@ -105,7 +105,7 @@ def _artifact(envelope: dict[str, Any], ticket_rel: str, ticket_text: str) -> st
     fm: dict[str, Any] = dict(envelope)
     fm.update(
         {
-            "claims": [{"id": "C1", "text": "The ticket asks for a heading", "cites": [cite]}],
+            "claims": [{"id": "C1", "text": "The ticket asks for a `heading`", "cites": [cite]}],
             "trace": ["REQ-1"],
             "known": ["REQ-1"],
             "assumed": [],
