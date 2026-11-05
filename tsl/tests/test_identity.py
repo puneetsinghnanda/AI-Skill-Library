@@ -366,3 +366,13 @@ def test_login_no_role_shows_the_service_reason(world: World) -> None:
         world.login("eng2")
     assert e.value.code == "E-AUTH-08"
     assert "eng-1a2b" in str(e.value) and "@tester-one" in str(e.value)
+
+
+def test_login_flushes_queued_events_and_says_how_many(world: World) -> None:
+    rt = world.rt("eng2")
+    rt.outbox().enqueue(
+        "pr.closed", {"repo": "r", "number": 1, "merged": True, "closed_at": "t"}, None
+    )
+    data = world.login("eng2")
+    assert data["events_sent"] == 1
+    assert rt.outbox().stats()["pending"] == 0

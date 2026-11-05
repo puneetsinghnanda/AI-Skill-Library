@@ -15,7 +15,7 @@ from tsl.core.paths import ARTIFACT_RE, approvals_path, feedback_path, questions
 from tsl.core.repo import Companion
 from tsl.core.runtime import Runtime
 from tsl.gitops.git import Git, GitError
-from tsl.harness import citations
+from tsl.harness import citations, plain
 from tsl.harness.decide import DecideInput, Decision, evaluate
 from tsl.harness.verify import to_rel
 from tsl.identity.keys import Signer, load_signer
@@ -385,7 +385,7 @@ def _apply(
             role,
             "escalation",
             [{"path": rel, "sha256": record["artifact_sha256"]}],
-            d.escalate_reason or "band Low",
+            plain.escalation_reason(d.escalate_reason, d.signals, d.reasons),
         )
     head_shas: dict[str, str] = {}
     if outcome in ("PASS", "PASS-WITH-FINDINGS") and ctx.skill_for(step).is_code:

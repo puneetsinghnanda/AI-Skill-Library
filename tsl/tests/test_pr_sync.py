@@ -64,3 +64,23 @@ def test_github_down_fails_cleanly(world: World) -> None:
     world.github.unreachable = True
     code, env, _, _ = world.cli(["pr-sync", "--json"])
     assert code != 0 and env is not None and env["code"] == "E-GIT-01"
+
+
+def test_not_logged_in_says_queued(world: World) -> None:
+    _run_with_pr(world, 5)
+    pr = world.github.prs[(REPO, 5)]
+    pr.state, pr.merged, pr.closed_at = "closed", True, "2026-10-27T10:00:00Z"
+    code, env, _, err = world.cli(["pr-sync", "--json"], user="eng2")  # eng2 never logged in
+    assert code == 0, err
+    assert env is not None and env["data"]["sent"] == 1 and env["data"]["queued_only"] is True
+    assert "queued (not logged in; run tsl login)" in env["message"]
+
+
+def test_logged_in_says_reported(world: World) -> None:
+    _run_with_pr(world, 6)
+    pr = world.github.prs[(REPO, 6)]
+    pr.state, pr.merged, pr.closed_at = "closed", True, "2026-10-27T10:00:00Z"
+    code, env, _, err = world.cli(["pr-sync", "--json"])
+    assert code == 0, err
+    assert env is not None and env["data"]["queued_only"] is False
+    assert env["message"] == "1 merged or closed pull request(s) reported"

@@ -139,7 +139,7 @@ The post-write hook has a 90 s hard timeout (SDD-05 §5.2). Build and test conta
 | --- | --- | --- | --- |
 | H1 | Schema: envelope and body | RETRY | E-H1-01 … E-H1-05, E-SCH-01 |
 | H2 | Required sections, Known / Assumed / Unknown | RETRY | E-H2-01 … E-H2-03 |
-| H3 | Verifier profile: build, unit tests, lint, SAST, secrets scan | Fix loop (max 3), then ESCALATE | E-H3-01 … E-H3-07 |
+| H3 | Verifier profile: build, unit tests, lint, SAST, secrets scan | Fix loop (max 3), then ESCALATE | E-H3-01 … E-H3-09 |
 | H4 | Forbidden content | ABORT for secrets or PII; RETRY for invented values and client names | E-SEC-01, E-SEC-02, E-H4-03, E-H4-04 |
 | H5 | Trace links resolve; edits inside allowed scope | RETRY (trace, code[]); ABORT (scope) | E-H5-01, E-H5-02, E-H5-03, E-POL-01 |
 | H6 | Inputs current, not stale | RETRY of the stale upstream step | E-IN-01, E-IN-02, E-H6-03 |
@@ -894,6 +894,8 @@ sequenceDiagram
 | E-H3-01…05 | 2 | Build / tests / lint / SAST / coverage failed: `<summary>`. | Fix loop (n of 3) |
 | E-H3-06 | 2 | Verifier step `<step>` timed out after `<s>` s. | Fix loop; tech lead may raise the timeout in the profile |
 | E-H3-07 | 3 | Docker not running or image `<digest>` unavailable. | Start Docker, then `tsl verify --gates H3`. Not counted as an attempt |
+| E-H3-08 | 3 | Dependency install (`prepare`) failed or timed out: `<exit code or timeout>`, log `<file>`. | Read `prepare-a<n>.log` in the verifier folder; fix the install or network; `tsl verify --gates H3`. Not counted as an attempt |
+| E-H3-09 | 3 | Verifier container killed (exit 137), most likely out of memory (limit 4 GB). | Free memory, then `tsl verify --gates H3` or `/truminds:resume`. Not counted as an attempt |
 | E-SEC-02 | 5 | Personal data detected in artifact (H4), rule `<id>` line `<n>`. | Run aborted; security event raised |
 | E-H4-03 | 2 | Client name found in shared output. | Replace with a code |
 | E-H4-04 | 2 | Value `<v>` in `<AC>` not found in inputs or assumptions. | Remove it or add an assumption |
