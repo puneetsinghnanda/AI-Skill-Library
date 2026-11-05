@@ -29,7 +29,7 @@ case "$EVENT" in
   *) printf 'tsl-hook: unknown event "%s"\n' "$EVENT" >&2; exit 1 ;;
 esac
 
-# Plugin root for the version check, by parameter expansion only (no dirname / cd / pwd subshells).
+# Plugin root for the version check, by parameter expansion only (no external command, no subshell).
 if [ -z "${TSL_PLUGIN_ROOT:-}" ]; then
   if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
     TSL_PLUGIN_ROOT=$CLAUDE_PLUGIN_ROOT
