@@ -104,6 +104,10 @@ def test_post_ask_records_answers_for_the_open_step_and_skips_unanswered(world: 
     e = log[0]
     assert (e["id"], e["step"], e["attempt"], e["answer"]) == ("A-01", "req", 1, "Yes")
     assert e["question"] == "Q-01: Which window?" and e["options"] == "Yes | No"
+    # the companion check rejects email addresses (E-COMP-04), so the hook never records one
+    assert e["answered_by"] and "@" not in e["answered_by"]
+    # the companion check rejects email addresses (E-COMP-04), so the hook never records one
+    assert e["answered_by"] and "@" not in e["answered_by"]
 
 
 def test_post_ask_outside_a_run_writes_nothing(world: World) -> None:
