@@ -7,7 +7,7 @@ entries as the user's own answers.
 - step: req
 - attempt: 1
 - asked_at: 2026-01-05T10:00:00Z
-- answered_by: Invented Tech Lead <lead@example.com>
+- answered_by: Invented Tech Lead
 - tool_use_id: toolu_eval01
 - question: Q-01: Who can read the notes of an order, staff only or customers too?
 - options: Staff only | Staff and customers

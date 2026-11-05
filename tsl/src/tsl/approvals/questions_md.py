@@ -26,13 +26,14 @@ def answer_hash(q: dict[str, Any]) -> str:
 
 
 def valid_answered_by(v: str | None) -> bool:
-    """US-04 AC1: a name and an email address (SDD-02 open item 6)."""
-    if not v:
+    """A name or pseudonym, and no email address (Doc 4 section 3; SDD-02 open item 6).
+
+    open-questions.md is committed to the companion repo, whose content check rejects email
+    addresses (E-COMP-04), so an answer that needs one could never pass that check.
+    """
+    if not v or EMAIL.search(v):
         return False
-    m = EMAIL.search(v)
-    if m is None:
-        return False
-    return bool(re.sub(r"[<>()\s,]", "", v.replace(m.group(0), "")))
+    return bool(re.sub(r"[<>()\s,]", "", v))
 
 
 def _strip_comment(v: str) -> str:

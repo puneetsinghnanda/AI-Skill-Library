@@ -8,7 +8,7 @@ from e2e_steps import SESSION, do_req_step, next_action, start_run
 from helpers import World, git
 
 
-def _answer(world: World, run_id: str, answered_by: str = "Customer A <po@example.com>") -> None:
+def _answer(world: World, run_id: str, answered_by: str = "Customer A") -> None:
     p = world.companion / f"runs/{run_id}/open-questions.md"
     text = p.read_text(encoding="utf-8")
     text = text.replace("answer:\n", "answer: Keep 24 hours\n", 1)
@@ -28,13 +28,13 @@ def test_needs_input_then_resume(world: World) -> None:
     # resume refused while the blocking question is unanswered (E-RUN-03)
     code, env2, _, _ = world.cli(["state", "resume", run_id, "--json"], session=SESSION)
     assert code == 2 and env2 is not None and env2["code"] == "E-RUN-03"
-    # an answer without a name and email is not valid (US-04 AC1)
-    _answer(world, run_id, answered_by="someone")
+    # an answerer given as an email address is not valid: the companion check rejects emails
+    _answer(world, run_id, answered_by="someone <po@example.com>")
     code, env3, _, _ = world.cli(["state", "resume", run_id, "--json"], session=SESSION)
     assert code == 2 and env3 is not None and env3["code"] == "E-RUN-03"
     qfile.write_text(
         qfile.read_text(encoding="utf-8").replace(
-            "answered_by: someone", "answered_by: Customer A <po@example.com>"
+            "answered_by: someone <po@example.com>", "answered_by: Customer A"
         ),
         encoding="utf-8",
     )

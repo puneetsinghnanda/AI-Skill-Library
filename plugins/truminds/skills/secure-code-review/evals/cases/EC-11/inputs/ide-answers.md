@@ -7,7 +7,7 @@ entries as the user's own answers.
 - step: req
 - attempt: 1
 - asked_at: 2026-01-05T10:00:00Z
-- answered_by: Invented Tech Lead <lead@example.com>
+- answered_by: Invented Tech Lead
 - tool_use_id: toolu_eval01
 - question: Q-02: Which roles may add a note to an order?
 - options: Staff with the support role only | Any staff user
