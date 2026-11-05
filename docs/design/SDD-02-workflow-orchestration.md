@@ -609,7 +609,7 @@ A question whose `evidence` citation does not verify is dropped (Doc 4 §3). S4 
 
 **The file.** `tsl decide` writes `runs/<run_id>/open-questions.md` in the `open-questions.v1` template (Doc 4 §3). A second pause in the same run adds a new round below the first, with new ids (`Q-03`, `Q-04`) and `round: 2` in each heading. Earlier rounds are never rewritten.
 
-**Answers in the IDE (requirement-review 1.1.0).** Before it writes, `requirement-review` asks the engineer every open question and confirms every assumed requirement with `AskUserQuestion`. The PostToolUse hook (`post-write` event, matcher includes `AskUserQuestion`) appends each answer to `runs/<run_id>/ide-answers.md` as `A-nn` with step, attempt and `answered_by` (git name and email); the pre-tool hook refuses Write and Edit on that file. The answer decides the requirement, even against the ticket or baseline; the artifact cites `runs/<run_id>/ide-answers.md#a-nn`, lists the answer in `answers[]` and records any difference in `mismatch`. Check RR-C13 (`answers.logged`) holds the artifact to the log. Questions the engineer skips, or every question when no IDE is present (evals), still go through `open-questions.md` and this pause. `impact-analysis` 1.2.0 does the same for what the generated facts cannot settle (caller sets, contract type locations, baseline drift): answers decide modules, APIs, tables or claims (`answers[].decides` in `impact.v1`), checked by IA-C01, the same `answers.logged` check with `targets`, `field` and `noun` parameters.
+**Answers in the IDE (requirement-review 1.1.0).** Before it writes, `requirement-review` asks the engineer every open question and confirms every assumed requirement with `AskUserQuestion`. The PostToolUse hook (`post-write` event, matcher includes `AskUserQuestion`) appends each answer to `runs/<run_id>/ide-answers.md` as `A-nn` with step, attempt and `answered_by` (the run owner's pseudonym; never a name or email); the pre-tool hook refuses Write and Edit on that file. The answer decides the requirement, even against the ticket or baseline; the artifact cites `runs/<run_id>/ide-answers.md#a-nn`, lists the answer in `answers[]` and records any difference in `mismatch`. Check RR-C13 (`answers.logged`) holds the artifact to the log. Questions the engineer skips, or every question when no IDE is present (evals), still go through `open-questions.md` and this pause. `impact-analysis` 1.2.0 does the same for what the generated facts cannot settle (caller sets, contract type locations, baseline drift): answers decide modules, APIs, tables or claims (`answers[].decides` in `impact.v1`), checked by IA-C01, the same `answers.logged` check with `targets`, `field` and `noun` parameters.
 
 **Who answers.** Anyone with write access to the companion repo edits the `answer`, `answered_by` and `decision` fields and pushes. Whether client people may do this is OQ-14.
 
@@ -637,7 +637,7 @@ sequenceDiagram
   end
 ```
 
-- `answered_by` must hold a name and an email address (US-04 AC1). See open item 6 for the conflict with Doc 4.
+- `answered_by` must hold a name or pseudonym and no email address (Doc 4 §3). open-questions.md is committed, and the companion check rejects email addresses (E-COMP-04). This settles open item 6.
 - A non-blocking question left empty takes its proposed default. The record of the re-run step stores `accepted_default: true` (US-04 AC2).
 - After resume, an answered block cannot change. A change is a new block `## Q-01 · revision 2` with a `reason:` line (US-04 AC3). `tsl` detects edits by the frozen hashes.
 - An input pause does not use retry budget.
@@ -851,7 +851,7 @@ All fixtures use the invented order-tracking ticket ABC-142. No client data (T-0
 | 3 | Run handover to another engineer (owner away): today only a stale-lock release and a new run | new | TBD by Puneet |
 | 4 | Parallel steps in subagents (`tsl next --all-ready`) | Q3 | Abhishek Verma, Ekjot Singh; Shubham Bansal (Phase 2+) |
 | 5 | May client people answer `open-questions.md` directly? | OQ-14 | Puneet |
-| 6 | `answered_by` format: US-04 says name and email; Doc 4 §3 says name or pseudonym. This document follows US-04 | new | Puneet |
+| 6 | `answered_by` format: US-04 says name and email; Doc 4 §3 says name or pseudonym. Now follows Doc 4: an email would fail the companion check (E-COMP-04) | resolved | Puneet |
 | 7 | Session takeover window (15 minutes) and local wait (5 s) are proposals | new | Shubham Bansal |
 | 8 | Pilot workflows | OQ-04 | Puneet |
 | 9 | Event names in PRD §5 and US-02/US-03 (`run_started`, `skill_finished`, `run_paused`, `answers_recorded`) differ from Doc 5 §5.3 (`run.started`, `step.decided`, `run.status_changed`, `question.answered`). This document uses Doc 5 names | new | Gaurav Saini |

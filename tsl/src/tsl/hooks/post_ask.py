@@ -8,30 +8,22 @@ not in the log.
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 from typing import Any
 
+from tsl.approvals.questions_md import EMAIL
 from tsl.hooks.dispatch import Ctx, _finish, _now, active_run
 
 
-def _answered_by(companion: Path) -> str:
-    def cfg(key: str) -> str:
-        try:
-            cp = subprocess.run(
-                ["git", "-C", str(companion), "config", "--get", key],
-                capture_output=True,
-                text=True,
-                timeout=3,
-            )
-            return cp.stdout.strip()
-        except (OSError, subprocess.SubprocessError):
-            return ""
+def _answered_by(pseudonym: str | None) -> str:
+    """Who answered: the run owner's pseudonym, never a name or an email address.
 
-    name, email = cfg("user.name"), cfg("user.email")
-    if name and email:
-        return f"{name} <{email}>"
-    return name or email or "unknown"
+    ide-answers.md is committed to the companion repo. Records name people only by pseudonym
+    (SDD-02 owner_pseudonym, SDD-07 approver), and the content check rejects email addresses
+    (E-COMP-04, PII-01).
+    """
+    p = (pseudonym or "").strip()
+    return p if p and not EMAIL.search(p) else "unknown"
 
 
 def _items(data: dict[str, Any]) -> list[dict[str, Any]]:
@@ -78,7 +70,7 @@ def handle(ctx: Ctx) -> tuple[str, int]:
             str(cur["step"]),
             int(cur.get("attempt") or 1),
             _now(),
-            _answered_by(companion),
+            _answered_by(st.get("owner_pseudonym")),
             str(ctx.data.get("tool_use_id") or ""),
             items,
         )

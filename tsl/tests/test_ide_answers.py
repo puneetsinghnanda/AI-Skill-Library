@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from e2e_steps import hook, next_action, start_run
-from helpers import World
+from helpers import World, git
 from tsl.approvals import ide_answers
 from tsl.harness.skillchecks import CheckEnv, run_declared
 
@@ -51,7 +51,7 @@ def test_append_and_parse_round_trip_and_flatten_injected_markdown(tmp_path: Pat
         "req",
         1,
         "2026-11-02T10:00:00Z",
-        "Jane <jane@example.com>",
+        "eng-4f2a",
         "toolu_1",
         [
             {
@@ -73,14 +73,14 @@ def test_append_and_parse_round_trip_and_flatten_injected_markdown(tmp_path: Pat
         "req",
         2,
         "t",
-        "Jane <jane@example.com>",
+        "eng-4f2a",
         "toolu_2",
         [{"question": "Q-02: x?", "options": [], "answer": "y"}],
     )
     assert more == ["A-03"]
     log = ide_answers.read(p)
     assert [e["id"] for e in log] == ["A-01", "A-02", "A-03"]  # no forged A-99 entry
-    assert log[0]["answer"] == "30 days" and log[0]["answered_by"] == "Jane <jane@example.com>"
+    assert log[0]["answer"] == "30 days" and log[0]["answered_by"] == "eng-4f2a"
     assert log[1]["answer"].startswith("No ## A-99")
     assert log[2]["attempt"] == 2
 
@@ -104,6 +104,22 @@ def test_post_ask_records_answers_for_the_open_step_and_skips_unanswered(world: 
     e = log[0]
     assert (e["id"], e["step"], e["attempt"], e["answer"]) == ("A-01", "req", 1, "Yes")
     assert e["question"] == "Q-01: Which window?" and e["options"] == "Yes | No"
+
+
+def test_post_ask_records_the_owner_pseudonym_not_the_name_or_email(world: World) -> None:
+    # ide-answers.md is committed: records use pseudonyms, and the companion check rejects
+    # email addresses (E-COMP-04). A git name and email are set to prove neither is recorded.
+    git(world.companion, "config", "user.name", "Jane Doe")
+    git(world.companion, "config", "user.email", "jane@example.com")
+    run_id = start_run(world)
+    next_action(world, run_id)
+    _, code = hook(
+        world, "post-write", _ask(["Q-01: Which window?"], {"Q-01: Which window?": "Yes"})
+    )
+    assert code == 0
+    state = json.loads((world.companion / "runs" / run_id / "state.json").read_text("utf-8"))
+    by = ide_answers.read(world.companion / "runs" / run_id / "ide-answers.md")[0]["answered_by"]
+    assert by == state["owner_pseudonym"] and by.startswith("eng-")
 
 
 def test_post_ask_outside_a_run_writes_nothing(world: World) -> None:
@@ -163,7 +179,7 @@ def _world(tmp_path: Path, attempt: int = 1) -> Path:
         "req",
         attempt,
         "t",
-        "Jane <jane@example.com>",
+        "eng-4f2a",
         "toolu_1",
         [
             {

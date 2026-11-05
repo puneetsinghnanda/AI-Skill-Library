@@ -10,7 +10,7 @@ Entry shape (one level-2 heading per answer; the heading anchors are the citatio
     - step: req
     - attempt: 1
     - asked_at: 2026-11-02T10:00:00Z
-    - answered_by: Jane Doe <jane@example.com>
+    - answered_by: eng-4f2a
     - tool_use_id: toolu_...
     - question: Q-01: Ticket asks for 30 days; the baseline keeps 24 hours. Which applies?
     - options: Extend retention to 30 days | Keep 24 hours

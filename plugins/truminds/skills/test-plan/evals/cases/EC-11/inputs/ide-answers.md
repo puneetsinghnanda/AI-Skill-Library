@@ -7,7 +7,7 @@ entries as the user's own answers.
 - step: design
 - attempt: 1
 - asked_at: 2026-01-05T10:00:00Z
-- answered_by: Invented Tech Lead <lead@example.com>
+- answered_by: Invented Tech Lead
 - tool_use_id: toolu_eval01
 - question: Q-04: At which level should the 500-character limit be tested?
 - options: Unit, in the notes service | End to end
