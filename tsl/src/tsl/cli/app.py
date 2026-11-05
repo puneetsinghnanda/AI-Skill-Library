@@ -6,11 +6,12 @@
 from __future__ import annotations
 
 import sys
-from collections.abc import Callable
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
-from tsl import __version__
+if TYPE_CHECKING:  # not imported at runtime: the hook path must not pay for typing / pathlib (NFR-02)
+    from collections.abc import Callable
+    from pathlib import Path
+    from typing import Any
 
 
 def _utf8_streams() -> None:
@@ -26,13 +27,12 @@ def main(argv: list[str] | None = None) -> None:
     _utf8_streams()
     args = list(sys.argv[1:] if argv is None else argv)
     if args[:1] == ["hook"] and len(args) >= 2:
-        from tsl.hooks.dispatch import run
+        from tsl.hooks.entry import main as hook_main
 
-        out, code = run(args[1], sys.stdin.read())
-        if out:
-            sys.stdout.write(out + "\n")
-        sys.exit(code)
+        sys.exit(hook_main(args[1]))
     if args == ["--version"]:
+        from tsl import __version__
+
         sys.stdout.write(f"tsl {__version__}\n")
         sys.exit(0)
     sys.exit(run_cli(args))
@@ -64,5 +64,5 @@ def run_cli(args: list[str]) -> int:
         return render_error("E-USE-01", msg, bool(commands.FORCED["json"]), args)
 
 
-Fn = Callable[..., Any]
+Fn = "Callable[..., Any]"
 __all__ = ["Fn", "Path", "main", "run_cli"]

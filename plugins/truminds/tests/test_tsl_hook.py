@@ -1,8 +1,9 @@
 """Contract tests for bin/tsl-hook with a fake `tsl` on PATH (SDD-05 §5.2, §5.4; TST-01 §2.3; TC-HK-007 on Linux).
 
-Every failure kind (version mismatch, tsl missing, crash, timeout) is tested for pre-tool and pre-mcp both inside a
-run (fail closed: deny with E-HOOK-01) and outside a run (fail open: exit 0, no output), plus the post-write and
-session failure rules, stdin pass-through, the session-index route to "run active" and the hook log line.
+The launcher is a builtin-only shell script that `exec`s `tsl hook <event>` once. It handles only "tsl is not
+installed" itself (tested here for every event, inside and outside a run, with the session-index route and the hook
+log line); the version check, time budget and crash / timeout rules live in tsl (tsl/tests/hooks/test_entry.py).
+Here: stdin and stdout pass-through, the exec contract, unknown events, the plugin root handed to tsl.
 The real `tsl` is never used: PATH holds only the fake and the system tool folders.
 """
 
@@ -13,7 +14,6 @@ import os
 import shutil
 import stat
 import subprocess
-import time
 from pathlib import Path
 
 import pytest
@@ -27,17 +27,11 @@ SYSTEM_PATH = os.pathsep.join(p for p in ("/usr/bin", "/bin", "/usr/sbin", "/sbi
 
 FAKE_TSL = """#!/bin/sh
 # Fake tsl for launcher tests. Behaviour comes from FAKE_TSL_* environment variables.
-if [ "${1:-}" = "--version" ]; then
-  echo "tsl ${FAKE_TSL_VERSION:-0.0.0}"
-  exit 0
-fi
 [ "${1:-}" = "hook" ] || exit 64
 cat > "${FAKE_TSL_STDIN_COPY:-/dev/null}"
-case "${FAKE_TSL_MODE:-ok}" in
-  ok) printf '%s' "${FAKE_TSL_OUTPUT:-}"; exit 0 ;;
-  crash) echo "Traceback: boom" >&2; exit 3 ;;
-  sleep) exec sleep 30 ;;
-esac
+[ -z "${FAKE_TSL_ARGV_COPY:-}" ] || printf '%s|%s|%s\\n' "$*" "${TSL_PLUGIN_ROOT:-}" "$$" > "$FAKE_TSL_ARGV_COPY"
+printf '%s' "${FAKE_TSL_OUTPUT:-}"
+exit "${FAKE_TSL_EXIT:-0}"
 """
 
 
@@ -48,14 +42,13 @@ def env(tmp_path: Path) -> dict[str, str]:
     fakebin = tmp_path / "fakebin"
     fakebin.mkdir()
     tsl = fakebin / "tsl"
-    tsl.write_text(FAKE_TSL, encoding="utf-8")
+    tsl.write_text(FAKE_TSL, encoding="utf-8", newline="\n")
     tsl.chmod(tsl.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     return {
         "HOME": str(home),
         "PATH": f"{fakebin}{os.pathsep}{SYSTEM_PATH}",
         "CLAUDE_PLUGIN_ROOT": str(PLUGIN),
         "TMPDIR": str(tmp_path),
-        "FAKE_TSL_VERSION": PLUGIN_VERSION,
         "LC_ALL": "C",
     }
 
@@ -101,18 +94,9 @@ def run(
     )
 
 
-def break_tsl(env: dict[str, str], kind: str) -> dict[str, str]:
-    """Make the fake tsl fail in one of the four SDD-05 §5.4 ways."""
+def missing(env: dict[str, str]) -> dict[str, str]:
     e = dict(env)
-    if kind == "version-mismatch":
-        e["FAKE_TSL_VERSION"] = "9.9.9"
-    elif kind == "missing":
-        e["PATH"] = SYSTEM_PATH
-    elif kind == "crash":
-        e["FAKE_TSL_MODE"] = "crash"
-    elif kind == "timeout":
-        e["FAKE_TSL_MODE"] = "sleep"
-        e["TSL_HOOK_BUDGET_S"] = "1"
+    e["PATH"] = SYSTEM_PATH
     return e
 
 
@@ -126,42 +110,28 @@ def assert_deny(cp: subprocess.CompletedProcess[str]) -> dict[str, object]:
     return out
 
 
-FAILURES = ["version-mismatch", "missing", "crash", "timeout"]
-
-
-# ------------------------------------------------------------------------------------- fail closed / fail open
+# ------------------------------------------------------------------------------------- tsl missing
 @pytest.mark.parametrize("shell", SHELLS)
 @pytest.mark.parametrize("event", ["pre-tool", "pre-mcp"])
-@pytest.mark.parametrize("failure", FAILURES)
-def test_in_run_fails_closed(env: dict[str, str], companion: Path, failure: str, event: str, shell: str) -> None:
+def test_missing_tsl_in_run_fails_closed(env: dict[str, str], companion: Path, event: str, shell: str) -> None:
     lock(companion)
-    start = time.monotonic()
-    cp = run(break_tsl(env, failure), event, hook_input(companion, event), shell=shell)
+    cp = run(missing(env), event, hook_input(companion, event), shell=shell)
     out = assert_deny(cp)
-    reason = str(out["hookSpecificOutput"]["permissionDecisionReason"])  # type: ignore[index]
-    if failure in ("version-mismatch", "missing"):
-        assert f"Install tsl {PLUGIN_VERSION}" in reason
-    if failure == "version-mismatch":
-        assert "E-VER-01" in reason and "9.9.9" in reason
-    if failure == "timeout":
-        assert "timed out" in reason
-        assert time.monotonic() - start < 6, "the launcher's own budget must stop a hung tsl"
+    assert f"Install tsl {PLUGIN_VERSION}" in str(out["hookSpecificOutput"]["permissionDecisionReason"])  # type: ignore[index]
 
 
 @pytest.mark.parametrize("shell", SHELLS)
 @pytest.mark.parametrize("event", ["pre-tool", "pre-mcp"])
-@pytest.mark.parametrize("failure", FAILURES)
-def test_out_of_run_fails_open(env: dict[str, str], companion: Path, failure: str, event: str, shell: str) -> None:
-    cp = run(break_tsl(env, failure), event, hook_input(companion, event), shell=shell)
+def test_missing_tsl_out_of_run_fails_open(env: dict[str, str], companion: Path, event: str, shell: str) -> None:
+    cp = run(missing(env), event, hook_input(companion, event), shell=shell)
     assert cp.returncode == 0, cp.stderr
     assert cp.stdout == "", "allow = exit 0 with no output"
 
 
-@pytest.mark.parametrize("failure", FAILURES)
-def test_outside_any_companion_repo_fails_open(env: dict[str, str], tmp_path: Path, failure: str) -> None:
+def test_missing_tsl_outside_any_companion_repo_fails_open(env: dict[str, str], tmp_path: Path) -> None:
     elsewhere = tmp_path / "scratch"
     elsewhere.mkdir()
-    cp = run(break_tsl(env, failure), "pre-tool", hook_input(elsewhere, "pre-tool"))
+    cp = run(missing(env), "pre-tool", hook_input(elsewhere, "pre-tool"))
     assert cp.returncode == 0 and cp.stdout == ""
 
 
@@ -185,30 +155,24 @@ def test_active_run_found_through_the_session_index(env: dict[str, str], compani
     )
     product = tmp_path / "sample-orders"
     product.mkdir()
-    cp = run(break_tsl(env, "crash"), "pre-tool", hook_input(product, "pre-tool", session="sess-0042"))
-    assert_deny(cp)
-    # Same input once the lock is released: the run is over, so the hook fails open.
+    assert_deny(run(missing(env), "pre-tool", hook_input(product, "pre-tool", session="sess-0042")))
     lk.unlink()
-    cp = run(break_tsl(env, "crash"), "pre-tool", hook_input(product, "pre-tool", session="sess-0042"))
+    cp = run(missing(env), "pre-tool", hook_input(product, "pre-tool", session="sess-0042"))
     assert cp.returncode == 0 and cp.stdout == ""
 
 
 def test_session_id_with_path_characters_is_not_used_as_a_path(env: dict[str, str], tmp_path: Path) -> None:
     product = tmp_path / "p"
     product.mkdir()
-    cp = run(break_tsl(env, "crash"), "pre-tool", hook_input(product, "pre-tool", session="../../etc/passwd"))
+    cp = run(missing(env), "pre-tool", hook_input(product, "pre-tool", session="../../etc/passwd"))
     assert cp.returncode == 0 and cp.stdout == ""
 
 
-# ------------------------------------------------------------------------------------- post-write and sessions
-@pytest.mark.parametrize("failure", FAILURES)
 @pytest.mark.parametrize("in_run", [True, False])
-def test_post_write_always_fails_open_with_a_warning(
-    env: dict[str, str], companion: Path, failure: str, in_run: bool
-) -> None:
+def test_missing_tsl_post_write_fails_open_with_a_warning(env: dict[str, str], companion: Path, in_run: bool) -> None:
     if in_run:
         lock(companion)
-    cp = run(break_tsl(env, failure), "post-write", hook_input(companion, "post-write"))
+    cp = run(missing(env), "post-write", hook_input(companion, "post-write"))
     assert cp.returncode == 0
     out = json.loads(cp.stdout)
     assert set(out) == {"systemMessage"}
@@ -216,27 +180,28 @@ def test_post_write_always_fails_open_with_a_warning(
 
 
 @pytest.mark.parametrize("event", ["session-start", "session-end"])
-@pytest.mark.parametrize("failure", ["version-mismatch", "missing"])
-def test_session_hooks_warn_when_tsl_is_missing_or_outdated(
-    env: dict[str, str], companion: Path, event: str, failure: str
-) -> None:
-    cp = run(break_tsl(env, failure), event, hook_input(companion, event))
+def test_session_hooks_warn_when_tsl_is_missing(env: dict[str, str], companion: Path, event: str) -> None:
+    cp = run(missing(env), event, hook_input(companion, event))
     assert cp.returncode == 0
     msg = json.loads(cp.stdout)["systemMessage"]
     assert f"Install tsl {PLUGIN_VERSION}" in msg and "uv tool install" in msg
 
 
-@pytest.mark.parametrize("event", ["session-start", "session-end"])
-@pytest.mark.parametrize("failure", ["crash", "timeout"])
-def test_session_hooks_ignore_a_crash_or_timeout(
-    env: dict[str, str], companion: Path, event: str, failure: str
-) -> None:
+def test_missing_tsl_is_logged_locally(env: dict[str, str], companion: Path) -> None:
     lock(companion)
-    cp = run(break_tsl(env, failure), event, hook_input(companion, event))
-    assert cp.returncode == 0 and cp.stdout == ""
+    run(missing(env), "pre-mcp", hook_input(companion, "pre-mcp"))
+    log = (Path(env["HOME"]) / ".truminds" / "logs" / "hook.log").read_text(encoding="utf-8")
+    assert "event=pre-mcp decision=deny code=E-HOOK-01" in log
 
 
-# ------------------------------------------------------------------------------------- pass-through
+def test_no_temp_files_are_left_behind(env: dict[str, str], companion: Path, tmp_path: Path) -> None:
+    lock(companion)
+    run(missing(env), "pre-tool", hook_input(companion, "pre-tool"))
+    run(env, "pre-tool", hook_input(companion, "pre-tool"))
+    assert not list(tmp_path.glob("tsl-hook.*"))
+
+
+# ------------------------------------------------------------------------------------- pass-through (exec)
 @pytest.mark.parametrize("shell", SHELLS)
 @pytest.mark.parametrize("event", ["session-start", "pre-tool", "pre-mcp", "post-write", "session-end"])
 def test_healthy_tsl_gets_stdin_and_its_output_passes_through(
@@ -260,32 +225,36 @@ def test_healthy_tsl_gets_stdin_and_its_output_passes_through(
     assert copy.read_text(encoding="utf-8") == payload, "stdin reaches tsl unchanged"
 
 
-def test_healthy_tsl_allow_is_silent(env: dict[str, str], companion: Path) -> None:
-    lock(companion)
-    cp = run(env, "pre-tool", hook_input(companion, "pre-tool"))
-    assert cp.returncode == 0 and cp.stdout == ""
+def test_backslash_paths_in_stdin_reach_tsl_unchanged(env: dict[str, str], tmp_path: Path) -> None:
+    copy = tmp_path / "stdin-copy.json"
+    payload = json.dumps({"session_id": "s", "cwd": "C:\\Users\\a b\\repo", "tool_name": "Read"})
+    cp = run(env, "pre-tool", payload, FAKE_TSL_STDIN_COPY=str(copy))
+    assert cp.returncode == 0
+    assert json.loads(copy.read_text(encoding="utf-8"))["cwd"] == "C:\\Users\\a b\\repo"
 
 
-def test_failures_are_logged_locally(env: dict[str, str], companion: Path) -> None:
-    lock(companion)
-    run(break_tsl(env, "crash"), "pre-mcp", hook_input(companion, "pre-mcp"))
-    log = (Path(env["HOME"]) / ".truminds" / "logs" / "hook.log").read_text(encoding="utf-8")
-    assert "event=pre-mcp decision=deny code=E-HOOK-01" in log
-    assert "boom" not in log, "the log keeps codes and short details, never tsl's raw output"
+def test_launcher_execs_tsl_once_and_hands_it_the_plugin_root(env: dict[str, str], tmp_path: Path) -> None:
+    argv = tmp_path / "argv.txt"
+    cp = run(env, "pre-tool", "{}", FAKE_TSL_ARGV_COPY=str(argv))
+    assert cp.returncode == 0
+    args, root, _pid = argv.read_text(encoding="utf-8").strip().split("|")
+    assert args == "hook pre-tool"
+    assert Path(root) == PLUGIN
 
 
-def test_budget_override_cannot_raise_the_budget() -> None:
+def test_tsl_exit_code_passes_through(env: dict[str, str]) -> None:
+    cp = run(env, "pre-tool", "{}", FAKE_TSL_EXIT="3")
+    assert cp.returncode == 3
+
+
+def test_launcher_hot_path_uses_no_external_commands() -> None:
+    """Everything before the first `exec` runs on every tool call: builtins only."""
     text = LAUNCHER.read_text(encoding="utf-8")
-    assert '-lt "$BUDGET"' in text, "TSL_HOOK_BUDGET_S may only lower the budget"
+    hot = text[: text.index("# ----", text.index("exec tsl hook"))]
+    for tool in ("sed ", "date ", "dirname", "mktemp", "cat ", "head ", "$(", "`", "tsl --version"):
+        assert tool not in hot.split("\n\n", 1)[1], tool
 
 
 def test_unknown_event_is_rejected(env: dict[str, str], companion: Path) -> None:
     cp = run(env, "pre-everything", "{}")
     assert cp.returncode == 1 and cp.stdout == ""
-
-
-def test_no_temp_files_are_left_behind(env: dict[str, str], companion: Path, tmp_path: Path) -> None:
-    lock(companion)
-    run(break_tsl(env, "timeout"), "pre-tool", hook_input(companion, "pre-tool"))
-    run(env, "pre-tool", hook_input(companion, "pre-tool"))
-    assert not list(tmp_path.glob("tsl-hook.*"))

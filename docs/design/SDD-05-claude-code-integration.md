@@ -295,10 +295,10 @@ Review package from tsl (artifact, rubric, cited context sections):
 
 `bin/tsl-hook` is a small launcher, the same on every OS (a shell script, plus a `.cmd` on Windows). It:
 
-- finds `tsl` on the machine;
-- checks that its version equals the plugin version;
-- passes stdin to `tsl hook <event>`;
-- applies the failure rules in §5.4 when `tsl` is missing or crashes.
+- finds `tsl` on the machine (shell builtins only) and `exec`s `tsl hook <event>` once, so a hook costs one process start (on Windows with an EDR every start costs 0.3 to 0.45 s);
+- applies the failure rules in §5.4 itself only when `tsl` is not installed.
+
+The version check (E-VER-01), the time budget and the crash / timeout rules of §5.4 run inside `tsl hook` (`tsl/hooks/entry.py`): a watchdog answers when the budget (8 s pre-tool and pre-mcp, 12 s session hooks, 85 s post-write) is exceeded.
 
 ### 5.3 Hook specifications
 
