@@ -270,13 +270,15 @@ def compute(
             try:
                 h3, verifier = run_h3(rt, ctx, extra)
             except VerifierUnavailable as exc:
-                h3 = GateResult("H3", "pending", details=[f"docker unavailable: {exc}"])
+                lead = "docker unavailable" if exc.code == "E-H3-07" else "verifier stopped"
+                h3 = GateResult("H3", "pending", details=[f"{lead}: {exc}"])
                 extra["_unavailable"] = True
+                extra["_unavailable_code"] = exc.code
     run = run_all(ci, h3)
     for d in extra.get("_h4_extra", []):
         run.gates["H4"].fail("E-SEC-01", f"verifier secrets scan: {d}", "GEN-SECRET-01")
     if extra.get("_unavailable"):
-        run.gates["H3"].details.append("E-H3-07")
+        run.gates["H3"].details.append(extra.get("_unavailable_code", "E-H3-07"))
     return run, verifier
 
 
@@ -381,8 +383,14 @@ def verify_artifact(
         "hard_failed": hard_failed,
         "duration_ms": 0,
     }
-    if "E-H3-07" in run.gates["H3"].details:
-        raise TslError("E-H3-07", data=data)
+    h3_details = run.gates["H3"].details
+    h3_env = next((c for c in ("E-H3-08", "E-H3-09", "E-H3-07") if c in h3_details), None)
+    if h3_env:
+        why = next(
+            (d.split(": ", 1)[1] for d in h3_details if d.startswith("verifier stopped: ")), ""
+        )
+        # 08 and 09 carry the specific reason (exit code or timeout, log file) in the message.
+        raise TslError(h3_env, why or None, data=data)
     abort = [c for c in codes if c in ABORT_CODES]
     if abort:
         h7 = next((g for g in rec["gates"] if g["id"] == "H7"), None)

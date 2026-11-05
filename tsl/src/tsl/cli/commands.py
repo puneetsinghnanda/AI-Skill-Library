@@ -227,7 +227,9 @@ def login(rotate_key: Annotated[bool, typer.Option("--rotate-key")] = False) -> 
     from tsl.services.identity_cmds import login as svc
 
     data = svc(rt(), rotate_key)
-    return emit_ok(f"Logged in as {data['pseudonym']}, key {data['key_id']}", data)
+    sent = int(data.get("events_sent") or 0)
+    tail = f"; sent {sent} queued event(s)" if sent else ""
+    return emit_ok(f"Logged in as {data['pseudonym']}, key {data['key_id']}{tail}", data)
 
 
 @app.command()
@@ -380,6 +382,7 @@ def verify(
 @command
 def decide(artifact: str) -> int:
     """Verify citations, compute signals, band and outcome, and sign the check record."""
+    from tsl.harness import plain
     from tsl.harness.decide_service import decide as svc
 
     data, d, warnings = svc(rt(), comp(), artifact)
@@ -395,21 +398,14 @@ def decide(artifact: str) -> int:
             "E-CHK-01", f"Step needs a retry: {why}", "retry with feedback", data, warnings
         )
     if o == "NEEDS-INPUT":
-        return emit_err(
-            "E-RUN-01",
-            f"Run paused for input: {d.signals['S4']} blocking question(s)",
-            f"/truminds:resume {run_id} after answering",
-            data,
-            warnings,
+        msg, nxt = plain.paused_input(
+            int(d.signals["S4"]), run_id, f"runs/{run_id}/open-questions.md"
         )
+        return emit_err("E-RUN-01", msg, nxt, data, warnings)
     if o == "ESCALATE":
-        return emit_err(
-            "E-RUN-02",
-            f"Run paused for approval: {d.escalate_reason}",
-            f"approver runs tsl approve {run_id} {data['gate']}",
-            data,
-            warnings,
-        )
+        why = plain.escalation_reason(d.escalate_reason, d.signals, d.reasons)
+        msg, nxt = plain.paused_approval(why, run_id, data["gate"], f"runs/{run_id}/approvals.md")
+        return emit_err("E-RUN-02", msg, nxt, data, warnings)
     code = next((c for c in d.codes if c.startswith(("E-SEC", "E-POL"))), "E-POL-05")
     return emit_err(code, f"Run aborted: {code}", "stopped", data, warnings)
 
@@ -579,7 +575,21 @@ def pr_sync(
     from tsl.services.pr import sync_prs
 
     data = sync_prs(rt(), comp(), run_id)
-    return emit_ok(f"{data['sent']} merged or closed pull request(s) reported", data)
+    n = data["sent"]
+    logged_in = True
+    if n:
+        try:
+            rt().identity().silent_token()
+        except TslError:
+            logged_in = False
+    data["queued_only"] = bool(n) and not logged_in
+    if data["queued_only"]:
+        return emit_ok(
+            f"{n} merged or closed pull request(s) queued (not logged in; run tsl login)",
+            data,
+            next_="tsl login",
+        )
+    return emit_ok(f"{n} merged or closed pull request(s) reported", data)
 
 
 @app.command("ci-verify")

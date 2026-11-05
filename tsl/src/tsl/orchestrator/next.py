@@ -11,6 +11,7 @@ from tsl.core.paths import RECORD_SUFFIXES, approvals_path, feedback_path, histo
 from tsl.core.repo import Companion
 from tsl.core.runtime import Runtime
 from tsl.gitops.git import Git, GitError
+from tsl.harness import plain
 from tsl.orchestrator.run import RunCtx
 from tsl.orchestrator.workflow import downstream, step_id, step_kind
 from tsl.state import lock as lockmod
@@ -324,16 +325,25 @@ def next_action(rt: Runtime, comp: Companion, run_id: str) -> tuple[dict[str, An
             act = "stopped" if st.get("end_reason") in STOPPED else "done"
             return {"schema": "next-action.v1", "action": act, "run_id": run_id}, act
         if st["status"] == "PAUSED_INPUT":
+            q = st.get("questions") or {}
+            msg, nxt = plain.paused_input(
+                int(q.get("open_blocking") or 0), run_id, ctx.questions_rel()
+            )
             raise TslError(
                 "E-RUN-01",
-                next=f"answer {ctx.questions_rel()}, then /truminds:resume {run_id}",
+                msg,
+                next=nxt,
                 data={"schema": "next-action.v1", "action": "pause_input", "run_id": run_id},
             )
         if st["status"] == "PAUSED_APPROVAL":
             gate = _waiting_gate(ctx) or "?"
+            msg, nxt = plain.paused_approval(
+                "the run reached an approval gate", run_id, gate, approvals_path(run_id)
+            )
             raise TslError(
                 "E-RUN-02",
-                next=f"approver runs tsl approve {run_id} {gate}",
+                msg,
+                next=nxt,
                 data={"schema": "next-action.v1", "action": "pause_approval", "run_id": run_id},
             )
         for name, ver in st["pinned"]["skills"].items():

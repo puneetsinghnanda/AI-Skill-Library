@@ -7,8 +7,10 @@ Tests use a fake runner, and Docker-dependent tests skip when Docker is absent.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -29,7 +31,15 @@ STEP_CODE = {
 
 
 class VerifierUnavailable(Exception):
-    """Docker not running or image unavailable (E-H3-07)."""
+    """The verifier could not run. E-H3-07 (Docker or image) unless `code` says otherwise.
+
+    E-H3-08: dependency install (prepare) failed or timed out. E-H3-09: container out of memory.
+    """
+
+    def __init__(self, message: str, code: str = "E-H3-07", **fmt: Any) -> None:
+        super().__init__(message)
+        self.code = code
+        self.fmt = fmt
 
 
 @dataclass
@@ -64,6 +74,8 @@ class VerifierRunner(Protocol):
 
 PLACEHOLDER_DIGEST = "sha256:" + "0" * 64
 LIMITS = {"cpus": "2", "memory": "4g", "pids": "512"}  # SDD-03 §5.5
+MEMORY_MARGIN_MB = 1536  # warn when free memory is below the container limit plus this
+OOM_EXIT = 137  # 128 + SIGKILL: the kernel killed the container, usually for memory
 RUN_USER = "1000:1000"  # SDD-03 §5.5; each verifier image has this uid
 
 
@@ -122,6 +134,66 @@ def docker_command(profile: dict[str, Any], step: str, worktree: Path, out_dir: 
     ]
 
 
+def available_memory_mb() -> int | None:
+    """Free host memory in MB; None when it cannot be read (stdlib only, never raises)."""
+    try:
+        if sys.platform == "win32":
+            import ctypes
+
+            class _Mem(ctypes.Structure):
+                _fields_ = [
+                    ("dwLength", ctypes.c_ulong),
+                    ("dwMemoryLoad", ctypes.c_ulong),
+                    ("ullTotalPhys", ctypes.c_ulonglong),
+                    ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong),
+                    ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong),
+                    ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("sullAvailExtendedVirtual", ctypes.c_ulonglong),
+                ]
+
+            m = _Mem()
+            m.dwLength = ctypes.sizeof(_Mem)
+            if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m)):  # type: ignore[attr-defined,unused-ignore]
+                return None
+            return int(m.ullAvailPhys // (1024 * 1024))
+        if sys.platform == "darwin":
+            out = subprocess.run(
+                ["sysctl", "-n", "hw.memsize"], capture_output=True, timeout=5, check=False
+            ).stdout
+            vm = subprocess.run(["vm_stat"], capture_output=True, timeout=5, check=False).stdout
+            page = re.search(rb"page size of (\d+)", vm)
+            free = sum(
+                int(m.group(1))
+                for m in re.finditer(rb"Pages (?:free|inactive|speculative):\s+(\d+)", vm)
+            )
+            if not out.strip() or not page:
+                return None
+            return int(free * int(page.group(1)) // (1024 * 1024))
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            if line.startswith("MemAvailable:"):
+                return int(line.split()[1]) // 1024
+    except Exception:
+        return None
+    return None
+
+
+def limit_mb(limit: str) -> int:
+    return int(limit[:-1]) * 1024 if limit.endswith("g") else int(limit[:-1])
+
+
+def low_memory_warning(available_mb: int | None) -> str | None:
+    need = limit_mb(LIMITS["memory"]) + MEMORY_MARGIN_MB
+    if available_mb is None or available_mb >= need:
+        return None
+    return (
+        f"Low memory: {available_mb / 1024:.1f} GB free; the verifier container may use up to "
+        f"{LIMITS['memory'].upper().replace('G', ' GB')}. Close other programs (browsers, IDEs) "
+        "before the run, or it may be killed for memory."
+    )
+
+
 def export_source(repo: Path) -> Path:
     """Copy the files git tracks or would track (not ignored ones) into a new temp folder.
 
@@ -152,6 +224,9 @@ class DockerVerifier:
 
     # Docker Desktop on Windows (WSL 2) often takes 3-10 s to answer `docker info` after idle.
     INFO_TIMEOUT_S = int(os.environ.get("TSL_DOCKER_TIMEOUT_S", "30"))
+
+    def __init__(self) -> None:
+        self.warnings: list[str] = []
 
     def probe(self) -> str | None:
         """None when Docker answers; otherwise why it counts as unavailable."""
@@ -190,6 +265,10 @@ class DockerVerifier:
         res = VerifierResult(str(profile["id"]), digest)
         steps: dict[str, Any] = profile["steps"]
         out_dir.mkdir(parents=True, exist_ok=True)
+        warn = low_memory_warning(available_memory_mb())
+        if warn:
+            self.warnings.append(warn)
+            print(f"warning: {warn}", file=sys.stderr)
         names = ["prepare", *[s for s in STEP_ORDER if s in steps]]
         for name in names:
             if name == "coverage" and not with_coverage:
@@ -208,13 +287,28 @@ class DockerVerifier:
                 code, timed_out = None, True
                 outs = (exc.stdout, exc.stderr)
             ms = int((time.monotonic() - t0) * 1000)
-            log = _write_log(out_dir, name, *outs)
+            log = _write_log(out_dir, name, *outs, attempt=_attempt_of(out_dir))
             report = spec.get("report")
             rsha = sha256_file(out_dir / report) if report and (out_dir / report).exists() else None
             if name == "prepare":
                 if timed_out or code != 0:
-                    raise VerifierUnavailable("prepare failed")
+                    why = (
+                        f"timed out after {int(spec['timeout_s'])} s"
+                        if timed_out
+                        else f"exit {code}"
+                    )
+                    if code == OOM_EXIT:
+                        raise _oom(name, log)
+                    where = out_dir / log if log else "none"
+                    raise VerifierUnavailable(
+                        f"dependency install (prepare) failed: {why}; log {where}",
+                        "E-H3-08",
+                        why=why,
+                        log=log or "none",
+                    )
                 continue
+            if code == OOM_EXIT:
+                raise _oom(name, log)
             if timed_out:
                 res.steps.append(
                     StepResult(name, "fail", None, ms, rsha, "E-H3-06", f"{name} timed out", log)
@@ -235,16 +329,35 @@ class DockerVerifier:
         return res
 
 
+def _oom(step: str, log: str | None) -> VerifierUnavailable:
+    return VerifierUnavailable(
+        f"verifier step {step} was killed (exit {OOM_EXIT}), most likely out of memory",
+        "E-H3-09",
+        step=step,
+        limit=LIMITS["memory"],
+    )
+
+
+def _attempt_of(out_dir: Path) -> str | None:
+    """'a2' from .../verifier/<step>/a2, so a retry keeps its own prepare log."""
+    return out_dir.name if re.fullmatch(r"a\d+", out_dir.name) else None
+
+
 def _write_log(
-    out_dir: Path, name: str, stdout: bytes | str | None, stderr: bytes | str | None
+    out_dir: Path,
+    name: str,
+    stdout: bytes | str | None,
+    stderr: bytes | str | None,
+    attempt: str | None = None,
 ) -> str | None:
     """Keep the tail of a step's output as <name>.log so a retry can see why it failed."""
     if name in NO_LOG_STEPS:
         return None
     parts = [x.encode() if isinstance(x, str) else x for x in (stdout, stderr) if x]
     body = b"\n".join(parts)[-LOG_MAX_BYTES:]
-    (out_dir / f"{name}.log").write_bytes(body)
-    return f"{name}.log"
+    fname = f"{name}-{attempt}.log" if attempt and name == "prepare" else f"{name}.log"
+    (out_dir / fname).write_bytes(body)
+    return fname
 
 
 def log_tail(path: Path, max_chars: int) -> str:
