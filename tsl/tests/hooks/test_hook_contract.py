@@ -8,6 +8,7 @@ Placeholders {companion}, {product} and {run_id} are filled from the temp world.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,13 @@ def _fill(obj: Any, subs: dict[str, str]) -> Any:
     for k, v in subs.items():
         text = text.replace("{" + k + "}", json.dumps(v)[1:-1])
     return json.loads(text)
+
+
+def _slashes(obj: Any) -> Any:
+    """Windows paths: tsl prints some with / and some with backslashes; not part of the contract."""
+    if os.name != "nt":
+        return obj
+    return json.loads(json.dumps(obj).replace("\\\\", "/"))
 
 
 def _artifact(w: World, run_id: str, *, bad: bool) -> None:
@@ -133,7 +141,7 @@ def test_hook_golden(world: World, stdin_path: Path) -> None:
 
     assert code == expect["exit"]
     want = _fill(expect["stdout"], subs)
-    assert (json.loads(out) if out else None) == want
+    assert _slashes(json.loads(out) if out else None) == _slashes(want)
     lines = log.read_text().splitlines()
     assert len(lines) == before + 1, "exactly one hook.log line per invocation"
     assert expect["log_contains"] in json.dumps(json.loads(lines[-1]), sort_keys=True)
