@@ -6,12 +6,6 @@
 from __future__ import annotations
 
 import sys
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:  # not imported at runtime: the hook path must not pay for typing / pathlib (NFR-02)
-    from collections.abc import Callable
-    from pathlib import Path
-    from typing import Any
 
 
 def _utf8_streams() -> None:
@@ -27,11 +21,11 @@ def main(argv: list[str] | None = None) -> None:
     _utf8_streams()
     args = list(sys.argv[1:] if argv is None else argv)
     if args[:1] in (["hook"], ["hook-run"]) and len(args) >= 2:
-        # `hook-run` is what the plugin launcher calls: an older tsl has no such command and exits non-zero, which the
-        # launcher turns into the fail rule (so a stale tsl cannot skip the version check).
+        # `hook-run` is what the plugin launcher calls: an older tsl has no such command and exits
+        # non-zero, which the launcher turns into the fail rule (a stale tsl can't skip the check).
         try:
             from tsl.hooks.entry import main as hook_main
-        except BaseException:  # noqa: BLE001 - tell the launcher tsl is broken: non-zero, no output
+        except BaseException:
             sys.exit(70)
         sys.exit(hook_main(args[1], args[2:]))
     if args == ["--version"]:

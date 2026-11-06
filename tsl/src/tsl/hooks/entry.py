@@ -1,16 +1,18 @@
 """Fast entry for `tsl hook <event>` (SDD-05 §5.2, §5.4). Standard library only until dispatch.
 
-`bin/tsl-hook` is a builtin-only shell launcher that `exec`s `tsl hook <event>` once. Everything the old
-launcher did around that call lives here, inside the one process:
+`bin/tsl-hook` is a builtin-only shell launcher that runs `tsl hook-run <event>` once (and applies
+the fail rule itself if tsl cannot start). Everything else the old launcher did lives here:
 
-- version check: `tsl` must equal the plugin version (plugin.json under TSL_PLUGIN_ROOT / CLAUDE_PLUGIN_ROOT), E-VER-01;
-- time budget (8 s pre-tool / pre-mcp, 12 s session hooks, 85 s post-write; TSL_HOOK_BUDGET_S may only lower it),
-  enforced by a watchdog timer, because the launcher no longer supervises tsl;
-- failure rules of SDD-05 §5.4: pre-tool / pre-mcp deny with E-HOOK-01 inside a run (fail closed) and allow
-  outside one; post-write allows with a systemMessage; session hooks warn (version) or ignore (crash, timeout).
+- version check: `tsl` must equal the plugin version (plugin.json under `--plugin-root`), E-VER-01;
+- time budget (8 s pre-tool / pre-mcp, 12 s session hooks, 85 s post-write; TSL_HOOK_BUDGET_S may
+  only lower it), enforced by a watchdog timer, because the launcher no longer supervises tsl;
+- failure rules of SDD-05 §5.4: pre-tool / pre-mcp deny with E-HOOK-01 inside a run (fail closed)
+  and allow outside one; post-write allows with a systemMessage; session hooks warn (version) or
+  ignore (crash, timeout).
 
-"Inside a run" = a run lock exists: found through ~/.truminds/sessions/<session_id>.json, or by walking up from
-the hook's cwd to the folder holding tsl.yaml (any lock in runs/active/ there keeps writes closed).
+"Inside a run" = a run lock exists: found through ~/.truminds/sessions/<session_id>.json, or by
+walking up from the hook's cwd to the folder holding tsl.yaml (any lock in runs/active/ there keeps
+writes closed).
 """
 
 from __future__ import annotations
@@ -25,13 +27,15 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-_T0 = time.perf_counter()  # import time of this module: the closest point to process start we can see
+# import time of this module: the closest point to process start we can see
+_T0 = time.perf_counter()
 
 BUDGET_S = {"session-start": 12, "session-end": 12, "pre-tool": 8, "pre-mcp": 8, "post-write": 85}
 INSTALL_HINT = (
-    "update tsl and the plugin from your AI-Skill-Library clone: git pull; uv tool install --python 3.12 "
-    "--reinstall --no-cache ./tsl (TSL_ORG_FILE set, see the pilot guide); claude plugin marketplace update "
-    "truminds-skill-library; claude plugin update truminds@truminds-skill-library"
+    "update tsl and the plugin from your AI-Skill-Library clone: git pull; "
+    "uv tool install --python 3.12 --reinstall --no-cache ./tsl (TSL_ORG_FILE set, see the pilot "
+    "guide); claude plugin marketplace update truminds-skill-library; "
+    "claude plugin update truminds@truminds-skill-library"
 )
 _SID_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-")
 
@@ -45,10 +49,11 @@ def budget_for(event: str, env: Mapping[str, str]) -> int:
 
 
 def plugin_version(env: Mapping[str, str], root: str | None = None) -> str | None:
-    """None when no plugin root is known (manual `tsl hook` call); 'unknown' when plugin.json is unreadable.
+    """None when no plugin root is known (manual `tsl hook` call); 'unknown' when plugin.json is
+    unreadable.
 
-    The launcher passes the root as `--plugin-root`; TSL_PLUGIN_ROOT / CLAUDE_PLUGIN_ROOT are only a fallback
-    (used by tests and manual calls).
+    The launcher passes the root as `--plugin-root`; TSL_PLUGIN_ROOT / CLAUDE_PLUGIN_ROOT are only
+    a fallback (used by tests and manual calls).
     """
     root = root or env.get("TSL_PLUGIN_ROOT") or env.get("CLAUDE_PLUGIN_ROOT")
     if not root:
@@ -63,13 +68,16 @@ def plugin_version(env: Mapping[str, str], root: str | None = None) -> str | Non
 def _lock_in(root: str) -> bool:
     try:
         active = os.path.join(root, "runs", "active")
-        return any(n.endswith(".lock") and os.path.isfile(os.path.join(active, n)) for n in os.listdir(active))
+        return any(
+            n.endswith(".lock") and os.path.isfile(os.path.join(active, n))
+            for n in os.listdir(active)
+        )
     except OSError:
         return False
 
 
 def run_active(data: Mapping[str, object], home: str) -> bool:
-    """Conservative: True when tsl cannot rule out an open run for this session or companion repo."""
+    """Conservative: True when tsl can't rule out an open run for this session or companion."""
     sid = data.get("session_id")
     if isinstance(sid, str) and sid and not (set(sid) - _SID_CHARS):
         try:
@@ -97,13 +105,20 @@ def _log(home: str, event: str, decision: str, code: str, detail: str) -> None:
         os.makedirs(logs, exist_ok=True)
         ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         with open(os.path.join(logs, "hook.log"), "a", encoding="utf-8") as fh:
-            fh.write(f"{ts} tsl-hook event={event} decision={decision} code={code} detail={detail}\n")
+            fh.write(
+                f"{ts} tsl-hook event={event} decision={decision} code={code} detail={detail}\n"
+            )
     except OSError:
         pass
 
 
-def failure_output(event: str, kind: str, detail: str, data: Mapping[str, object], home: str) -> str:
-    """Hook JSON for a failure of kind version | crash | timeout (SDD-05 §5.4); '' means allow silently."""
+def failure_output(
+    event: str, kind: str, detail: str, data: Mapping[str, object], home: str
+) -> str:
+    """Hook JSON for a failure of kind version | crash | timeout (SDD-05 §5.4).
+
+    '' means allow silently.
+    """
     if event in ("pre-tool", "pre-mcp"):
         if run_active(data, home):
             _log(home, event, "deny", "E-HOOK-01", f"{kind}: {detail}")
@@ -159,14 +174,16 @@ def guarded(
     plugin_root: str | None = None,
     started: float | None = None,
 ) -> int:
-    """Run the hook once with version check, budget and fail rules. Always returns 0 (a failure is an answer).
+    """Run the hook once with version check, budget and fail rules.
 
-    The watchdog starts first, before stdin is read or tsl is imported, and its budget is counted from `started`
-    (a time.perf_counter() value), so a hang anywhere still ends in the fail rule. Anything that escapes
-    (e.g. a failing import) goes through the same rule.
+    Always returns 0 (a failure is an answer). The watchdog starts first, before stdin is read or
+    tsl is imported, and its budget is counted from `started` (a time.perf_counter() value), so a
+    hang anywhere still ends in the fail rule. Anything that escapes (e.g. a failing import) goes
+    through the same rule.
     """
     env = os.environ if env is None else env
-    home = os.fspath(home) if home else os.path.join(os.path.expanduser("~"), ".truminds")  # type: ignore[call-overload]
+    default_home = os.path.join(os.path.expanduser("~"), ".truminds")
+    home = os.fspath(home) if home else default_home  # type: ignore[call-overload]
     budget = budget_for(event, env)
     left = budget - (time.perf_counter() - (time.perf_counter() if started is None else started))
     gate = threading.Lock()
@@ -189,7 +206,11 @@ def guarded(
             if state["done"]:
                 return
             state["done"] = True
-            finish(failure_output(event, "timeout", f"tsl hook {event} timed out after {budget} s", parse(), home))
+            finish(
+                failure_output(
+                    event, "timeout", f"tsl hook {event} timed out after {budget} s", parse(), home
+                )
+            )
             hard_exit(0)
 
     timer = threading.Timer(max(left, 0.0), on_timeout)
@@ -208,11 +229,14 @@ def guarded(
                 if state["done"]:
                     return 0
                 state["done"] = True
-                detail = f"tsl {__version__} does not match plugin {pv} (E-VER-01). Install tsl {pv}: {INSTALL_HINT}"
+                detail = (
+                    f"tsl {__version__} does not match plugin {pv} (E-VER-01). "
+                    f"Install tsl {pv}: {INSTALL_HINT}"
+                )
                 finish(failure_output(event, "version", detail, parse(), home))
                 return 0
         out, code = runner(event, box["stdin"])
-    except BaseException as e:  # noqa: BLE001 - any failure must go through the fail rules
+    except BaseException as e:
         err = f"tsl hook {event} failed with {type(e).__name__}"
     timer.cancel()
     with gate:
@@ -220,7 +244,15 @@ def guarded(
             return 0
         state["done"] = True
         if err is not None or code != 0:
-            finish(failure_output(event, "crash", err or f"tsl hook {event} exited with status {code}", parse(), home))
+            finish(
+                failure_output(
+                    event,
+                    "crash",
+                    err or f"tsl hook {event} exited with status {code}",
+                    parse(),
+                    home,
+                )
+            )
         else:
             finish(out)
         return 0
