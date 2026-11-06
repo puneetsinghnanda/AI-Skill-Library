@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from pathlib import Path
 from typing import Any
@@ -73,8 +74,16 @@ def test_init_happy_and_errors(world: World) -> None:
     cfg = yaml.safe_load((target / "tsl.yaml").read_text())
     assert errors("tsl-config.v1", cfg) == []
     assert (target / ".gitattributes").read_text() == "* text=auto eol=lf\n"
+
     # the remote is no longer empty
-    shutil.rmtree(target)
+    # git object files are read-only on Windows; clear the bit before removing
+    def _writable(func: Any, path: str, exc: BaseException) -> None:
+        if not isinstance(exc, PermissionError):
+            raise exc
+        os.chmod(path, 0o700)
+        func(path)
+
+    shutil.rmtree(target, onexc=_writable)
     code, env, _, _ = world.cli(args, user="tl")
     assert code == 3 and env is not None and env["code"] == "E-INIT-02"
     code, env, _, _ = world.cli(

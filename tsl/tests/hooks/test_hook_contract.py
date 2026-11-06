@@ -8,6 +8,7 @@ Placeholders {companion}, {product} and {run_id} are filled from the temp world.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -26,8 +27,26 @@ CASES = sorted(p for p in FIX.glob("*/*.stdin.json"))
 def _fill(obj: Any, subs: dict[str, str]) -> Any:
     text = json.dumps(obj)
     for k, v in subs.items():
-        text = text.replace("{" + k + "}", v)
+        text = text.replace("{" + k + "}", json.dumps(v)[1:-1])
     return json.loads(text)
+
+
+PATH_FIELDS = ("systemMessage", "permissionDecisionReason")
+
+
+def _slashes(obj: Any) -> Any:
+    """On Windows, tsl prints some paths with / and some with backslashes in its messages (the
+    policy itself compares /-normalised paths). Only those message fields are normalised, so a
+    separator change anywhere else still fails the golden."""
+    if os.name != "nt" or not isinstance(obj, dict):
+        return obj
+    out = dict(obj)
+    for k, v in obj.items():
+        if isinstance(v, dict):
+            out[k] = _slashes(v)
+        elif k in PATH_FIELDS and isinstance(v, str):
+            out[k] = v.replace("\\", "/")
+    return out
 
 
 def _artifact(w: World, run_id: str, *, bad: bool) -> None:
@@ -133,7 +152,7 @@ def test_hook_golden(world: World, stdin_path: Path) -> None:
 
     assert code == expect["exit"]
     want = _fill(expect["stdout"], subs)
-    assert (json.loads(out) if out else None) == want
+    assert _slashes(json.loads(out) if out else None) == _slashes(want)
     lines = log.read_text().splitlines()
     assert len(lines) == before + 1, "exactly one hook.log line per invocation"
     assert expect["log_contains"] in json.dumps(json.loads(lines[-1]), sort_keys=True)
