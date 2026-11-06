@@ -176,6 +176,17 @@ def test_prepare_failure_with_docker_gone_is_e_h3_07(
     assert ei.value.code == "E-H3-07" and ei.value.data["exit_code"] == 1
 
 
+def test_prepare_failure_with_slow_docker_stays_e_h3_08(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A `docker info` timeout right after a heavy install is inconclusive, not "Docker gone"."""
+    _fake_docker(monkeypatch, {"prepare": 1})
+    monkeypatch.setattr(DockerVerifier, "probe", lambda self: "docker info timed out after 30 s")
+    with pytest.raises(VerifierUnavailable) as ei:
+        DockerVerifier().run(_prep_profile(), tmp_path, tmp_path / "a1", False)
+    assert ei.value.code == "E-H3-08"
+
+
 def test_killed_step_reports_memory(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     _fake_docker(monkeypatch, {"prepare": 0, "build": 137})
     with pytest.raises(VerifierUnavailable) as ei:

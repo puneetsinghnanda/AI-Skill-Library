@@ -306,7 +306,10 @@ def sync_prs(rt: Runtime, comp: Companion, run_id: str | None = None) -> dict[st
 
         try:
             res = flush(rt, SEND_SOON_SECONDS)
-            delivered = min(emitted, res.sent + res.duplicates)
+            # flush drains the whole outbox, oldest first, so older events may have used the
+            # send: count ours as delivered only when the outbox has fewer pending than we added
+            # (errs toward saying "queued").
+            delivered = emitted - min(emitted, res.pending)
         except Exception:  # noqa: S110 - events stay queued (R-04)
             pass
     return {

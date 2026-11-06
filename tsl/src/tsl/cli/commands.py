@@ -583,6 +583,13 @@ def pr_sync(
             data,
             next_="tsl login",
         )
+    if data["queued"]:
+        return emit_ok(
+            f"{data['delivered']} merged or closed pull request(s) reported, "
+            f"{data['queued']} still queued",
+            data,
+            next_="tsl events flush",
+        )
     return emit_ok(f"{n} merged or closed pull request(s) reported", data)
 
 
