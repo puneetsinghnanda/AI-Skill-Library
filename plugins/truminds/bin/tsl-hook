@@ -1,9 +1,10 @@
 #!/bin/sh
 # tsl-hook <event>: thin launcher for the truminds plugin hooks (SDD-05 §5.2, §5.4; SDD-04 §6.14).
 #
-# Hot path (every tool call): shell builtins only, then runs `tsl hook-run <event> --plugin-root <dir>` as a child, so a hook costs ONE tsl start
-# (each start costs 0.3-0.45 s under an EDR on Windows; the old launcher started about 15). stdin and stdout pass
-# straight through. Everything else runs inside tsl, in tsl/src/tsl/hooks/entry.py:
+# Hot path (every tool call): shell builtins only, then runs `tsl hook-run <event> --plugin-root <dir>` once, so a
+# hook costs ONE process start (each start costs 0.3-0.45 s under an EDR on Windows; the old launcher started about
+# 15). stdin passes straight through; tsl's stdout is captured and printed only when tsl exits 0, so a dying or old
+# tsl can never mix its own output with the fallback answer. Everything else runs inside tsl (tsl/hooks/entry.py):
 #   - the version check: `tsl` must equal the plugin version (plugin.json), E-VER-01;
 #   - the time budget (8 s pre-tool and pre-mcp, 12 s session hooks, 85 s post-write; TSL_HOOK_BUDGET_S can only
 #     lower it), enforced by a watchdog, since this script no longer supervises tsl;
@@ -12,8 +13,9 @@
 #        post-write            allow, warn with systemMessage (fail open; never lose the engineer's work)
 #        session-start/end     version mismatch: warn with systemMessage; crash or timeout: ignore, log
 #
-# Only "tsl is not installed" and "tsl died (non-zero exit)" are handled here, below, with the same rules
-# (slow sed code, rare).
+# Only "tsl is not installed" and "tsl died (non-zero exit)" are handled here, below, with the same rules (slow sed
+# code, rare). One deliberate difference: session hooks warn (E-HOOK-01) when tsl died, because this script cannot
+# tell a crash from an older tsl, and the warning carries the update command.
 # "Inside a run" means a run lock file exists (registry §8: runs/active/<ticket>__<workflow>.lock), found either
 # through this session's index ~/.truminds/sessions/<session_id>.json (SDD-04 §6.14) or by walking up from the
 # hook's cwd to the companion repo root (the folder holding tsl.yaml). The walk is deliberately conservative: when
@@ -47,9 +49,14 @@ for c in tsl "${HOME:-}/.local/bin/tsl" "${HOME:-}/.local/share/uv/tools/trumind
     tsl) command -v tsl >/dev/null 2>&1 || continue ;;
     *) [ -x "$c" ] || continue ;;
   esac
-  "$c" hook-run "$EVENT" --plugin-root "$R"
+  # A single command substitution forks once and execs tsl in that fork: the same cost as a plain child.
+  OUT=$("$c" hook-run "$EVENT" --plugin-root "$R")
   rc=$?
-  [ "$rc" -eq 0 ] && exit 0
+  if [ "$rc" -eq 0 ]; then
+    [ -z "$OUT" ] || printf '%s
+' "$OUT"
+    exit 0
+  fi
   FAILED="tsl hook $EVENT exited with status $rc (tsl crashed, failed to start, or is older than this plugin)"
   break
 done
@@ -143,7 +150,7 @@ case "$EVENT" in
     printf '{"systemMessage":"%s"}\n' "$(json_escape "Truminds: artifact checks did not run ($detail). Your file was kept. Fix tsl, then re-run the step's checks.")"
     ;;
   session-start|session-end)
-    log_line warn E-VER-01 "$kind: $detail"
+    log_line warn E-HOOK-01 "$kind: $detail"
     printf '{"systemMessage":"%s"}\n' "$(json_escape "Truminds: $detail")"
     ;;
 esac

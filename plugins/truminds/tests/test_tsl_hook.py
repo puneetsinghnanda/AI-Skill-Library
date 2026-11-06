@@ -262,6 +262,21 @@ def test_tsl_dying_in_a_run_fails_closed(
     assert f"event={event} decision=deny code=E-HOOK-01" in log
 
 
+def test_output_of_a_dying_tsl_never_mixes_with_the_deny(env: dict[str, str], companion: Path) -> None:
+    """An older tsl prints its error envelope and exits non-zero: only the fallback deny is printed."""
+    lock(companion)
+    cp = run(
+        env,
+        "pre-tool",
+        hook_input(companion, "pre-tool"),
+        cwd=companion,
+        FAKE_TSL_OUTPUT='{"ok": false, "code": "E-CLI-01"}',
+        FAKE_TSL_EXIT="2",
+    )
+    assert_deny(cp)
+    assert "E-CLI-01" not in cp.stdout
+
+
 @pytest.mark.parametrize("fake", [{"FAKE_TSL_EXIT": "1"}, {"FAKE_TSL_OLD": "1"}], ids=["crash", "old-tsl"])
 def test_tsl_dying_out_of_a_run_fails_open(env: dict[str, str], companion: Path, fake: dict[str, str]) -> None:
     cp = run(env, "pre-tool", hook_input(companion, "pre-tool"), cwd=companion, **fake)
@@ -274,11 +289,16 @@ def test_post_write_when_tsl_dies_warns_and_exits_zero(env: dict[str, str], comp
 
 
 def test_launcher_hot_path_uses_no_external_commands() -> None:
-    """Everything before the first `exec` runs on every tool call: builtins only."""
+    """Everything up to the tsl call runs on every tool call: builtins only, plus the one tsl start
+    (captured with a single command substitution, which execs tsl in its fork)."""
     text = LAUNCHER.read_text(encoding="utf-8")
-    hot = text[: text.index("# ----", text.index('"$c" hook-run'))]
+    hot = text[: text.index("# ----", text.index('"$c" hook-run'))].split("\n\n", 1)[1]
+    code = "\n".join(line.split("#", 1)[0] for line in hot.splitlines())
+    assert code.count("$(") == 1
+    assert 'OUT=$("$c" hook-run "$EVENT" --plugin-root "$R")' in code
+    code = code.replace('$("$c" hook-run', '"$c" hook-run')
     for tool in ("sed ", "date ", "dirname", "mktemp", "cat ", "head ", "$(", "`", "tsl --version"):
-        assert tool not in hot.split("\n\n", 1)[1], tool
+        assert tool not in code, tool
 
 
 def test_unknown_event_is_rejected(env: dict[str, str], companion: Path) -> None:
