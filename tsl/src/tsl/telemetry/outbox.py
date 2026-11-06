@@ -16,6 +16,10 @@ from tsl.core.errors import TslError
 from tsl.core.ids import IdFactory
 from tsl.insights.client import HttpResult, InsightsUnavailable
 
+# Layout of the outbox file. Each step upgrades a file from the version before it; `_conn` runs
+# the missing steps in order and records the version after each one, so an existing file gets
+# every later step. To change the layout: add step N+1 here and raise SCHEMA_VERSION to N+1.
+# A step must be safe to run twice (a crash can stop it before its version is recorded).
 DDL = """
 PRAGMA journal_mode = WAL;
 CREATE TABLE IF NOT EXISTS event (
@@ -34,8 +38,12 @@ CREATE TABLE IF NOT EXISTS event (
   sent_at         TEXT
 );
 CREATE INDEX IF NOT EXISTS event_due ON event (status, next_attempt_at);
-PRAGMA user_version = 1;
 """
+MIGRATIONS: dict[int, str] = {1: DDL}
+SCHEMA_VERSION = max(MIGRATIONS)
+# How long a writer waits for the file's write lock. Hooks write on every tool call inside a short
+# time budget (8 s for pre-tool), so they pass a shorter wait; a lost hook event is the lesser harm.
+LOCK_WAIT_S = 2.0
 
 BATCH = 500
 LEASE = timedelta(seconds=60)
@@ -92,31 +100,47 @@ class Outbox:
         ids: IdFactory,
         strict: bool = False,
         retain_sent_days: int = 7,
+        lock_wait_s: float = LOCK_WAIT_S,
     ) -> None:
         self.path = path
         self.clock = clock
         self.ids = ids
         self.strict = strict
         self.retain = timedelta(days=retain_sent_days)
+        self.lock_wait_s = lock_wait_s
 
     def _conn(self) -> sqlite3.Connection:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        c = sqlite3.connect(str(self.path), timeout=5.0, isolation_level=None)
-        c.execute("PRAGMA busy_timeout = 5000")
-        # The schema and WAL mode persist in the file, so set them up once. Running the DDL on
-        # every connection made concurrent writers (parallel hook calls) fight for the write
-        # lock, and `PRAGMA journal_mode` can fail with "database is locked" without waiting.
-        if c.execute("PRAGMA user_version").fetchone()[0] < 1:
-            for attempt in range(20):
-                try:
-                    c.executescript(DDL)
-                    break
-                except sqlite3.OperationalError as exc:
-                    if "locked" not in str(exc) or attempt == 19:
-                        c.close()
-                        raise
-                    time.sleep(0.05 * (attempt + 1))
+        c = sqlite3.connect(str(self.path), timeout=self.lock_wait_s, isolation_level=None)
+        c.execute(f"PRAGMA busy_timeout = {int(self.lock_wait_s * 1000)}")
+        # The layout and WAL mode persist in the file, so they are set up only when the file is
+        # behind SCHEMA_VERSION (normally: once, when it is created). Running the DDL on every
+        # connection made parallel writers (hook calls) fight for the write lock, and
+        # `PRAGMA journal_mode` fails with "database is locked" at once instead of waiting.
+        try:
+            version = c.execute("PRAGMA user_version").fetchone()[0]
+            for step in range(version + 1, SCHEMA_VERSION + 1):
+                self._upgrade(c, step)
+        except BaseException:
+            c.close()
+            raise
         return c
+
+    def _upgrade(self, c: sqlite3.Connection, step: int) -> None:
+        """Run one layout step, retrying while another process holds the lock (bounded by
+        lock_wait_s in total), then record the new version."""
+        deadline = time.monotonic() + self.lock_wait_s
+        pause = 0.02
+        while True:
+            try:
+                c.executescript(MIGRATIONS[step])
+                c.execute(f"PRAGMA user_version = {int(step)}")
+                return
+            except sqlite3.OperationalError as exc:
+                if "locked" not in str(exc) or time.monotonic() + pause > deadline:
+                    raise
+                time.sleep(pause)
+                pause = min(pause * 2, 0.2)
 
     def enqueue(
         self, type_: str, body: dict[str, Any], run_id: str | None = None, schema_version: int = 1

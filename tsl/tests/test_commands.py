@@ -77,7 +77,9 @@ def test_init_happy_and_errors(world: World) -> None:
 
     # the remote is no longer empty
     # git object files are read-only on Windows; clear the bit before removing
-    def _writable(func: Any, path: str, _exc: BaseException) -> None:
+    def _writable(func: Any, path: str, exc: BaseException) -> None:
+        if not isinstance(exc, PermissionError):
+            raise exc
         os.chmod(path, 0o700)
         func(path)
 

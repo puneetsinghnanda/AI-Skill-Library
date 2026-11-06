@@ -31,11 +31,22 @@ def _fill(obj: Any, subs: dict[str, str]) -> Any:
     return json.loads(text)
 
 
+PATH_FIELDS = ("systemMessage", "permissionDecisionReason")
+
+
 def _slashes(obj: Any) -> Any:
-    """Windows paths: tsl prints some with / and some with backslashes; not part of the contract."""
-    if os.name != "nt":
+    """On Windows, tsl prints some paths with / and some with backslashes in its messages (the
+    policy itself compares /-normalised paths). Only those message fields are normalised, so a
+    separator change anywhere else still fails the golden."""
+    if os.name != "nt" or not isinstance(obj, dict):
         return obj
-    return json.loads(json.dumps(obj).replace("\\\\", "/"))
+    out = dict(obj)
+    for k, v in obj.items():
+        if isinstance(v, dict):
+            out[k] = _slashes(v)
+        elif k in PATH_FIELDS and isinstance(v, str):
+            out[k] = v.replace("\\", "/")
+    return out
 
 
 def _artifact(w: World, run_id: str, *, bad: bool) -> None:

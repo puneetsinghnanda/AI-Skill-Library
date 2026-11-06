@@ -6,6 +6,7 @@ import json
 import sqlite3
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,7 @@ from tsl.core.clock import FrozenClock
 from tsl.core.errors import TslError
 from tsl.core.ids import IdFactory
 from tsl.insights.client import HttpResult, InsightsUnavailable
+from tsl.telemetry import outbox as outbox_mod
 from tsl.telemetry.outbox import MAX_BACKOFF, Outbox
 
 BODY = {"hook": "pre-tool", "decision": "allow", "code": None}
@@ -222,6 +224,58 @@ def test_concurrent_writers(tmp_path: Path) -> None:
     assert [p.wait(timeout=60) for p in procs] == [0, 0, 0, 0]
     clock = FrozenClock(START)
     assert Outbox(db, clock, IdFactory(clock)).stats()["pending"] == 100
+
+
+def _version(db: Path) -> int:
+    c = sqlite3.connect(str(db))
+    try:
+        return int(c.execute("PRAGMA user_version").fetchone()[0])
+    finally:
+        c.close()
+
+
+def test_new_file_gets_the_current_layout_and_wal(box: Outbox) -> None:
+    box.enqueue("hook.decision", dict(BODY))
+    assert _version(box.path) == outbox_mod.SCHEMA_VERSION
+    c = sqlite3.connect(str(box.path))
+    try:
+        assert c.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+    finally:
+        c.close()
+
+
+def test_existing_file_gets_later_layout_steps(
+    box: Outbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    box.enqueue("hook.decision", dict(BODY))  # a file at version 1, as on engineers' laptops
+    step2 = "ALTER TABLE event ADD COLUMN note TEXT;"
+    monkeypatch.setattr(outbox_mod, "MIGRATIONS", {**outbox_mod.MIGRATIONS, 2: step2})
+    monkeypatch.setattr(outbox_mod, "SCHEMA_VERSION", 2)
+    assert box.stats()["pending"] == 1  # opening the file runs step 2 once
+    assert _version(box.path) == 2
+    c = sqlite3.connect(str(box.path))
+    try:
+        cols = {r[1] for r in c.execute("PRAGMA table_info(event)")}
+    finally:
+        c.close()
+    assert "note" in cols
+    box.stats()  # and not again: ALTER TABLE would fail on a second run
+
+
+def test_setup_lock_wait_is_bounded(tmp_path: Path) -> None:
+    db = tmp_path / "outbox.db"
+    holder = sqlite3.connect(str(db), isolation_level=None)
+    holder.execute("BEGIN EXCLUSIVE")  # another process mid-write on a brand-new file
+    try:
+        clock = FrozenClock(START)
+        quick = Outbox(db, clock, IdFactory(clock), lock_wait_s=0.3)
+        t0 = time.monotonic()
+        with pytest.raises(sqlite3.OperationalError):
+            quick.stats()
+        assert time.monotonic() - t0 < 2.0
+    finally:
+        holder.execute("ROLLBACK")
+        holder.close()
 
 
 # ------------------------------------------------------------------------- CLI

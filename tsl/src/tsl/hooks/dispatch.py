@@ -19,6 +19,9 @@ from typing import Any
 
 from tsl import __version__
 
+# Outbox lock wait for the per-call hook.decision event (the outbox default is 2 s).
+HOOK_LOCK_WAIT_S = 1.0
+
 EVENTS = ("session-start", "pre-tool", "pre-mcp", "post-write", "session-end")
 HOOK_NAME = {"pre-tool": "PreToolUse", "pre-mcp": "PreToolUse", "session-start": "SessionStart"}
 TOOL_KIND = {"Write": "write", "Edit": "edit", "NotebookEdit": "edit", "Bash": "bash"}
@@ -105,7 +108,10 @@ def _finish(ctx: Ctx, out: dict[str, Any] | None) -> tuple[str, int]:
             body["tool_kind"] = "mcp_write" if ctx.decision == "deny" else "mcp_read"
         elif ctx.event == "pre-tool":
             body["tool_kind"] = TOOL_KIND.get(ctx.tool, "other")
-        Outbox(ctx.home / "outbox.db", clock, ids).enqueue_trusted("hook.decision", body, None)
+        # short lock wait: this runs on every tool call, inside the hook's time budget
+        Outbox(ctx.home / "outbox.db", clock, ids, lock_wait_s=HOOK_LOCK_WAIT_S).enqueue_trusted(
+            "hook.decision", body, None
+        )
     except Exception:  # noqa: S110 - telemetry must never change a hook decision
         pass
     return (json.dumps(out) if out else ""), 0
