@@ -8,7 +8,9 @@ session hooks warn on a version mismatch and ignore a crash or timeout.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import threading
 import sys
 import time
 from pathlib import Path
@@ -213,3 +215,63 @@ def test_cli_end_to_end_version_mismatch_denies_in_run(companion: Path, tmp_path
     )
     assert cp.returncode == 0, cp.stderr
     assert "E-VER-01" in deny_json(cp.stdout)["permissionDecisionReason"]
+
+
+def test_hang_before_stdin_read_is_denied_within_budget(companion: Path, home: Path, tmp_path: Path) -> None:
+    lock(companion)
+    out: list[str] = []
+    exits: list[int] = []
+
+    def slow_stdin() -> str:
+        time.sleep(3)
+        return ""
+
+    t0 = time.perf_counter()
+    done = threading.Event()
+
+    def go() -> None:
+        entry.guarded(
+            "pre-tool", slow_stdin, env={"TSL_HOOK_BUDGET_S": "1", "TSL_PLUGIN_ROOT": str(plugin(tmp_path, __version__))},
+            home=home, emit=out.append, hard_exit=lambda c: (exits.append(c), done.set()),
+        )
+
+    # cwd cannot come from the unread stdin, so run from the companion repo: the cwd walk finds the lock.
+    old = os.getcwd()
+    os.chdir(companion)
+    try:
+        th = threading.Thread(target=go, daemon=True)
+        th.start()
+        assert done.wait(2.5), "watchdog must answer while stdin is still blocked"
+    finally:
+        os.chdir(old)
+    assert time.perf_counter() - t0 < 2.5 and exits == [0]
+    deny_json("".join(out))
+
+
+def test_budget_counts_from_process_start(companion: Path, home: Path, tmp_path: Path) -> None:
+    lock(companion)
+    out_l: list[str] = []
+    exits: list[int] = []
+    entry.guarded(
+        "pre-tool", stdin(companion), env={"TSL_HOOK_BUDGET_S": "5"}, home=home, runner=hang,
+        emit=out_l.append, hard_exit=exits.append, started=time.perf_counter() - 4.5,
+    )
+    assert exits == [0] and "timed out" in deny_json("".join(out_l))["permissionDecisionReason"]
+
+
+def test_plugin_root_argument_drives_the_version_check(companion: Path, home: Path, tmp_path: Path) -> None:
+    lock(companion)
+    out_l: list[str] = []
+    entry.guarded(
+        "pre-tool", stdin(companion), env={}, home=home, runner=ok, emit=out_l.append,
+        plugin_root=str(plugin(tmp_path, "9.9.9")),
+    )
+    assert "E-VER-01" in deny_json("".join(out_l))["permissionDecisionReason"]
+
+
+def test_import_failure_before_dispatch_goes_through_the_fail_rule(companion: Path, home: Path, tmp_path: Path, monkeypatch) -> None:
+    lock(companion)
+    monkeypatch.setitem(sys.modules, "tsl", None)  # `from tsl import __version__` raises ImportError
+    out_l: list[str] = []
+    entry.guarded("pre-tool", stdin(companion), env={}, home=home, runner=ok, emit=out_l.append)
+    assert "Error" in deny_json("".join(out_l))["permissionDecisionReason"]

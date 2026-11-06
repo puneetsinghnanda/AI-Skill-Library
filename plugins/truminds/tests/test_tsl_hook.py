@@ -27,9 +27,10 @@ SYSTEM_PATH = os.pathsep.join(p for p in ("/usr/bin", "/bin", "/usr/sbin", "/sbi
 
 FAKE_TSL = """#!/bin/sh
 # Fake tsl for launcher tests. Behaviour comes from FAKE_TSL_* environment variables.
-[ "${1:-}" = "hook" ] || exit 64
+[ -z "${FAKE_TSL_OLD:-}" ] || { echo "Error: No such command 'hook-run'." >&2; exit 2; }
+[ "${1:-}" = "hook-run" ] || exit 64
 cat > "${FAKE_TSL_STDIN_COPY:-/dev/null}"
-[ -z "${FAKE_TSL_ARGV_COPY:-}" ] || printf '%s|%s|%s\\n' "$*" "${TSL_PLUGIN_ROOT:-}" "$$" > "$FAKE_TSL_ARGV_COPY"
+[ -z "${FAKE_TSL_ARGV_COPY:-}" ] || printf '%s|%s\\n' "$*" "$$" > "$FAKE_TSL_ARGV_COPY"
 printf '%s' "${FAKE_TSL_OUTPUT:-}"
 exit "${FAKE_TSL_EXIT:-0}"
 """
@@ -233,24 +234,49 @@ def test_backslash_paths_in_stdin_reach_tsl_unchanged(env: dict[str, str], tmp_p
     assert json.loads(copy.read_text(encoding="utf-8"))["cwd"] == "C:\\Users\\a b\\repo"
 
 
-def test_launcher_execs_tsl_once_and_hands_it_the_plugin_root(env: dict[str, str], tmp_path: Path) -> None:
+def test_launcher_runs_tsl_once_and_hands_it_the_plugin_root(env: dict[str, str], tmp_path: Path) -> None:
     argv = tmp_path / "argv.txt"
     cp = run(env, "pre-tool", "{}", FAKE_TSL_ARGV_COPY=str(argv))
     assert cp.returncode == 0
-    args, root, _pid = argv.read_text(encoding="utf-8").strip().split("|")
-    assert args == "hook pre-tool"
-    assert Path(root) == PLUGIN
+    args, _pid = argv.read_text(encoding="utf-8").strip().split("|")
+    assert args == f"hook-run pre-tool --plugin-root {PLUGIN}"
 
 
-def test_tsl_exit_code_passes_through(env: dict[str, str]) -> None:
-    cp = run(env, "pre-tool", "{}", FAKE_TSL_EXIT="3")
-    assert cp.returncode == 3
+def test_inherited_tsl_plugin_root_is_ignored(env: dict[str, str], tmp_path: Path) -> None:
+    argv = tmp_path / "argv.txt"
+    run(env, "pre-tool", "{}", FAKE_TSL_ARGV_COPY=str(argv), TSL_PLUGIN_ROOT="/elsewhere")
+    assert "/elsewhere" not in argv.read_text(encoding="utf-8")
+
+
+# ------------------------------------------------------------------------------------- tsl dies (non-zero exit)
+@pytest.mark.parametrize("shell", SHELLS)
+@pytest.mark.parametrize("event", ["pre-tool", "pre-mcp"])
+@pytest.mark.parametrize("fake", [{"FAKE_TSL_EXIT": "1"}, {"FAKE_TSL_OLD": "1"}], ids=["crash", "old-tsl"])
+def test_tsl_dying_in_a_run_fails_closed(
+    env: dict[str, str], companion: Path, event: str, shell: str, fake: dict[str, str]
+) -> None:
+    lock(companion)
+    cp = run(env, event, hook_input(companion, event), shell=shell, cwd=companion, **fake)
+    assert_deny(cp)
+    log = (Path(env["HOME"]) / ".truminds" / "logs" / "hook.log").read_text(encoding="utf-8")
+    assert f"event={event} decision=deny code=E-HOOK-01" in log
+
+
+@pytest.mark.parametrize("fake", [{"FAKE_TSL_EXIT": "1"}, {"FAKE_TSL_OLD": "1"}], ids=["crash", "old-tsl"])
+def test_tsl_dying_out_of_a_run_fails_open(env: dict[str, str], companion: Path, fake: dict[str, str]) -> None:
+    cp = run(env, "pre-tool", hook_input(companion, "pre-tool"), cwd=companion, **fake)
+    assert cp.returncode == 0 and cp.stdout == ""
+
+
+def test_post_write_when_tsl_dies_warns_and_exits_zero(env: dict[str, str], companion: Path) -> None:
+    cp = run(env, "post-write", hook_input(companion, "post-write"), cwd=companion, FAKE_TSL_EXIT="1")
+    assert cp.returncode == 0 and "systemMessage" in cp.stdout
 
 
 def test_launcher_hot_path_uses_no_external_commands() -> None:
     """Everything before the first `exec` runs on every tool call: builtins only."""
     text = LAUNCHER.read_text(encoding="utf-8")
-    hot = text[: text.index("# ----", text.index("exec tsl hook"))]
+    hot = text[: text.index("# ----", text.index('"$c" hook-run'))]
     for tool in ("sed ", "date ", "dirname", "mktemp", "cat ", "head ", "$(", "`", "tsl --version"):
         assert tool not in hot.split("\n\n", 1)[1], tool
 

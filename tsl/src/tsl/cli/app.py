@@ -26,10 +26,14 @@ def _utf8_streams() -> None:
 def main(argv: list[str] | None = None) -> None:
     _utf8_streams()
     args = list(sys.argv[1:] if argv is None else argv)
-    if args[:1] == ["hook"] and len(args) >= 2:
-        from tsl.hooks.entry import main as hook_main
-
-        sys.exit(hook_main(args[1]))
+    if args[:1] in (["hook"], ["hook-run"]) and len(args) >= 2:
+        # `hook-run` is what the plugin launcher calls: an older tsl has no such command and exits non-zero, which the
+        # launcher turns into the fail rule (so a stale tsl cannot skip the version check).
+        try:
+            from tsl.hooks.entry import main as hook_main
+        except BaseException:  # noqa: BLE001 - tell the launcher tsl is broken: non-zero, no output
+            sys.exit(70)
+        sys.exit(hook_main(args[1], args[2:]))
     if args == ["--version"]:
         from tsl import __version__
 
@@ -65,4 +69,4 @@ def run_cli(args: list[str]) -> int:
 
 
 Fn = "Callable[..., Any]"
-__all__ = ["Fn", "Path", "main", "run_cli"]
+__all__ = ["Fn", "main", "run_cli"]

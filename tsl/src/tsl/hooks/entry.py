@@ -19,10 +19,13 @@ import json
 import os
 import sys
 import threading
+import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
+
+_T0 = time.perf_counter()  # import time of this module: the closest point to process start we can see
 
 BUDGET_S = {"session-start": 12, "session-end": 12, "pre-tool": 8, "pre-mcp": 8, "post-write": 85}
 INSTALL_HINT = (
@@ -41,9 +44,13 @@ def budget_for(event: str, env: Mapping[str, str]) -> int:
     return budget
 
 
-def plugin_version(env: Mapping[str, str]) -> str | None:
-    """None when no plugin root is known (manual `tsl hook` call); 'unknown' when plugin.json is unreadable."""
-    root = env.get("TSL_PLUGIN_ROOT") or env.get("CLAUDE_PLUGIN_ROOT")
+def plugin_version(env: Mapping[str, str], root: str | None = None) -> str | None:
+    """None when no plugin root is known (manual `tsl hook` call); 'unknown' when plugin.json is unreadable.
+
+    The launcher passes the root as `--plugin-root`; TSL_PLUGIN_ROOT / CLAUDE_PLUGIN_ROOT are only a fallback
+    (used by tests and manual calls).
+    """
+    root = root or env.get("TSL_PLUGIN_ROOT") or env.get("CLAUDE_PLUGIN_ROOT")
     if not root:
         return None
     try:
@@ -86,8 +93,6 @@ def run_active(data: Mapping[str, object], home: str) -> bool:
 
 def _log(home: str, event: str, decision: str, code: str, detail: str) -> None:
     try:
-        import time
-
         logs = os.path.join(home, "logs")
         os.makedirs(logs, exist_ok=True)
         ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -145,61 +150,68 @@ def _stdout_emit(text: str) -> None:
 
 def guarded(
     event: str,
-    stdin: str,
+    stdin: str | Callable[[], str],
     env: Mapping[str, str] | None = None,
     home: object = None,
     runner: Callable[[str, str], tuple[str, int]] = _default_runner,
     emit: Callable[[str], None] = _stdout_emit,
     hard_exit: Callable[[int], None] = os._exit,
+    plugin_root: str | None = None,
+    started: float | None = None,
 ) -> int:
-    """Run the hook once with version check, budget and fail rules. Returns the process exit code."""
-    from tsl import __version__
+    """Run the hook once with version check, budget and fail rules. Always returns 0 (a failure is an answer).
 
+    The watchdog starts first, before stdin is read or tsl is imported, and its budget is counted from `started`
+    (a time.perf_counter() value), so a hang anywhere still ends in the fail rule. Anything that escapes
+    (e.g. a failing import) goes through the same rule.
+    """
     env = os.environ if env is None else env
     home = os.fspath(home) if home else os.path.join(os.path.expanduser("~"), ".truminds")  # type: ignore[call-overload]
-    try:
-        data = json.loads(stdin or "{}")
-        if not isinstance(data, dict):
-            data = {}
-    except ValueError:
-        data = {}
+    budget = budget_for(event, env)
+    left = budget - (time.perf_counter() - (time.perf_counter() if started is None else started))
+    gate = threading.Lock()
+    state = {"done": False}
+    box: dict[str, str] = {"stdin": ""}
+
+    def parse() -> dict[str, object]:
+        try:
+            data = json.loads(box["stdin"] or "{}")
+        except ValueError:
+            return {}
+        return data if isinstance(data, dict) else {}
 
     def finish(text: str) -> None:
         if text:
             emit(text + "\n")
-
-    pv = plugin_version(env)
-    if pv is not None and pv != __version__:
-        finish(
-            failure_output(
-                event,
-                "version",
-                f"tsl {__version__} does not match plugin {pv} (E-VER-01). Install tsl {pv}: {INSTALL_HINT}",
-                data,
-                home,
-            )
-        )
-        return 0
-
-    budget = budget_for(event, env)
-    gate = threading.Lock()
-    state = {"done": False}
 
     def on_timeout() -> None:
         with gate:
             if state["done"]:
                 return
             state["done"] = True
-            finish(failure_output(event, "timeout", f"tsl hook {event} timed out after {budget} s", data, home))
+            finish(failure_output(event, "timeout", f"tsl hook {event} timed out after {budget} s", parse(), home))
             hard_exit(0)
 
-    timer = threading.Timer(budget, on_timeout)
+    timer = threading.Timer(max(left, 0.0), on_timeout)
     timer.daemon = True
     timer.start()
     err: str | None = None
     out, code = "", 0
     try:
-        out, code = runner(event, stdin)
+        box["stdin"] = stdin() if callable(stdin) else stdin
+        from tsl import __version__
+
+        pv = plugin_version(env, plugin_root)
+        if pv is not None and pv != __version__:
+            timer.cancel()
+            with gate:
+                if state["done"]:
+                    return 0
+                state["done"] = True
+                detail = f"tsl {__version__} does not match plugin {pv} (E-VER-01). Install tsl {pv}: {INSTALL_HINT}"
+                finish(failure_output(event, "version", detail, parse(), home))
+                return 0
+        out, code = runner(event, box["stdin"])
     except BaseException as e:  # noqa: BLE001 - any failure must go through the fail rules
         err = f"tsl hook {event} failed with {type(e).__name__}"
     timer.cancel()
@@ -208,11 +220,17 @@ def guarded(
             return 0
         state["done"] = True
         if err is not None or code != 0:
-            finish(failure_output(event, "crash", err or f"tsl hook {event} exited with status {code}", data, home))
+            finish(failure_output(event, "crash", err or f"tsl hook {event} exited with status {code}", parse(), home))
         else:
             finish(out)
         return 0
 
 
-def main(event: str) -> int:
-    return guarded(event, sys.stdin.read())
+def main(event: str, argv: list[str] | None = None) -> int:
+    """Entry for `tsl hook-run <event> [--plugin-root <dir>]` (and the older `tsl hook <event>`)."""
+    started = _T0
+    root = None
+    rest = list(argv or [])
+    if len(rest) >= 2 and rest[0] == "--plugin-root":
+        root = rest[1]
+    return guarded(event, sys.stdin.read, plugin_root=root, started=started)
