@@ -295,10 +295,10 @@ Review package from tsl (artifact, rubric, cited context sections):
 
 `bin/tsl-hook` is a small launcher, the same on every OS (a shell script, plus a `.cmd` on Windows). It:
 
-- finds `tsl` on the machine;
-- checks that its version equals the plugin version;
-- passes stdin to `tsl hook <event>`;
-- applies the failure rules in §5.4 when `tsl` is missing or crashes.
+- finds `tsl` on the machine (shell builtins only) and runs `tsl hook-run <event> --plugin-root <dir>` once as a child with stdin and stdout inherited, so a hook costs one tsl start (on Windows with an EDR every start costs 0.3 to 0.45 s). `hook-run` does not exist in an older tsl, so a stale tsl exits non-zero instead of skipping the version check;
+- tsl does the version check, the time budget (a watchdog started before stdin is read, counted from process start) and the failure rules of §5.4 itself, and always exits 0 once it answers. Any non-zero exit means tsl died (failed import, crash, old tsl), and the launcher then applies the same §5.4 rules with shell builtins and the cwd walk to `tsl.yaml` (deny in an active run, allow otherwise), as it does when `tsl` is not installed.
+
+The version check (E-VER-01), the time budget and the crash / timeout rules of §5.4 run inside `tsl hook` (`tsl/hooks/entry.py`): a watchdog answers when the budget (8 s pre-tool and pre-mcp, 12 s session hooks, 85 s post-write) is exceeded.
 
 ### 5.3 Hook specifications
 

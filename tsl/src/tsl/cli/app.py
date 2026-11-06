@@ -6,11 +6,6 @@
 from __future__ import annotations
 
 import sys
-from collections.abc import Callable
-from pathlib import Path
-from typing import Any
-
-from tsl import __version__
 
 
 def _utf8_streams() -> None:
@@ -25,14 +20,17 @@ def _utf8_streams() -> None:
 def main(argv: list[str] | None = None) -> None:
     _utf8_streams()
     args = list(sys.argv[1:] if argv is None else argv)
-    if args[:1] == ["hook"] and len(args) >= 2:
-        from tsl.hooks.dispatch import run
-
-        out, code = run(args[1], sys.stdin.read())
-        if out:
-            sys.stdout.write(out + "\n")
-        sys.exit(code)
+    if args[:1] in (["hook"], ["hook-run"]) and len(args) >= 2:
+        # `hook-run` is what the plugin launcher calls: an older tsl has no such command and exits
+        # non-zero, which the launcher turns into the fail rule (a stale tsl can't skip the check).
+        try:
+            from tsl.hooks.entry import main as hook_main
+        except BaseException:
+            sys.exit(70)
+        sys.exit(hook_main(args[1], args[2:]))
     if args == ["--version"]:
+        from tsl import __version__
+
         sys.stdout.write(f"tsl {__version__}\n")
         sys.exit(0)
     sys.exit(run_cli(args))
@@ -64,5 +62,5 @@ def run_cli(args: list[str]) -> int:
         return render_error("E-USE-01", msg, bool(commands.FORCED["json"]), args)
 
 
-Fn = Callable[..., Any]
-__all__ = ["Fn", "Path", "main", "run_cli"]
+Fn = "Callable[..., Any]"
+__all__ = ["Fn", "main", "run_cli"]
