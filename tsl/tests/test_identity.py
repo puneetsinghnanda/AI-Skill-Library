@@ -370,9 +370,7 @@ def test_login_no_role_shows_the_service_reason(world: World) -> None:
 
 def test_login_flushes_queued_events_and_says_how_many(world: World) -> None:
     rt = world.rt("eng2")
-    rt.outbox().enqueue(
-        "pr.closed", {"repo": "r", "number": 1, "merged": True, "closed_at": "t"}, None
-    )
+    rt.outbox().enqueue("hook.decision", {"hook": "pre-tool", "decision": "allow", "code": None})
     data = world.login("eng2")
     assert data["events_sent"] == 1
     assert rt.outbox().stats()["pending"] == 0
