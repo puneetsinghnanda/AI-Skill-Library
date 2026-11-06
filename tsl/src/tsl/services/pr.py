@@ -299,4 +299,20 @@ def sync_prs(rt: Runtime, comp: Companion, run_id: str | None = None) -> dict[st
             rows.append(row)
     seen_p.parent.mkdir(parents=True, exist_ok=True)
     write_json(seen_p, seen)
-    return {"prs": rows, "sent": sum(1 for r in rows if r.get("sent"))}
+    emitted = sum(1 for r in rows if r.get("sent"))
+    delivered = 0
+    if emitted:
+        from tsl.telemetry.emit import SEND_SOON_SECONDS, flush
+
+        try:
+            res = flush(rt, SEND_SOON_SECONDS)
+            delivered = min(emitted, res.sent + res.duplicates)
+        except Exception:  # noqa: S110 - events stay queued (R-04)
+            pass
+    return {
+        "prs": rows,
+        "sent": emitted,
+        "delivered": delivered,
+        "queued": emitted - delivered,
+        "queued_only": bool(emitted) and delivered == 0,
+    }

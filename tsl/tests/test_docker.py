@@ -116,6 +116,7 @@ def test_repo_profiles_load_through_tsl() -> None:
 def _fake_docker(monkeypatch: pytest.MonkeyPatch, results: dict[str, object]) -> None:
     """Docker answers; each step's `docker run` returns results[step] (an int exit or 'timeout')."""
     monkeypatch.setattr(DockerVerifier, "available", lambda self: True)
+    monkeypatch.setattr(DockerVerifier, "probe", lambda self: None)
     steps = list(results)
 
     def fake_run(cmd, **kw):  # type: ignore[no-untyped-def]
@@ -149,6 +150,8 @@ def test_prepare_timeout_is_not_reported_as_docker(
     assert ei.value.code == "E-H3-08"
     assert "timed out after 600 s" in str(ei.value) and "prepare-a2.log" in str(ei.value)
     assert (out / "prepare-a2.log").exists()
+    assert ei.value.data == {"timed_out": True, "exit_code": None}
+    assert str(ei.value).startswith("prepare failed, log ") and len(str(ei.value)) < 300
 
 
 def test_prepare_exit_code_and_per_attempt_logs(
@@ -161,6 +164,16 @@ def test_prepare_exit_code_and_per_attempt_logs(
         assert ei.value.code == "E-H3-08" and "exit 1" in str(ei.value)
     assert (tmp_path / "a1" / "prepare-a1.log").exists()
     assert (tmp_path / "a2" / "prepare-a2.log").exists()
+
+
+def test_prepare_failure_with_docker_gone_is_e_h3_07(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _fake_docker(monkeypatch, {"prepare": 1})
+    monkeypatch.setattr(DockerVerifier, "probe", lambda self: "docker not running")
+    with pytest.raises(VerifierUnavailable) as ei:
+        DockerVerifier().run(_prep_profile(), tmp_path, tmp_path / "a1", False)
+    assert ei.value.code == "E-H3-07" and ei.value.data["exit_code"] == 1
 
 
 def test_killed_step_reports_memory(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

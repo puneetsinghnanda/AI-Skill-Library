@@ -21,8 +21,11 @@ def score_words(score: float) -> str:
 
 
 def score_text(score: float) -> str:
-    """'4.7/5 (very good)'."""
-    return f"{score:.1f}/5 ({score_words(score)})"
+    """'4.7/5, very good'.
+
+    The words are fixed cut-offs, independent of the profile's S3 threshold.
+    """
+    return f"{score:.1f}/5, {score_words(score)}"
 
 
 def _pct(x: float) -> str:
@@ -32,10 +35,10 @@ def _pct(x: float) -> str:
 def low_reasons_text(signals: dict[str, Any], reasons: list[str]) -> str:
     parts: list[str] = []
     s3 = signals.get("S3")
-    if s3 is not None:
-        parts.append(f"reviewer score {score_text(float(s3))}")
-    elif "S3" in reasons:
-        parts.append("no reviewer score")
+    if "S3" in reasons:
+        parts.append(
+            f"reviewer score {score_text(float(s3))}" if s3 is not None else "no reviewer score"
+        )
     if "S1" in reasons:
         parts.append(f"only {_pct(float(signals['S1']))} of claims are backed by a verified source")
     if "S2" in reasons:
@@ -62,6 +65,11 @@ def escalation_reason(
 
 
 def paused_input(n_blocking: int, run_id: str, questions_file: str) -> tuple[str, str]:
+    if n_blocking < 1:
+        return (
+            "Paused: your answers are needed before the run can go on.",
+            f"Answer the questions in {questions_file}, then run /truminds:resume {run_id}",
+        )
     n = f"{n_blocking} question{'s' if n_blocking != 1 else ''}"
     return (
         f"Paused: {n} need{'' if n_blocking != 1 else 's'} your answer before the run can go on.",

@@ -73,7 +73,8 @@ def test_not_logged_in_says_queued(world: World) -> None:
     code, env, _, err = world.cli(["pr-sync", "--json"], user="eng2")  # eng2 never logged in
     assert code == 0, err
     assert env is not None and env["data"]["sent"] == 1 and env["data"]["queued_only"] is True
-    assert "queued (not logged in; run tsl login)" in env["message"]
+    assert "queued (not sent yet; if not logged in, run tsl login)" in env["message"]
+    assert env["data"]["queued"] == 1 and env["data"]["delivered"] == 0
 
 
 def test_logged_in_says_reported(world: World) -> None:
@@ -83,4 +84,5 @@ def test_logged_in_says_reported(world: World) -> None:
     code, env, _, err = world.cli(["pr-sync", "--json"])
     assert code == 0, err
     assert env is not None and env["data"]["queued_only"] is False
+    assert env["data"]["delivered"] == 1 and env["data"]["queued"] == 0
     assert env["message"] == "1 merged or closed pull request(s) reported"
