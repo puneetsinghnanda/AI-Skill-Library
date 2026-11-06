@@ -295,7 +295,9 @@ class DockerVerifier:
                     if code == OOM_EXIT:
                         raise _oom(name)
                     gone = self.probe()
-                    if gone:  # Docker stopped mid-prepare: that is E-H3-07, not an install failure
+                    # Docker stopped mid-prepare: that is E-H3-07, not an install failure. A slow
+                    # `docker info` right after a heavy install is inconclusive: it stays E-H3-08.
+                    if gone and "timed out" not in gone:
                         raise VerifierUnavailable(gone, timed_out=timed_out, exit_code=code)
                     why = (
                         f"timed out after {int(spec['timeout_s'])} s"
