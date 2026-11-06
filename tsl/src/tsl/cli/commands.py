@@ -576,16 +576,10 @@ def pr_sync(
 
     data = sync_prs(rt(), comp(), run_id)
     n = data["sent"]
-    logged_in = True
-    if n:
-        try:
-            rt().identity().silent_token()
-        except TslError:
-            logged_in = False
-    data["queued_only"] = bool(n) and not logged_in
     if data["queued_only"]:
         return emit_ok(
-            f"{n} merged or closed pull request(s) queued (not logged in; run tsl login)",
+            f"{n} merged or closed pull request(s) queued "
+            "(not sent yet; if not logged in, run tsl login)",
             data,
             next_="tsl login",
         )

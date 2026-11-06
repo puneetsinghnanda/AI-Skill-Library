@@ -39,7 +39,7 @@ class VerifierUnavailable(Exception):
     def __init__(self, message: str, code: str = "E-H3-07", **fmt: Any) -> None:
         super().__init__(message)
         self.code = code
-        self.fmt = fmt
+        self.data = fmt  # extra fields, e.g. timed_out and exit_code for E-H3-08
 
 
 @dataclass
@@ -292,23 +292,26 @@ class DockerVerifier:
             rsha = sha256_file(out_dir / report) if report and (out_dir / report).exists() else None
             if name == "prepare":
                 if timed_out or code != 0:
+                    if code == OOM_EXIT:
+                        raise _oom(name)
+                    gone = self.probe()
+                    if gone:  # Docker stopped mid-prepare: that is E-H3-07, not an install failure
+                        raise VerifierUnavailable(gone, timed_out=timed_out, exit_code=code)
                     why = (
                         f"timed out after {int(spec['timeout_s'])} s"
                         if timed_out
                         else f"exit {code}"
                     )
-                    if code == OOM_EXIT:
-                        raise _oom(name, log)
-                    where = out_dir / log if log else "none"
+                    where = str(out_dir / log) if log else "none"
                     raise VerifierUnavailable(
-                        f"dependency install (prepare) failed: {why}; log {where}",
+                        f"prepare failed, log {where[-180:]}: {why}",
                         "E-H3-08",
-                        why=why,
-                        log=log or "none",
+                        timed_out=timed_out,
+                        exit_code=code,
                     )
                 continue
             if code == OOM_EXIT:
-                raise _oom(name, log)
+                raise _oom(name)
             if timed_out:
                 res.steps.append(
                     StepResult(name, "fail", None, ms, rsha, "E-H3-06", f"{name} timed out", log)
@@ -329,7 +332,7 @@ class DockerVerifier:
         return res
 
 
-def _oom(step: str, log: str | None) -> VerifierUnavailable:
+def _oom(step: str) -> VerifierUnavailable:
     return VerifierUnavailable(
         f"verifier step {step} was killed (exit {OOM_EXIT}), most likely out of memory",
         "E-H3-09",

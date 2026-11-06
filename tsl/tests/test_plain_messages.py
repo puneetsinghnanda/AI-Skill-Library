@@ -23,14 +23,14 @@ def test_score_words(score: float, words: str) -> None:
 
 
 def test_score_text() -> None:
-    assert plain.score_text(4.65) == "4.7/5 (very good)"
+    assert plain.score_text(4.65) == "4.7/5, very good"
 
 
 def test_low_band_reason_has_no_codes() -> None:
     why = plain.escalation_reason(
-        "band Low", {"S1": 0.63, "S2": 1.0, "S3": 4.65, "S6": 0.0}, ["S1"]
+        "band Low", {"S1": 0.63, "S2": 1.0, "S3": 4.65, "S6": 0.0}, ["S1", "S3"]
     )
-    assert "4.7/5 (very good)" in why and "63% of claims" in why
+    assert "4.7/5, very good" in why and "63% of claims" in why
     assert "S1" not in why and "band" not in why
 
 
@@ -39,6 +39,19 @@ def test_budget_and_same_finding_reasons() -> None:
         "retry budget exhausted (verifier)", {}, []
     )
     assert "same major finding" in plain.escalation_reason("the same finding came back", {}, [])
+
+
+def test_low_reasons_text_score_only_when_s3_listed() -> None:
+    sig = {"S3": 4.65, "S1": 0.4}
+    assert plain.low_reasons_text(sig, ["S1"]).startswith("only 40%")
+    assert "reviewer" not in plain.low_reasons_text(sig, ["S1"])
+    assert plain.low_reasons_text(sig, ["S3"]) == "reviewer score 4.7/5, very good"
+    assert plain.low_reasons_text({}, ["S3"]) == "no reviewer score"
+
+
+def test_paused_input_without_count() -> None:
+    msg, _ = plain.paused_input(0, "run_X", "q.md")
+    assert "0 question" not in msg and "your answers are needed" in msg
 
 
 def test_paused_messages_name_file_and_next_action() -> None:
