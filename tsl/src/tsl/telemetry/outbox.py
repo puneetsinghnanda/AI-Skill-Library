@@ -101,9 +101,21 @@ class Outbox:
 
     def _conn(self) -> sqlite3.Connection:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        c = sqlite3.connect(str(self.path), timeout=2.0, isolation_level=None)
-        c.execute("PRAGMA busy_timeout = 2000")
-        c.executescript(DDL)
+        c = sqlite3.connect(str(self.path), timeout=5.0, isolation_level=None)
+        c.execute("PRAGMA busy_timeout = 5000")
+        # The schema and WAL mode persist in the file, so set them up once. Running the DDL on
+        # every connection made concurrent writers (parallel hook calls) fight for the write
+        # lock, and `PRAGMA journal_mode` can fail with "database is locked" without waiting.
+        if c.execute("PRAGMA user_version").fetchone()[0] < 1:
+            for attempt in range(20):
+                try:
+                    c.executescript(DDL)
+                    break
+                except sqlite3.OperationalError as exc:
+                    if "locked" not in str(exc) or attempt == 19:
+                        c.close()
+                        raise
+                    time.sleep(0.05 * (attempt + 1))
         return c
 
     def enqueue(
