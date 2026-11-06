@@ -18,10 +18,11 @@ from tsl.insights.client import HttpResult, InsightsUnavailable
 
 # Layout of the outbox file. Each step upgrades a file from the version before it; `_conn` runs
 # the missing steps in order and records the version after each one, so an existing file gets
-# every later step. To change the layout: add step N+1 here and raise SCHEMA_VERSION to N+1.
-# A step must be safe to run twice (a crash can stop it before its version is recorded).
+# every later step. To change the layout: add step N+1 here; SCHEMA_VERSION follows. A step runs
+# in one transaction together with its version stamp, after re-reading the version under the
+# write lock, so it runs exactly once even when several processes open an old file together.
+# Steps are plain statements separated by ";" (no PRAGMA that cannot run in a transaction).
 DDL = """
-PRAGMA journal_mode = WAL;
 CREATE TABLE IF NOT EXISTS event (
   event_id        TEXT PRIMARY KEY,
   type            TEXT NOT NULL,
@@ -119,6 +120,14 @@ class Outbox:
         # `PRAGMA journal_mode` fails with "database is locked" at once instead of waiting.
         try:
             version = c.execute("PRAGMA user_version").fetchone()[0]
+            if version == 0:
+                # WAL is a file setting, kept once set, and cannot change inside a transaction.
+                # If another process holds the lock it is setting it up too: carry on.
+                try:
+                    c.execute("PRAGMA journal_mode = WAL")
+                except sqlite3.OperationalError as exc:
+                    if "locked" not in str(exc):
+                        raise
             for step in range(version + 1, SCHEMA_VERSION + 1):
                 self._upgrade(c, step)
         except BaseException:
@@ -127,14 +136,24 @@ class Outbox:
         return c
 
     def _upgrade(self, c: sqlite3.Connection, step: int) -> None:
-        """Run one layout step, retrying while another process holds the lock (bounded by
-        lock_wait_s in total), then record the new version."""
+        """Run one layout step and stamp its version in a single transaction, unless another
+        process did it first. Retries while the lock is held, bounded by lock_wait_s in total."""
         deadline = time.monotonic() + self.lock_wait_s
         pause = 0.02
         while True:
             try:
-                c.executescript(MIGRATIONS[step])
-                c.execute(f"PRAGMA user_version = {int(step)}")
+                c.execute("BEGIN IMMEDIATE")  # take the write lock before re-reading the version
+                try:
+                    if c.execute("PRAGMA user_version").fetchone()[0] < step:
+                        for stmt in MIGRATIONS[step].split(";"):
+                            if stmt.strip():
+                                c.execute(stmt)
+                        c.execute(f"PRAGMA user_version = {int(step)}")
+                    c.execute("COMMIT")
+                except BaseException:
+                    if c.in_transaction:
+                        c.execute("ROLLBACK")
+                    raise
                 return
             except sqlite3.OperationalError as exc:
                 if "locked" not in str(exc) or time.monotonic() + pause > deadline:

@@ -262,6 +262,26 @@ def test_existing_file_gets_later_layout_steps(
     box.stats()  # and not again: ALTER TABLE would fail on a second run
 
 
+def test_a_layout_step_runs_once_when_two_processes_open_an_old_file(
+    box: Outbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    box.enqueue("hook.decision", dict(BODY))
+    step2 = "ALTER TABLE event ADD COLUMN note TEXT"
+    monkeypatch.setattr(outbox_mod, "MIGRATIONS", {**outbox_mod.MIGRATIONS, 2: step2})
+    monkeypatch.setattr(outbox_mod, "SCHEMA_VERSION", 2)
+    first = box._conn()  # upgrades to 2
+    try:
+        # a second process that read version 1 before the upgrade: its step finds 2 and skips
+        late = sqlite3.connect(str(box.path), isolation_level=None)
+        try:
+            box._upgrade(late, 2)  # would fail with "duplicate column" if it ran ALTER again
+        finally:
+            late.close()
+    finally:
+        first.close()
+    assert _version(box.path) == 2
+
+
 def test_setup_lock_wait_is_bounded(tmp_path: Path) -> None:
     db = tmp_path / "outbox.db"
     holder = sqlite3.connect(str(db), isolation_level=None)
