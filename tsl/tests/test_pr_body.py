@@ -157,9 +157,17 @@ def test_body_golden(tmp_path: Path) -> None:
 
 def test_up_to_date_and_unchecked_never_say_fresh_when_behind(tmp_path: Path) -> None:
     pack = {"signed_at": "S", "fresh": True}
-    assert pr_body.pack_line(pack, "shop", _status(0)) == "signed S · built at abc1234, up to date"
-    assert pr_body.pack_line(pack, "shop", _status(1)).endswith("1 commit behind")
-    assert pr_body.pack_line(pack, "shop", _status(60, False)).endswith("60 commits behind, stale")
+    last = " (as of the last fetch)"
+    assert (
+        pr_body.pack_line(pack, "shop", _status(0))
+        == "signed S · built at abc1234, up to date" + last
+    )
+    assert pr_body.pack_line(pack, "shop", _status(1)).endswith("1 commit behind" + last)
+    assert pr_body.pack_line(pack, "shop", _status(60, False)).endswith(
+        "60 commits behind, stale" + last
+    )
+    unchecked = pr_body.pack_line(pack, "shop", None)
+    assert "fresh" not in unchecked and unchecked.endswith("not checked")
 
 
 def test_fallbacks_when_artifacts_missing(tmp_path: Path) -> None:
@@ -171,8 +179,23 @@ def test_fallbacks_when_artifacts_missing(tmp_path: Path) -> None:
 
 
 def test_action_rule() -> None:
-    assert pr_body.default_actions("Add the test")
-    assert pr_body.default_actions("This must happen. TODO later")
-    assert pr_body.default_actions("fix it before merge")
+    # the real HMS-7 defaults: Q-06 asks for work, Q-03 only describes the design choice
+    assert pr_body.default_actions("Add on this branch before merge")
+    assert not pr_body.default_actions("Add to GET /api/doctors/:id as a read-only field")
+    assert pr_body.default_actions("This should be added. TODO later")
+    assert pr_body.default_actions("fix it before merging")
+    assert pr_body.default_actions("leave a follow-up ticket")
     assert not pr_body.default_actions("Use the hospital zone")
-    assert not pr_body.default_actions("address it")
+    assert not pr_body.default_actions("The count must exclude Cancelled")
+    assert not pr_body.default_actions(None)
+
+
+def test_md_neutralises_markup_mentions_and_links() -> None:
+    out = pr_body.md("\\<img src=x> ![p](http://evil/p.png) @bob #12 a|b `c` &#64; www.x")
+    assert out.startswith("\\\\\\<img")  # the backslash is escaped, so the < stays escaped
+    assert "\\!\\[p\\]\\(" in out
+    assert "http://" not in out and "@bob" not in out and "&#64;" not in out
+    assert "\\#12" in out and "a\\|b" in out and "\\`c\\`" in out
+    assert "\n" not in pr_body.md("one\n## heading\ntwo")
+    long = pr_body.md("x" * 500, limit=50)
+    assert long.endswith("…") and len(long) == 50
