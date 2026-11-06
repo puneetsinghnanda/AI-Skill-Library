@@ -53,8 +53,7 @@ for c in tsl "${HOME:-}/.local/bin/tsl" "${HOME:-}/.local/share/uv/tools/trumind
   OUT=$("$c" hook-run "$EVENT" --plugin-root "$R")
   rc=$?
   if [ "$rc" -eq 0 ]; then
-    [ -z "$OUT" ] || printf '%s
-' "$OUT"
+    [ -z "$OUT" ] || printf '%s' "$OUT"
     exit 0
   fi
   FAILED="tsl hook $EVENT exited with status $rc (tsl crashed, failed to start, or is older than this plugin)"
