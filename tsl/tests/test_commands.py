@@ -74,9 +74,14 @@ def test_init_happy_and_errors(world: World) -> None:
     cfg = yaml.safe_load((target / "tsl.yaml").read_text())
     assert errors("tsl-config.v1", cfg) == []
     assert (target / ".gitattributes").read_text() == "* text=auto eol=lf\n"
+
     # the remote is no longer empty
     # git object files are read-only on Windows; clear the bit before removing
-    shutil.rmtree(target, onexc=lambda f, p, _e: (os.chmod(p, 0o700), f(p)))
+    def _writable(func: Any, path: str, _exc: BaseException) -> None:
+        os.chmod(path, 0o700)
+        func(path)
+
+    shutil.rmtree(target, onexc=_writable)
     code, env, _, _ = world.cli(args, user="tl")
     assert code == 3 and env is not None and env["code"] == "E-INIT-02"
     code, env, _, _ = world.cli(
