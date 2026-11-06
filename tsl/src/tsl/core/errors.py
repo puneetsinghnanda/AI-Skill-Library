@@ -147,7 +147,8 @@ CATALOGUE: dict[str, ErrorDef] = {
             "E-COMP-04",
             CHECK,
             "Companion check failed: forbidden content in {path} line {line}.",
-            "Remove it and rewrite history with the admin",
+            "Remove the content in a normal commit and push; the check scans current files only. "
+            "Rewriting history with the admin is optional, only to remove it from old commits",
         ),
         _d(
             "E-COMP-05",
@@ -569,6 +570,20 @@ CATALOGUE: dict[str, ErrorDef] = {
             BLOCKED,
             "Docker not running or image unavailable.",
             "Start Docker, then tsl verify --gates H3",
+        ),
+        _d(
+            "E-H3-08",
+            BLOCKED,
+            "Dependency install (prepare) failed or timed out.",
+            "Read the prepare log in the message, fix the install problem or check the network, "
+            "then run tsl verify --gates H3 again. Not counted as an attempt",
+        ),
+        _d(
+            "E-H3-09",
+            BLOCKED,
+            "The verifier container was killed, most likely out of memory (limit 4 GB).",
+            "Close other programs to free memory, then run tsl verify --gates H3 again "
+            "or /truminds:resume. Not counted as an attempt",
         ),
         _d("E-H4-03", CHECK, "Client name found in shared output.", "Replace with a code"),
         _d(

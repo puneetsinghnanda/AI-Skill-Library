@@ -77,10 +77,11 @@ def login(rt: Runtime, rotate_key: bool, interactive: bool | None = None) -> dic
         raise TslError("E-AUTH-08")
     sub = str(me.get("oid") or me.get("pseudonym"))
     info, new = keymod.ensure_key(rt, token, sub, force_new=rotate_key)
+    sent = 0
     with contextlib.suppress(TslError):
-        flush(rt, max_seconds=5)
+        sent = int(flush(rt, max_seconds=5).data().get("sent", 0))
     data = _me_data(rt, me, info)
-    data.update({"key_new": new, "key_status": "active"})
+    data.update({"key_new": new, "key_status": "active", "events_sent": sent})
     return data
 
 
