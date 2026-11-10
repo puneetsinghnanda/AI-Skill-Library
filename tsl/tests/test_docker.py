@@ -117,6 +117,9 @@ def _fake_docker(monkeypatch: pytest.MonkeyPatch, results: dict[str, object]) ->
     """Docker answers; each step's `docker run` returns results[step] (an int exit or 'timeout')."""
     monkeypatch.setattr(DockerVerifier, "available", lambda self: True)
     monkeypatch.setattr(DockerVerifier, "probe", lambda self: None)
+    # On macOS the free-memory check runs sysctl/vm_stat through subprocess.run; keep it out of
+    # the fake so only `docker run` calls take a step result.
+    monkeypatch.setattr("tsl.harness.verifier.available_memory_mb", lambda: None)
     steps = list(results)
 
     def fake_run(cmd, **kw):  # type: ignore[no-untyped-def]
