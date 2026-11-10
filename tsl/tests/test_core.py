@@ -179,3 +179,16 @@ def test_jsonpath_filters_both_styles() -> None:
     assert select(d, "a[?change=='new'].m") == [1]
     with pytest.raises(PathError):
         select(d, "$.a[?(@.change=='new'].m")
+
+
+def test_companion_hint_says_a_normal_commit_fixes_it() -> None:
+    nxt = CATALOGUE["E-COMP-04"].next
+    assert "normal commit" in nxt and "optional" in nxt
+
+
+def test_h3_prepare_and_memory_codes_are_distinct_from_docker() -> None:
+    assert {"E-H3-07", "E-H3-08", "E-H3-09"} <= set(CATALOGUE)
+    assert (
+        "prepare" in CATALOGUE["E-H3-08"].message and "Docker" not in CATALOGUE["E-H3-08"].message
+    )
+    assert "memory" in CATALOGUE["E-H3-09"].message

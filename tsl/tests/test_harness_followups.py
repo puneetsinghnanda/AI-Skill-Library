@@ -36,6 +36,7 @@ def _run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> vmod.VerifierResult
         return subprocess.CompletedProcess(cmd, 1, b"ok 1\nFAIL patients.test.ts\n", b"AKIA-x")
 
     monkeypatch.setattr(vmod.DockerVerifier, "available", lambda self: True)
+    monkeypatch.setattr(vmod, "available_memory_mb", lambda: None)  # macOS: sysctl via subprocess
     monkeypatch.setattr(subprocess, "run", fake_run)
     return vmod.DockerVerifier().run(PROFILE, tmp_path, tmp_path / "out", with_coverage=False)
 
