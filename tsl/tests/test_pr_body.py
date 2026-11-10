@@ -132,19 +132,26 @@ def _status(behind: int, fresh: bool = True) -> dict[str, Any]:
     }
 
 
+def _section_of(out: str, heading: str) -> str:
+    return out.split(f"\n{heading}\n")[1].split("\n### ")[0]
+
+
 def test_body_golden(tmp_path: Path) -> None:
     ctx, art = _world(tmp_path)
     out = pr.body(ctx, _rows(art), "High", "shop", _status(3))
-    assert "**Context pack:** signed 2026-01-01 · built at abc1234, 3 commits behind" in out
-    assert "fresh" not in out.split("### What changed")[0]
-    what = out.split("### What changed")[1].split("### Harness")[0]
+    pack = next(x for x in out.splitlines() if x.startswith("**Context pack:**"))
+    assert pack.startswith(
+        "**Context pack:** signed 2026-01-01 · built at abc1234, 3 commits behind"
+    )
+    assert "fresh" not in pack
+    what = _section_of(out, "### What changed")
     assert "Adds a read-only count to GET /api/doctors/:id." in what
     assert "- `api/src/a.ts`: new: shared window rule for the count." in what
     assert "@​eng-4f2a" in what and "<b>" not in what
     assert "- API GET /api/doctors/:id — changed: adds" in what
     assert "/api/other" not in what
     assert r"- [minor] design: F-1 Missing \*claim\* for @​someone second line" in out
-    qs = out.split("### Questions answered by default")[1].split("### Human")[0]
+    qs = _section_of(out, "### Questions answered by default")
     assert "2 non-blocking" in qs and "Q-01" not in qs
     assert (
         r"- Q-02: Cover the Cancelled status? → default: Use NO\_SHOW only; add the Cancelled test before merge."
@@ -153,6 +160,54 @@ def test_body_golden(tmp_path: Path) -> None:
     assert "⚠ needs action before merge" in qs
     assert "- Q-03: Page size? → default: no default" in qs
     assert qs.count("⚠") == 1
+
+
+TICKET = """---
+schema: ticket-snapshot.v1
+run_id: {run}
+ticket: T-1
+source: file
+fetched_at: '2026-01-01T00:00:00Z'
+title: Show the doctor filter on the appointment list, and leave out Cancelled
+  from the Today link @bob
+---
+# T-1
+"""
+
+
+def test_change_comes_first_and_harness_details_last(tmp_path: Path) -> None:
+    ctx, art = _world(tmp_path)
+    (tmp_path / art / "ticket.md").write_text(TICKET.format(run=RUN), encoding="utf-8")
+    out = pr.body(ctx, _rows(art), "High", "shop", _status(0))
+    heads = [x for x in out.splitlines() if x.startswith("#")]
+    assert heads == [
+        "## T-1: Show the doctor filter on the appointment list, and leave out Cancelled from "
+        "the Today link @​bob",
+        "### What changed",
+        "### Questions answered by default",
+        "### Findings for the reviewer (not blocking)",
+        "### Reviewer checklist",
+        "### Harness details",
+    ]
+    details = _section_of(out, "### Harness details")
+    for part in ("**Run:**", "**Context pack:**", "| Step |", "Lowest band:", "Human decisions"):
+        assert part in details and part not in out.split("### Harness details")[0]
+    assert out.endswith(f"<!-- tsl:run_id={RUN} -->")
+
+
+def test_pr_title_is_the_ticket_title(tmp_path: Path) -> None:
+    _, art = _world(tmp_path)
+    assert pr_body.ticket_title(tmp_path, "T-1", RUN) is None  # no ticket.md
+    assert pr_body.pr_title("T-1", None, "feature (run_x)") == "T-1: feature (run_x)"
+    (tmp_path / art / "ticket.md").write_text(TICKET.format(run=RUN), encoding="utf-8")
+    title = pr_body.ticket_title(tmp_path, "T-1", RUN)
+    assert title is not None and "\n" not in title and title.startswith("Show the doctor filter")
+    t = pr_body.pr_title("T-1", title, "feature (run_x)")
+    assert t.startswith("T-1: Show the doctor filter") and t.endswith("…")
+    assert len(t) == pr_body.TITLE_CHARS
+    assert pr_body.pr_title("T-1", "Short", "x") == "T-1: Short"
+    (tmp_path / art / "ticket.md").write_text("no front matter", encoding="utf-8")
+    assert pr_body.ticket_title(tmp_path, "T-1", RUN) is None
 
 
 def test_up_to_date_and_unchecked_never_say_fresh_when_behind(tmp_path: Path) -> None:

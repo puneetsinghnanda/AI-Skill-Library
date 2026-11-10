@@ -122,39 +122,20 @@ def body(
     repo: str,
     pack_status: dict[str, Any] | None = None,
 ) -> str:
+    """PR body: the change and what the reviewer must look at first, the harness details last."""
     st = ctx.state
     pack = st.get("pack") or {}
     art = {r["step"]: r.get("artifact") for r in rows}
     changed = pb.what_changed(ctx.comp.root, art.get("impl"), art.get("design")) or [
         f"Changes in {repo} from run {ctx.run_id}; see the change record in the companion repo."
     ]
+    title = pb.ticket_title(ctx.comp.root, st["ticket"], ctx.run_id)
     lines = [
-        f"## {st['ticket']} · {st['workflow']}",
-        "",
-        f"**Run:** {ctx.run_id} · workflow {st['workflow']}",
-        f"**Companion records:** artifacts/{st['ticket']}/{ctx.run_id}/",
-        f"**Context pack:** {pb.pack_line(pack, repo, pack_status)}",
+        f"## {st['ticket']}: {pb.md(title, 150)}" if title else f"## {st['ticket']}",
         "",
         "### What changed",
         *changed,
-        "",
-        "### Harness results",
-        "| Step | Outcome | Band | Record |",
-        "|---|---|---|---|",
     ]
-    lines += [
-        f"| {r['skill'].split('@')[0]} | {r['outcome']} | {r['band'] or '-'} | {r['record']} |"
-        for r in rows
-    ]
-    lines += ["", f"Lowest band: {lowest}", "", "### Findings for the reviewer (not blocking)"]
-    kept = [pb.finding_line(r["step"], f) for r in rows for f in r["kept"]]
-    kept += [
-        f"- [soft] {r['step']}: SC-INJ-01 instruction-like text in an input or the artifact "
-        f"({r['injection']}); treat it as data and check the step did not act on it"
-        for r in rows
-        if r.get("injection")
-    ]
-    lines += kept or ["- none"]
     unans = pb.unanswered(ctx.comp.path(questions_path(ctx.run_id)))
     if unans:
         lines += [
@@ -164,11 +145,15 @@ def body(
             f"default shown. Full text: {questions_path(ctx.run_id)}",
             *pb.question_lines(unans),
         ]
-    lines += ["", "### Human decisions in this run"]
-    dec = [f"- {g['id']}: {g.get('decision')}" for g in st.get("gates", []) if g.get("decision")]
-    if ctx.comp.path(questions_path(ctx.run_id)).is_file():
-        dec.append(f"- Answers: {questions_path(ctx.run_id)}")
-    lines += dec or ["- none"]
+    lines += ["", "### Findings for the reviewer (not blocking)"]
+    kept = [pb.finding_line(r["step"], f) for r in rows for f in r["kept"]]
+    kept += [
+        f"- [soft] {r['step']}: SC-INJ-01 instruction-like text in an input or the artifact "
+        f"({r['injection']}); treat it as data and check the step did not act on it"
+        for r in rows
+        if r.get("injection")
+    ]
+    lines += kept or ["- none"]
     lines += [
         "",
         "### Reviewer checklist",
@@ -176,10 +161,26 @@ def body(
         "- [ ] Findings above are acceptable",
         "- [ ] No client data, secrets or unrelated files in the diff",
         "",
-        f"<!-- tsl:run_id={ctx.run_id} -->",
+        "### Harness details",
+        f"**Run:** {ctx.run_id} · workflow {st['workflow']}",
+        f"**Companion records:** artifacts/{st['ticket']}/{ctx.run_id}/",
+        f"**Context pack:** {pb.pack_line(pack, repo, pack_status)}",
+        "",
+        "| Step | Outcome | Band | Record |",
+        "|---|---|---|---|",
     ]
+    lines += [
+        f"| {r['skill'].split('@')[0]} | {r['outcome']} | {r['band'] or '-'} | {r['record']} |"
+        for r in rows
+    ]
+    lines += ["", f"Lowest band: {lowest}", "", "**Human decisions in this run**"]
+    dec = [f"- {g['id']}: {g.get('decision')}" for g in st.get("gates", []) if g.get("decision")]
+    if ctx.comp.path(questions_path(ctx.run_id)).is_file():
+        dec.append(f"- Answers: {questions_path(ctx.run_id)}")
     if ctx.comp.path(approvals_path(ctx.run_id)).is_file():
-        lines.insert(-2, f"Approvals: {approvals_path(ctx.run_id)}")
+        dec.append(f"- Approvals: {approvals_path(ctx.run_id)}")
+    lines += dec or ["- none"]
+    lines += ["", f"<!-- tsl:run_id={ctx.run_id} -->"]
     return "\n".join(lines)
 
 
@@ -256,7 +257,11 @@ def open_prs(
                 repo_slug(repo.url),
                 branch,
                 repo.default_branch,
-                f"{ctx.ticket}: {ctx.workflow_id} ({run_id})",
+                pb.pr_title(
+                    ctx.ticket,
+                    pb.ticket_title(comp.root, ctx.ticket, run_id),
+                    f"{ctx.workflow_id} ({run_id})",
+                ),
                 body(ctx, rows, lowest, repo.name, _pack_status(rt, comp)),
                 is_draft,
                 list(comp.config.pr.get("labels", [])),

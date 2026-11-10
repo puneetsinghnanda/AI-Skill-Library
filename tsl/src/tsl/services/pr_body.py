@@ -25,6 +25,24 @@ ACTION_RULE = re.compile(
 _SPECIAL = re.compile(r"([\\`*_{}\[\]<>()#+!|~])")
 MAX_BULLETS = 8
 FINDING_CHARS = 200
+TITLE_CHARS = 100  # PR title "<ticket>: <ticket title>" is cut with … beyond this
+
+
+def ticket_title(comp_root: Path, ticket: str, run_id: str) -> str | None:
+    """The ticket's title from the run's ticket.md front matter, on one line; None when missing."""
+    p = comp_root / "artifacts" / ticket / run_id / "ticket.md"
+    try:
+        front = split(p.read_text(encoding="utf-8")).front
+    except (OSError, UnicodeDecodeError, FrontMatterError):
+        return None
+    title = re.sub(r"\s+", " ", str(front.get("title") or "")).strip()
+    return title or None
+
+
+def pr_title(ticket: str, title: str | None, fallback: str) -> str:
+    """'<ticket>: <ticket title>' so the PR list reads as the change; fallback without a title."""
+    t = f"{ticket}: {title or fallback}"
+    return t if len(t) <= TITLE_CHARS else t[: TITLE_CHARS - 1].rstrip() + "…"
 
 
 def md(text: Any, limit: int = 200) -> str:

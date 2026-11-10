@@ -91,6 +91,9 @@ def test_code_step_pr_and_ci_verify(world: World) -> None:
     assert pr["draft"] is False and pr["branch"].startswith("tsl/ABC-150-")
     created = world.github.created[0]
     assert f"<!-- tsl:run_id={run_id} -->" in created["body"]
+    assert created["body"].rstrip().endswith(f"<!-- tsl:run_id={run_id} -->")
+    # this ticket snapshot has no title: the PR title falls back to workflow and run
+    assert created["title"].startswith("ABC-150: ") and run_id in created["title"]
     assert git(world.product_remote, "rev-parse", pr["branch"]) == pr["head_sha"]
     # CI re-check of the PR (no LLM; signatures through the registry fake)
     gpr = world.github.prs[("example-org/sample-orders", pr["number"])]
