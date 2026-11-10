@@ -104,6 +104,7 @@ def test_coverage_step_exit_78_is_a_skip(
         return subprocess.CompletedProcess(cmd, 0 if len(calls) == 1 else exit_code)
 
     monkeypatch.setattr(vmod.DockerVerifier, "available", lambda self: True)
+    monkeypatch.setattr(vmod, "available_memory_mb", lambda: None)  # macOS: sysctl via subprocess
     monkeypatch.setattr(subprocess, "run", fake_run)
     res = vmod.DockerVerifier().run(profile, tmp_path, tmp_path / "out", with_coverage=True)
     assert [s.status for s in res.steps] == [status]
