@@ -30,8 +30,12 @@ them at run time (SDD-10 §3.1). The spike plugin lives in `spikes/` (SDD-05 §8
 
 ## Install
 
-**Production:** IT force-enables the plugin through managed settings (`managed-settings/`, SDD-05 §6). Engineers
-cannot switch it off. Then install `tsl` at the same version:
+**Pilot (now):** there are no GitHub releases yet. Install and update `tsl` and the plugin from the library clone:
+[team setup guide §5 and §7](../../docs/testing/team-setup-guide.md#5-install-tsl-connected-to-the-test-environment-everyone-once),
+updates in [§7a](../../docs/testing/team-setup-guide.md#7a-update-to-a-new-version).
+
+**Production (once releases are published):** IT force-enables the plugin through managed settings
+(`managed-settings/`, SDD-05 §6). Engineers cannot switch it off. Then install `tsl` at the same version:
 
 ```bash
 uv tool install "truminds-tsl @ <release wheel URL for v<plugin version>>"

@@ -33,8 +33,9 @@ _T0 = time.perf_counter()
 BUDGET_S = {"session-start": 12, "session-end": 12, "pre-tool": 8, "pre-mcp": 8, "post-write": 85}
 INSTALL_HINT = (
     "update tsl and the plugin from your AI-Skill-Library clone: git pull; "
-    "uv tool install --python 3.12 --reinstall --no-cache ./tsl (TSL_ORG_FILE set, see the pilot "
-    "guide); claude plugin marketplace update truminds-skill-library; "
+    "uv tool install --python 3.12 --reinstall --no-cache ./tsl (TSL_ORG_FILE set, see "
+    "docs/testing/team-setup-guide.md section 7a); "
+    "claude plugin marketplace update truminds-skill-library; "
     "claude plugin update truminds@truminds-skill-library"
 )
 _SID_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-")
