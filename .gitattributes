@@ -1,0 +1,8 @@
+# Check out text files with LF on every OS, so Prettier, ruff and the schema
+# drift checks see the same bytes on Windows as on CI (core.autocrlf=true
+# otherwise turns every file into CRLF and the portal lint hook fails).
+* text=auto eol=lf
+
+# Windows batch launchers keep CRLF; cmd.exe can misparse LF-only files.
+*.cmd text eol=crlf
+*.bat text eol=crlf
