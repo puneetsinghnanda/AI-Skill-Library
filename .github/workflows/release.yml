@@ -126,6 +126,30 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
+      # Test phase (ADR 0006): sign-in through GitHub, not Entra. With ORG_PROVIDER=github the wheel bakes an
+      # org file made from deploy/render/tsl-org.github.toml.example plus repo variables; hatch_build.py checks it.
+      - name: GitHub sign-in org file (ORG_PROVIDER=github)
+        if: vars.ORG_PROVIDER == 'github'
+        env:
+          GITHUB_CLIENT_ID: ${{ vars.ORG_GITHUB_CLIENT_ID }}
+          ORG_OUT: ${{ runner.temp }}/tsl-org.toml
+        run: |
+          python3 - <<'PY'
+          import json, os, sys, tomllib
+          data = tomllib.load(open("deploy/render/tsl-org.github.toml.example", "rb"))
+          overrides = {
+              "github_client_id": os.environ["GITHUB_CLIENT_ID"],
+              "service_url": os.environ["TSL_ORG_SERVICE_URL"],
+              "github_api_url": os.environ["TSL_ORG_GITHUB_API_URL"],
+              "companion_remote_template": os.environ["TSL_ORG_COMPANION_REMOTE_TEMPLATE"],
+          }
+          if not overrides["github_client_id"] or not overrides["service_url"]:
+              sys.exit("ORG_PROVIDER=github needs the ORG_GITHUB_CLIENT_ID and ORG_SERVICE_URL variables")
+          data.update({k: v for k, v in overrides.items() if v})
+          val = lambda v: "true" if v is True else json.dumps(v)
+          open(os.environ["ORG_OUT"], "w").write("".join(f"{k} = {val(v)}\n" for k, v in data.items()))
+          PY
+          echo "TSL_ORG_FILE=$ORG_OUT" >> "$GITHUB_ENV"
       - name: Build the tsl wheel (schemas bundled by hatch_build.py)
         run: uv build --wheel --out-dir dist tsl
       - name: Wheel version equals the plugin tag; SHA256SUMS
