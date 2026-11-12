@@ -67,6 +67,15 @@ def skill_version(skill_id: str) -> str:
     return str(data["version"])
 
 
+def workflow_version(workflow_id: str) -> str:
+    """Current version of a plugin workflow. Catalogue sync stores only this version, and run
+    detail looks the plan up by (workflow, version), so a pinned version loses the plan."""
+    import yaml
+
+    path = ROOT / "plugins" / "truminds" / "workflows" / f"{workflow_id}.workflow.yaml"
+    return str(yaml.safe_load(path.read_text())["version"])
+
+
 def next_patch(version: str) -> str:
     major, minor, patch = version.split(".")
     return f"{major}.{minor}.{int(patch) + 1}"
@@ -473,7 +482,7 @@ def run_started(
 ) -> dict[str, Any]:
     b: dict[str, Any] = {
         "workflow": workflow,
-        "workflow_version": "1.3.0",
+        "workflow_version": workflow_version(workflow),
         "ticket_ref": ticket,
         "system": system,
         "plugin_version": "0.1.0",

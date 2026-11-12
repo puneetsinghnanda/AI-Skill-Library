@@ -13,17 +13,14 @@ from sqlalchemy.engine import Engine
 from tests.conftest import ROOT, Person, TokenFactory, bearer, event, new_run, now_iso, post
 
 FIXTURES = ROOT / "schemas" / "fixtures" / "events"
+# Event types whose envelope must carry run_id, read from the schema itself so a
+# new run-scoped type (pr.closed was added this way) cannot drift from this test.
+_ENVELOPE = json.loads((ROOT / "schemas" / "event-envelope.v1.json").read_text())
 NEEDS_RUN = {
-    "step.started",
-    "step.decided",
-    "step.invalidated",
-    "run.started",
-    "run.status_changed",
-    "question.created",
-    "question.answered",
-    "approval.recorded",
-    "pr.opened",
-    "audit.recorded",
+    t
+    for rule in _ENVELOPE["allOf"]
+    if "run_id" in rule.get("then", {}).get("required", [])
+    for t in rule["if"]["properties"]["type"]["enum"]
 }
 
 
