@@ -929,12 +929,14 @@ FROM runs r WHERE r.started_at IS NOT NULL
 GROUP BY 1,2,3,4,5;
 CREATE UNIQUE INDEX ON mv_run_daily (day, project_id, system_id, workflow_id, pod_id);
 
--- Pull requests by day of each transition.
+-- Pull requests by day of each transition. A PR closed and later merged keeps closed_at, so
+-- the closed branch counts only PRs that never merged (migration 0006_pr_daily_merged).
 CREATE MATERIALIZED VIEW mv_pr_daily AS
 WITH t AS (
   SELECT p.opened_at::date AS day, p.run_id, 'opened' AS kind, p.changes_requested FROM pull_requests p WHERE p.opened_at IS NOT NULL
   UNION ALL SELECT p.merged_at::date, p.run_id, 'merged', p.changes_requested FROM pull_requests p WHERE p.merged_at IS NOT NULL
-  UNION ALL SELECT p.closed_at::date, p.run_id, 'closed', p.changes_requested FROM pull_requests p WHERE p.closed_at IS NOT NULL)
+  UNION ALL SELECT p.closed_at::date, p.run_id, 'closed', p.changes_requested FROM pull_requests p
+    WHERE p.closed_at IS NOT NULL AND p.merged_at IS NULL)
 SELECT t.day, r.project_id, r.system_id, coalesce(r.pod_id,'') AS pod_id,
   count(*) FILTER (WHERE kind = 'opened') AS opened,
   count(*) FILTER (WHERE kind = 'merged') AS merged,
