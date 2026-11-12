@@ -128,6 +128,18 @@ These need a company seat or a real laptop, so CI cannot run them (TST-01 §6, C
 - [ ] Managed-settings changes, if any, applied to a test seat (SDD-05 S-01 method).
 - [ ] Upgrade block in the release notes reviewed.
 
+### 3.3 Switching on releases in the test phase (GitHub sign-in)
+
+No `v*` tag has been pushed yet. Engineers install and update `tsl` and the plugin from the library clone ([team setup guide §7a](../testing/team-setup-guide.md#7a-update-to-a-new-version)). Before the first tag, the repository owner (Puneet):
+
+1. Gets CI green on `main`. `publish` runs only when every job in the release matrix passes.
+2. Creates the GitHub environment `release` with the release manager as required reviewer.
+3. Sets these repository variables: `ORG_PROVIDER` = `github`, `ORG_GITHUB_CLIENT_ID` (the OAuth App Client ID; not secret), and `ORG_SERVICE_URL` (the test service URL). Optional: `ORG_GITHUB_API_URL`, `ORG_COMPANION_REMOTE_TEMPLATE`. Defaults come from `deploy/render/tsl-org.github.toml.example`. With these set, `build-wheel` bakes a GitHub sign-in org file into the wheel instead of the Entra values.
+4. Adds a tag ruleset so that only release managers can push `v*`, `insights-v*` and `portal-v*`.
+5. Pushes the tag on the version commit, for example `git tag v0.1.7 <commit> && git push origin v0.1.7`, and approves the `release` environment.
+
+After the first release, the team setup guide and the update hint (`UPDATE_HINT` in `tsl/src/tsl/core/errors.py`, `INSTALL_HINT` in `tsl/src/tsl/hooks/entry.py`, `plugins/truminds/bin/tsl-hook*`) switch to "download the wheel and `SHA256SUMS` from the release".
+
 ## 4. Rollout
 
 ### 4.1 How each unit reaches people
