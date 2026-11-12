@@ -20,6 +20,14 @@ LISTS = [
 ]
 
 
+@pytest.fixture(autouse=True)
+def _no_read_throttle(app: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The limit=1 walks send one request per row, and the session-wide role-grant
+    table grows with every earlier test, so a full walk outruns the read burst (30)
+    and gets E-API-05. Throttling is covered in test_auth.py, not here."""
+    monkeypatch.setattr(app.state.rate_limiter, "take", lambda *_a, **_k: None)
+
+
 def _h(token: TokenFactory, p: Person, scp: str | None = None) -> dict[str, str]:
     return bearer(token(p.oid, p.roles, client="portal", scp=scp))
 

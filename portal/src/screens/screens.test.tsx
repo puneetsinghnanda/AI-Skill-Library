@@ -55,16 +55,20 @@ describe('Skill detail (board SkillDetail)', () => {
     first.focus();
     await user.keyboard('{ArrowRight}');
     const quality = within(tabs).getByRole('tab', { name: 'Quality' });
-    expect(quality).toHaveAttribute('aria-selected', 'true');
     expect(quality).toHaveFocus();
+    // The tab lives in the URL (?tab=); with the data router and lazy routes, setSearchParams
+    // is a navigation that commits a tick after the key press, so wait for the selection.
+    await waitFor(() => expect(quality).toHaveAttribute('aria-selected', 'true'));
     expect(
       await screen.findByText('Top reasons a step did not pass first time'),
     ).toBeInTheDocument();
     expect(screen.getByRole('tabpanel')).toBeInTheDocument();
     await user.keyboard('{End}');
-    expect(within(tabs).getByRole('tab', { name: 'Used in workflows' })).toHaveAttribute(
-      'aria-selected',
-      'true',
+    await waitFor(() =>
+      expect(within(tabs).getByRole('tab', { name: 'Used in workflows' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      ),
     );
     expect(await screen.findByText(/Step 6 of 11, after the G-design gate/)).toBeInTheDocument();
   });

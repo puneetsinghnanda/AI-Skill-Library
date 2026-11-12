@@ -85,5 +85,19 @@ def test_pr_closed_without_merge_never_unmerges(
     project(migrated)
     assert _pr(owner_db, n).state == "merged"
     post(client, tok, [event("pr.closed", {**closed, "merged": False}, run_id)], strict=True)
-    project(migrated)
-    assert _pr(owner_db, n).state == "merged"
+    project(migrated, refresh=True)
+    pr = _pr(owner_db, n)
+    assert pr.state == "merged" and pr.closed and pr.merged  # both timestamps kept
+    # mv_pr_daily must not also count this PR as closed unmerged (it lowered pr_merge_rate).
+    with owner_db.connect() as c:
+        view, golden = c.execute(
+            text(
+                "SELECT (SELECT coalesce(sum(closed_unmerged), 0) FROM mv_pr_daily "
+                "WHERE system_id = CAST(:s AS uuid)), "
+                "(SELECT count(*) FROM pull_requests p JOIN runs r ON r.id = p.run_id "
+                "WHERE r.system_id = CAST(:s AS uuid) AND p.closed_at IS NOT NULL "
+                "AND p.merged_at IS NULL)"
+            ),
+            {"s": world.system_id},
+        ).one()
+    assert view == golden
