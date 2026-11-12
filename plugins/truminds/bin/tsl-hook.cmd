@@ -94,7 +94,7 @@ function Test-RunActive {
 }
 
 # No published package: tsl and the plugin both come from the library clone.
-function Get-InstallHint([string]$V) { 'update tsl and the plugin from your AI-Skill-Library clone: git pull; uv tool install --python 3.12 --reinstall --no-cache ./tsl (TSL_ORG_FILE set, see the pilot guide); claude plugin marketplace update truminds-skill-library; claude plugin update truminds@truminds-skill-library' }
+function Get-InstallHint([string]$V) { 'update tsl and the plugin from your AI-Skill-Library clone: git pull; uv tool install --python 3.12 --reinstall --no-cache ./tsl (TSL_ORG_FILE set, see docs/testing/team-setup-guide.md section 7a); claude plugin marketplace update truminds-skill-library; claude plugin update truminds@truminds-skill-library' }
 
 function Out-Json($Obj) { [Console]::Out.WriteLine(($Obj | ConvertTo-Json -Compress -Depth 5)) }
 

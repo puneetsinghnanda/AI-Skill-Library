@@ -431,7 +431,7 @@ Icons are paired with words so meaning never relies on symbol or colour alone.
 | E-CI-01 | 2 | PR has code changes but no verification records for run `<id>`. | Run the change through `/truminds:run` |
 | E-CI-02 | 2 | Record signature invalid or signer lacked role at signing time. | Re-run the step |
 | E-CI-03 | 2 | CI re-run of code checks differs from laptop result. | Investigate; re-run the step |
-| E-HOOK-01 | deny (hook) | Write blocked: `tsl` is missing, the wrong version, or did not answer while a run is active. | Run the shown command: `uv tool install "truminds-tsl @ <wheel URL>"`; then `tsl doctor` |
+| E-HOOK-01 | deny (hook) | Write blocked: `tsl` is missing, the wrong version, or did not answer while a run is active. | Run the command the message shows; then `tsl doctor` |
 | E-DEP-01 | 0 (warn) | `<thing>` is deprecated and will be removed in `<version>`. | Use `<replacement>` |
 | E-AUTH-08 | 3 / 403 | Your account has no Truminds app role, or it is deactivated. | Ask your manager to request access (SDD-13 §3.2) |
 | E-AUTH-09 | 400 | GitHub sign-in did not complete (test environment only, ADR 0006). | Start again from the portal |
