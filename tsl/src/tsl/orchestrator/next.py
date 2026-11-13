@@ -337,7 +337,10 @@ def next_action(rt: Runtime, comp: Companion, run_id: str) -> tuple[dict[str, An
             )
         if st["status"] == "PAUSED_APPROVAL":
             gate = _waiting_gate(ctx) or "?"
-            ent = approvals_md.entry(approvals_md.load(comp.path(approvals_path(run_id))), gate)
+            try:
+                ent = approvals_md.entry(approvals_md.load(comp.path(approvals_path(run_id))), gate)
+            except TslError:
+                ent = None
             msg, nxt = plain.paused_approval(
                 str((ent or {}).get("reason") or "the run reached an approval gate"),
                 run_id,

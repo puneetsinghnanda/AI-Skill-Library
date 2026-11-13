@@ -5,7 +5,7 @@ import type { Register } from 'claude-code'
 // stdin, so nothing a person types is parsed by a shell. Where Mods are off, run `tsl gate`.
 
 const DECISIONS = ['approve', 'changes', 'reject', 'abort']
-const USAGE = 'Usage: /tsl-gate [run_id [approve|changes|reject|abort [comment]]]  [--gate G]'
+const USAGE = 'Usage (a decision word is needed to decide): /tsl-gate [run_id [approve|changes|reject|abort [comment]]]  [--gate G]'
 
 type Env = { ok?: boolean; message?: string; next?: string | null; data?: any }
 
@@ -25,8 +25,7 @@ function render(env: Env, argsRun?: string): string {
       ...(d.artifacts ?? []).map((a: string) => `Artifact: ${a}`),
       `Details: ${d.portal}`,
       `Decide: /tsl-gate ${d.run_id} approve|changes|reject|abort [comment]`,
-    ].filter(Boolean).join('
-')
+    ].filter(Boolean).join('\n')
     return text
   }
   if (env.ok && d.decision && d.resumable) text += `\nYou own this run: run /truminds:resume ${argsRun ?? d.run_id}`
@@ -48,15 +47,18 @@ export const register: Register = (on) => {
   on('command.run', { command: 'tsl-gate' }, async ($, e) => {
     let rest = String(e.args ?? '').trim()
     let gate: string | undefined
-    const g = rest.match(/(^|\s)--gate\s+(\S+)/)
+    const g = rest.match(/^(\S+)\s+--gate\s+(\S+)/) ?? rest.match(/^()--gate\s+(\S+)/)
     if (g) {
       gate = g[2]
-      rest = rest.replace(g[0], ' ').trim()
+      rest = (g[1] + ' ' + rest.slice(g[0].length)).trim()
     }
+    const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+    if (gate && !ID.test(gate)) return { text: USAGE }
     const m = rest.match(/^(\S+)(?:\s+(\S+))?(?:\s+([\s\S]*))?$/)
     const argv = ['tsl', 'gate', '--json']
     let stdin: string | undefined
     if (m) {
+      if (!ID.test(m[1])) return { text: USAGE }
       argv.push(m[1])
       if (m[2]) {
         if (!DECISIONS.includes(m[2])) return { text: USAGE }

@@ -21,6 +21,12 @@ from tsl.telemetry.emit import emit
 DECISIONS = ("approve", "reject", "changes", "abort")
 
 
+def _undo(g: Any, path: Any, original: str, run_id: str) -> None:
+    """Put approvals.md back as it was, unstaged, after a failed sign or commit."""
+    path.write_text(original, encoding="utf-8", newline="")
+    g.run("reset", "-q", "--", approvals_path(run_id), check=False)
+
+
 def decide(
     rt: Runtime, comp: Companion, run_id: str, gate: str, decision: str, comment: str | None
 ) -> dict[str, Any]:
@@ -56,8 +62,14 @@ def decide(
             hint=f"tsl state show {run_id}",
         )
     if e.get("signature"):
-        if g.unpushed(comp.config.companion_branch, [approvals_path(run_id)]):
-            # An earlier sign worked but its push failed: push it, never sign twice.
+        sig0 = e["signature"]
+        if (
+            g.unpushed(comp.config.companion_branch, [approvals_path(run_id)])
+            and sig0.get("decision") == decision
+            and sig0.get("approver") == memod.current_me(rt).get("pseudonym")
+        ):
+            # My own earlier sign of this same decision worked but its push failed:
+            # push it, never sign twice.
             if not g.sync_push(comp.config.companion_branch):
                 raise TslError(
                     "E-GIT-01",
@@ -169,21 +181,26 @@ def decide(
         "self_approved": bool(self_gen),
         "approved_at": iso(rt.clock()),
     }
-    approvals_md.set_decision(path, gate, decision, comment)
-    signed = sign_object(block, signer.key_id, signer.private)
     from tsl.schemas.registry import require_valid
 
-    require_valid("approval-signature.v1", signed, "approval block")
-    approvals_md.append_signature(path, gate, signed)
-    block_sha = sha256_raw(canonical(signed))
+    original = path.read_text(encoding="utf-8")
     try:
+        signed = sign_object(block, signer.key_id, signer.private)
+        require_valid("approval-signature.v1", signed, "approval block")
+        approvals_md.set_decision(path, gate, decision, comment)
+        approvals_md.append_signature(path, gate, signed)
+        block_sha = sha256_raw(canonical(signed))
         g.commit(
             f"tsl({run_id}): {decision} {gate}",
             [approvals_path(run_id)],
             trailer=f"Tsl-Run: {run_id}",
         )
     except GitError as exc:
+        _undo(g, path, original, run_id)
         raise exc.tsl() from None
+    except Exception:
+        _undo(g, path, original, run_id)
+        raise
     if decision != "abort":
         body: dict[str, Any] = {
             "gate": gate,

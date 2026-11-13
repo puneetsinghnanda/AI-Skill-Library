@@ -178,6 +178,8 @@ def test_push_failure_is_clear_and_state_stays_consistent(world: World) -> None:
     obj = approvals_md.load(_appr(world, run_id))
     assert approvals_md.entry(obj, "G-req")["signature"]["decision"] == "approve"
     assert "approve G-req" in git(world.companion, "log", "-1", "--format=%s")
+    code, env = _gate(world, run_id, "reject", "--comment", "other")  # not the signed decision
+    assert code != 0 and env["code"] == "E-RUN-05"
     hook.unlink()
     signed = git(world.companion, "rev-parse", "HEAD").strip()
     code, env = _gate(world, run_id, "approve", "--comment", "ok")
