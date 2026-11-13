@@ -174,7 +174,7 @@ SDD-04 owns the command surface (names, flags, envelope, exit codes). The "Logic
 | `tsl next` | SDD-02 §6 | SDD-04 §6.8 |
 | `tsl review prepare \| record` | SDD-03 §7 | SDD-04 §6.9 |
 | `tsl decide` | SDD-03 | SDD-04 §6.10 |
-| `tsl approve` | SDD-02 §9.2, SDD-07 §6.4 | SDD-04 §6.11 |
+| `tsl gate` | SDD-02 §9.2, SDD-07 §6.4 | SDD-04 §6.11 |
 | `tsl pr` | SDD-12 §4.2 | SDD-04 §6.12 |
 | `tsl ci-verify` | SDD-03 §13, SDD-07 §7.4 | SDD-04 §6.13 |
 | `tsl hook <event>` | SDD-05 §5 | SDD-04 §6.14 |
@@ -310,7 +310,7 @@ Envelope: Doc 5 §5.2. Body schemas: `schemas/events/<type>.v<N>.json`. SDD-08 �
 | `step.invalidated` | `tsl` (staleness) | `step`, `cause_step`, `reason` | SDD-02 §12 |
 | `question.created` | `tsl decide` | `step`, `question_id`, `blocking`, `ask_role` | SDD-08 §4.5 |
 | `question.answered` | `tsl state resume` | `step`, `question_id`, `age_s` | SDD-08 §4.5 |
-| `approval.recorded` | `tsl approve` | `gate`, `decision`, `approver_role`; *add* `signature_block_sha256`, `key_id` (SDD-07) | SDD-08 §4.5 |
+| `approval.recorded` | `tsl gate` | `gate`, `decision`, `approver_role`; *add* `signature_block_sha256`, `key_id` (SDD-07) | SDD-08 §4.5 |
 | `hook.decision` | hooks | `hook`, `decision`, `code` | SDD-08 §4.5 |
 | `pr.opened` | `tsl pr` | `repo`, `number`, `draft`, `lowest_band` | SDD-08 §4.5 |
 | `pr.closed` | `tsl pr-sync` | `repo`, `number`, `merged`, `closed_at` | SDD-08 §4.5 |
@@ -442,7 +442,7 @@ Paths are relative to the companion repo root (`<client-code>-<system-code>-comp
 | `runs/<run_id>/state.json` | `run-state.v1` | `tsl` | SDD-02 §5.3 |
 | `runs/<run_id>/workflow.snapshot.yaml` | `workflow.v1` (resolved) | `tsl state start` | SDD-02 §3.1 |
 | `runs/<run_id>/open-questions.md` | `open-questions.v1` | `tsl decide`; answers by people | SDD-02 §9.1 |
-| `runs/<run_id>/approvals.md` | `approvals.v1` + `approval-signature.v1` blocks | `tsl decide`, `tsl approve` | SDD-02 §9.2, SDD-07 §6.4 |
+| `runs/<run_id>/approvals.md` | `approvals.v1` + `approval-signature.v1` blocks | `tsl decide`, `tsl gate` | SDD-02 §9.2, SDD-07 §6.4 |
 | `runs/<run_id>/feedback/<step>.a<N>.json` | `feedback.v1` | `tsl decide` | SDD-02 §8.2 |
 | `runs/<run_id>/tool-log.jsonl` | `tool-log.v1` | pre-tool and pre-mcp hooks | SDD-03 §2.1 |
 | `runs/<run_id>/.local.lock` (gitignored) | — | `tsl` (same-machine exclusion) | SDD-02 §11.2 |

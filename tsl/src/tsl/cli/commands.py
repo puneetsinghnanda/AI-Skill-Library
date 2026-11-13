@@ -169,7 +169,7 @@ SENDS_EVENTS = {
     "state_cancel",
     "state_unlock",
     "decide",
-    "approve",
+    "gate",
     "pr",
     "pr_sync",
 }
@@ -203,6 +203,13 @@ def command(fn: Callable[..., int]) -> Callable[..., None]:
         raise typer.Exit(code)
 
     return wrapper
+
+
+def _portal(run_id: str) -> str | None:
+    try:
+        return f"{str(rt().org.service_url).rstrip('/')}/runs/{run_id}"
+    except Exception:
+        return None
 
 
 def rt() -> Any:
@@ -414,7 +421,9 @@ def decide(artifact: str) -> int:
         return emit_err("E-RUN-01", msg, nxt, data, warnings)
     if o == "ESCALATE":
         why = plain.escalation_reason(d.escalate_reason, d.signals, d.reasons)
-        msg, nxt = plain.paused_approval(why, run_id, data["gate"], f"runs/{run_id}/approvals.md")
+        msg, nxt = plain.paused_approval(
+            why, run_id, data["gate"], f"runs/{run_id}/approvals.md", _portal(run_id)
+        )
         return emit_err("E-RUN-02", msg, nxt, data, warnings)
     code = next((c for c in d.codes if c.startswith(("E-SEC", "E-POL"))), "E-POL-05")
     return emit_err(code, f"Run aborted: {code}", "stopped", data, warnings)
@@ -554,12 +563,46 @@ def next_(run_id: str) -> int:
 
 @app.command()
 @command
-def approve(run_id: str, gate: str) -> int:
-    """Sign the decision written under a gate in approvals.md."""
-    from tsl.approvals.service import approve as svc
+def gate(
+    run_id: Annotated[str | None, typer.Argument()] = None,
+    decision: Annotated[str | None, typer.Argument(help="approve|changes|reject|abort")] = None,
+    comment: Annotated[str | None, typer.Option("--comment")] = None,
+    comment_file: Annotated[
+        str | None, typer.Option("--comment-file", help="'-' reads the comment from stdin")
+    ] = None,
+    gate_id: Annotated[str | None, typer.Option("--gate")] = None,
+) -> int:
+    """Decide on a gate: list waiting gates, show one, or decide it (write, sign, push)."""
+    from tsl.approvals import summary as sm
+    from tsl.approvals.service import decide as svc
 
-    data = svc(rt(), comp(), run_id, gate)
-    return emit_ok(f"{gate} {data['decision']} signed", data, next_=f"/truminds:resume {run_id}")
+    if run_id is None:
+        data = sm.list_waiting(rt(), comp())
+        n = len(data["waiting"])
+        return emit_ok(
+            f"{n} gate{'s' if n != 1 else ''} waiting for you",
+            data,
+            next_="/tsl-gate <run_id>" if n else None,
+        )
+    if decision is None:
+        s = sm.summary(rt(), comp(), run_id, gate_id)
+        return emit_ok(
+            sm.render(s), s, next_=f"/tsl-gate {run_id} approve|changes|reject|abort [comment]"
+        )
+    if comment_file is not None:
+        if comment_file != "-":
+            raise TslError(
+                "E-USE-01", detail="--comment-file only supports '-' (stdin)", cmd="gate"
+            )
+        comment = sys.stdin.read()
+    s = sm.summary(rt(), comp(), run_id, gate_id)
+    data = svc(rt(), comp(), run_id, s["gate"], decision, comment)
+    data["run_id"] = run_id
+    return emit_ok(
+        f"{s['gate']} {data['decision']} signed and pushed",
+        data,
+        next_=f"/truminds:resume {run_id}" if data["resumable"] else f"owner resumes {run_id}",
+    )
 
 
 @app.command()

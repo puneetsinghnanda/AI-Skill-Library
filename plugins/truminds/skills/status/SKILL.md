@@ -14,5 +14,5 @@ Otherwise show "data.runs" as a short table: run id, ticket, workflow, status, s
 updated at and what the run is waiting on. Then show "next".
 For a paused run, say exactly who must act:
 - PAUSED_INPUT: answer the blocking questions in runs/<run_id>/open-questions.md, then /truminds:resume <run_id>.
-- PAUSED_APPROVAL: the approver fills the gate entry in runs/<run_id>/approvals.md and runs `tsl approve <run_id> <gate>`.
+- PAUSED_APPROVAL: the approver runs `/tsl-gate <run_id>` to see the summary, then `/tsl-gate <run_id> approve|changes|reject|abort [comment]`.
 Do not change any file. Do not start, resume or decide anything from this command.

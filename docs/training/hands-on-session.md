@@ -24,7 +24,7 @@
 | 0–5 | Everyone opens a Local session in the training companion clone; `/truminds:status` | Plugin visible on every seat |
 | 5–12 | Run 1: `/truminds:run estimate TRN-<nn>`; read the status line, band and check record | Every trainee has PASS or PASS-WITH-FINDINGS |
 | 12–25 | Run 2: `/truminds:run brownfield-change TRN-<nn>` to `G-design`; look at a RETRY if one happens and at `artifact.checks.json` | Runs reach PAUSED_APPROVAL |
-| 25–30 | Tech-lead trainees `tsl approve <run_id> G-design`; engineers `/truminds:resume <run_id>`; questions | Signed approvals in `approvals.md` |
+| 25–30 | Tech-lead trainees `/tsl-gate <run_id> approve`; engineers `/truminds:resume <run_id>`; questions | Signed approvals in `approvals.md` |
 
 ## 3. After the session
 

@@ -441,7 +441,7 @@
       "kind": "file",
       "owner": "SDD-07 §6.4",
       "title": "Approval signature block (approval-signature.v1)",
-      "description": "Signed block that tsl approve appends under a gate entry in approvals.md, between tsl:signature-begin and tsl:signature-end markers. Ed25519 over JCS of the block without signature."
+      "description": "Signed block that tsl gate appends under a gate entry in approvals.md, between tsl:signature-begin and tsl:signature-end markers. Ed25519 over JCS of the block without signature."
     },
     {
       "name": "approvals",
@@ -813,7 +813,7 @@
       "kind": "event",
       "owner": "SDD-08 §4.5",
       "title": "Event body: approval.recorded (schema_version 1)",
-      "description": "Sent by tsl approve. Closed object; every string is length-capped (TM-08).",
+      "description": "Sent by tsl gate. Closed object; every string is length-capped (TM-08).",
       "event_type": "approval.recorded"
     },
     {

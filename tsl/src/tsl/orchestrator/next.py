@@ -337,8 +337,13 @@ def next_action(rt: Runtime, comp: Companion, run_id: str) -> tuple[dict[str, An
             )
         if st["status"] == "PAUSED_APPROVAL":
             gate = _waiting_gate(ctx) or "?"
+            ent = approvals_md.entry(approvals_md.load(comp.path(approvals_path(run_id))), gate)
             msg, nxt = plain.paused_approval(
-                "the run reached an approval gate", run_id, gate, approvals_path(run_id)
+                str((ent or {}).get("reason") or "the run reached an approval gate"),
+                run_id,
+                gate,
+                approvals_path(run_id),
+                f"{str(rt.org.service_url).rstrip('/')}/runs/{run_id}",
             )
             raise TslError(
                 "E-RUN-02",
@@ -383,9 +388,17 @@ def next_action(rt: Runtime, comp: Companion, run_id: str) -> tuple[dict[str, An
                 return data, f"run skill {data['skill']}"
             if kind == "gate":
                 _gate_entry(ctx, sdef)
+                msg, nxt = plain.paused_approval(
+                    "the run reached an approval gate",
+                    run_id,
+                    sid,
+                    approvals_path(run_id),
+                    f"{str(rt.org.service_url).rstrip('/')}/runs/{run_id}",
+                )
                 raise TslError(
                     "E-RUN-02",
-                    next=f"approver runs tsl approve {run_id} {sid}",
+                    msg,
+                    next=nxt,
                     data={"schema": "next-action.v1", "action": "pause_approval", "run_id": run_id},
                 )
             if kind == "pr":

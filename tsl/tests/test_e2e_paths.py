@@ -139,7 +139,9 @@ def test_low_score_escalates_then_accept(world: World) -> None:
     )
     git(world.companion, "commit", "-qam", "decision")
     git(world.companion, "push", "-q", "origin", "main")
-    code, env, _, err = world.cli(["approve", run_id, "G-escalate-req-a1", "--json"], user="tl")
+    code, env, _, err = world.cli(
+        ["gate", run_id, "approve", "--gate", "G-escalate-req-a1", "--json"], user="tl"
+    )
     assert code == 0, (env, err)
     world.sync_companion()
     code, env2, _, err = world.cli(["state", "resume", run_id, "--json"], session=SESSION)

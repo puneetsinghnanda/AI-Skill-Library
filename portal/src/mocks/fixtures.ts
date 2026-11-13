@@ -1176,7 +1176,7 @@ function nextAction(r: RunRow): RunItem['next_action'] {
     return {
       kind: 'approve',
       text: 'Tech lead approves the open gate',
-      command: `tsl approve ${r.id} <gate>`,
+      command: `/tsl-gate ${r.id}`,
     };
   if (r.endReason === 'aborted')
     return { kind: 'none', text: `Run aborted: ${r.endCode ?? 'unknown'}`, command: null };

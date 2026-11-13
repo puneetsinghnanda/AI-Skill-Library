@@ -392,7 +392,7 @@ def _resume_input(rt: Runtime, ctx: RunCtx) -> list[str]:
     return open_ids
 
 
-REAPPROVE = "The approver runs tsl doctor, then tsl approve {run} {gate} again"
+REAPPROVE = "The approver runs tsl doctor, then runs tsl gate {run} again"
 APPROVAL_PROBLEMS = {
     "unknown_key": "the approver's signing key {key} is not registered on the service",
     "bad_signature": "the signature does not match the approver's key",
@@ -437,7 +437,9 @@ def _resume_approval(rt: Runtime, ctx: RunCtx) -> list[dict[str, Any]]:
         e = approvals_md.entry(obj, str(g["id"]))
         block = (e or {}).get("signature")
         if not e or not block:
-            raise TslError("E-RUN-02", next=f"approver runs tsl approve {ctx.run_id} {g['id']}")
+            raise TslError(
+                "E-RUN-02", next=f"approver runs tsl gate {ctx.run_id} approve|changes|reject|abort"
+            )
         _verify_block(rt, ctx, str(g["id"]), block)
         if block["role"] != e["role"] or block["decision"] != e["decision"]:
             raise TslError("E-AUTH-05", role=e["role"], gate=g["id"])

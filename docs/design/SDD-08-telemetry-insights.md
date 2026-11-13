@@ -223,7 +223,7 @@ All bodies are closed objects. **New** marks a field or type that Doc 5 §5.3 do
 | `step.decided` | Doc 5 fields: `step`, `skill`, `skill_version`, `attempt`, `outcome`, `band`, `signals`, `caps[]`, `gate_failures[]`, `findings_count{blocker,major,minor}`, `duration_ms`, `verification_sha256` (all R) · plus **new**: `seq` int R · `reasons[]` enum codes R (§6.3 cause codes) · `findings_dropped[]` finding ids only · `key_id` R · `decided_by` (`tsl@x.y.z`) R · `session_id` | `tsl decide` |
 | `question.created` | `step` R · `question_id` R · `blocking` bool R · `ask_role` enum `product_owner\|tech_lead\|sme\|client` R · `evidence_ref` **new** | `tsl decide` |
 | `question.answered` | `step` R · `question_id` R · `age_s` int R · `accepted_default` bool | `tsl state resume` |
-| `approval.recorded` | `gate` R · `decision` enum `approve\|reject\|changes` R · `approver_role` R · `step` **new** · `signature_block_sha256` **new** R · `key_id` **new** R (SDD-07 §7.2) | `tsl approve` |
+| `approval.recorded` | `gate` R · `decision` enum `approve\|reject\|changes` R · `approver_role` R · `step` **new** · `signature_block_sha256` **new** R · `key_id` **new** R (SDD-07 §7.2) | `tsl gate` |
 | `hook.decision` | `hook` enum `session-start\|pre-tool\|pre-mcp\|post-write\|session-end` R · `decision` enum `allow\|deny\|feedback` R · `code` (error code or null) R · `tool_kind` **new** enum `write\|edit\|bash\|mcp_read\|mcp_write\|other` · `session_id` | hooks |
 | `pr.opened` | `repo` (tsl.yaml product repo name) R · `number` R · `draft` R · `lowest_band` R | `tsl pr` |
 | `pr.closed` | `repo` R · `number` R · `merged` bool R · `closed_at` R | `tsl pr-sync` (backfill when the webhook missed a merge or close) |
