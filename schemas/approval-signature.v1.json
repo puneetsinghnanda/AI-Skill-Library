@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.truminds.internal/approval-signature.v1.json",
   "title": "Approval signature block (approval-signature.v1)",
-  "description": "Signed block that tsl approve appends under a gate entry in approvals.md, between tsl:signature-begin and tsl:signature-end markers. Ed25519 over JCS of the block without signature.",
+  "description": "Signed block that tsl gate appends under a gate entry in approvals.md, between tsl:signature-begin and tsl:signature-end markers. Ed25519 over JCS of the block without signature.",
   "type": "object",
   "additionalProperties": false,
   "required": [

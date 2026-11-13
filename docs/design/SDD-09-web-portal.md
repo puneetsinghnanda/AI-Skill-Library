@@ -754,7 +754,7 @@ Params: `project`, `system`, `status` (`open`, `RUNNING`, `PAUSED_INPUT`, `PAUSE
 | --- | --- | --- |
 | `RUNNING` | Running | "None, Claude is working"; no command |
 | `PAUSED_INPUT` | Needs input | Answer `runs/<run_id>/open-questions.md`; `/truminds:resume <run_id>` |
-| `PAUSED_APPROVAL` | Needs approval | "Tech lead approves <gate>"; `tsl approve <run_id> <gate>` |
+| `PAUSED_APPROVAL` | Needs approval | "Tech lead approves <gate>"; `/tsl-gate <run_id>` |
 | `COMPLETED`, `completed` | Completed | "PR #<n> in review" or "PR #<n> merged" from `pull_requests` |
 | `COMPLETED`, `cancelled` | Cancelled | "Run cancelled"; no command. Not counted as completed |
 | `COMPLETED`, `aborted` | Aborted | "Run aborted: <end_code>"; no command |

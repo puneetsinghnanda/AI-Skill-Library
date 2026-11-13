@@ -551,7 +551,7 @@ Never decide pass or fail yourself. Never edit state.json, records or approvals.
 | PASS-WITH-FINDINGS | 0 | `continue` | Next ready step |
 | RETRY | 2 | `retry with feedback` | `run_skill`, same step, attempt n+1 |
 | NEEDS-INPUT | 4 | `/truminds:resume <run_id> after answering` | `pause_input` |
-| ESCALATE | 4 | `approver runs tsl approve <run_id> <gate>` | `pause_approval` |
+| ESCALATE | 4 | `approver runs tsl gate <run_id> approve|changes|reject|abort` | `pause_approval` |
 | ABORT | 5 | `stopped` | `stopped` |
 
 **Unverified.** Whether Claude reliably invokes the named SDLC skill from inside the `run` skill, and keeps the loop going over many steps, is model behaviour. It is not a documented platform fact. Spike S-09 (SDD-05 §8.1) tests it end to end. Safety does not depend on it: if the loop stops early, the run stays in a valid state and `/truminds:resume` continues it.
@@ -664,7 +664,9 @@ Each entry lists the artifacts under approval with their sha256, the reason, and
 
 When `rework` reaches `max_rework`, only `approve` or `abort` are accepted.
 
-**Signing (`tsl approve <run_id> <gate>`).** The approver fills `decision` and `comment` and runs `tsl approve`. `tsl`:
+**Signing (`tsl gate <run_id> <decision>`).** The approver passes the decision and a comment to `tsl gate`; it writes both into the gate entry, then:
+
+0. checks the decision is one of `approve`, `changes`, `reject`, `abort`, and that `changes` and `reject` carry a comment (else E-RUN-05);
 
 1. pulls the companion repo;
 2. checks the approver holds `role` on the system at this moment (`/v1/me`, cached for 24 hours offline, Doc 2 §2), else E-AUTH-05;
@@ -755,7 +757,7 @@ sequenceDiagram
 | `tsl state start` | Yes (it takes the lock) |
 | `tsl decide` | Best effort |
 | Pause (input or approval) | Best effort, with a warning when offline, because others need the files |
-| `tsl approve`, `tsl state resume` | Pull first. Push required for approve |
+| `tsl gate`, `tsl state resume` | Pull first. Push required for gate |
 | COMPLETED | Best effort; lock release retried |
 
 Per-run folders mean the only shared file is the lock (Doc 3 §3), so a rebase never conflicts on run data.
@@ -837,7 +839,7 @@ All fixtures use the invented order-tracking ticket ABC-142. No client data (T-0
 
 - `schemas/workflow.v1.json`, `workflow-lock.v1.json`, `next-action.v1.json`, `feedback.v1.json` and the updated `run-state.v1.json` merged, with valid and invalid samples.
 - `brownfield-change.workflow.yaml` and its lock file pass `tsl validate`; the other Release-1 workflows in Doc 3 §7.1 are written in the same form.
-- `tsl next`, `tsl state start|resume|show|unlock|cancel|repair|repin` and `tsl approve` implemented with the tests in §14 passing.
+- `tsl next`, `tsl state start|resume|show|unlock|cancel|repair|repin` and `tsl gate` implemented with the tests in §14 passing.
 - `run` and `resume` skills written as in §7 and proven in spike S-09.
 - The end-to-end run on the sample system reaches a PR, and the run-detail screen data (Doc 4 §2.0.4) can be built from `state.json` alone.
 - New error codes added to Doc 4 §5.2, new commands to SDD-04, new event and fields to SDD-08.

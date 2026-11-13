@@ -444,7 +444,12 @@ CATALOGUE: dict[str, ErrorDef] = {
             "None; decide will escalate",
         ),
         _d("E-RUN-01", PAUSED, "Run paused for input.", "Answer open-questions.md, then resume"),
-        _d("E-RUN-02", PAUSED, "Run paused for approval.", "Approver runs tsl approve"),
+        _d(
+            "E-RUN-02",
+            PAUSED,
+            "Run paused for approval.",
+            "Approver runs /tsl-gate <run_id> (or tsl gate)",
+        ),
         _d("E-RUN-03", CHECK, "Cannot resume: {n} blocking questions unanswered.", "Answer them"),
         _d("E-RUN-04", BLOCKED, "Run {run_id} not found.", "tsl state show"),
         _d("E-RUN-05", BLOCKED, "Run is {status}; {command} needs {needed}.", "{hint}"),

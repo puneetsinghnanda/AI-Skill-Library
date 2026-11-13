@@ -22,7 +22,7 @@ ART = re.compile(r"^Artifact: (?P<path>\S+) \(sha256 (?P<sha>[0-9a-f]{64})\)\s*$
 FIELD = re.compile(r"^(?P<k>decision|comment|kind|Reason for gate|Action):\s?(?P<v>.*)$")
 SIG_BEGIN = "<!-- tsl:signature-begin {id} -->"
 SIG_END = "<!-- tsl:signature-end {id} -->"
-SIG_NOTE = "<!-- signature block written by `tsl approve` - do not edit -->"
+SIG_NOTE = "<!-- signature block written by `tsl gate` - do not edit -->"
 
 
 def comment_sha256(comment: str | None) -> str:
@@ -173,7 +173,7 @@ def append_signature(path: Path, gate: str, block: dict[str, Any]) -> None:
         raise TslError(
             "E-RUN-05",
             status="unknown",
-            command="approve",
+            command="gate",
             needed="a gate entry",
             hint=f"no entry {gate} in approvals.md",
         )
@@ -187,3 +187,42 @@ def append_signature(path: Path, gate: str, block: dict[str, Any]) -> None:
     pretty = json.dumps(block, indent=2, sort_keys=True, ensure_ascii=False).split("\n")
     sig = [SIG_BEGIN.format(id=gate), "```json", *pretty, "```", SIG_END.format(id=gate)]
     atomic_write(path, "\n".join([*lines[:end], *sig, *lines[end:]]).rstrip("\n") + "\n")
+
+
+def set_decision(path: Path, gate: str, decision: str, comment: str | None) -> None:
+    """Write decision: and comment: into an unsigned gate entry (comment on one line)."""
+    lines = path.read_text(encoding="utf-8").split("\n")
+    start = None
+    for i, line in enumerate(lines):
+        m = HEAD.match(line)
+        if m and m.group("id") == gate:
+            start = i
+    if start is None:
+        raise TslError(
+            "E-RUN-05",
+            status="unknown",
+            command="gate",
+            needed="a gate entry",
+            hint=f"no entry {gate} in approvals.md",
+        )
+    end = len(lines)
+    for j in range(start + 1, len(lines)):
+        if HEAD.match(lines[j]):
+            end = j
+            break
+    out = lines[: start + 1]
+    skipping = False
+    flat = " ".join((comment or "").split())
+    for line in lines[start + 1 : end]:
+        if line.startswith("decision:"):
+            out.append(f"decision: {decision}")
+            skipping = False
+        elif line.startswith("comment:"):
+            out.append(f"comment: {flat}" if flat else "comment:")
+            skipping = True
+        elif skipping and line.strip() and not line.startswith(("<!--", "```")):
+            continue
+        else:
+            skipping = False
+            out.append(line)
+    atomic_write(path, "\n".join([*out, *lines[end:]]))

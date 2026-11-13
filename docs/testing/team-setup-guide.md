@@ -207,7 +207,7 @@ review and a signed decision, cancels the run and confirms the portal received i
    - Use a different ticket from your teammates (`ABC-142` to `ABC-180`, in `examples\sample-system\tickets\`; pass the matching file) so you don't block each other with locks.
 3. Follow the run:
    - **Questions:** answer in `open-questions.md`, then type `/truminds:resume <run_id>`.
-   - **Approval gate:** the approver runs `tsl approve` on their own laptop and pushes, then type `/truminds:resume <run_id>`. Never edit `approvals.md` by hand.
+   - **Approval gate:** the approver runs `/tsl-gate <run_id> approve|changes|reject|abort [comment]` in Claude Code (elsewhere: `tsl gate <run_id> approve|changes|reject|abort --comment TEXT`). It writes the decision, signs and pushes in one step; never edit `approvals.md` by hand. The run owner then types `/truminds:resume <run_id>`. With no run id, `/tsl-gate` lists the gates waiting for your role.
    - **Progress:** type `/truminds:status`.
 4. Check the portal: your run and its steps appear in the Engineer view.
 

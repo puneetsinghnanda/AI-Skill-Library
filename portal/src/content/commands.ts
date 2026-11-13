@@ -21,7 +21,7 @@ export const TSL_COMMANDS = [
   'tsl next',
   'tsl review',
   'tsl decide',
-  'tsl approve',
+  'tsl gate',
   'tsl pr',
   'tsl ci-verify',
   'tsl context build',

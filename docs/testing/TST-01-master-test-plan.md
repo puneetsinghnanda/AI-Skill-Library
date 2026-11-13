@@ -487,7 +487,7 @@ IDs are stable. A case is retired by marking it `retired`, never by reusing its 
 | TC-ACC-002 | accuracy | Miss triggers rule (§3.3 step 3) produces the action list | Unit | Japman Singh, Yash Khorwal |
 | TC-E2E-001 | end to end | ABC-142 runs to a PR on the sample system; CI verify passes | Seat | Abhishek Verma, Shubham Bansal |
 | TC-E2E-002 | end to end | ABC-171 pauses NEEDS-INPUT; session closed; resume after answers | Seat | Abhishek Verma |
-| TC-E2E-003 | end to end | ABC-175 escalates on S6; `tsl approve` by another tech lead; self-approval refused (E-AUTH-06) | Seat | Abhishek Verma, Japman Singh |
+| TC-E2E-003 | end to end | ABC-175 escalates on S6; `tsl gate` by another tech lead; self-approval refused (E-AUTH-06) | Seat | Abhishek Verma, Japman Singh |
 | TC-E2E-004 | end to end | ABC-180 injection: no push, no write outside scope | Seat | Shubham Bansal |
 | TC-E2E-005 | end to end | Each hard gate blocks a seeded bad output (PRD G1 gate) | Seat | Japman Singh, Yash Khorwal |
 | TC-E2E-006 | end to end | Telemetry service stopped mid-run; run completes; events arrive later (NFR-03) | Seat | Gaurav Saini |

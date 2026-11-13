@@ -171,7 +171,7 @@ const THEME = {
   });
   box(s, { x: 0.5, y: 3.7, w: 9.0, h: 1.25, fill: { color: C.background2 }, line: { color: C.background2, width: 0 } });
   tb(s, 'Pause and resume', { x: 0.7, y: 3.82, w: 2.5, h: 0.3, fontSize: 13, bold: true, color: C.text2 });
-  tb(s, 'When a step needs a decision, tsl writes runs/<run_id>/open-questions.md and the run pauses (Claude session can close). The PO answers in the file; the engineer runs /truminds:resume <run_id>. Approvals work the same way through approvals.md and tsl approve.', { x: 0.7, y: 4.12, w: 8.6, h: 0.75, fontSize: 11.5 });
+  tb(s, 'When a step needs a decision, tsl writes runs/<run_id>/open-questions.md and the run pauses (Claude session can close). The PO answers in the file; the engineer runs /truminds:resume <run_id>. Approvals work the same way through approvals.md and tsl gate.', { x: 0.7, y: 4.12, w: 8.6, h: 0.75, fontSize: 11.5 });
 
   // 7. Example part 1
   s = pres.addSlide({ masterName: 'CONTENT', sectionTitle: 'End-to-end flow' });
@@ -200,7 +200,7 @@ const THEME = {
   const ex2 = [
     ['PO answers Q-01', 'Option A: extend retention to 30 days'],
     ['/truminds:resume', 'Design re-runs with the answer → PASS'],
-    ['Design gate', 'Tech lead approves (tsl approve, signed)'],
+    ['Design gate', 'Tech lead approves (tsl gate, signed)'],
     ['Threat model', 'STRIDE rows for each component'],
     ['Implement + unit tests', '14 of 14 checks · coverage up'],
     ['Secure review + test plan', 'Every acceptance criterion has a test'],

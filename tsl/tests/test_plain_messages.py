@@ -61,5 +61,7 @@ def test_paused_messages_name_file_and_next_action() -> None:
         "Answer the questions in runs/run_X/open-questions.md, then run /truminds:resume run_X"
     )
     msg, nxt = plain.paused_approval("x", "run_X", "G-1", "runs/run_X/approvals.md")
-    assert "edit runs/run_X/approvals.md" in nxt and "`tsl approve run_X G-1`" in nxt
+    assert "/tsl-gate run_X approve|changes|reject|abort" in nxt
     assert nxt.endswith("/truminds:resume run_X")
+    msg, _ = plain.paused_approval("x", "run_X", "G-1", "f", "https://p.example/runs/run_X")
+    assert msg.endswith("Details: https://p.example/runs/run_X")

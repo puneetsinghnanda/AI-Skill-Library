@@ -1,4 +1,4 @@
-"""tsl approve: sign a gate decision in approvals.md (SDD-02 §9.2, SDD-07 §6.4, SDD-04 §6.11)."""
+"""tsl gate: write and sign a gate decision (SDD-02 §9.2, SDD-07 §6.4, SDD-04 §6.11)."""
 
 from __future__ import annotations
 
@@ -21,7 +21,16 @@ from tsl.telemetry.emit import emit
 DECISIONS = ("approve", "reject", "changes", "abort")
 
 
-def approve(rt: Runtime, comp: Companion, run_id: str, gate: str) -> dict[str, Any]:
+def _undo(g: Any, path: Any, original: str, run_id: str) -> None:
+    """Put approvals.md back as it was, unstaged, after a failed sign or commit."""
+    path.write_text(original, encoding="utf-8", newline="")
+    g.run("reset", "-q", "--", approvals_path(run_id), check=False)
+
+
+def decide(
+    rt: Runtime, comp: Companion, run_id: str, gate: str, decision: str, comment: str | None
+) -> dict[str, Any]:
+    """Write the decision and comment into the gate entry, sign it and push (one commit)."""
     g = comp.git
     try:
         g.fetch()
@@ -48,27 +57,61 @@ def approve(rt: Runtime, comp: Companion, run_id: str, gate: str) -> dict[str, A
         raise TslError(
             "E-RUN-05",
             status=ctx.state["status"],
-            command="approve",
+            command="gate",
             needed=f"gate {gate} waiting for approval",
             hint=f"tsl state show {run_id}",
         )
     if e.get("signature"):
+        sig0 = e["signature"]
+        if (
+            g.unpushed(comp.config.companion_branch, [approvals_path(run_id)])
+            and sig0.get("decision") == decision
+            and sig0.get("approver") == memod.current_me(rt).get("pseudonym")
+        ):
+            # My own earlier sign of this same decision worked but its push failed:
+            # push it, never sign twice.
+            if not g.sync_push(comp.config.companion_branch):
+                raise TslError(
+                    "E-GIT-01",
+                    op="push",
+                    detail="approval signed and committed locally; push failed",
+                    data={"gate": gate},
+                )
+            sig = e["signature"]
+            return {
+                "gate": gate,
+                "decision": sig.get("decision"),
+                "approver_role": sig.get("role"),
+                "run_status": ctx.state["status"],
+                "self_approved": bool(sig.get("self_approved")),
+                "resumable": bool(sig.get("self_approved")),
+                "pushed_earlier_signature": True,
+            }
         raise TslError(
             "E-RUN-05",
             status="already signed",
-            command="approve",
+            command="gate",
             needed="an unsigned gate",
             hint=f"tsl state resume {run_id}",
         )
-    decision = e.get("decision")
     if decision not in DECISIONS:
         raise TslError(
             "E-RUN-05",
-            status="no decision",
-            command="approve",
-            needed="decision approve, reject, changes or abort",
-            hint=f"fill decision: under {gate} in {approvals_path(run_id)}",
+            status="bad decision",
+            command="gate",
+            needed="approve, changes, reject or abort",
+            hint="tsl gate <run_id> approve|changes|reject|abort",
         )
+    comment = " ".join((comment or "").split()) or None
+    if decision in ("changes", "reject") and not comment:
+        raise TslError(
+            "E-RUN-05",
+            status="no comment",
+            command="gate",
+            needed=f"a comment with {decision}",
+            hint='add --comment "what must change"',
+        )
+    e["decision"], e["comment"] = decision, comment
     me = memod.current_me(rt)
     role = str(e["role"])
     if not memod.has_grant(me, {role}, comp.config.system.code):
@@ -112,7 +155,7 @@ def approve(rt: Runtime, comp: Companion, run_id: str, gate: str) -> dict[str, A
                 raise TslError(
                     "E-RUN-05",
                     status="rework limit reached",
-                    command="approve",
+                    command="gate",
                     needed="approve or abort",
                     hint="change the decision to approve or abort",
                 )
@@ -138,18 +181,26 @@ def approve(rt: Runtime, comp: Companion, run_id: str, gate: str) -> dict[str, A
         "self_approved": bool(self_gen),
         "approved_at": iso(rt.clock()),
     }
-    signed = sign_object(block, signer.key_id, signer.private)
     from tsl.schemas.registry import require_valid
 
-    require_valid("approval-signature.v1", signed, "approval block")
-    approvals_md.append_signature(path, gate, signed)
-    block_sha = sha256_raw(canonical(signed))
+    original = path.read_text(encoding="utf-8")
     try:
+        signed = sign_object(block, signer.key_id, signer.private)
+        require_valid("approval-signature.v1", signed, "approval block")
+        approvals_md.set_decision(path, gate, decision, comment)
+        approvals_md.append_signature(path, gate, signed)
+        block_sha = sha256_raw(canonical(signed))
         g.commit(
-            f"tsl({run_id}): approve {gate}", [approvals_path(run_id)], trailer=f"Tsl-Run: {run_id}"
+            f"tsl({run_id}): {decision} {gate}",
+            [approvals_path(run_id)],
+            trailer=f"Tsl-Run: {run_id}",
         )
     except GitError as exc:
+        _undo(g, path, original, run_id)
         raise exc.tsl() from None
+    except Exception:
+        _undo(g, path, original, run_id)
+        raise
     if decision != "abort":
         body: dict[str, Any] = {
             "gate": gate,
@@ -175,4 +226,5 @@ def approve(rt: Runtime, comp: Companion, run_id: str, gate: str) -> dict[str, A
         "signature_block_sha256": block_sha,
         "run_status": ctx.state["status"],
         "self_approved": bool(self_gen),
+        "resumable": bool(self_gen),
     }
