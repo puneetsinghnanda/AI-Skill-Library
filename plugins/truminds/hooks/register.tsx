@@ -6,7 +6,7 @@ import type { Register } from 'claude-code'
 
 const DECISIONS = ['approve', 'changes', 'reject', 'abort']
 const USAGE =
-  'Usage (a decision word is needed to decide): /tsl-gate [run_id [--gate G] [approve|changes|reject|abort [comment]]]'
+  'Usage (a decision word is needed to decide): /tsl-gate [run_id [--gate G] [approve|changes|reject|abort [comment]]]. A comment cannot start with a dash.'
 
 type Env = { ok?: boolean; message?: string; next?: string | null; data?: any }
 
@@ -41,6 +41,9 @@ function parseArgs(args: string): Parsed {
     if (m[2]) {
       if (!DECISIONS.includes(m[2])) return null
       argv.push(m[2])
+      // A comment that starts like an option is a mistyped option (--gate=G, -g, a long dash):
+      // refuse it, or tsl would pick the gate itself and sign with that text as the comment.
+      if (m[3] && /^[-\u2013\u2014]/.test(m[3].trim())) return null
       if (m[3] && m[3].trim()) {
         argv.push('--comment-file', '-')
         stdin = m[3]

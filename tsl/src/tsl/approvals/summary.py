@@ -73,7 +73,7 @@ def list_waiting(rt: Runtime, comp: Companion) -> dict[str, Any]:
             continue
         try:
             obj = approvals_md.load(comp.path(approvals_path(rid)))
-        except TslError:
+        except (TslError, ValueError, OSError):
             continue  # one broken approvals.md must not hide every other run's gates
         for gate in waiting_gates(st, obj):
             e = approvals_md.entry(obj, gate)

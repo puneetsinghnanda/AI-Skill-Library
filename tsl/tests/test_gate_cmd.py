@@ -265,6 +265,35 @@ def test_several_waiting_gates_need_gate_option(world: World) -> None:
     code, env = _gate(world, run_id, "approve", "--gate", "W-1")
     assert code == 0 and env["data"]["gate"] == "W-1", env
     assert _entry(world, run_id, "G-req")["signature"] is None
+    # W-1 is signed now, so G-req is the one gate left for an approver: inferred again.
+    code, env = _gate(world, run_id)
+    assert code == 0 and env["data"]["gate"] == "G-req", env
+
+
+def test_signed_gate_not_resumed_does_not_block_the_next_gate(world: World) -> None:
+    run_id = _paused(world)
+    assert _gate(world, run_id, "approve")[0] == 0  # G-req signed, the owner has not resumed
+    approvals_md.append_entry(
+        _appr(world, run_id),
+        run_id,
+        "W-1",
+        "tech_lead",
+        "external_write",
+        [],
+        "x",
+        action={"tool": "mcp__jira__add_comment", "target": "SMP-9"},
+    )
+    git(world.companion, "add", "-A")
+    git(world.companion, "commit", "-qm", "w")
+    git(world.companion, "push", "-q", "origin", "main")
+    code, env = _gate(world)
+    assert [(r["gate"], r["command"]) for r in env["data"]["waiting"]] == [
+        ("W-1", f"/tsl-gate {run_id}")
+    ]
+    code, env = _gate(world, run_id)  # the listed command works
+    assert code == 0 and env["data"]["gate"] == "W-1", env
+    code, env = _gate(world, run_id, "approve")
+    assert code == 0 and env["data"]["gate"] == "W-1", env
 
 
 HAND_WRITTEN = """
@@ -364,15 +393,10 @@ def test_decide_does_not_need_the_summary(world: World) -> None:
     from tsl.core.paths import sibling
 
     rec = world.companion / sibling(e["artifacts"][0]["path"], ".verification.json")
-    world_text = rec.read_text() if rec.is_file() else None
     rec.write_text("{not json")
     code, env = _gate(world, run_id)
     assert code == 0 and "verification" not in env["data"]  # summary: only the quality line goes
-    if world_text is None:
-        rec.unlink()
-    else:
-        rec.write_text(world_text)
-    code, env = _gate(world, run_id, "approve")
+    code, env = _gate(world, run_id, "approve")  # the record is still broken
     assert code == 0, env
 
 

@@ -14,6 +14,8 @@ assert.deepEqual(a('R1 changes use the --gate flag in docs please'), ['R1 change
 assert.equal(a('R1 approve --gate'), null)
 assert.equal(a('--gate W-1'), null)
 assert.equal(a('R1 approve --gate W;1'), null)
+for (const bad of ['--gate=W-1', '\u2014gate W-1', '-g W-1', '--Gate W-1', '--resign', '- x']) assert.equal(a(`R1 approve ${bad}`), null, bad)
+assert.deepEqual(a('R1 changes not - this'), ['R1 changes --comment-file -', 'not - this'])
 assert.equal(a('R1 maybe'), null)
 assert.equal(a('R;1 approve'), null)
 assert.equal(a('R1 approve --gate --resign'), null)

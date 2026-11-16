@@ -27,12 +27,17 @@ def _undo(g: Any, path: Any, original: str, run_id: str) -> None:
     g.run("reset", "-q", "--", approvals_path(run_id), check=False)
 
 
-def waiting_gates(st: dict[str, Any], obj: dict[str, Any]) -> list[str]:
+def waiting_gates(st: dict[str, Any], obj: dict[str, Any], signed: bool = False) -> list[str]:
     """Gates of one run that wait for a person: the paused run's state gates, then unsigned
-    external-write entries (W-<n>), which exist only in approvals.md while the run goes on."""
+    external-write entries (W-<n>), which exist only in approvals.md while the run goes on.
+
+    A state gate that is signed but not resumed yet waits for the run owner, not for an
+    approver; it is listed only with `signed=True`."""
     out: list[str] = []
     if st.get("status") == "PAUSED_APPROVAL":
         out = [str(g["id"]) for g in st.get("gates", []) if g["status"] == "WAITING_APPROVAL"]
+        if not signed:
+            out = [g for g in out if not (approvals_md.entry(obj, g) or {}).get("signature")]
     if st.get("status") != "COMPLETED":
         for e in obj.get("entries", []):
             gid = str(e["id"])
@@ -44,8 +49,10 @@ def waiting_gates(st: dict[str, Any], obj: dict[str, Any]) -> list[str]:
 
 
 def resolve_gate(st: dict[str, Any], obj: dict[str, Any], run_id: str) -> str:
-    """The one waiting gate of the run; E-RUN-05 names the choices when there is not exactly one."""
-    gates = waiting_gates(st, obj)
+    """The one waiting gate of the run; E-RUN-05 names the choices when there is not exactly one.
+
+    Signed gates count only when nothing unsigned waits (a retry after a failed push)."""
+    gates = waiting_gates(st, obj) or waiting_gates(st, obj, signed=True)
     if len(gates) != 1:
         raise TslError(
             "E-RUN-05",
