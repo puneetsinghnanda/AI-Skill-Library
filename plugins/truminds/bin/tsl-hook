@@ -76,8 +76,10 @@ log_line() { # decision code detail
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$EVENT" "$1" "$2" "$3" >> "$HOOK_LOG" 2>/dev/null || true
 }
 
+json_unescape() { sed 's/\\\\/\\/g'; } # \\ -> \: Windows paths arrive as "C:\\Users\\..."
+
 json_field() { # first string value of "key" in the stdin JSON (hook input is flat for the keys we need)
-  sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$IN" 2>/dev/null | head -n 1
+  sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$IN" 2>/dev/null | head -n 1 | json_unescape
 }
 
 json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
@@ -100,8 +102,8 @@ run_active() {
     *)
       idx="$TRUMINDS_DIR/sessions/$sid.json"
       if [ -f "$idx" ]; then
-        comp=$(sed -n 's/.*"companion"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$idx" | head -n 1)
-        lock=$(sed -n 's/.*"lock"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$idx" | head -n 1)
+        comp=$(sed -n 's/.*"companion"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$idx" | head -n 1 | json_unescape)
+        lock=$(sed -n 's/.*"lock"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$idx" | head -n 1 | json_unescape)
         if [ -n "$comp" ] && [ -n "$lock" ] && [ -f "$comp/$lock" ]; then return 0; fi
       fi
       ;;

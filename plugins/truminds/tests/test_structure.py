@@ -27,6 +27,7 @@ from conftest import (
     body,
     errors,
     front_matter,
+    is_executable,
     load,
     pods,
     registry_command_skills,
@@ -156,7 +157,7 @@ def test_hooks_json_lists_exactly_the_sdd05_hooks_with_timeouts() -> None:
         ],
         key=str,
     )
-    assert (PLUGIN / "bin" / "tsl-hook").stat().st_mode & 0o111, "bin/tsl-hook must be executable"
+    assert is_executable(PLUGIN / "bin" / "tsl-hook"), "bin/tsl-hook must be executable"
     assert (PLUGIN / "bin" / "tsl-hook.cmd").is_file()
 
 
@@ -668,6 +669,6 @@ def test_spike_plugin_is_separate_and_wired() -> None:
                 m = re.match(r'"\$\{CLAUDE_PLUGIN_ROOT\}/(bin/[a-z-]+)"', h["command"])
                 assert m, h["command"]
                 script = plugin_dir / m.group(1)
-                assert script.is_file() and script.stat().st_mode & 0o111, script
+                assert script.is_file() and is_executable(script), script
     for skill in ("run", "demo-step", "review", "env-probe"):
         assert front_matter(plugin_dir / "skills" / skill / "SKILL.md"), skill

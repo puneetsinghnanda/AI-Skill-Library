@@ -22,8 +22,24 @@ from conftest import PLUGIN
 
 LAUNCHER = PLUGIN / "bin" / "tsl-hook"
 PLUGIN_VERSION = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
-SHELLS = [s for s in ("sh", "dash", "bash") if shutil.which(s)]
-SYSTEM_PATH = os.pathsep.join(p for p in ("/usr/bin", "/bin", "/usr/sbin", "/sbin") if Path(p).is_dir())
+WINDOWS = os.name == "nt"
+# On Windows only Git Bash's sh, which is what Claude Code runs hooks with there; `bash` can resolve to WSL.
+SHELLS = [s for s in (("sh",) if WINDOWS else ("sh", "dash", "bash")) if shutil.which(s)]
+NO_SH = "needs a POSIX sh (Git Bash on Windows); without one Claude Code uses bin/tsl-hook.cmd instead"
+SHELL_PARAMS = SHELLS or [pytest.param("sh", marks=pytest.mark.skip(reason=NO_SH))]
+
+
+def _system_path() -> str:
+    """The tool folders the launcher's slow path needs (sed, head, date, mktemp), and never a real tsl."""
+    if not WINDOWS:
+        dirs = [Path(p) for p in ("/usr/bin", "/bin", "/usr/sbin", "/sbin")]
+    else:  # Git for Windows: sh in <git>\bin or <git>\usr\bin; the tools in <git>\usr\bin
+        sh = shutil.which("sh")
+        dirs = [Path(sh).parent, Path(sh).parent.parent / "usr" / "bin"] if sh else []
+    return os.pathsep.join(str(p) for p in dirs if p.is_dir())
+
+
+SYSTEM_PATH = _system_path()
 
 FAKE_TSL = """#!/bin/sh
 # Fake tsl for launcher tests. Behaviour comes from FAKE_TSL_* environment variables.
@@ -38,6 +54,8 @@ exit "${FAKE_TSL_EXIT:-0}"
 
 @pytest.fixture
 def env(tmp_path: Path) -> dict[str, str]:
+    if not SHELLS:
+        pytest.skip(NO_SH)
     home = tmp_path / "home"
     home.mkdir()
     fakebin = tmp_path / "fakebin"
@@ -51,6 +69,8 @@ def env(tmp_path: Path) -> dict[str, str]:
         "CLAUDE_PLUGIN_ROOT": str(PLUGIN),
         "TMPDIR": str(tmp_path),
         "LC_ALL": "C",
+        # Windows programs need SYSTEMROOT to start.
+        **({"SYSTEMROOT": os.environ["SYSTEMROOT"]} if "SYSTEMROOT" in os.environ else {}),
     }
 
 
@@ -112,7 +132,7 @@ def assert_deny(cp: subprocess.CompletedProcess[str]) -> dict[str, object]:
 
 
 # ------------------------------------------------------------------------------------- tsl missing
-@pytest.mark.parametrize("shell", SHELLS)
+@pytest.mark.parametrize("shell", SHELL_PARAMS)
 @pytest.mark.parametrize("event", ["pre-tool", "pre-mcp"])
 def test_missing_tsl_in_run_fails_closed(env: dict[str, str], companion: Path, event: str, shell: str) -> None:
     lock(companion)
@@ -121,7 +141,7 @@ def test_missing_tsl_in_run_fails_closed(env: dict[str, str], companion: Path, e
     assert f"Install tsl {PLUGIN_VERSION}" in str(out["hookSpecificOutput"]["permissionDecisionReason"])  # type: ignore[index]
 
 
-@pytest.mark.parametrize("shell", SHELLS)
+@pytest.mark.parametrize("shell", SHELL_PARAMS)
 @pytest.mark.parametrize("event", ["pre-tool", "pre-mcp"])
 def test_missing_tsl_out_of_run_fails_open(env: dict[str, str], companion: Path, event: str, shell: str) -> None:
     cp = run(missing(env), event, hook_input(companion, event), shell=shell)
@@ -160,6 +180,25 @@ def test_active_run_found_through_the_session_index(env: dict[str, str], compani
     lk.unlink()
     cp = run(missing(env), "pre-tool", hook_input(product, "pre-tool", session="sess-0042"))
     assert cp.returncode == 0 and cp.stdout == ""
+
+
+@pytest.mark.parametrize("route", ["cwd", "session-index"])
+def test_backslashes_in_json_paths_are_decoded(env: dict[str, str], tmp_path: Path, route: str) -> None:
+    """Claude Code on Windows sends paths as "C:\\\\Users\\\\...". Read undecoded, the run is missed and a missing
+    tsl fails open inside it. A POSIX folder name can hold a backslash, so this runs on every OS."""
+    root = tmp_path / "CL-1\\SYS-ORD-companion"
+    (root / "runs" / "active").mkdir(parents=True)
+    (root / "tsl.yaml").write_text("schema: tsl-config.v1\n", encoding="utf-8")
+    lk = lock(root)
+    cwd, session = root, "sess-0001"
+    if route == "session-index":
+        sessions = Path(env["HOME"]) / ".truminds" / "sessions"
+        sessions.mkdir(parents=True)
+        index = {"companion": str(root), "lock": str(lk.relative_to(root))}
+        (sessions / "sess-0043.json").write_text(json.dumps(index), encoding="utf-8")
+        cwd, session = tmp_path / "product", "sess-0043"
+        cwd.mkdir()
+    assert_deny(run(missing(env), "pre-tool", hook_input(cwd, "pre-tool", session=session)))
 
 
 def test_session_id_with_path_characters_is_not_used_as_a_path(env: dict[str, str], tmp_path: Path) -> None:
@@ -203,7 +242,7 @@ def test_no_temp_files_are_left_behind(env: dict[str, str], companion: Path, tmp
 
 
 # ------------------------------------------------------------------------------------- pass-through (exec)
-@pytest.mark.parametrize("shell", SHELLS)
+@pytest.mark.parametrize("shell", SHELL_PARAMS)
 @pytest.mark.parametrize("event", ["session-start", "pre-tool", "pre-mcp", "post-write", "session-end"])
 def test_healthy_tsl_gets_stdin_and_its_output_passes_through(
     env: dict[str, str], companion: Path, tmp_path: Path, event: str, shell: str
@@ -249,7 +288,7 @@ def test_inherited_tsl_plugin_root_is_ignored(env: dict[str, str], tmp_path: Pat
 
 
 # ------------------------------------------------------------------------------------- tsl dies (non-zero exit)
-@pytest.mark.parametrize("shell", SHELLS)
+@pytest.mark.parametrize("shell", SHELL_PARAMS)
 @pytest.mark.parametrize("event", ["pre-tool", "pre-mcp"])
 @pytest.mark.parametrize("fake", [{"FAKE_TSL_EXIT": "1"}, {"FAKE_TSL_OLD": "1"}], ids=["crash", "old-tsl"])
 def test_tsl_dying_in_a_run_fails_closed(

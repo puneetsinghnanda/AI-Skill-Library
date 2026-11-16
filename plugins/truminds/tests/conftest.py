@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import subprocess
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -150,3 +152,14 @@ def satisfies(version: str, rng: str) -> bool:
 def split_ref(ref: str) -> tuple[str, str]:
     name, _, rng = ref.partition("@")
     return name, rng
+
+
+def is_executable(path: Path) -> bool:
+    """Executable on POSIX by its mode bits; on Windows, whose file systems have no execute bit, by the mode git
+    records for it (100755), which is what a POSIX checkout gets (issue #2)."""
+    if os.name != "nt":
+        return bool(path.stat().st_mode & 0o111)
+    out = subprocess.run(
+        ["git", "ls-files", "--stage", "--", path.name], cwd=path.parent, capture_output=True, text=True, check=False
+    ).stdout
+    return out.startswith("100755 ")
