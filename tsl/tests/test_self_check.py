@@ -1,7 +1,7 @@
 """tsl verify <artifact> --self-check and the post-write soft-check warning (roadmap item 2).
 
-A skill runs the self-check once after writing, fixes what it lists in one rewrite, then hands
-over. HMS-9 requirement-review went to band Low on S2 alone (RR-C12: summary over 5 sentences),
+A skill runs the self-check once after writing, fixes only what it lists with targeted edits, then
+hands over. It is a preliminary check: it never fails the command, every problem is an item. HMS-9 requirement-review went to band Low on S2 alone (RR-C12: summary over 5 sentences),
 which nothing reported before the review."""
 
 from __future__ import annotations
@@ -27,7 +27,8 @@ def _write(world: World, run_id: str, **variant: Any) -> tuple[str, str, int]:
     code, inp, _, err = world.cli(["verify", art, "--inputs", "--json"], session=SESSION)
     assert code == 0 and inp is not None, err
     drop = variant.pop("drop_section", None)
-    text = intent_artifact(inp["data"]["envelope"], ticket_rel, drop_section=drop)
+    extra = {k: variant.pop(k) for k in ("known_value",) if k in variant}
+    text = intent_artifact(inp["data"]["envelope"], ticket_rel, drop_section=drop, **extra)
     if variant.get("long_summary"):
         text = text.replace("The ticket asks for order history on the order page.", LONG_SUMMARY)
     if variant.get("weak_claim"):
@@ -62,7 +63,7 @@ def test_soft_check_and_weak_claim_are_listed_and_warned(world: World) -> None:
     assert set(fix) == {("soft", "RR-C12"), ("claim", "C1")}, fix
     assert fix[("soft", "RR-C12")] == "summary longer than 5 sentences"
     assert fix[("claim", "C1")].startswith("element absent: `48 hours`")
-    assert "in one rewrite" in env["next"]
+    assert "edit only what each item" in env["next"]
 
 
 def test_hard_gate_failure_is_listed_not_raised(world: World) -> None:
@@ -71,3 +72,20 @@ def test_hard_gate_failure_is_listed_not_raised(world: World) -> None:
     env = _self_check(world, art)
     gates = [f for f in env["data"]["fix"] if f["kind"] == "gate"]
     assert gates and all(f["detail"] for f in gates), env["data"]
+
+
+def test_abort_code_is_listed_not_raised(world: World) -> None:
+    canary = "AKIA" + "Z" * 16  # generated at run time, never committed (TC-SEC-004)
+    art, out, _ = _write(world, start_run(world), known_value=f"newest first {canary}")
+    assert json.loads(out)["reason"].startswith("E-SEC-01"), out
+    env = _self_check(world, art)
+    assert env["data"]["ok"] is False
+    assert any(f["kind"] == "gate" and f["id"] == "H4" for f in env["data"]["fix"]), env["data"]
+
+
+def test_any_other_error_is_listed_not_raised(world: World) -> None:
+    art, _, _ = _write(world, start_run(world))
+    env = _self_check(world, art.replace(".md", "-missing.md"))
+    assert env["data"]["ok"] is False
+    assert [f["kind"] for f in env["data"]["fix"]] == ["error"], env["data"]
+    assert env["data"]["fix"][0]["id"].startswith("E-"), env["data"]

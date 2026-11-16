@@ -443,17 +443,25 @@ def self_check(rt: Runtime, comp: Companion, artifact: str) -> dict[str, Any]:
 
     The same fast checks the post-write hook runs (no verifier, no review, no decision), as one
     list: failing hard gates, failing soft checks (they lower S2) and claims that will not verify
-    (they lower S1). Hosts without hooks (Copilot, Cursor) get the same feedback this way."""
+    (they lower S1). Hosts without hooks (Copilot, Cursor) get the same feedback this way.
+
+    A preliminary check only: it never raises. Any failure, including an abort code (secret,
+    policy) or an internal error, comes back as an item in fix; the harness decides at decide."""
     from tsl.harness.decide_service import unverified_claims
 
-    rel = to_rel(comp, artifact)
+    rel = str(artifact)
     fix: list[dict[str, str]] = []
+    data: dict[str, Any] = {}
     try:
+        rel = to_rel(comp, artifact)
         data = verify_artifact(rt, comp, rel, fast=True)
     except TslError as exc:
-        if exc.code != "E-CHK-01":
-            raise
         data = exc.data or {}
+        if not any(g.get("status") == "fail" for g in data.get("gates", [])):
+            fix.append({"kind": "error", "id": exc.code, "detail": exc.message})
+    except Exception as exc:  # a preliminary check never stops the skill
+        detail = str(exc)[:300] or type(exc).__name__
+        fix.append({"kind": "error", "id": "E-INT-01", "detail": detail})
     for g in data.get("gates", []):
         if g.get("status") == "fail":
             for d in g.get("details") or [g.get("detail") or "failed"]:
@@ -461,8 +469,12 @@ def self_check(rt: Runtime, comp: Companion, artifact: str) -> dict[str, Any]:
     for s in data.get("soft_failed", []):
         fix.append({"kind": "soft", "id": s["id"], "detail": s["detail"][:300]})
     no_front = any("E-H1-01" in g.get("codes", []) for g in data.get("gates", []))
-    for c in [] if no_front else unverified_claims(rt, comp, rel):
-        fix.append({"kind": "claim", "id": c["id"], "detail": c["reason"]})
+    if data and not no_front:
+        try:
+            for c in unverified_claims(rt, comp, rel):
+                fix.append({"kind": "claim", "id": c["id"], "detail": c["reason"]})
+        except Exception:  # noqa: S110 - claims are a hint; decide reports them anyway
+            pass
     return {"artifact": rel, "ok": not fix, "fix": fix}
 
 

@@ -76,7 +76,8 @@ keep the ids of unchanged items.
 ## Hand-over
 Make the product-repo edits first, then write the artifact to data.artifact_path. Then run
 `tsl verify <data.artifact_path> --self-check --json` once; it does not start the verifier. If
-data.fix lists items, fix every one in a single rewrite of the artifact and do not run the
-self-check again. Do not run builds, tests, the review or the decision yourself: tsl runs the
-verifier container (H3) and the run loop tells you if a retry is needed. Never commit, push or
-open a pull request; tsl pr does that.
+data.fix lists items, fix only what each item names, with targeted edits, and leave everything else
+unchanged; do not rewrite the whole artifact or redo the step. Make every edit, then hand over
+without running the self-check again. Do not run builds, tests, the review or the decision yourself:
+tsl runs the verifier container (H3) and the run loop tells you if a retry is needed. Never commit,
+push or open a pull request; tsl pr does that.

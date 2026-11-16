@@ -372,7 +372,8 @@ def verify(
             f"Self-check: {n} item(s) to fix",
             data,
             c.warnings,
-            "fix every item in data.fix in one rewrite, then hand over without checking again",
+            "edit only what each item in data.fix names (no full rewrite), then hand over "
+            "without checking again",
         )
     if inputs:
         data = svc.verify_inputs(rt(), c, run, step, artifact)
