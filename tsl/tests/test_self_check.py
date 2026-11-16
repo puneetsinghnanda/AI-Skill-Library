@@ -9,8 +9,12 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import yaml
+
 from e2e_steps import SESSION, next_action, start_run, write_artifact
 from helpers import World, intent_artifact, ticket_snapshot
+from test_e2e_code import _code_run
+from tsl.core.frontmatter import split
 
 LONG_SUMMARY = " ".join(f"Sentence {i} about order history." for i in range(1, 8))
 
@@ -81,6 +85,36 @@ def test_abort_code_is_listed_not_raised(world: World) -> None:
     env = _self_check(world, art)
     assert env["data"]["ok"] is False
     assert any(f["kind"] == "gate" and f["id"] == "H4" for f in env["data"]["fix"]), env["data"]
+
+
+def test_code_skill_claim_on_uncommitted_lines_is_not_listed(world: World) -> None:
+    """A code skill's claim on a line it added (not yet committed) resolves against the step's
+    working tree, as at decide, so neither the self-check nor the hook lists it."""
+    _run_id, info = _code_run(world)
+    art = info["artifact"]
+    lines = (world.product / "api/src/routes/orders.js").read_text().split("\n")
+    n = next(i for i, x in enumerate(lines, 1) if "history: newest first" in x)
+    p = world.companion / art
+    doc = split(p.read_text(encoding="utf-8"))
+    fm = dict(doc.front)
+    fm["claims"] = [
+        {
+            "id": "C1",
+            "text": "The route notes `history: newest first`",
+            "cites": [f"sample-orders:api/src/routes/orders.js#L{n}"],
+        }
+    ]
+    out, _ = write_artifact(
+        world, art, "---\n" + yaml.safe_dump(fm, sort_keys=False) + "---\n\n" + doc.body
+    )
+    assert "Claims that will not verify" not in out, out
+    env = _self_check(world, art)
+    assert not [f for f in env["data"]["fix"] if f["kind"] == "claim"], env["data"]
+
+
+def test_self_check_without_artifact_is_a_usage_error(world: World) -> None:
+    code, env, _, _ = world.cli(["verify", "--self-check", "--json"], session=SESSION)
+    assert code != 0 and env is not None and env["code"] == "E-USE-01", env
 
 
 def test_any_other_error_is_listed_not_raised(world: World) -> None:

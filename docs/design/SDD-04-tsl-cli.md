@@ -315,7 +315,7 @@ Detects the schema from the file's `schema:` field, or from the folder (a skill 
 | Form | Purpose |
 | --- | --- |
 | `tsl verify <artifact>` | Code checks H1–H7 and soft checks (SDD-03) on one artifact; writes `<artifact>.checks.json` |
-| `tsl verify <artifact> --self-check` | What the skill can still fix before the review, run once from the skill's Hand-over (SDD-01 §3): the fast checks (no verifier), then `data.fix` lists failing gates, failing soft checks with their reason (S2) and claims that will not verify (S1). Always exits 0; `data.ok` is true when the list is empty |
+| `tsl verify <artifact> --self-check` | What the skill can still fix before the review, run once from the skill's Hand-over (SDD-01 §3): the fast checks (no verifier), then `data.fix` lists failing gates, failing soft checks with their reason (S2) and claims that will not verify (S1). Product cites resolve as at decide (this step's working tree for code skills). Exits 0 whenever it can check the artifact, with every problem as an item; with no artifact path it is a usage error (E-USE-01). `data.ok` is true when the list is empty |
 | `tsl verify --inputs [--run <run_id>] [--step <step_id>]` | Pre-step input check, called from each skill via `` !`tsl verify --inputs` `` (SDD-05 §5.1). Defaults: the run bound to `TSL_SESSION_ID` and its current step |
 
 Network: none (the verifier containers run in local Docker).

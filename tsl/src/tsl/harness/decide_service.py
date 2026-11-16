@@ -615,9 +615,9 @@ def _checkpoint(ctx: RunCtx, step: str, attempt: dict[str, Any]) -> dict[str, st
 def unverified_claims(rt: Runtime, comp: Companion, rel: str) -> list[dict[str, str]]:
     """Claims of an artifact that tsl decide would not count as verified (B6).
 
-    The post-write hook reports these as a soft warning, so weak claims are fixed before the
-    review. Product cites resolve at the run branch head, else the pack commit (no product
-    changes are known yet at write time)."""
+    The post-write hook and tsl verify --self-check report these, so weak claims are fixed
+    before the review. Product cites resolve as at decide: this step's working tree (from the
+    checks record the fast verify just wrote), else the run branch head, else the pack commit."""
     from tsl.core.frontmatter import split
     from tsl.orchestrator.run import RunCtx
 
@@ -639,6 +639,10 @@ def unverified_claims(rt: Runtime, comp: Companion, rel: str) -> list[dict[str, 
             if b.get("head_sha")
         }
     )
+    checks_p = comp.path(sibling(rel, ".checks.json"))
+    if checks_p.is_file():
+        changes = read_json(checks_p).get("product_changes") or []
+        shas.update({c["repo"]: c["tree_sha"] for c in changes})
     cfg = comp.config
     repos = {r.name for r in cfg.product_repos} | {str(r["name"]) for r in cfg.read_only_repos}
     gen_mm = comp.path("context/generated/module-map.json")
