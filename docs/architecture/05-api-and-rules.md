@@ -59,7 +59,7 @@ Global flags: `--json` (machine output on stdout, human text on stderr), `--repo
 | `tsl state unlock` | `<ticket> <workflow>` | Tech lead | Removes stale lock (DEF-06), logs event | 0, 3 |
 | `tsl verify` | `<artifact path> [--inputs]` | Hook / skill | `<artifact>.checks.json` | 0, 2, 5 |
 | `tsl decide` | `<artifact path>` | Skill | `<artifact>.verification.json`; outcome | 0 PASS/PWF, 2 RETRY, 4 NEEDS-INPUT/ESCALATE, 5 ABORT |
-| `tsl approve` | `<run_id> <gate>` | Approver | Signed block in `approvals.md` | 0, 3 (E-AUTH-05/06) |
+| `tsl gate` | `[<run_id> [<decision>]]` | Approver | Signed block in `approvals.md` | 0, 3 (E-AUTH-05/06) |
 | `tsl pr` | `<run_id> [--draft]` | Engineer | Branch, commit, PR URL per product repo | 0, 3, 10 |
 | `tsl ci-verify` | `--pr <n> --repo <r>` | CI | Pass/fail with E-CI-\* reasons | 0, 2 |
 | `tsl validate` | `<skill or workflow path>` | Skill author / CI | Validation report | 0, 2 |
@@ -365,7 +365,7 @@ components:
 | `run.status_changed` | from, to, reason\_code | `tsl state` |
 | `step.decided` | step, skill, skill\_version, attempt, outcome, band, signals, caps, gate\_failures\[\], findings\_count{blocker,major,minor}, duration\_ms, verification\_sha256 | `tsl decide` |
 | `question.created` / `question.answered` | step, question\_id, blocking, ask\_role, age\_s | `tsl decide` / `tsl state resume` |
-| `approval.recorded` | gate, decision, approver\_role | `tsl approve` |
+| `approval.recorded` | gate, decision, approver\_role | `tsl gate` |
 | `hook.decision` | hook, decision (allow/deny/feedback), code | hooks |
 | `pr.opened` | repo, number, draft, lowest\_band | `tsl pr` |
 | `pr.closed` | repo, number, merged, closed\_at | `tsl pr-sync` |

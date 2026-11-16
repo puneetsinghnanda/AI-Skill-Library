@@ -95,7 +95,7 @@ def _approval(w: World, run_id: str) -> None:
     git(w.companion, "add", "-A")
     git(w.companion, "commit", "-qm", "external write gate")
     git(w.companion, "push", "-q", "origin", "main")
-    code, env, _, err = w.cli(["approve", run_id, "W-1", "--json"], user="tl")
+    code, env, _, err = w.cli(["gate", run_id, "approve", "--gate", "W-1", "--json"], user="tl")
     assert code == 0, (env, err)
     w.sync_companion()
     rt = w.rt("eng", SESSION)

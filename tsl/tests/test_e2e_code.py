@@ -236,7 +236,7 @@ def test_approved_escalation_commits_the_step_code(world: World) -> None:
     )
     git(world.companion, "commit", "-qam", "decision")
     git(world.companion, "push", "-q", "origin", "main")
-    code, env, _, err = world.cli(["approve", run_id, gate, "--json"], user="tl")
+    code, env, _, err = world.cli(["gate", run_id, "approve", "--gate", gate, "--json"], user="tl")
     assert code == 0, (env, err)
     world.sync_companion()
     code, env2, _, err = world.cli(["state", "resume", run_id, "--json"], session=SESSION)

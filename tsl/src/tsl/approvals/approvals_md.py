@@ -22,7 +22,7 @@ ART = re.compile(r"^Artifact: (?P<path>\S+) \(sha256 (?P<sha>[0-9a-f]{64})\)\s*$
 FIELD = re.compile(r"^(?P<k>decision|comment|kind|Reason for gate|Action):\s?(?P<v>.*)$")
 SIG_BEGIN = "<!-- tsl:signature-begin {id} -->"
 SIG_END = "<!-- tsl:signature-end {id} -->"
-SIG_NOTE = "<!-- signature block written by `tsl approve` - do not edit -->"
+SIG_NOTE = "<!-- signature block written by `tsl gate` - do not edit -->"
 
 
 def comment_sha256(comment: str | None) -> str:
@@ -173,7 +173,7 @@ def append_signature(path: Path, gate: str, block: dict[str, Any]) -> None:
         raise TslError(
             "E-RUN-05",
             status="unknown",
-            command="approve",
+            command="gate",
             needed="a gate entry",
             hint=f"no entry {gate} in approvals.md",
         )
@@ -187,3 +187,92 @@ def append_signature(path: Path, gate: str, block: dict[str, Any]) -> None:
     pretty = json.dumps(block, indent=2, sort_keys=True, ensure_ascii=False).split("\n")
     sig = [SIG_BEGIN.format(id=gate), "```json", *pretty, "```", SIG_END.format(id=gate)]
     atomic_write(path, "\n".join([*lines[:end], *sig, *lines[end:]]).rstrip("\n") + "\n")
+
+
+def _span(lines: list[str], gate: str) -> tuple[int, int]:
+    """Start and end line of the last entry for this gate."""
+    start = None
+    for i, line in enumerate(lines):
+        m = HEAD.match(line)
+        if m and m.group("id") == gate:
+            start = i
+    if start is None:
+        raise TslError(
+            "E-RUN-05",
+            status="unknown",
+            command="gate",
+            needed="a gate entry",
+            hint=f"no entry {gate} in approvals.md",
+        )
+    end = len(lines)
+    for j in range(start + 1, len(lines)):
+        if HEAD.match(lines[j]):
+            end = j
+            break
+    return start, end
+
+
+def set_decision(path: Path, gate: str, decision: str, comment: str | None) -> None:
+    """Write decision: and comment: into an unsigned gate entry (comment on one line).
+
+    Only the decision line, the comment line and the old comment's continuation lines change.
+    A missing decision: or comment: line is added, so the file always says what gets signed.
+    """
+    lines = path.read_text(encoding="utf-8").split("\n")
+    start, end = _span(lines, gate)
+    flat = " ".join((comment or "").split())
+    new_decision = f"decision: {decision}"
+    new_comment = f"comment: {flat}" if flat else "comment:"
+    body: list[str] = []
+    in_comment = seen_decision = seen_comment = False
+    for line in lines[start + 1 : end]:
+        fm = FIELD.match(line)
+        if fm and fm.group("k") == "decision":
+            in_comment = False
+            if not seen_decision:
+                body.append(new_decision)
+            seen_decision = True
+        elif fm and fm.group("k") == "comment":
+            in_comment = True
+            if not seen_comment:
+                body.append(new_comment)
+            seen_comment = True
+        elif fm or line.strip().startswith("<!--"):
+            in_comment = False
+            body.append(line)
+        elif in_comment and line.strip() and not ART.match(line):
+            continue  # a continuation line of the old comment (the same rule as parse)
+        else:
+            body.append(line)
+    missing = ([] if seen_decision else [new_decision]) + ([] if seen_comment else [new_comment])
+    if missing:
+        at = next((i for i, x in enumerate(body) if x.strip().startswith("<!--")), len(body))
+        while at > 0 and not body[at - 1].strip():
+            at -= 1
+        body[at:at] = missing
+    text = "\n".join([*lines[: start + 1], *body, *lines[end:]])
+    e = entry(parse(text), gate)
+    if e is None or e["decision"] != decision or (e["comment"] or "") != flat:
+        raise TslError(
+            "E-CFG-01",
+            file="approvals.md",
+            pointer=f"/{gate}",
+            reason="the decision and comment could not be written into the gate entry",
+        )
+    atomic_write(path, text)
+
+
+def remove_signature(path: Path, gate: str) -> None:
+    """Drop the signature block of a gate entry (used to replace a signature that is not valid)."""
+    lines = path.read_text(encoding="utf-8").split("\n")
+    start, end = _span(lines, gate)
+    begin, stop = SIG_BEGIN.format(id=gate), SIG_END.format(id=gate)
+    out, inside = lines[: start + 1], False
+    for line in lines[start + 1 : end]:
+        if line.strip() == begin:
+            inside = True
+        elif inside:
+            inside = line.strip() != stop
+        else:
+            out.append(line)
+    atomic_write(path, "\n".join([*out, *lines[end:]]))

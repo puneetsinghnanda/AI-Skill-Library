@@ -60,7 +60,10 @@ export const STEPS: StepCard[] = [
     title: 'People decide at gates',
     who: 'Product owner · Tech lead',
     desc: 'Open questions and approvals are written to a file; the run pauses until people answer. Every decision is signed and recorded.',
-    commands: ['tsl approve <run_id> <gate>', '/truminds:resume <run_id>'],
+    commands: [
+      '/tsl-gate <run_id> approve|changes|reject|abort [comment]',
+      '/truminds:resume <run_id>',
+    ],
     client: "The client's product owner answers business questions; nothing is guessed.",
   },
   {

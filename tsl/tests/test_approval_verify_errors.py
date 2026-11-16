@@ -25,7 +25,9 @@ def _approved_run(world: World) -> str:
     )
     git(world.companion, "commit", "-qam", "approve G-req")
     git(world.companion, "push", "-q", "origin", "main")
-    code, approved, _, err = world.cli(["approve", run_id, "G-req", "--json"], user="tl")
+    code, approved, _, err = world.cli(
+        ["gate", run_id, "approve", "--gate", "G-req", "--json"], user="tl"
+    )
     assert code == 0, (approved, err)
     world.sync_companion()
     # The run owner's machine has never seen the approver's key (as on a real second laptop).

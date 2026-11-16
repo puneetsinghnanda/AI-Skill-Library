@@ -1,4 +1,4 @@
-"""tsl approve: sign a gate decision in approvals.md (SDD-02 §9.2, SDD-07 §6.4, SDD-04 §6.11)."""
+"""tsl gate: write and sign a gate decision (SDD-02 §9.2, SDD-07 §6.4, SDD-04 §6.11)."""
 
 from __future__ import annotations
 
@@ -21,7 +21,65 @@ from tsl.telemetry.emit import emit
 DECISIONS = ("approve", "reject", "changes", "abort")
 
 
-def approve(rt: Runtime, comp: Companion, run_id: str, gate: str) -> dict[str, Any]:
+def _undo(g: Any, path: Any, original: str, run_id: str) -> None:
+    """Put approvals.md back as it was, unstaged, after a failed sign or commit."""
+    path.write_text(original, encoding="utf-8", newline="")
+    g.run("reset", "-q", "--", approvals_path(run_id), check=False)
+
+
+def waiting_gates(st: dict[str, Any], obj: dict[str, Any], signed: bool = False) -> list[str]:
+    """Gates of one run that wait for a person: the paused run's state gates, then unsigned
+    external-write entries (W-<n>), which exist only in approvals.md while the run goes on.
+
+    A state gate that is signed but not resumed yet waits for the run owner, not for an
+    approver; it is listed only with `signed=True`."""
+    out: list[str] = []
+    if st.get("status") == "PAUSED_APPROVAL":
+        out = [str(g["id"]) for g in st.get("gates", []) if g["status"] == "WAITING_APPROVAL"]
+        if not signed:
+            out = [g for g in out if not (approvals_md.entry(obj, g) or {}).get("signature")]
+    if st.get("status") != "COMPLETED":
+        for e in obj.get("entries", []):
+            gid = str(e["id"])
+            if gid.startswith("W-") and gid not in out:
+                last = approvals_md.entry(obj, gid)
+                if last is not None and not last.get("signature"):
+                    out.append(gid)
+    return out
+
+
+def resolve_gate(st: dict[str, Any], obj: dict[str, Any], run_id: str) -> str:
+    """The one waiting gate of the run; E-RUN-05 names the choices when there is not exactly one.
+
+    Signed gates count only when nothing unsigned waits (a retry after a failed push)."""
+    gates = waiting_gates(st, obj) or waiting_gates(st, obj, signed=True)
+    if len(gates) != 1:
+        raise TslError(
+            "E-RUN-05",
+            status=st["status"],
+            command="gate",
+            needed="exactly one gate waiting for approval"
+            if not gates
+            else "--gate " + " or ".join(gates),
+            hint=f"tsl state show {run_id}",
+        )
+    return gates[0]
+
+
+def decide(
+    rt: Runtime,
+    comp: Companion,
+    run_id: str,
+    gate: str | None,
+    decision: str,
+    comment: str | None,
+    resign: bool = False,
+) -> dict[str, Any]:
+    """Write the decision and comment into the gate entry, sign it and push (one commit).
+
+    `gate=None` means the run's one waiting gate. `resign` replaces the caller's own earlier
+    signature on a gate that is still waiting (the fix for a signature the service refuses).
+    """
     g = comp.git
     try:
         g.fetch()
@@ -32,6 +90,8 @@ def approve(rt: Runtime, comp: Companion, run_id: str, gate: str) -> dict[str, A
     ctx = RunCtx(rt, comp, run_id)
     path = comp.path(approvals_path(run_id))
     obj = approvals_md.load(path)
+    if gate is None:
+        gate = resolve_gate(ctx.state, obj, run_id)
     e = approvals_md.entry(obj, gate)
     st_gate = next(
         (
@@ -48,27 +108,66 @@ def approve(rt: Runtime, comp: Companion, run_id: str, gate: str) -> dict[str, A
         raise TslError(
             "E-RUN-05",
             status=ctx.state["status"],
-            command="approve",
+            command="gate",
             needed=f"gate {gate} waiting for approval",
             hint=f"tsl state show {run_id}",
         )
-    if e.get("signature"):
-        raise TslError(
-            "E-RUN-05",
-            status="already signed",
-            command="approve",
-            needed="an unsigned gate",
-            hint=f"tsl state resume {run_id}",
-        )
-    decision = e.get("decision")
     if decision not in DECISIONS:
         raise TslError(
             "E-RUN-05",
-            status="no decision",
-            command="approve",
-            needed="decision approve, reject, changes or abort",
-            hint=f"fill decision: under {gate} in {approvals_path(run_id)}",
+            status="bad decision",
+            command="gate",
+            needed="approve, changes, reject or abort",
+            hint="tsl gate <run_id> approve|changes|reject|abort",
         )
+    replace_own = False
+    if e.get("signature"):
+        sig0 = e["signature"]
+        if resign and sig0.get("approver") == memod.current_me(rt).get("pseudonym"):
+            replace_own = True  # my own signature, the gate still waits: sign it afresh below
+        elif (
+            g.unpushed(comp.config.companion_branch, [approvals_path(run_id)])
+            and sig0.get("decision") == decision
+            and sig0.get("approver") == memod.current_me(rt).get("pseudonym")
+        ):
+            # My own earlier sign of this same decision worked but its push failed:
+            # push it, never sign twice.
+            if not g.sync_push(comp.config.companion_branch):
+                raise TslError(
+                    "E-GIT-01",
+                    op="push",
+                    detail="approval signed and committed locally; push failed",
+                    data={"gate": gate},
+                )
+            sig = e["signature"]
+            return {
+                "run_id": run_id,
+                "gate": gate,
+                "decision": sig.get("decision"),
+                "approver_role": sig.get("role"),
+                "run_status": ctx.state["status"],
+                "self_approved": bool(sig.get("self_approved")),
+                "resumable": bool(sig.get("self_approved")),
+                "pushed_earlier_signature": True,
+            }
+        else:
+            raise TslError(
+                "E-RUN-05",
+                status="already signed",
+                command="gate",
+                needed="an unsigned gate",
+                hint=f"tsl state resume {run_id}",
+            )
+    comment = " ".join((comment or "").split()) or None
+    if decision in ("changes", "reject") and not comment:
+        raise TslError(
+            "E-RUN-05",
+            status="no comment",
+            command="gate",
+            needed=f"a comment with {decision}",
+            hint='add --comment "what must change"',
+        )
+    e["decision"], e["comment"] = decision, comment
     me = memod.current_me(rt)
     role = str(e["role"])
     if not memod.has_grant(me, {role}, comp.config.system.code):
@@ -112,7 +211,7 @@ def approve(rt: Runtime, comp: Companion, run_id: str, gate: str) -> dict[str, A
                 raise TslError(
                     "E-RUN-05",
                     status="rework limit reached",
-                    command="approve",
+                    command="gate",
                     needed="approve or abort",
                     hint="change the decision to approve or abort",
                 )
@@ -138,18 +237,28 @@ def approve(rt: Runtime, comp: Companion, run_id: str, gate: str) -> dict[str, A
         "self_approved": bool(self_gen),
         "approved_at": iso(rt.clock()),
     }
-    signed = sign_object(block, signer.key_id, signer.private)
     from tsl.schemas.registry import require_valid
 
-    require_valid("approval-signature.v1", signed, "approval block")
-    approvals_md.append_signature(path, gate, signed)
-    block_sha = sha256_raw(canonical(signed))
+    original = path.read_text(encoding="utf-8")
     try:
+        signed = sign_object(block, signer.key_id, signer.private)
+        require_valid("approval-signature.v1", signed, "approval block")
+        if replace_own:
+            approvals_md.remove_signature(path, gate)
+        approvals_md.set_decision(path, gate, decision, comment)
+        approvals_md.append_signature(path, gate, signed)
+        block_sha = sha256_raw(canonical(signed))
         g.commit(
-            f"tsl({run_id}): approve {gate}", [approvals_path(run_id)], trailer=f"Tsl-Run: {run_id}"
+            f"tsl({run_id}): {decision} {gate}",
+            [approvals_path(run_id)],
+            trailer=f"Tsl-Run: {run_id}",
         )
     except GitError as exc:
+        _undo(g, path, original, run_id)
         raise exc.tsl() from None
+    except Exception:
+        _undo(g, path, original, run_id)
+        raise
     if decision != "abort":
         body: dict[str, Any] = {
             "gate": gate,
@@ -169,10 +278,12 @@ def approve(rt: Runtime, comp: Companion, run_id: str, gate: str) -> dict[str, A
             data={"gate": gate, "decision": decision, "signature_block_sha256": block_sha},
         )
     return {
+        "run_id": run_id,
         "gate": gate,
         "decision": decision,
         "approver_role": role,
         "signature_block_sha256": block_sha,
         "run_status": ctx.state["status"],
         "self_approved": bool(self_gen),
+        "resumable": bool(self_gen),
     }

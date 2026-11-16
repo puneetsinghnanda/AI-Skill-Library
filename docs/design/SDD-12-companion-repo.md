@@ -112,7 +112,7 @@ flowchart LR
 | `artifacts/<ticket>/<run_id>/**` | Claude during a run (allowed by `policy.yaml` write scope); committed by `tsl` | Direct push by `tsl` | None at this point. Each artifact has a signed record; humans review through the product PR |
 | `runs/<run_id>/state.json`, `artifacts/<ticket>/<run_id>/*.checks.json`, `*.review.json`, `*.verification.json`, `history/**` | `tsl` only | Direct push by `tsl` | Records are signed |
 | `runs/<run_id>/open-questions.md` answers | Engineer, or anyone with write access (OQ-14) | Direct commit; `tsl state resume` checks answers | Named decider in the file (US-04) |
-| `runs/<run_id>/approvals.md` signature blocks | `tsl approve` | Direct push by `tsl` | Signed by the approver |
+| `runs/<run_id>/approvals.md` signature blocks | `tsl gate` | Direct push by `tsl` | Signed by the approver |
 | `runs/active/*.lock` | `tsl state start`, removed at COMPLETED or by `tsl state unlock` | Direct push by `tsl` | — |
 | `.github/workflows/**` | Platform admin | Pull request | Admin (CODEOWNERS) |
 

@@ -27,7 +27,7 @@ Source: [SDD-13 §4.1](../design/SDD-13-onboarding-admin.md#41-paths-per-persona
 
 | Topic | Do | Reference |
 | --- | --- | --- |
-| Approve a design gate | `tsl approve <run_id> G-design`; try approving your own run and see it refused | SDD-02 §9.2, SDD-07 §6.4 |
+| Approve a design gate | `/tsl-gate <run_id> approve` (elsewhere `tsl gate <run_id> approve`); try approving your own run and see it refused | SDD-02 §9.2, SDD-07 §6.4 |
 | Reject with a reason | The run returns to the `on_reject` step with the reason as input | US-07 AC3 |
 | Stale locks | `tsl state unlock` rules and the stale-lock definition (DEF-06) | SDD-02 §11 |
 | Calibration audit | Review a High-band result; record `deserved` or `miss` in `audits/<run_id>/<step>.audit.json` | SDD-03 §16.3, TST-01 §3.3 |

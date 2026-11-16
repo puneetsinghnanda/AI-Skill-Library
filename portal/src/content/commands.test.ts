@@ -1,8 +1,8 @@
 /** SDD-09 §4.5: command strings on screens match Doc 5 §2 and the plugin (registry §3). */
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { RUN_TEMPLATE, SLASH_COMMANDS, isKnownCommand } from './commands';
+import { MOD_COMMANDS, RUN_TEMPLATE, SLASH_COMMANDS, isKnownCommand } from './commands';
 import { BUSINESS_STEPS, developmentSeatCommands, engineerSteps } from './get-started';
 import { STEPS } from './how-it-works';
 
@@ -22,6 +22,11 @@ describe('commands shown on screens', () => {
   it.each(SLASH_COMMANDS)('%s is a skill folder in plugins/truminds/skills', (cmd) => {
     const name = cmd.replace('/truminds:', '');
     expect(existsSync(resolve(skillsDir, name, 'SKILL.md'))).toBe(true);
+  });
+
+  it.each(MOD_COMMANDS)('%s is registered by the plugin Mod', (cmd) => {
+    const mod = readFileSync(resolve(skillsDir, '../hooks/register.tsx'), 'utf8');
+    expect(mod).toContain(`name: '${cmd.slice(1)}'`);
   });
 
   it('every /truminds: command used on a screen is in the plugin', () => {

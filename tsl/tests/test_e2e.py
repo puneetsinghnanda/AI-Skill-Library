@@ -40,9 +40,13 @@ def test_full_run_gate_story_and_completion(world: World) -> None:
     git(world.companion, "commit", "-qam", "approve G-req")
     git(world.companion, "push", "-q", "origin", "main")
     # the run owner may not approve their own step
-    code, env2, _, _ = world.cli(["approve", run_id, "G-req", "--json"], user="eng")
+    code, env2, _, _ = world.cli(
+        ["gate", run_id, "approve", "--gate", "G-req", "--json"], user="eng"
+    )
     assert code == 3 and env2 is not None and env2["code"] == "E-AUTH-05"
-    code, env3, _, err = world.cli(["approve", run_id, "G-req", "--json"], user="tl")
+    code, env3, _, err = world.cli(
+        ["gate", run_id, "approve", "--gate", "G-req", "--json"], user="tl"
+    )
     assert code == 0, (env3, err)
     world.sync_companion()
     code, env4, _, err = world.cli(["state", "resume", run_id, "--json"], session=SESSION)

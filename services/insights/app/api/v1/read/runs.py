@@ -94,7 +94,7 @@ def next_action(r: Any, pr: Any) -> dict[str, Any]:
         return {
             "kind": "approve",
             "text": "Tech lead approves the open gate",
-            "command": f"tsl approve {r.id} <gate>",
+            "command": f"/tsl-gate {r.id}",
         }
     if r.status == "COMPLETED" and r.end_reason == "aborted":
         return {"kind": "none", "text": f"Run aborted: {r.end_code or 'unknown'}", "command": None}

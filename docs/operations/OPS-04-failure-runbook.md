@@ -265,7 +265,7 @@ Each run writes only its own folders; the only shared files are the lock files, 
 | Symptom | Cause | Fix | Code |
 | --- | --- | --- | --- |
 | `tsl` warns: push failed, commits kept locally (`unpushed: true`) | Network, or many runs pushing at once | Nothing; the next `tsl` call retries | — |
-| `tsl approve` or `state resume` fails: git rebase conflict in `runs/<run_id>/open-questions.md` or `approvals.md` | Someone answered or edited on GitHub while the engineer edited locally | Resolve by hand: keep both people's answers; never change a signed block. `git rebase --continue`, then re-run the `tsl` command | E-GIT-01 |
+| `tsl gate` or `state resume` fails: git rebase conflict in `runs/<run_id>/open-questions.md` or `approvals.md` | Someone answered or edited on GitHub while the engineer edited locally | Resolve by hand: keep both people's answers; never change a signed block. `git rebase --continue`, then re-run the `tsl` command | E-GIT-01 |
 | Rebase conflict in `context/**` | A tech lead's context PR merged while a local `context build` ran | Discard the local generated files, pull, run `tsl context build` again, then the tech lead re-signs (`tsl context sign`) | E-GIT-01 |
 | Conflict in another run's folder or in `runs/*/records/**` | Hand edit, or a tool other than `tsl` | Stop. Never force-push and never edit a record (append-only). Ask the tech lead; companion CI flags it | E-COMP-02, E-COMP-03 |
 | Companion CI fails after a push | Schema error, protected path changed, forbidden content, file too large | Fix the listed files in a new commit; for forbidden content follow §5 | E-COMP-01 to E-COMP-05 |
@@ -294,7 +294,7 @@ Each run writes only its own folders; the only shared files are the lock files, 
 | --- | --- | --- | --- |
 | Warning: pack stale, band capped at Medium | Pack more than `max_commits_behind` (default 50) commits behind, drift over 50 files, or a critical path changed (SDD-06 §7.1) | Tech lead: `tsl context build`, review, `tsl context sign` | E-CTX-02 |
 | Run cannot start: pack missing, or signature does not verify | No pack, or a file changed after signing | Tech lead builds and signs the pack | E-CTX-01, E-CTX-03 |
-| Step escalated after retries | RETRY limit reached (R-01, R-02) | Approver reads the findings in `approvals.md` and runs `tsl approve` | E-RUN-02 |
+| Step escalated after retries | RETRY limit reached (R-01, R-02) | Approver reads the findings in `approvals.md` and runs `/tsl-gate <run_id> <decision>` | E-RUN-02 |
 | Run paused for input; resume refused | Blocking questions unanswered | Answer `open-questions.md`; resume | E-RUN-01, E-RUN-03 |
 | Hard gate failed | Artifact misses a section or schema field | Claude fixes automatically, within the retry limit | E-CHK-01 |
 | Run aborted | Secret, PII, out-of-scope write, sensitive read, MCP write without approval, tool not permitted | Follow §5. The run cannot be resumed | E-SEC-01, E-SEC-02, E-POL-01 to E-POL-05 |

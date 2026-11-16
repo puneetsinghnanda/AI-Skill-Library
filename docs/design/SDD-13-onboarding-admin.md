@@ -177,7 +177,7 @@ Then, in a **Local** desktop session opened in that folder:
 | 1 | `/truminds:run estimate TRN-<nn>` (your seat number) | One step, `estimate-review`, ends PASS or PASS-WITH-FINDINGS; run COMPLETED; a signed `estimate.verification.json` |
 | 2 | `/truminds:status` | The completed run and its band |
 | 3 | `/truminds:run brownfield-change TRN-<nn>` | Steps up to `design`, then pause at `G-design` (PAUSED_APPROVAL) |
-| 4 | Tech-lead trainee runs `tsl approve <run_id> G-design` | Signed block in `approvals.md` |
+| 4 | Tech-lead trainee runs `/tsl-gate <run_id> approve` | Signed block in `approvals.md` |
 | 5 | `/truminds:resume <run_id>` | Continues; finishing to a PR is optional homework |
 
 `TRN-<nn>` tickets are copies of sample tickets ABC-170 and ABC-142, one per trainee, so runs never collide on a lock (R-11). How a run reads a ticket from a file instead of Jira is not yet defined: SDD-02 reads `run.ticket` through the Jira MCP read tools (OI-13-05).
@@ -199,7 +199,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | **Business unit** (P-09, leadership, delivery managers) | B1: portal Home (Business), capability map, Business impact, pods, what numbers mean; what never to show (client names, X-13); the "Get started" business steps (consent, LEG-01) | Live walkthrough, 30 min | Attendance |
 | **Engineer** (P-01 to P-08) | E1: the seven objects (skill, workflow, pod, context pack, run, artifact, check record); harness order (code checks H1–H7, reviewer, citation check, `tsl decide`); signals S1–S6, bands, six outcomes. E2: §3. E3: §3.7 hands-on. E4: answering `open-questions.md`, `/truminds:resume`, reading the PR evidence and `tsl-ci-verify`; rules: company seat, local sessions only, no WSL, no external writes without a signed approval, what to do on a stale lock | E1 self-study 20 min (portal "How it works"); E2 30 min; E3 30 min live; E4 30 min | A signed check record on `SYS-SMP` made with the trainee's key (portal shows it) |
-| **Tech lead** (P-10, P-12) | Engineer path, then T1: `tsl init`, `tsl context build`, reviewing AI drafts, `tsl context sign` (SDD-06); T2: `tsl approve`, self-approval rule, `tsl state unlock` and DEF-06, calibration audits (SDD-03 §16.3), reading verification records | T1 45 min, T2 30 min, live on `SYS-SMP` | A signed approval block and a re-signed training pack after a drift exercise |
+| **Tech lead** (P-10, P-12) | Engineer path, then T1: `tsl init`, `tsl context build`, reviewing AI drafts, `tsl context sign` (SDD-06); T2: `tsl gate`, self-approval rule, `tsl state unlock` and DEF-06, calibration audits (SDD-03 §16.3), reading verification records | T1 45 min, T2 30 min, live on `SYS-SMP` | A signed approval block and a re-signed training pack after a drift exercise |
 | **Skill author / owner** (P-11) | Engineer path, then A1: SDD-01 standard, `skill-metadata.v1`, rubric, eval cases, `tsl validate`, `/truminds:eval`; A2: improvement report, `/truminds:improve` (eval case first, X-11), release via PR and CODEOWNERS | A1 60 min, A2 30 min | A signed eval result for an existing skill on the sample system |
 | **Admins** (§5) | M1: this document §5 to §9 for their role, SDD-05 §6, SDD-07 §5.6, LEG-01 checklist. M2: drills: managed-settings verification on a test seat; key revocation for a lost laptop (tabletop, on a test user); offboarding of a test user | M1 self-study; M2 60 min | Drill record filed in the skill-library repo (no personal data) |
 

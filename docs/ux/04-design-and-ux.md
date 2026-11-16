@@ -365,7 +365,7 @@ Artifact: artifacts/ABC-142/run_01J9.../design.md (sha256 3f9a...)
 Reason for gate: workflow gate (always)
 decision:          # approve | reject | changes
 comment:
-<!-- signature block written by `tsl approve` - do not edit -->
+<!-- signature block written by `tsl gate` - do not edit -->
 
 ## G-escalate-04 · required role: tech_lead
 Artifact: .../implement.md · Reason: band Low (S6 change risk over limit)
@@ -373,7 +373,7 @@ decision:
 comment:
 ```
 
-The approver fills `decision` and `comment`, then runs `tsl approve <run_id> <gate>`. `tsl` checks the role (E-AUTH-05 if missing), refuses self-approval of a gate on a step the same user generated (configurable per system), and appends the signature block. Rejected or "changes" sends the step back to RETRY with the comment as input.
+The approver runs `/tsl-gate <run_id> approve|changes|reject|abort [comment]` (Claude Code; elsewhere `tsl gate`). Without a decision it shows a summary and signs nothing; with no run id it lists the gates waiting for the approver's role. `changes` and `reject` need a comment. `tsl` writes the decision and comment, checks the role (E-AUTH-05 if missing), refuses self-approval of a gate on a step the same user generated (configurable per system), and appends the signature block. Rejected or "changes" sends the step back to RETRY with the comment as input.
 
 ## 5. CLI and chat messages
 
@@ -424,7 +424,7 @@ Icons are paired with words so meaning never relies on symbol or colour alone.
 | E-POL-03 | 5 | Blocked: MCP write `<tool>` without approval. | Add an approval entry, then resume |
 | E-SEC-01 | 5 | Secret or PII detected in artifact (H4). | Run aborted; security event raised |
 | E-RUN-01 | 4 | Run paused for input. | Answer open-questions.md, then resume |
-| E-RUN-02 | 4 | Run paused for approval. | Approver runs `tsl approve` |
+| E-RUN-02 | 4 | Run paused for approval. | Approver runs `/tsl-gate <run_id>` |
 | E-RUN-03 | 2 | Cannot resume: `<n>` blocking questions unanswered. | Answer them |
 | E-NET-01 | 0 (warn) | Telemetry offline; `<n>` events queued in outbox. | None; sent automatically |
 | E-SCH-01 | 1 | File `<path>` uses schema `<v>` that this tsl does not read. | `tsl migrate` or upgrade the plugin |

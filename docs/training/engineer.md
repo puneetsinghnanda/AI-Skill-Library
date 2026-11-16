@@ -33,7 +33,7 @@ The session in [hands-on-session.md](hands-on-session.md): `estimate` to complet
 | Topic | Do | Reference |
 | --- | --- | --- |
 | Answer open questions | Fill `runs/<run_id>/open-questions.md`; every answer names a decider with an email address; then `/truminds:resume <run_id>` | SDD-02 §9.1, US-03, US-04 |
-| Approval gates | Ask a tech lead to run `tsl approve`; you cannot approve your own work | SDD-02 §9.2, US-07 |
+| Approval gates | Ask a tech lead to run `/tsl-gate <run_id>`; you cannot approve your own work | SDD-02 §9.2, US-07 |
 | Read the PR evidence | Verification table, decisions with deciders, unit-test results; `tsl-ci-verify` must pass | SDD-03 §13, US-05 |
 | Stale lock | `tsl state show`; only a tech lead may `tsl state unlock` | SDD-02 §11, US-21 |
 | Rules | Company seat only; Local sessions only, no WSL; no writes to Jira, Confluence or GitHub without a signed approval; never paste client data into a prompt outside the run | C-16, C-17, SEC-01 §6 |

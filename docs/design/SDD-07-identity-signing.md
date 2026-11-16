@@ -443,7 +443,7 @@ Every signed object is one JSON object with top-level `key_id` and `signature`. 
 | Object | Schema | File | Signed by (`tsl` command) | Signing-time field | Role needed at that time (R-07) | Defined in |
 | --- | --- | --- | --- | --- | --- | --- |
 | Check record | `verification.v1` | `<artifact>.verification.json` | Run owner (`tsl decide`) | `decided_at` | `engineer` or `tech_lead` on the system | SDD-03 §12 |
-| Approval | `approval-signature.v1` | Block in `runs/<run_id>/approvals.md` | Approver (`tsl approve`) | `approved_at` | The gate's `role` on the system | §6.4 |
+| Approval | `approval-signature.v1` | Block in `runs/<run_id>/approvals.md` | Approver (`tsl gate`) | `approved_at` | The gate's `role` on the system | §6.4 |
 | Context pack signature | `pack-signature.v1` | `context/pack.signature.json` | Tech lead (`tsl context sign`) | `signed_at` | `tech_lead` on the system | SDD-06 §4.2, §6.5 here |
 | Eval result | `eval-result.v1` | `skills/<skill>/evals/results/<version>.eval-result.json` (SDD-01) | Skill author (`tsl eval run`) | `recorded_at` (SDD-01 must add it if missing) | None scoped; key must be valid | SDD-01 |
 | Calibration audit | `audit.v1` | `audits/<run_id>/<step>.audit.json` | Tech lead | `audited_at` (SDD-03 must add it if missing) | `tech_lead` on the system | SDD-03 §16.3 |

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.truminds.internal/events/approval.recorded.v1.json",
   "title": "Event body: approval.recorded (schema_version 1)",
-  "description": "Sent by tsl approve. Closed object; every string is length-capped (TM-08).",
+  "description": "Sent by tsl gate. Closed object; every string is length-capped (TM-08).",
   "type": "object",
   "additionalProperties": false,
   "required": [

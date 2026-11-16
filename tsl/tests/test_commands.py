@@ -240,10 +240,7 @@ def test_self_approval_refused(world: World) -> None:
     assert res["code"] == 0, res["env"]
     _c, nenv = next_action(world, run_id, "tl")
     assert nenv["code"] == "E-RUN-02"
-    code, env, _, _ = world.cli(["approve", run_id, "G-req", "--json"], user="tl")
-    assert code == 3 and env is not None and env["code"] == "E-RUN-05"  # no decision written yet
-    _approve_text(world, run_id)
-    code, env, _, _ = world.cli(["approve", run_id, "G-req", "--json"], user="tl")
+    code, env, _, _ = world.cli(["gate", run_id, "approve", "--gate", "G-req", "--json"], user="tl")
     assert code == 3 and env is not None and env["code"] == "E-AUTH-06"
 
 
