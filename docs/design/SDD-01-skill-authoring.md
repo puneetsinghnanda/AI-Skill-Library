@@ -154,7 +154,7 @@ If the JSON above has "ok": false, show its "message" and "next" to the user and
 | Method | Numbered steps the model follows |
 | Output | Exact envelope and body format, with a filled skeleton |
 | If this is a retry | How to use `data.retry.failures` and `data.retry.findings` |
-| Hand-over | "Write the file once to `$0`. Do not run checks, review or decide; the run loop does that." |
+| Hand-over | "Write the file to `$0`, run `tsl verify $0 --self-check --json` once and fix every item in `data.fix` in a single rewrite. Do not run the review or decide; the run loop does that." The self-check runs the fast checks only (no verifier); it lists failing gates, failing soft checks (S2) and claims that will not verify (S1), so hosts without hooks get the same feedback as the post-write hook |
 
 ### 3.3 The input-check preamble
 
@@ -758,8 +758,11 @@ code checks). Then address every finding in data.retry.findings. If data.retry.c
 failures and findings need. Keep the ids of unchanged requirements.
 
 ## Hand-over
-Write the file once to data.artifact_path. Do not run checks, the review or the decision.
-The run loop does that and tells you if a retry is needed.
+Write the file to data.artifact_path. Then run `tsl verify <data.artifact_path> --self-check --json`
+once. If data.fix lists items (failing checks, soft checks that lower S2, claims that will not
+verify and lower S1), fix every one in a single rewrite of the file and do not run the self-check
+again. Do not run the review or the decision: the run loop does that and tells you if a retry is
+needed.
 ````
 
 ### 13.4 `rubric.md` body (criteria and descriptors)

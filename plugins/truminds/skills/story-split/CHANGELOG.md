@@ -1,5 +1,14 @@
 # Changelog: story-split
 
+## 1.3.0
+- Roadmap item 2 (self-checks): run HMS-9 requirement-review went to band Low on S2 alone
+  (RR-C12, summary over 5 sentences), which nothing reported before the review.
+- Hand-over: after writing, run `tsl verify <data.artifact_path> --self-check --json` once and fix
+  every item in data.fix (failing checks, soft checks, claims that will not verify) in a single
+  rewrite; never run it twice. Replaces "Do not run checks". MINOR: new instruction, same
+  inputs and output schema. Needs a signed eval result for this version before any status
+  change (SKL-V13).
+
 ## 1.2.0
 - Run HMS-4 (brownfield-change 1.3.0): impact escalated with band Low (S1 0.6, 8 of 14 claims
   verified) and design used up its checks budget on cite errors; about 8 of 19 questions asked

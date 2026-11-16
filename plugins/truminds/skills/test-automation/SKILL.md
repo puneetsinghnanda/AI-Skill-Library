@@ -74,6 +74,9 @@ add {id, how} to resolves in the front matter. Change only what the failures and
 keep the ids of unchanged items.
 
 ## Hand-over
-Make the product-repo edits first, then write the artifact once to data.artifact_path. Do not run
-builds, tests, checks, the review or the decision yourself: tsl runs the verifier container (H3) and
-the run loop tells you if a retry is needed. Never commit, push or open a pull request; tsl pr does that.
+Make the product-repo edits first, then write the artifact to data.artifact_path. Then run
+`tsl verify <data.artifact_path> --self-check --json` once; it does not start the verifier. If
+data.fix lists items, fix every one in a single rewrite of the artifact and do not run the
+self-check again. Do not run builds, tests, the review or the decision yourself: tsl runs the
+verifier container (H3) and the run loop tells you if a retry is needed. Never commit, push or
+open a pull request; tsl pr does that.

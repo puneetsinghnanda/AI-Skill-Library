@@ -36,8 +36,8 @@ def handle(ctx: Ctx) -> tuple[str, int]:
             return _finish(ctx, None)
         ctx.run_id = m.group("run_id")
         try:
-            verify_artifact(ctx.rt, comp, rel, fast=True)
-            weak = _weak_claims(ctx, comp, rel)
+            data = verify_artifact(ctx.rt, comp, rel, fast=True)
+            weak = " ".join(x for x in (_soft(data), _weak_claims(ctx, comp, rel)) if x)
             if not weak:
                 return _finish(ctx, None)
             return _finish(
@@ -46,8 +46,9 @@ def handle(ctx: Ctx) -> tuple[str, int]:
                     "hookSpecificOutput": {
                         "hookEventName": "PostToolUse",
                         "additionalContext": (
-                            "tsl checks passed. " + weak + " Fix them now if you can: an "
-                            "unverified claim lowers S1 at decide."
+                            "tsl checks passed. " + weak + " Fix them now if you can: a "
+                            "failing soft check lowers S2 and an unverified claim lowers S1 "
+                            "at decide."
                         )[:4000],
                     }
                 },
@@ -69,6 +70,14 @@ def handle(ctx: Ctx) -> tuple[str, int]:
                 "kept. Run tsl doctor."
             },
         )
+
+
+def _soft(data: dict[str, Any]) -> str:
+    """Soft warning: soft checks that fail now (they lower S2 at decide). Never blocks."""
+    failed = data.get("soft_failed") or []
+    if not failed:
+        return ""
+    return "Soft checks that fail: " + "; ".join(f"{s['id']}: {s['detail']}" for s in failed) + "."
 
 
 def _weak_claims(ctx: Ctx, comp: Any, rel: str) -> str:
