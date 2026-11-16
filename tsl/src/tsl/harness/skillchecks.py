@@ -7,6 +7,8 @@ import json
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from functools import cache
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
@@ -383,6 +385,22 @@ def _expand(env: CheckEnv, rel: str) -> str:
     return rel.replace("{run_id}", run_id).replace("{ticket}", ticket)
 
 
+ALLOWLIST_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*\.txt$")
+
+
+@cache
+def allowlist(name: str) -> frozenset[str] | None:
+    """Values in an `enum-file` allowlist shipped in tsl (harness/rules/<name>), or None when tsl
+    ships no such file. One value per line, first token only; blank and `#` lines are skipped."""
+    if not ALLOWLIST_NAME.match(name):
+        return None
+    f = resources.files("tsl.harness").joinpath("rules", name)
+    if not f.is_file():
+        return None
+    lines = (ln.strip() for ln in f.read_text(encoding="utf-8").splitlines())
+    return frozenset(ln.split()[0] for ln in lines if ln and not ln.startswith("#"))
+
+
 def _load_json(root: Path, rel: str) -> Any:
     p = root / rel
     if not p.is_file():
@@ -488,6 +506,14 @@ def _kind_check(env: CheckEnv, c: dict[str, Any]) -> tuple[str, str]:
                 if not (isinstance(v, dict) and v.get("cites")):
                     return "fail", "item without citation"
             return "pass", ""
+        if kind == "enum-file":
+            allowed = allowlist(str(c["file"]))
+            if allowed is None:
+                return "fail", f"allowlist {c['file']} is not shipped in tsl"
+            for v in select(env.front, c["select"]):
+                if str(v) not in allowed:
+                    return "fail", f"value {v!r} is not in {c['file']}"
+            return "pass", ""
     except (PathError, KeyError, TypeError) as exc:
         return "fail", f"check error: {type(exc).__name__}"
     return "skip", f"kind {kind} runs elsewhere"
@@ -534,6 +560,8 @@ def validate_declared(checks_doc: dict[str, Any]) -> list[str]:
         else:
             if c.get("kind") not in KINDS:
                 errs.append(f"{cid}: unknown kind")
+            if c.get("kind") == "enum-file" and allowlist(str(c.get("file", ""))) is None:
+                errs.append(f"{cid}: allowlist {c.get('file')} is not shipped in tsl")
             if not cid.startswith(skill.split("-")[0]) and cid.split(".")[0] not in skill:
                 errs.append(f"{cid}: id must be prefixed by the skill")
             paths = [c[k] for k in ("select", "each", "covered_by") if k in c]
