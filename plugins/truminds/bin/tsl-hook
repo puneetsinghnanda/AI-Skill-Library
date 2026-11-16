@@ -121,7 +121,7 @@ run_active() {
 }
 
 install_hint() { # no published package: tsl and the plugin both come from the library clone
-  printf '%s' 'update tsl and the plugin from your AI-Skill-Library clone: git pull; uv tool install --python 3.12 --reinstall --no-cache ./tsl (TSL_ORG_FILE set, see the pilot guide); claude plugin marketplace update truminds-skill-library; claude plugin update truminds@truminds-skill-library'
+  printf '%s' 'update tsl and the plugin from your AI-Skill-Library clone: git pull; uv tool install --python 3.12 --reinstall --no-cache ./tsl (TSL_ORG_FILE set, see docs/testing/team-setup-guide.md section 7a); claude plugin marketplace update truminds-skill-library; claude plugin update truminds@truminds-skill-library'
 }
 
 PV=$(plugin_version)

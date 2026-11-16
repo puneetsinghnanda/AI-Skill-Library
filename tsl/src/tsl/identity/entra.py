@@ -105,7 +105,8 @@ class MsalIdentity:
             raise TslError(
                 "E-AUTH-01",
                 "This tsl build has no identity configuration.",
-                next="Install the release wheel of tsl",
+                next="Reinstall tsl from the library clone with TSL_ORG_FILE set "
+                "(docs/testing/team-setup-guide.md section 5)",
             )
         import msal
 

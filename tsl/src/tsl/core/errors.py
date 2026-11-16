@@ -13,7 +13,7 @@ from typing import Any
 UPDATE_HINT = (
     "update tsl and the plugin from your AI-Skill-Library clone: git pull; "
     "uv tool install --python 3.12 --reinstall --no-cache ./tsl "
-    "(TSL_ORG_FILE set, see the pilot guide); "
+    "(TSL_ORG_FILE set, see docs/testing/team-setup-guide.md section 7a); "
     "claude plugin marketplace update truminds-skill-library; "
     "claude plugin update truminds@truminds-skill-library"
 )

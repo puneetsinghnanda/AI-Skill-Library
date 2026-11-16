@@ -110,14 +110,19 @@ Every suite should pass. A failure is a finding (§8).
    github_client_id = "<Client ID from Puneet>"
    service_url = "https://truminds-skills-test.onrender.com"
    ```
-2. Install:
+2. Install, from the repo folder:
    ```powershell
    $env:TSL_ORG_FILE = "$PWD\deploy\render\tsl-org.github.toml"
    uv tool install --python 3.12 --reinstall --no-cache .\tsl
    Remove-Item Env:TSL_ORG_FILE
-   tsl --version          # tsl 0.1.0
+   tsl --version          # the version in tsl/src/tsl/__init__.py, for example tsl 0.1.6
+   ```
+   On macOS or Linux, the same in one line:
+   ```bash
+   TSL_ORG_FILE="$PWD/deploy/render/tsl-org.github.toml" uv tool install --python 3.12 --reinstall --no-cache ./tsl
    ```
    - Keep `--reinstall --no-cache`; without them, uv can reuse an old build that has no settings file.
+   - Always set `TSL_ORG_FILE`. Without it, `tsl` has no sign-in settings and `tsl login` fails with E-AUTH-01.
    - Don't use `--editable`.
    - If `tsl` is "not recognized", run `uv tool update-shell` and reopen PowerShell.
 
@@ -213,6 +218,26 @@ review and a signed decision, cancels the run and confirms the portal received i
 
 **Docker for code steps:** the brownfield run's `implement` and `unit-test` steps run gate H3 in the `node-22` verifier container. Start Docker Desktop before the run. The first time, `tsl` downloads the image from `ghcr.io/puneetsinghnanda` (public, about 1 GB). Without Docker, those steps stop with **E-H3-07**; start Docker, then `/truminds:resume <run_id>`. Workflows without code steps (`estimate`, `security-review`, `ux-review`, `pipeline-check`) need no Docker.
 
+## 7a. Update to a new version
+
+There is **no GitHub release yet**. A new version means the version on `main` (see `tsl/src/tsl/__init__.py`): `tsl` and the plugin both come from your clone. Don't look for a release, a tag or a wheel URL.
+
+`tsl` and the plugin must be the same version, so update both. The steps are the same on Windows, macOS and Linux. Run them from your clone folder:
+
+1. In your clone (`C:\dev\AI-Skill-Library`): `git checkout main`, then `git pull`.
+2. Reinstall `tsl` exactly as in §5 step 2, with `TSL_ORG_FILE` set. Your settings file from §5 step 1 is still there.
+3. Update the plugin:
+   ```text
+   claude plugin marketplace update truminds-skill-library
+   claude plugin update truminds@truminds-skill-library
+   ```
+4. Restart the Claude Code app.
+5. Check: `tsl --version` and `claude plugin list` both show the new version, and `tsl doctor` has no ✖ line.
+
+If `claude plugin marketplace list` shows `truminds-skill-library` coming from GitHub instead of your clone folder, remove it (`claude plugin marketplace remove truminds-skill-library`) and repeat the plugin install in §7. Otherwise the plugin and `tsl` can come from different commits.
+
+A run you started before the update can usually be resumed after it (same major version). If resume stops with E-RUN-10, a skill changed in the update; ask a tech lead to run `tsl state repin <run_id>`.
+
 ## 8. Validate and report
 
 - **What to test:** your area's table in TST-02 §5 (VAL-SKL, VAL-HAR, VAL-EXE, VAL-TEL), in phase order A → B → C.
@@ -241,7 +266,9 @@ review and a signed decision, cancels the run and confirms the portal received i
 | Symptom | Fix |
 | --- | --- |
 | Portal or `tsl` hangs up to a minute, then works | The shared service was asleep. Open the portal first, then retry |
-| `tsl doctor` shows provider `entra` or service `insights.example.invalid` | `tsl` was installed without the settings file. Repeat §5 exactly |
+| `tsl doctor` shows provider `entra` or service `insights.example.invalid`, or `tsl login` fails with E-AUTH-01 "no identity configuration" | `tsl` was installed without the settings file. Repeat §5 exactly |
+| Updating, Claude or a doc says release `vX.Y.Z` or its wheel isn't found | There are no releases yet. Update from your clone (§7a) |
+| E-VER-01 "tsl … does not match plugin …" at session start | `tsl` and the plugin are different versions. Do every step of §7a |
 | `tsl login` says device flow is disabled, or GitHub says "redirect_uri is not associated" | Tell Puneet (OAuth App setting) |
 | Still "No Truminds role yet" / E-AUTH-08 | Send your pseudonym to Puneet (§6.4); after the grants, run `tsl login` again |
 | `E-AUTH-03` or `E-AUTH-04` when starting a run or approving | Missing `engineer` / `tech_lead` on `SYS-SMP` (§6a); `admin` is not enough |

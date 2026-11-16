@@ -38,7 +38,7 @@ uv run mypy                              # strict, src/tsl and tests
 uv build                                 # sdist + wheel (schemas bundled)
 ```
 
-Install for daily use: `uv tool install "truminds-tsl @ <release-wheel-URL>"` (SDD-05 §7.1).
+Install for daily use: from the library clone, as in [the team setup guide §5](../docs/testing/team-setup-guide.md#5-install-tsl-connected-to-the-test-environment-everyone-once); update with [§7a](../docs/testing/team-setup-guide.md#7a-update-to-a-new-version). There are no release wheels yet (target: SDD-05 §7.1).
 Developers use `uv tool install --editable ./tsl`.
 
 ### Test approach
