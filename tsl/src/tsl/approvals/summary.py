@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from tsl.approvals import approvals_md
+from tsl.approvals.service import resolve_gate, waiting_gates
 from tsl.core.errors import TslError
 from tsl.core.paths import approvals_path, sibling
 from tsl.core.repo import Companion
@@ -46,12 +47,6 @@ def _file(comp: Companion, rel: str) -> str:
     return rel
 
 
-def _waiting(st: dict[str, Any]) -> list[str]:
-    if st.get("status") != "PAUSED_APPROVAL":
-        return []
-    return [g["id"] for g in st.get("gates", []) if g["status"] == "WAITING_APPROVAL"]
-
-
 def _row(
     comp: Companion, st: dict[str, Any], gate: str, role: str, me: dict[str, Any]
 ) -> dict[str, Any]:
@@ -74,10 +69,13 @@ def list_waiting(rt: Runtime, comp: Companion) -> dict[str, Any]:
     rows = []
     for rid in all_runs(comp):
         st = read_state_raw(comp, rid)
-        if not st:
+        if not st or st.get("status") == "COMPLETED":
             continue
-        obj = approvals_md.load(comp.path(approvals_path(rid)))
-        for gate in _waiting(st):
+        try:
+            obj = approvals_md.load(comp.path(approvals_path(rid)))
+        except TslError:
+            continue  # one broken approvals.md must not hide every other run's gates
+        for gate in waiting_gates(st, obj):
             e = approvals_md.entry(obj, gate)
             if e is None or e.get("signature"):
                 continue
@@ -92,20 +90,9 @@ def summary(rt: Runtime, comp: Companion, run_id: str, gate: str | None = None) 
     st = read_state_raw(comp, run_id)
     if st is None:
         raise TslError("E-RUN-04", run_id=run_id)
-    gates = _waiting(st)
-    if gate is None:
-        if len(gates) != 1:
-            raise TslError(
-                "E-RUN-05",
-                status=st["status"],
-                command="gate",
-                needed="exactly one gate waiting for approval"
-                if not gates
-                else "--gate " + " or ".join(gates),
-                hint=f"tsl state show {run_id}",
-            )
-        gate = gates[0]
     obj = approvals_md.load(comp.path(approvals_path(run_id)))
+    if gate is None:
+        gate = resolve_gate(st, obj, run_id)
     e = approvals_md.entry(obj, gate)
     if e is None:
         raise TslError(
@@ -121,6 +108,7 @@ def summary(rt: Runtime, comp: Companion, run_id: str, gate: str | None = None) 
     out["artifacts"] = [_file(comp, a["path"]) for a in e.get("artifacts", [])]
     out["portal"] = portal_link(rt, run_id)
     out["step"] = (st.get("cursor") or {}).get("step")
+    out["several"] = len(waiting_gates(st, obj)) > 1
     out["self_approval_allowed"] = bool(comp.config.gates.self_approval)
     out["questions"] = st.get("questions")
     for a in e.get("artifacts", []):
@@ -129,7 +117,12 @@ def summary(rt: Runtime, comp: Companion, run_id: str, gate: str | None = None) 
         except ValueError:
             continue
         if vp.is_file():
-            v = json.loads(vp.read_text(encoding="utf-8"))
+            try:
+                v = json.loads(vp.read_text(encoding="utf-8"))
+            except ValueError:
+                continue  # a broken record only costs the quality line
+            if not isinstance(v, dict):
+                continue
             out["verification"] = {
                 "step": v.get("step"),
                 "band": v.get("band"),
@@ -164,5 +157,6 @@ def render(s: dict[str, Any]) -> str:
     lines.append(f"Details: {s['portal']}")
     if not s["mine_to_decide"]:
         lines.append(f"You do not hold the {s['role']} role, so you cannot decide this gate.")
-    lines.append(f"Decide: /tsl-gate {s['run_id']} approve|changes|reject|abort [comment]")
+    opt = f" --gate {s['gate']}" if s.get("several") else ""
+    lines.append(f"Decide: /tsl-gate {s['run_id']} approve|changes|reject|abort [comment]{opt}")
     return "\n".join(lines)

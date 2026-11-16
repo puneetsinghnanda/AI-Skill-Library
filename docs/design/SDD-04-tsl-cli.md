@@ -409,9 +409,9 @@ If no usable key exists, the result is exit 10 (E-AUTH-02 or E-KEY-01) and nothi
 
 ### 6.11 `tsl gate`
 
-`tsl gate [<run_id> [<decision>]] [--comment TEXT | --comment-file -] [--gate G]`. Network: G (push); S optional. In Claude Code the Mod command `/tsl-gate` calls it; elsewhere (Copilot, Cursor, a terminal) run it directly.
+`tsl gate [<run_id> [<decision>]] [--comment TEXT | --comment-file -] [--gate G] [--resign]`. Network: G (push); S optional. In Claude Code the Mod command `/tsl-gate` calls it; elsewhere (Copilot, Cursor, a terminal) run it directly.
 
-- No arguments: pulls the companion repo and lists the gates waiting for a role the caller holds.
+- No arguments: pulls the companion repo and lists the gates waiting for a role the caller holds: the gates of paused runs and unsigned external-write entries (`W-<n>`, SDD-02 §9.2) of runs that are not finished.
 - `<run_id>`: shows a summary (ticket, step, why it paused, role needed, quality band and findings when recorded, artifact paths, portal link `<service_url>/runs/<run_id>`). Signs nothing.
 - `<run_id> approve|changes|reject|abort`: writes `decision` and `comment` into the gate entry in `runs/<run_id>/approvals.md`, then runs these checks in order:
 
@@ -419,7 +419,9 @@ If no usable key exists, the result is exit 10 (E-AUTH-02 or E-KEY-01) and nothi
 2. The approver holds the gate's role on the system at this moment (E-AUTH-05).
 3. Self-approval is refused unless `gates.self_approval: true` (E-AUTH-06).
 
-It then appends the signed `approval-signature.v1` block (SDD-07 §6.4), commits the decision, comment and signature as one commit, pushes, and queues `approval.recorded`. The gate is inferred; `--gate` names it when a run has several. `--comment-file -` reads the comment from stdin (no shell quoting).
+It then appends the signed `approval-signature.v1` block (SDD-07 §6.4), commits the decision, comment and signature as one commit, pushes, and queues `approval.recorded`. The gate is inferred when exactly one waits; `--gate` names it when a run has several (E-RUN-05 lists them). `--comment-file -` reads the comment from stdin as UTF-8 (no shell quoting). Only the `decision:` line, the `comment:` line and the old comment's lines change in the entry; a missing line is added.
+
+A gate that is already signed is refused (E-RUN-05), with two exceptions. If the caller's own earlier signature was committed but its push failed, the same decision pushes it and signs nothing new. With `--resign` the caller replaces their own signature on a gate that still waits; this is the fix when `tsl state resume` refuses the signature (E-AUTH-11, §6.7).
 
 `data: {run_id, gate, decision, approver_role, signature_block_sha256, run_status, self_approved, resumable}`. `resumable` is true when the approver owns the run (self-approval allowed); the run owner continues with `/truminds:resume`. Exits: 0; 3 (E-AUTH-05, E-AUTH-06, E-RUN-04, E-RUN-05); 10 (E-GIT-01, E-AUTH-07).
 

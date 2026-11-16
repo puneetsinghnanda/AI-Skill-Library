@@ -77,9 +77,7 @@ def paused_input(n_blocking: int, run_id: str, questions_file: str) -> tuple[str
     )
 
 
-def paused_approval(
-    why: str, run_id: str, gate: str, approvals_file: str, portal: str | None = None
-) -> tuple[str, str]:
+def paused_approval(why: str, run_id: str, portal: str | None = None) -> tuple[str, str]:
     more = f" Details: {portal}" if portal else ""
     return (
         f"Paused: a person must approve before the run goes on, because {why}.{more}",

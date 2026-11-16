@@ -52,7 +52,14 @@ def _resume(world: World, run_id: str, user: str = "eng") -> tuple[int, Any]:
 
 
 def _state(world: World, run_id: str) -> dict[str, Any]:
-    return json.loads((world.companion / f"runs/{run_id}/state.json").read_text())
+    st: dict[str, Any] = json.loads((world.companion / f"runs/{run_id}/state.json").read_text())
+    return st
+
+
+def _entry(world: World, run_id: str, gate: str) -> dict[str, Any]:
+    e = approvals_md.entry(approvals_md.load(_appr(world, run_id)), gate)
+    assert e is not None
+    return e
 
 
 def _allow_self_approval(world: World) -> None:
@@ -163,8 +170,7 @@ def test_comment_round_trip(world: World, via: str) -> None:
         code, env = _gate(world, run_id, "approve", "--comment-file", "-", stdin=TRICKY)
     assert code == 0, env
     world.sync_companion()
-    obj = approvals_md.load(_appr(world, run_id))
-    assert approvals_md.entry(obj, "G-req")["comment"] == _flat(TRICKY)
+    assert _entry(world, run_id, "G-req")["comment"] == _flat(TRICKY)
     code, env = _resume(world, run_id)
     assert code == 0, env
 
@@ -173,10 +179,10 @@ def test_push_failure_is_clear_and_state_stays_consistent(world: World) -> None:
     run_id = _paused(world)
     hook = world.companion_remote / "hooks" / "pre-receive"
     hook.write_text("#!/bin/sh\nexit 1\n")
+    hook.chmod(0o755)
     code, env = _gate(world, run_id, "approve", "--comment", "ok")
     assert code == 10 and env["code"] == "E-GIT-01"
-    obj = approvals_md.load(_appr(world, run_id))
-    assert approvals_md.entry(obj, "G-req")["signature"]["decision"] == "approve"
+    assert _entry(world, run_id, "G-req")["signature"]["decision"] == "approve"
     assert "approve G-req" in git(world.companion, "log", "-1", "--format=%s")
     code, env = _gate(world, run_id, "reject", "--comment", "other")  # not the signed decision
     assert code != 0 and env["code"] == "E-RUN-05"
@@ -191,3 +197,192 @@ def test_push_failure_is_clear_and_state_stays_consistent(world: World) -> None:
     assert code != 0 and env["code"] == "E-RUN-05"  # pushed and signed: refused
     code, env = _resume(world, run_id)
     assert code == 0, env
+
+
+def _external_write_waiting(world: World) -> str:
+    """A running run with one unsigned external-write entry (W-1) pushed to the companion."""
+    run_id = _paused(world)
+    assert _gate(world, run_id, "approve")[0] == 0
+    code, env = _resume(world, run_id)
+    assert code == 0 and env["data"]["status"] == "RUNNING"
+    approvals_md.append_entry(
+        _appr(world, run_id),
+        run_id,
+        "W-1",
+        "tech_lead",
+        "external_write",
+        [],
+        "post the summary to the ticket",
+        action={"tool": "mcp__jira__add_comment", "target": "SMP-1"},
+    )
+    git(world.companion, "add", "-A")
+    git(world.companion, "commit", "-qm", "external write waits")
+    git(world.companion, "push", "-q", "origin", "main")
+    return run_id
+
+
+def test_external_write_gate_is_listed_inferred_and_signed(world: World) -> None:
+    run_id = _external_write_waiting(world)
+    code, env = _gate(world)
+    assert code == 0 and [(r["run_id"], r["gate"]) for r in env["data"]["waiting"]] == [
+        (run_id, "W-1")
+    ]
+    code, env = _gate(world, run_id)
+    assert code == 0 and env["data"]["gate"] == "W-1", env
+    code, env = _gate(world, run_id, "approve", "--comment", "go")  # no --gate: W-1 is inferred
+    assert code == 0 and env["data"]["gate"] == "W-1", env
+    e = _entry(world, run_id, "W-1")
+    assert e["decision"] == "approve" and e["comment"] == "go"
+    assert e["action"] == {"tool": "mcp__jira__add_comment", "target": "SMP-1"}
+    sig = e["signature"]
+    assert sig["kind"] == "external_write" and sig["action"] == e["action"]
+    code, env = _gate(world)
+    assert code == 0 and env["data"]["waiting"] == []  # signed: no longer waiting
+
+
+def test_several_waiting_gates_need_gate_option(world: World) -> None:
+    run_id = _paused(world)
+    path = _appr(world, run_id)
+    approvals_md.append_entry(
+        path,
+        run_id,
+        "W-1",
+        "tech_lead",
+        "external_write",
+        [],
+        "x",
+        action={"tool": "mcp__jira__add_comment", "target": "SMP-9"},
+    )
+    git(world.companion, "add", "-A")
+    git(world.companion, "commit", "-qm", "w")
+    git(world.companion, "push", "-q", "origin", "main")
+    head = _remote_head(world)
+    code, env = _gate(world, run_id, "approve")
+    assert code != 0 and env["code"] == "E-RUN-05" and "--gate G-req or W-1" in env["message"]
+    assert _remote_head(world) == head
+    code, env = _gate(world, run_id, "--gate", "W-1")
+    assert code == 0 and "--gate W-1" in env["message"].splitlines()[-1]
+    code, env = _gate(world, run_id, "approve", "--gate", "W-1")
+    assert code == 0 and env["data"]["gate"] == "W-1", env
+    assert _entry(world, run_id, "G-req")["signature"] is None
+
+
+HAND_WRITTEN = """
+## W-2 · required role: tech_lead
+decision:
+comment: old first line
+old second line
+Action: tool=mcp__jira__add_comment target=SMP-2
+Reason for gate: written by hand
+"""
+
+
+def test_set_decision_keeps_other_fields_and_replaces_only_the_comment(tmp_path: Path) -> None:
+    p = tmp_path / "approvals.md"
+    p.write_text("---\nschema: approvals.v1\nrun_id: run_X\n---\n" + HAND_WRITTEN, "utf-8")
+    approvals_md.set_decision(p, "W-2", "changes", "new\ncomment")
+    e = approvals_md.entry(approvals_md.parse(p.read_text("utf-8")), "W-2")
+    assert e is not None
+    assert e["decision"] == "changes" and e["comment"] == "new comment"
+    assert e["action"] == {"tool": "mcp__jira__add_comment", "target": "SMP-2"}
+    assert e["reason"] == "written by hand"
+    text = p.read_text("utf-8")
+    assert "old second line" not in text and "old first line" not in text
+
+
+def test_set_decision_adds_missing_decision_and_comment_lines(tmp_path: Path) -> None:
+    p = tmp_path / "approvals.md"
+    body = (
+        "\n## W-3 · required role: tech_lead\nAction: tool=t target=y\n"
+        "Reason for gate: no fields\n\n## G-req · required role: tech_lead\ndecision:\ncomment:\n"
+    )
+    p.write_text("---\nschema: approvals.v1\nrun_id: run_X\n---\n" + body, "utf-8")
+    approvals_md.set_decision(p, "W-3", "reject", "not this target")
+    obj = approvals_md.parse(p.read_text("utf-8"))
+    e, other = approvals_md.entry(obj, "W-3"), approvals_md.entry(obj, "G-req")
+    assert e is not None and other is not None
+    assert e["decision"] == "reject" and e["comment"] == "not this target"
+    assert e["action"] == {"tool": "t", "target": "y"} and e["reason"] == "no fields"
+    assert other["decision"] is None and other["comment"] is None
+
+
+def test_resign_replaces_own_signature_after_resume_refused_it(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tsl.insights.client import HttpResult
+
+    run_id = _paused(world)
+    assert _gate(world, run_id, "approve", "--comment", "ok")[0] == 0
+    first = _entry(world, run_id, "G-req")["signature"]
+    world.sync_companion()
+    cache = world.rt().home.key_cache("x").parent
+    for f in cache.glob("*.json") if cache.exists() else []:
+        f.unlink()
+    with monkeypatch.context() as mp:
+        mp.setattr(world.insights, "get_key", lambda token, key_id: HttpResult(404, None))
+        code, env = _resume(world, run_id)
+    assert env["code"] == "E-AUTH-11", env
+    fix = f"tsl gate {run_id} <decision> --gate G-req --resign"
+    assert fix in env["message"] + str(env["next"])
+    # The fix the message names works: the approver signs again, the owner resumes.
+    code, env = _gate(world, run_id, "approve", "--gate", "G-req", user="eng")
+    assert code != 0 and env["code"] == "E-RUN-05"  # --resign missing: still refused
+    code, env = _gate(world, run_id, "approve", "--gate", "G-req", "--resign", user="eng")
+    assert code != 0 and env["code"] == "E-RUN-05"  # not eng's signature
+    world.clock.tick(60) if hasattr(world.clock, "tick") else None
+    code, env = _gate(world, run_id, "approve", "--comment", "again", "--gate", "G-req", "--resign")
+    assert code == 0, env
+    e = _entry(world, run_id, "G-req")
+    assert e["comment"] == "again" and e["signature"]["signature"] != first["signature"]
+    assert _appr(world, run_id).read_text().count("tsl:signature-begin G-req") == 1
+    code, env = _resume(world, run_id)
+    assert code == 0 and env["data"]["status"] == "RUNNING", env
+
+
+def test_broken_approvals_file_of_one_run_does_not_hide_other_gates(world: World) -> None:
+    import shutil
+
+    good = _paused(world)
+    broken = good[:-1] + ("0" if good[-1] != "0" else "1")  # a second paused run, file damaged
+    shutil.copytree(world.companion / f"runs/{good}", world.companion / f"runs/{broken}")
+    st = _state(world, good)
+    st["run_id"] = broken
+    (world.companion / f"runs/{broken}/state.json").write_text(json.dumps(st))
+    _appr(world, broken).write_text("---\nschema: [\n---\n## G-req · required role: tech_lead\n")
+    with pytest.raises(Exception):  # noqa: B017 - the file really is unreadable
+        approvals_md.load(_appr(world, broken))
+    git(world.companion, "add", "-A")
+    git(world.companion, "commit", "-qm", "break one file")
+    git(world.companion, "push", "-q", "origin", "main")
+    code, env = _gate(world)
+    assert code == 0 and [r["run_id"] for r in env["data"]["waiting"]] == [good]
+
+
+def test_decide_does_not_need_the_summary(world: World) -> None:
+    run_id = _paused(world)
+    e = _entry(world, run_id, "G-req")
+    from tsl.core.paths import sibling
+
+    rec = world.companion / sibling(e["artifacts"][0]["path"], ".verification.json")
+    world_text = rec.read_text() if rec.is_file() else None
+    rec.write_text("{not json")
+    code, env = _gate(world, run_id)
+    assert code == 0 and "verification" not in env["data"]  # summary: only the quality line goes
+    if world_text is None:
+        rec.unlink()
+    else:
+        rec.write_text(world_text)
+    code, env = _gate(world, run_id, "approve")
+    assert code == 0, env
+
+
+def test_stdin_is_read_as_utf8_whatever_the_code_page(monkeypatch: pytest.MonkeyPatch) -> None:
+    import io
+    import sys
+
+    from tsl.cli.app import _utf8_streams
+
+    raw = "Größe → kleiner".encode()
+    monkeypatch.setattr(sys, "stdin", io.TextIOWrapper(io.BytesIO(raw), encoding="cp1252"))
+    _utf8_streams()
+    assert sys.stdin.read() == "Größe → kleiner"

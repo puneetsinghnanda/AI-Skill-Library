@@ -44,6 +44,9 @@ export const SLASH_COMMANDS = [
   '/truminds:context-draft',
 ] as const;
 
+/** Commands the plugin's Mod registers (plugins/truminds/hooks/register.tsx); not skill folders. */
+export const MOD_COMMANDS = ['/tsl-gate'] as const;
+
 /** Claude Code built-in plugin commands (development seats only, DEV-01 §5). */
 export const CLAUDE_CODE_COMMANDS = ['/plugin marketplace add', '/plugin install'] as const;
 
@@ -53,11 +56,11 @@ export function runCommand(workflow: string | null | undefined, ticket = '<ticke
   return `/truminds:run ${workflow || '<workflow>'} ${ticket}`;
 }
 
-/** True when `cmd` starts with a known command (tsl, slash, Claude Code, git or uv). */
+/** True when `cmd` starts with a known command (tsl, slash, Mod, Claude Code, git or uv). */
 export function isKnownCommand(cmd: string): boolean {
   const c = cmd.trim();
   if (c.startsWith('git clone ') || c.startsWith('uv tool install ')) return true;
-  return [...TSL_COMMANDS, ...SLASH_COMMANDS, ...CLAUDE_CODE_COMMANDS].some(
+  return [...TSL_COMMANDS, ...SLASH_COMMANDS, ...MOD_COMMANDS, ...CLAUDE_CODE_COMMANDS].some(
     (k) => c === k || c.startsWith(`${k} `),
   );
 }

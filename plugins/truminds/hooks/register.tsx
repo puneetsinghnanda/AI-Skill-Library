@@ -5,28 +5,60 @@ import type { Register } from 'claude-code'
 // stdin, so nothing a person types is parsed by a shell. Where Mods are off, run `tsl gate`.
 
 const DECISIONS = ['approve', 'changes', 'reject', 'abort']
-const USAGE = 'Usage (a decision word is needed to decide): /tsl-gate [run_id [approve|changes|reject|abort [comment]]]  [--gate G]'
+const USAGE =
+  'Usage (a decision word is needed to decide): /tsl-gate [run_id [--gate G] [approve|changes|reject|abort [comment]]]'
 
 type Env = { ok?: boolean; message?: string; next?: string | null; data?: any }
 
+const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+
+type Parsed = { argv: string[]; stdin?: string; run?: string } | null
+
+// `--gate G` may stand after the run id, after the decision word, or at the very end.
+// Anything else after the decision is the comment. null means: show USAGE.
+function parseArgs(args: string): Parsed {
+  let rest = args.trim()
+  let gate: string | undefined
+  const take = (re: RegExp, keep: (m: RegExpMatchArray) => string): boolean => {
+    const m = rest.match(re)
+    if (!m) return false
+    gate = m[m.length - 1]
+    rest = keep(m).trim()
+    return true
+  }
+  if (/^--gate(\s|$)/.test(rest)) return null // a gate needs a run id
+  take(/^(\S+)\s+--gate\s+(\S+)(?=\s|$)/, (m) => m[1] + rest.slice(m[0].length)) ||
+    take(/^(\S+\s+\S+)\s+--gate\s+(\S+)(?=\s|$)/, (m) => m[1] + rest.slice(m[0].length)) ||
+    take(/^(\S+\s+\S+(?:\s[\s\S]*)?)\s--gate\s+(\S+)$/, (m) => m[1])
+  if (gate !== undefined && !ID.test(gate)) return null
+  if (/(^|\s)--gate$/.test(rest)) return null // --gate without a value
+  const m = rest.match(/^(\S+)(?:\s+(\S+))?(?:\s+([\s\S]*))?$/)
+  const argv = ['tsl', 'gate', '--json']
+  let stdin: string | undefined
+  if (m) {
+    if (!ID.test(m[1])) return null
+    argv.push(m[1])
+    if (m[2]) {
+      if (!DECISIONS.includes(m[2])) return null
+      argv.push(m[2])
+      if (m[3] && m[3].trim()) {
+        argv.push('--comment-file', '-')
+        stdin = m[3]
+      }
+    }
+  }
+  if (gate) argv.push('--gate', gate)
+  return { argv, stdin, run: m?.[1] }
+}
+
+// tsl writes the text (one renderer); this only adds the rows and the next step.
 function render(env: Env, argsRun?: string): string {
   const d = env.data ?? {}
+  let text = env.message ?? ''
   if (Array.isArray(d.waiting)) {
     if (d.waiting.length === 0) return 'No gates are waiting for your role.'
     const rows = d.waiting.map((r: any) => `${r.run_id}  ${r.ticket}  ${r.gate} (${r.role})  ${r.command}`)
-    return `${env.message}\n${rows.join('\n')}`
-  }
-  let text = env.message ?? ''
-  if (env.ok && d.gate && d.portal && !d.decision) {
-    text = [
-      `Gate ${d.gate} on ${d.run_id} (${d.ticket}, ${d.workflow})`,
-      `Needs role: ${d.role}`,
-      d.reason ? `Why: ${d.reason}` : '',
-      ...(d.artifacts ?? []).map((a: string) => `Artifact: ${a}`),
-      `Details: ${d.portal}`,
-      `Decide: /tsl-gate ${d.run_id} approve|changes|reject|abort [comment]`,
-    ].filter(Boolean).join('\n')
-    return text
+    return `${text}\n${rows.join('\n')}`
   }
   if (env.ok && d.decision && d.resumable) text += `\nYou own this run: run /truminds:resume ${argsRun ?? d.run_id}`
   else if (env.ok && d.decision) text += '\nThe run owner now runs /truminds:resume to continue.'
@@ -45,31 +77,9 @@ export const register: Register = (on) => {
   })
 
   on('command.run', { command: 'tsl-gate' }, async ($, e) => {
-    let rest = String(e.args ?? '').trim()
-    let gate: string | undefined
-    const g = rest.match(/^(\S+)\s+--gate\s+(\S+)/) ?? rest.match(/^()--gate\s+(\S+)/)
-    if (g) {
-      gate = g[2]
-      rest = (g[1] + ' ' + rest.slice(g[0].length)).trim()
-    }
-    const ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
-    if (gate && !ID.test(gate)) return { text: USAGE }
-    const m = rest.match(/^(\S+)(?:\s+(\S+))?(?:\s+([\s\S]*))?$/)
-    const argv = ['tsl', 'gate', '--json']
-    let stdin: string | undefined
-    if (m) {
-      if (!ID.test(m[1])) return { text: USAGE }
-      argv.push(m[1])
-      if (m[2]) {
-        if (!DECISIONS.includes(m[2])) return { text: USAGE }
-        argv.push(m[2])
-        if (m[3] && m[3].trim()) {
-          argv.push('--comment-file', '-')
-          stdin = m[3]
-        }
-      }
-    }
-    if (gate) argv.push('--gate', gate)
+    const p = parseArgs(String(e.args ?? ''))
+    if (!p) return { text: USAGE }
+    const { argv, stdin } = p
     try {
       const r = await $.process.run(argv, { stdin, timeoutMs: 120000 })
       const line = r.stdout.trim().split(/\r?\n/).filter(Boolean).pop() ?? ''
@@ -79,7 +89,7 @@ export const register: Register = (on) => {
       } catch {
         return { text: `tsl gate failed (exit ${r.exitCode}): ${(r.stderr || r.stdout).slice(-300)}` }
       }
-      return { text: render(env, m?.[1]) }
+      return { text: render(env, p.run) }
     } catch (err) {
       return { text: `tsl could not be run (${String(err).slice(0, 200)}). Install tsl or run it yourself: tsl gate ...` }
     }

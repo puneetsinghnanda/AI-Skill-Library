@@ -27,10 +27,52 @@ def _undo(g: Any, path: Any, original: str, run_id: str) -> None:
     g.run("reset", "-q", "--", approvals_path(run_id), check=False)
 
 
+def waiting_gates(st: dict[str, Any], obj: dict[str, Any]) -> list[str]:
+    """Gates of one run that wait for a person: the paused run's state gates, then unsigned
+    external-write entries (W-<n>), which exist only in approvals.md while the run goes on."""
+    out: list[str] = []
+    if st.get("status") == "PAUSED_APPROVAL":
+        out = [str(g["id"]) for g in st.get("gates", []) if g["status"] == "WAITING_APPROVAL"]
+    if st.get("status") != "COMPLETED":
+        for e in obj.get("entries", []):
+            gid = str(e["id"])
+            if gid.startswith("W-") and gid not in out:
+                last = approvals_md.entry(obj, gid)
+                if last is not None and not last.get("signature"):
+                    out.append(gid)
+    return out
+
+
+def resolve_gate(st: dict[str, Any], obj: dict[str, Any], run_id: str) -> str:
+    """The one waiting gate of the run; E-RUN-05 names the choices when there is not exactly one."""
+    gates = waiting_gates(st, obj)
+    if len(gates) != 1:
+        raise TslError(
+            "E-RUN-05",
+            status=st["status"],
+            command="gate",
+            needed="exactly one gate waiting for approval"
+            if not gates
+            else "--gate " + " or ".join(gates),
+            hint=f"tsl state show {run_id}",
+        )
+    return gates[0]
+
+
 def decide(
-    rt: Runtime, comp: Companion, run_id: str, gate: str, decision: str, comment: str | None
+    rt: Runtime,
+    comp: Companion,
+    run_id: str,
+    gate: str | None,
+    decision: str,
+    comment: str | None,
+    resign: bool = False,
 ) -> dict[str, Any]:
-    """Write the decision and comment into the gate entry, sign it and push (one commit)."""
+    """Write the decision and comment into the gate entry, sign it and push (one commit).
+
+    `gate=None` means the run's one waiting gate. `resign` replaces the caller's own earlier
+    signature on a gate that is still waiting (the fix for a signature the service refuses).
+    """
     g = comp.git
     try:
         g.fetch()
@@ -41,6 +83,8 @@ def decide(
     ctx = RunCtx(rt, comp, run_id)
     path = comp.path(approvals_path(run_id))
     obj = approvals_md.load(path)
+    if gate is None:
+        gate = resolve_gate(ctx.state, obj, run_id)
     e = approvals_md.entry(obj, gate)
     st_gate = next(
         (
@@ -61,9 +105,20 @@ def decide(
             needed=f"gate {gate} waiting for approval",
             hint=f"tsl state show {run_id}",
         )
+    if decision not in DECISIONS:
+        raise TslError(
+            "E-RUN-05",
+            status="bad decision",
+            command="gate",
+            needed="approve, changes, reject or abort",
+            hint="tsl gate <run_id> approve|changes|reject|abort",
+        )
+    replace_own = False
     if e.get("signature"):
         sig0 = e["signature"]
-        if (
+        if resign and sig0.get("approver") == memod.current_me(rt).get("pseudonym"):
+            replace_own = True  # my own signature, the gate still waits: sign it afresh below
+        elif (
             g.unpushed(comp.config.companion_branch, [approvals_path(run_id)])
             and sig0.get("decision") == decision
             and sig0.get("approver") == memod.current_me(rt).get("pseudonym")
@@ -79,6 +134,7 @@ def decide(
                 )
             sig = e["signature"]
             return {
+                "run_id": run_id,
                 "gate": gate,
                 "decision": sig.get("decision"),
                 "approver_role": sig.get("role"),
@@ -87,21 +143,14 @@ def decide(
                 "resumable": bool(sig.get("self_approved")),
                 "pushed_earlier_signature": True,
             }
-        raise TslError(
-            "E-RUN-05",
-            status="already signed",
-            command="gate",
-            needed="an unsigned gate",
-            hint=f"tsl state resume {run_id}",
-        )
-    if decision not in DECISIONS:
-        raise TslError(
-            "E-RUN-05",
-            status="bad decision",
-            command="gate",
-            needed="approve, changes, reject or abort",
-            hint="tsl gate <run_id> approve|changes|reject|abort",
-        )
+        else:
+            raise TslError(
+                "E-RUN-05",
+                status="already signed",
+                command="gate",
+                needed="an unsigned gate",
+                hint=f"tsl state resume {run_id}",
+            )
     comment = " ".join((comment or "").split()) or None
     if decision in ("changes", "reject") and not comment:
         raise TslError(
@@ -187,6 +236,8 @@ def decide(
     try:
         signed = sign_object(block, signer.key_id, signer.private)
         require_valid("approval-signature.v1", signed, "approval block")
+        if replace_own:
+            approvals_md.remove_signature(path, gate)
         approvals_md.set_decision(path, gate, decision, comment)
         approvals_md.append_signature(path, gate, signed)
         block_sha = sha256_raw(canonical(signed))
@@ -220,6 +271,7 @@ def decide(
             data={"gate": gate, "decision": decision, "signature_block_sha256": block_sha},
         )
     return {
+        "run_id": run_id,
         "gate": gate,
         "decision": decision,
         "approver_role": role,

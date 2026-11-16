@@ -392,7 +392,10 @@ def _resume_input(rt: Runtime, ctx: RunCtx) -> list[str]:
     return open_ids
 
 
-REAPPROVE = "The approver runs tsl doctor, then runs tsl gate {run} again"
+REAPPROVE = (
+    "The approver runs tsl doctor, then signs again: "
+    "tsl gate {run} <decision> --gate {gate} --resign"
+)
 APPROVAL_PROBLEMS = {
     "unknown_key": "the approver's signing key {key} is not registered on the service",
     "bad_signature": "the signature does not match the approver's key",
