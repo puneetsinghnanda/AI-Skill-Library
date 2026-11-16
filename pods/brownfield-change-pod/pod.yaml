@@ -40,6 +40,7 @@ agents:
       - {skill: story-split, reason: "No Business Analyst in this pod"}
 workflows:
   - brownfield-change@^1.3
+  - brownfield-small@^1.0
   - defect-fix@^1.0
 people:
   - {title: Tech lead, kind: platform, platform_role: tech_lead,
