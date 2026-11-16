@@ -71,6 +71,7 @@ def do_req_step(
     findings: list[dict[str, Any]] | None = None,
     score: int = 5,
     expect_block: bool = False,
+    expect_warn: str | None = None,
     user: str = "eng",
     until: str = "decide",
 ) -> dict[str, Any]:
@@ -91,7 +92,11 @@ def do_req_step(
     if expect_block:
         assert json.loads(out)["decision"] == "block", out
         return {"blocked": json.loads(out), "artifact": art}
-    assert out == "", out
+    if expect_warn:  # the post-write hook warns (soft check or claim) but does not block
+        ctx = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+        assert expect_warn in ctx, out
+    else:
+        assert out == "", out
     if until == "written":
         return {"artifact": art}
     code, pkg, _, err = w.cli(["review", "prepare", art, "--json"], user=user, session=SESSION)

@@ -76,5 +76,9 @@ add {id, how} to resolves in the front matter. Change only what the failures and
 keep the ids of unchanged items.
 
 ## Hand-over
-Write the file once to data.artifact_path. Do not run checks, the review or the decision.
-The run loop does that and tells you if a retry is needed.
+Write the file to data.artifact_path. Then run `tsl verify <data.artifact_path> --self-check --json`
+once. If data.fix lists items (failing checks, soft checks that lower S2, claims that will not
+verify and lower S1), edit only the part of the file each item names and leave the rest unchanged;
+do not rewrite the whole file or redo the step. Make every edit, then hand over without running the
+self-check again. Do not run the review or the decision: the run loop does that and tells you if a
+retry is needed.

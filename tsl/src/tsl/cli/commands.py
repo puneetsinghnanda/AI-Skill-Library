@@ -362,11 +362,28 @@ def verify(
     detach: Annotated[bool, typer.Option("--detach")] = False,
     status: Annotated[bool, typer.Option("--status")] = False,
     ci: Annotated[bool, typer.Option("--ci")] = False,
+    self_check: Annotated[bool, typer.Option("--self-check")] = False,
 ) -> int:
-    """Run the code checks H1-H7 on an artifact, or check a step's inputs with --inputs."""
+    """Run the code checks H1-H7 on an artifact, or check a step's inputs with --inputs.
+
+    --self-check lists what the skill can still fix before the review, in data.fix."""
     from tsl.harness import verify as svc
 
     c = comp()
+    if self_check:
+        if artifact is None:
+            raise TslError("E-USE-01", detail="artifact path required", cmd="verify")
+        data = svc.self_check(rt(), c, artifact)
+        n = len(data["fix"])
+        if not n:
+            return emit_ok("Self-check clean", data, c.warnings, "hand over")
+        return emit_ok(
+            f"Self-check: {n} item(s) to fix",
+            data,
+            c.warnings,
+            "edit only what each item in data.fix names (no full rewrite), then hand over "
+            "without checking again",
+        )
     if inputs:
         data = svc.verify_inputs(rt(), c, run, step, artifact)
         return emit_ok(
