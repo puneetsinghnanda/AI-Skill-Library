@@ -72,7 +72,8 @@ def test_review_built_from_the_instructions_validates_and_records(world: World) 
                 "severity": "minor",
                 "category": "completeness",
                 "text": "The retention period is not stated.",
-                "cites": [{"ref": f"{art}#requirements", "quote": "export orders as CSV"}],
+                # A real quote: review record rejects a citation that does not verify (E-REV-05).
+                "cites": [{"ref": f"{art}#requirements", "quote": "REQ-1 history list"}],
             }
         ],
         "claims_checked": [{"claim_id": "C1", "verdict": "supported"}],
