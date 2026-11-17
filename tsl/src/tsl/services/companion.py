@@ -31,6 +31,11 @@ RECORD_GLOBS = [
 ]
 ARCHIVE_FILE = "ARCHIVE.json"
 ARCHIVE_SCHEMA = "companion-archive.v1"
+# Raw reviewer output saved by the run/resume skills before `tsl review record` validates it.
+# It is untrusted input, not a record: record is its check, and a rejected one (E-REV-02) stays
+# on disk as evidence. Schema-checking it here turned one rejected review into a red CI on every
+# later push. Content checks (secrets, size) still cover these files.
+UNCHECKED_SCHEMA_GLOBS = ["runs/*/review-input/**"]
 RUN_IN_PATH = re.compile(
     r"^(?:runs/(run_[0-9A-HJKMNP-TV-Z]{26})/|artifacts/[^/]+/(run_[0-9A-HJKMNP-TV-Z]{26})/)"
 )
@@ -79,6 +84,8 @@ def _check_schemas(comp: Companion, files: list[str], out: list[Finding]) -> Non
         # Artifacts are judged by H1 (their failed attempts are kept on purpose);
         # everything else, ARCHIVE.json (companion-archive.v1) included, must validate.
         if rel.startswith("artifacts/") and rel.endswith(".md"):
+            continue
+        if any_match(rel, UNCHECKED_SCHEMA_GLOBS):
             continue
         p = comp.path(rel)
         if not p.is_file() or p.stat().st_size > MAX_FILE_BYTES:
