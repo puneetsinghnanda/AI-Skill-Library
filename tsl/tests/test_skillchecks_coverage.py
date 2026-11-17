@@ -191,18 +191,22 @@ def test_test_automation_fails_for_a_planned_criterion_no_result_links(tmp_path:
     assert (out.status, out.detail) == ("fail", "S-2/AC1 covered fewer than 1 times")
 
 
-def test_test_automation_fails_when_a_planned_test_has_no_result(tmp_path: Path) -> None:
-    front = _results(["S-1/AC1"])  # TP-2 was never automated
+def test_test_automation_fails_when_a_planned_tests_criteria_have_no_result(tmp_path: Path) -> None:
+    """TP-2 was never automated and no other result links its criteria. The check works per
+    criterion, not per test id: a result that links TP-2's criteria under another id passes."""
+    front = _results(["S-1/AC1"])
     out = _outcome(
         "test-automation", "test-automation.results-linked", front, tmp_path, _plan_input(tmp_path)
     )
     assert (out.status, out.detail) == ("fail", "S-1/AC2 covered fewer than 1 times")
 
 
-def test_test_automation_fails_for_results_linked_to_criteria_the_plan_lacks(
+def test_test_automation_fails_when_results_link_none_of_the_planned_criteria(
     tmp_path: Path,
 ) -> None:
-    """Before #6 this passed: each result's covers were compared with every result's covers."""
+    """Before #6 this passed: each result's covers were compared with every result's covers.
+    It fails because the planned criteria are unlinked; an extra link to a criterion the plan
+    lacks, next to complete links, is not detected (the coverage kind checks one direction)."""
     front = _results(["S-9/AC9"], ["S-9/AC8"])
     out = _outcome(
         "test-automation", "test-automation.results-linked", front, tmp_path, _plan_input(tmp_path)
