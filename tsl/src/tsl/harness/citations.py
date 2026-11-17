@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import difflib
+import html
 import json
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,8 @@ SLUG = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 FACT = re.compile(r"^(module|dep|import|http|ui|call|table|column|index|migration|test|sym):\S+$")
 # Upstream artifact items (B4): artifacts/<t>/<run>/impact.md#claim:C7 or #item:CO-1.
 ITEM = re.compile(r"^(claim|item):[A-Za-z0-9][A-Za-z0-9:/._-]*$")
+# A bare item id (T-3, C8): not an anchor in an artifact, read as item:<id> in a review.
+BARE_ID = re.compile(r"^[A-Z]+-?[0-9]+$")
 IDE_ANSWERS = re.compile(r"^runs/run_[A-Za-z0-9]+/ide-answers\.md$")
 ANCHOR_FORMS = (
     "a generated fact id (module:..., http:..., table:...), a lower-case heading slug, "
@@ -88,6 +91,21 @@ def parse(raw: str, repos: set[str]) -> Cite | None:
     return Cite(repo, path, anchor, raw)
 
 
+def parse_review(raw: str, repos: set[str]) -> Cite | None:
+    """A reviewer's cite: as parse, and a bare item id on a .md file reads as item:<id>.
+
+    The reviewer cannot correct a cite after decide, and `threat.md#T-3` names the item it
+    means (HMS-9 threat lost four findings this way). Artifact cites stay strict (parse)."""
+    c = parse(raw, repos)
+    if c is None and "#" in raw:
+        left, anchor = raw.split("#", 1)
+        if BARE_ID.match(anchor) and left.endswith(".md"):
+            c = parse(f"{left}#item:{anchor}", repos)
+            if c is not None:
+                c = replace(c, raw=raw)
+    return c
+
+
 def format_error(raw: str, repos: set[str]) -> str:
     """Why `raw` is not a citation, naming the allowed forms (B4)."""
     if "#" not in raw:
@@ -98,7 +116,7 @@ def format_error(raw: str, repos: set[str]) -> str:
     if ":" in left and left.split(":", 1)[0] not in repos:
         return f"bad citation format {raw[:80]}: unknown repo {left.split(':', 1)[0]}"
     path = left.split(":", 1)[1] if ":" in left else left
-    if re.match(r"^[A-Z]+-?[0-9]+$", anchor) and path.endswith(".md"):
+    if BARE_ID.match(anchor) and path.endswith(".md"):
         return (
             f"bad citation format {raw[:80]}: {anchor} is not an anchor; cite the item as "
             f"{left}#claim:{anchor} (or #item:{anchor}), or cite its underlying fact"
@@ -107,7 +125,9 @@ def format_error(raw: str, repos: set[str]) -> str:
 
 
 def normalise(s: str) -> str:
-    s = unicodedata.normalize("NFC", s).replace("\t", " ")
+    # Entities first: reviewers write `<` as `&lt;` in JSON (HMS-6 to HMS-9: 16 of 34 dropped
+    # findings). Both sides are unescaped, so a file that really holds `&lt;` still matches.
+    s = unicodedata.normalize("NFC", html.unescape(s)).replace("\t", " ")
     return re.sub(r"\s+", " ", s).strip()
 
 
@@ -197,8 +217,13 @@ class Resolver:
 
 
 def span_for(
-    c: Cite, text: str, generated: dict[str, Any] | None = None
+    c: Cite, text: str, generated: dict[str, Any] | None = None, *, review: bool = False
 ) -> tuple[str | None, str | None]:
+    """The text a cite points at. review=True is a reviewer's cite: a heading slug on a .md file
+    also covers the front-matter key of the same name, because artifacts hold items twice (full
+    in the front matter, summarised under the heading) and reviewers quote either under one
+    anchor (HMS-4, HMS-7, HMS-9). Artifact claims keep the heading only, so a claim cannot
+    verify against its own claims block."""
     lines = text.split("\n")
     m = LINES.match(c.anchor)
     if m:
@@ -234,10 +259,37 @@ def span_for(
     if ITEM.match(c.anchor) and c.path.endswith(".md"):
         return _item_span(c.anchor, text)
     hs = headings(text)
+    span: str | None = None
     for h in hs:
         if h.anchor == c.anchor or github_slug(h.title) == c.anchor:
-            return h.title + "\n" + section_text(text, h, hs), None
-    return None, "anchor not found"
+            span = h.title + "\n" + section_text(text, h, hs)
+            break
+    if review and c.path.endswith(".md"):
+        block = _front_key_block(c.anchor, text)
+        if block is not None:
+            span = block if span is None else span + "\n" + block
+    if span is None:
+        return None, "anchor not found"
+    return span, None
+
+
+def _front_key_block(anchor: str, text: str) -> str | None:
+    """The raw YAML of the top-level front-matter key a slug names (`claims`, `open-questions`
+    for `open_questions`), as written in the file, so a quote copied from it matches."""
+    lines = text.replace("\r\n", "\n").split("\n")
+    if not lines or lines[0].strip() != "---":
+        return None
+    end = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), None)
+    if end is None:
+        return None
+    for i in range(1, end):
+        m = re.match(r"^([A-Za-z0-9_-]+)\s*:", lines[i])
+        if m and m.group(1).lower().replace("_", "-") == anchor:
+            j = i + 1
+            while j < end and (not lines[j].strip() or lines[j][0] in " \t-"):
+                j += 1
+            return "\n".join(lines[i:j])
+    return None
 
 
 def _item_span(anchor: str, text: str) -> tuple[str | None, str | None]:
@@ -297,13 +349,15 @@ def verify(
     elements: list[str],
     resolver: Resolver,
     generated: dict[str, Any] | None = None,
+    *,
+    review: bool = False,
 ) -> CiteResult:
     if c.anchor.startswith("node:"):
         return CiteResult(True, None, format_only=True)
     text, why = resolver.read(c)
     if text is None:
         return CiteResult(False, why)
-    span, why = span_for(c, text, generated)
+    span, why = span_for(c, text, generated, review=review)
     if span is None:
         return CiteResult(False, why)
     if quote is not None:

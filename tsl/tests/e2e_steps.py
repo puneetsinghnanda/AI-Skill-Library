@@ -105,12 +105,17 @@ def do_req_step(
     package = json.loads((w.companion / pkg["data"]["package_path"]).read_text())
     if until == "prepared":
         return {"artifact": art, "package": package}
-    code, rec, _, err = w.cli(
-        ["review", "record", art, "--json"],
-        user=user,
-        session=SESSION,
-        stdin=review_json(package, findings=findings, score=score),
-    )
+    # As the run loop does: a record rejected for citations (E-REV-05) is recorded again. A test
+    # reviewer never corrects its cites, so the third record is written as it is (retry.record).
+    for _ in range(3):
+        code, rec, _, err = w.cli(
+            ["review", "record", art, "--json"],
+            user=user,
+            session=SESSION,
+            stdin=review_json(package, findings=findings, score=score),
+        )
+        if not (code == 2 and rec is not None and rec["code"] == "E-REV-05"):
+            break
     assert code == 0, (rec, err)
     if until == "recorded":
         return {"artifact": art, "package": package}

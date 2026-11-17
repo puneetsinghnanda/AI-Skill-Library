@@ -84,7 +84,7 @@ flowchart TD
 | E-ING-01 to E-ING-06 | SDD-08 §4.3 | 4.6 |
 | E-H3-01 to E-H3-07 | SDD-03 §14 | 4.7 |
 | E-REV-01 | SDD-03 §14 (cannot prepare) | 4.8 |
-| E-REV-02, E-REV-03, E-REV-04 | SDD-03 §14 | 4.8 |
+| E-REV-02, E-REV-03, E-REV-04, E-REV-05 | SDD-03 §14 | 4.8 |
 | E-GIT-01 | SDD-04 §5 | 4.3, 4.10 |
 | E-COMP-01 to E-COMP-05 | SDD-12 §6.4 | 4.10 |
 | E-CI-01, E-CI-02, E-CI-03 | Doc 4 §5.2 | 4.11 |
@@ -239,6 +239,7 @@ The `review` skill forks `truminds:reviewer` (Read, Grep, Glob only). The main s
 | `review record` rejects: "not valid review.v1: `<pointer>`" | The reviewer returned prose, markdown fences, or a broken field | The skill runs `review` again, max 2 times (SDD-03 §14.2) | E-REV-02 |
 | Still invalid after 2 tries | Reviewer cannot produce valid output for this artifact (size, prompt, model) | Skill records `tsl review record <artifact> --unavailable <reason>`. S3 is absent, band capped at Low, `decide` escalates | E-REV-04 → E-RUN-02 |
 | `review record` rejects: review is for an older artifact | Artifact changed after `review prepare` | Run the review step again | E-REV-03 |
+| `review record` rejects: "`<n>` reviewer citation(s) do not verify" | A finding cites a place tsl cannot check: a wrong line or anchor, a reworded quote, an absolute path | The skill runs `review` again with the failing citations from `data.citations`. tsl counts the rounds (`retry.record`, 2 by default); after that the review is recorded with a warning and `decide` drops the findings that still fail. No action needed unless it happens on every run: then check the reviewer instructions (SDD-03 §7.2) | E-REV-05 |
 | `review prepare` refuses | `checks.json` missing or failing | `tsl verify <artifact>` and fix gates first | E-REV-01 |
 | Many findings dropped at decide | Citations do not verify (R-13) | Not a JSON error; counts against S1. Skill owner checks the rubric and context sections | — |
 | Pattern across many runs of one skill | Rubric or reviewer prompt issue | Skill owner adds a reviewer eval case (TST-01 §3.2) and fixes the rubric in a new skill version | — |

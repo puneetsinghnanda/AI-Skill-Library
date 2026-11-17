@@ -446,6 +446,11 @@
                   "type": "integer",
                   "minimum": 0,
                   "description": "Fast-check rejections of this attempt in the post-write hook; counted against retry.write, not retry.checks. Optional (additive)."
+                },
+                "record_rejects": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Review records of this attempt rejected for citations that do not verify (E-REV-05); counted against retry.record, not retry.review. Optional (additive)."
                 }
               }
             }

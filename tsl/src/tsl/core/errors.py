@@ -443,6 +443,12 @@ CATALOGUE: dict[str, ErrorDef] = {
             "Reviewer could not review: {reason}. Band capped at Low.",
             "None; decide will escalate",
         ),
+        _d(
+            "E-REV-05",
+            CHECK,
+            "{n} reviewer citation(s) do not verify: {detail}",
+            "Run the review skill again with this message, then record again",
+        ),
         _d("E-RUN-01", PAUSED, "Run paused for input.", "Answer open-questions.md, then resume"),
         _d(
             "E-RUN-02",
