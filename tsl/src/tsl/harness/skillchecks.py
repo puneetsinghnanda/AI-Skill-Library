@@ -385,20 +385,29 @@ def _expand(env: CheckEnv, rel: str) -> str:
     return rel.replace("{run_id}", run_id).replace("{ticket}", ticket)
 
 
-ALLOWLIST_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*\.txt$")
+ALLOWLIST_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\.txt")
 
 
 @cache
 def allowlist(name: str) -> frozenset[str] | None:
     """Values in an `enum-file` allowlist shipped in tsl (harness/rules/<name>), or None when tsl
     ships no such file. One value per line, first token only; blank and `#` lines are skipped."""
-    if not ALLOWLIST_NAME.match(name):
+    if not ALLOWLIST_NAME.fullmatch(name):
         return None
     f = resources.files("tsl.harness").joinpath("rules", name)
     if not f.is_file():
         return None
     lines = (ln.strip() for ln in f.read_text(encoding="utf-8").splitlines())
     return frozenset(ln.split()[0] for ln in lines if ln and not ln.startswith("#"))
+
+
+def _enum_file_problem(c: dict[str, Any]) -> str | None:
+    """Why an `enum-file` check cannot run: no `file`, or tsl ships no such allowlist."""
+    if not c.get("file"):
+        return "enum-file check needs a `file`"
+    if allowlist(str(c["file"])) is None:
+        return f"allowlist {c['file']} is not shipped in tsl"
+    return None
 
 
 def _load_json(root: Path, rel: str) -> Any:
@@ -507,9 +516,10 @@ def _kind_check(env: CheckEnv, c: dict[str, Any]) -> tuple[str, str]:
                     return "fail", "item without citation"
             return "pass", ""
         if kind == "enum-file":
-            allowed = allowlist(str(c["file"]))
-            if allowed is None:
-                return "fail", f"allowlist {c['file']} is not shipped in tsl"
+            problem = _enum_file_problem(c)
+            if problem:
+                return "fail", problem
+            allowed = allowlist(str(c["file"])) or frozenset()
             for v in select(env.front, c["select"]):
                 if str(v) not in allowed:
                     return "fail", f"value {v!r} is not in {c['file']}"
@@ -560,8 +570,9 @@ def validate_declared(checks_doc: dict[str, Any]) -> list[str]:
         else:
             if c.get("kind") not in KINDS:
                 errs.append(f"{cid}: unknown kind")
-            if c.get("kind") == "enum-file" and allowlist(str(c.get("file", ""))) is None:
-                errs.append(f"{cid}: allowlist {c.get('file')} is not shipped in tsl")
+            problem = _enum_file_problem(c) if c.get("kind") == "enum-file" else None
+            if problem:
+                errs.append(f"{cid}: {problem}")
             if not cid.startswith(skill.split("-")[0]) and cid.split(".")[0] not in skill:
                 errs.append(f"{cid}: id must be prefixed by the skill")
             paths = [c[k] for k in ("select", "each", "covered_by") if k in c]

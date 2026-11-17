@@ -1,6 +1,8 @@
 # WCAG 2.1 success criteria at level A and AA: the allowlist for the `enum-file` check
-# accessibility-review.wcag-map (SDD-03 §5.2). 50 criteria: 30 at level A, 20 at level AA.
+# accessibility-review.wcag-map (SDD-03 §5.2). 49 criteria: 29 at level A, 20 at level AA.
 # Level AAA criteria are not listed, so a finding mapped to one fails the check.
+# 4.1.1 Parsing (A) is left out on purpose: the WCAG 2.1 errata mark it obsolete (always satisfied),
+# and it is about markup, which a design-file review never sees.
 # Format: one criterion per line, the id first; the rest of the line is for people.
 # Source: https://www.w3.org/TR/WCAG21/
 1.1.1   Non-text Content                                  A
@@ -50,6 +52,5 @@
 3.3.2   Labels or Instructions                            A
 3.3.3   Error Suggestion                                  AA
 3.3.4   Error Prevention (Legal, Financial, Data)         AA
-4.1.1   Parsing                                           A
 4.1.2   Name, Role, Value                                 A
 4.1.3   Status Messages                                   AA
