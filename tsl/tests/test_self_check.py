@@ -67,7 +67,7 @@ def test_soft_check_and_weak_claim_are_listed_and_warned(world: World) -> None:
     assert set(fix) == {("soft", "RR-C12"), ("claim", "C1")}, fix
     assert fix[("soft", "RR-C12")] == "summary longer than 5 sentences"
     assert fix[("claim", "C1")].startswith("element absent: `48 hours`")
-    assert "edit only what each item" in env["next"]
+    assert "change only what each item" in env["next"]
 
 
 def test_hard_gate_failure_is_listed_not_raised(world: World) -> None:

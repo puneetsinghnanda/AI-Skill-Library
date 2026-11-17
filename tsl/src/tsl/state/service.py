@@ -126,6 +126,8 @@ def start(
     import hashlib
     import socket
 
+    from tsl.core.digest import tree_digest, tsl_digest
+
     state: dict[str, Any] = {
         "schema": "run-state.v1",
         "run_id": run_id,
@@ -141,6 +143,8 @@ def start(
         "pinned": {
             "plugin": plugin_version,
             "tsl": rt.tsl_version,
+            "plugin_digest": tree_digest(plugin_root),
+            "tsl_digest": tsl_digest(),
             "skills": {r.split("@")[0]: r.split("@")[1] for r in resolved.values()},
         },
         "pack": pk["state_block"],
@@ -212,6 +216,8 @@ def start(
             "plugin": plugin_version,
             "tsl": rt.tsl_version,
             "workflow": state["workflow"],
+            "plugin_digest": state["pinned"]["plugin_digest"],
+            "tsl_digest": state["pinned"]["tsl_digest"],
             "skills": state["pinned"]["skills"],
         },
         "pack": {"fresh": pk["state"] == "fresh", "signed_at": pk["state_block"].get("signed_at")},

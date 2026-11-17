@@ -541,3 +541,61 @@ def test_context_build_checks_citations_against_the_facts_it_just_extracted(worl
     code, env, _, _ = world.cli(["context", "build", "--json"], user="tl")
     assert env is not None, env
     assert env["data"]["lint"] == [] and code == 0, env["data"]
+
+
+def test_verify_inputs_lists_tools_and_rubric_and_next_text(world: World) -> None:
+    from tsl.harness.verify import inputs_next_text
+
+    run_id = start_run(world)
+    do_req_step(world, run_id, until="written")
+    code, env, _, _ = world.cli(["verify", "--inputs", "--run", run_id, "--json"], session=SESSION)
+    assert code == 0 and env is not None
+    data = env["data"]
+    assert isinstance(data["tools"], list) and data["tools"]
+    assert all({"id", "name"} <= set(c) for c in data["rubric_criteria"])
+    assert "Tools for this step:" in env["next"]
+    assert (
+        inputs_next_text(
+            {"artifact_path": "a.md", "tools": ["Read", "Write"], "rubric_criteria": []}
+        )
+        == "write the artifact to a.md. Tools for this step: Read, Write. Edit is not allowed; use Write."
+    )
+    assert inputs_next_text(
+        {
+            "artifact_path": "a.md",
+            "tools": ["Read", "Edit"],
+            "rubric_criteria": [{"id": "R1", "name": "Fits"}, {"id": "R2", "name": "Clear"}],
+        }
+    ) == (
+        "write the artifact to a.md. Tools for this step: Read, Edit. "
+        "Rubric the reviewer applies: R1 Fits; R2 Clear."
+    )
+
+
+def test_state_start_pins_digests_and_session_warns_on_change(world: World) -> None:
+    run_id = start_run(world)
+    st = json.loads((world.companion / "runs" / run_id / "state.json").read_text())
+    pinned = st["pinned"]
+    assert pinned["plugin_digest"].startswith("sha256:") and pinned["tsl_digest"].startswith(
+        "sha256:"
+    )
+    assert errors("run-state.v1", st) == []
+    plugin_root = world.rt("eng", SESSION).plugin_root()
+    marker = plugin_root / "zz-digest-test.txt"
+    marker.write_text("changed", encoding="utf-8")
+    try:
+        from tsl.hooks.dispatch import Ctx
+        from tsl.hooks.session import _pin_warnings
+
+        rt = world.rt("eng", SESSION)
+        ctx = Ctx(
+            "session-start",
+            {"session_id": SESSION, "cwd": str(world.companion)},
+            rt.env,
+            rt.home.root,
+            lambda: rt,
+        )
+        warns = _pin_warnings(ctx, str(plugin_root))
+    finally:
+        marker.unlink()
+    assert len(warns) == 1 and warns[0].startswith("W-PIN-01 plugin files changed")

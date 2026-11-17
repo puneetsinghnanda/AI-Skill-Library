@@ -613,6 +613,10 @@ def verify_inputs(
         "skill": attempt["skill"],
         "artifact_path": attempt["artifact"],
         "output_schema": sk.artifact_output["schema"],
+        "tools": sk.allowed_tools,
+        "rubric_criteria": [
+            {"id": c["id"], "name": c.get("name", "")} for c in sk.rubric.get("criteria", [])
+        ],
         "inputs": out_inputs,
         "context": {
             "status": status,
@@ -703,3 +707,19 @@ def _upstream_scans(comp: Companion, inputs: list[dict[str, Any]]) -> list[dict[
             if s.get("name") in ("sast", "secrets") and s.get("report_sha256"):
                 out.append({"kind": s["name"], "report_sha256": s["report_sha256"]})
     return out
+
+
+def inputs_next_text(data: dict[str, Any]) -> str:
+    """Next-step text for `tsl verify --inputs`: where to write, the tools, the reviewer rubric."""
+    parts = [f"write the artifact to {data['artifact_path']}."]
+    tools = list(data.get("tools") or [])
+    if tools:
+        t = f"Tools for this step: {', '.join(tools)}."
+        if "Edit" not in tools:
+            t += " Edit is not allowed; use Write."
+        parts.append(t)
+    crit = data.get("rubric_criteria") or []
+    if crit:
+        items = "; ".join(f"{c['id']} {c['name']}".strip() for c in crit)
+        parts.append(f"Rubric the reviewer applies: {items}.")
+    return " ".join(parts)

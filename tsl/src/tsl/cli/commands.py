@@ -381,14 +381,13 @@ def verify(
             f"Self-check: {n} item(s) to fix",
             data,
             c.warnings,
-            "edit only what each item in data.fix names (no full rewrite), then hand over "
+            "change only what each item in data.fix names (with Write if Edit is not allowed, "
+            "keep the rest unchanged), then hand over "
             "without checking again",
         )
     if inputs:
         data = svc.verify_inputs(rt(), c, run, step, artifact)
-        return emit_ok(
-            "inputs ready", data, c.warnings, f"write the artifact to {data['artifact_path']}"
-        )
+        return emit_ok("inputs ready", data, c.warnings, svc.inputs_next_text(data))
     if artifact is None:
         raise TslError("E-USE-01", detail="artifact path required", cmd="verify")
     if status:

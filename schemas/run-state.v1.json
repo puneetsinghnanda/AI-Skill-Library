@@ -80,6 +80,12 @@
         "tsl": {
           "$ref": "#/$defs/semver"
         },
+        "plugin_digest": {
+          "$ref": "#/$defs/sha256_prefixed"
+        },
+        "tsl_digest": {
+          "$ref": "#/$defs/sha256_prefixed"
+        },
         "skills": {
           "type": "object",
           "propertyNames": {
@@ -745,6 +751,11 @@
       "type": "string",
       "pattern": "^[0-9a-f]{64}$",
       "description": "SHA-256, lowercase hex (Doc 5 §1.1)."
+    },
+    "sha256_prefixed": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Tree digest, sha256: plus lowercase hex."
     },
     "skill_id": {
       "type": "string",

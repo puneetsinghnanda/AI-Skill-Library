@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import platform
 from pathlib import Path
@@ -35,6 +36,8 @@ def start(ctx: Ctx) -> tuple[str, int]:
                     f"E-VER-01 tsl {__version__} does not match plugin {plugin_version}: "
                     + UPDATE_HINT
                 )
+        with contextlib.suppress(Exception):  # warn only, never block
+            msgs += _pin_warnings(ctx, root)
         rt = ctx.rt
         logged_in = True
         try:
@@ -75,6 +78,31 @@ def start(ctx: Ctx) -> tuple[str, int]:
     if msgs:
         out["systemMessage"] = " ".join(msgs)
     return _finish(ctx, out or None)
+
+
+def _pin_warnings(ctx: Ctx, plugin_root: str | None) -> list[str]:
+    from tsl.core.digest import tree_digest, tsl_digest
+    from tsl.hooks.dispatch import active_run
+
+    idx = active_run(ctx)
+    if not idx:
+        return []
+    pinned = idx["_state"].get("pinned", {})
+    run_id = idx["run_id"]
+    out = []
+    pd = pinned.get("plugin_digest")
+    if pd and plugin_root and tree_digest(Path(plugin_root)) != pd:
+        out.append(
+            f"W-PIN-01 plugin files changed since run {run_id} started (pinned digest differs). "
+            "The run continues; restart from a clean install if this was not intended."
+        )
+    td = pinned.get("tsl_digest")
+    if td and tsl_digest() != td:
+        out.append(
+            f"W-PIN-01 tsl files changed since run {run_id} started (pinned digest differs). "
+            "The run continues; restart from a clean install if this was not intended."
+        )
+    return out
 
 
 def _reminders(ctx: Ctx) -> list[str]:
