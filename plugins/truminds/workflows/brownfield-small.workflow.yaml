@@ -23,6 +23,8 @@ steps:
   - id: split
     skill: story-split@^1.0
     after: [req]
+    # One review retry (default 2) to keep small runs short; split covers a single story here.
+    retry: {review: 1}
     inputs: {intent: req.intent}
   - id: design
     skill: design@^1.4
