@@ -7,12 +7,13 @@ checks:
 - id: test-automation.tests-run
   kind: container
   profile_step: test
+# Every criterion a non-manual test of the plan covers is linked by at least one result.
 - id: test-automation.results-linked
   kind: coverage
   gate: H2
-  each: $.results[*]
+  each_input: test_plan
+  each: $.tests[?(@.level!='manual')].covers[*]
   covered_by: $.results[*].covers[*]
-  link: covers
   min: 1
 - id: test-automation.only-test-files
   kind: regex

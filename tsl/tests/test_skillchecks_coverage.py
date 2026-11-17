@@ -159,13 +159,78 @@ def test_test_plan_fails_when_the_stories_input_is_missing(tmp_path: Path) -> No
     assert "input stories" in out.detail
 
 
-def test_test_automation_results_linked_passes_for_valid_results() -> None:
-    front = {
-        "schema": "test-result.v1",
-        "results": [
-            {"test_id": "TP-1", "covers": ["S-1/AC1"], "status": "pass"},
-            {"test_id": "TP-2", "covers": ["S-1/AC1", "S-1/AC2"], "status": "fail"},
-        ],
+def _plan_input(root: Path) -> dict[str, str]:
+    """TP-1 unit S-1/AC1, TP-2 integration S-1/AC2 + S-2/AC1, TP-3 manual S-3/AC1 (not automated)."""
+    tests = _tests(["S-1/AC1"], ["S-1/AC2", "S-2/AC1"], ["S-3/AC1"])
+    tests[1]["level"], tests[2]["level"] = "integration", "manual"
+    return {
+        "test_plan": _write_input(root, "in/tplan.md", {"schema": "test-plan.v1", "tests": tests})
     }
-    out = _outcome("test-automation", "test-automation.results-linked", front)
+
+
+def _results(*covers: list[str]) -> dict[str, Any]:
+    results = [
+        {"test_id": f"TP-{n}", "covers": c, "status": "pass"} for n, c in enumerate(covers, 1)
+    ]
+    return {"schema": "test-result.v1", "results": results}
+
+
+def test_test_automation_results_link_every_automated_criterion(tmp_path: Path) -> None:
+    front = _results(["S-1/AC1"], ["S-1/AC2", "S-2/AC1"])
+    out = _outcome(
+        "test-automation", "test-automation.results-linked", front, tmp_path, _plan_input(tmp_path)
+    )
+    assert (out.gate, out.status) == ("H2", "pass"), out.detail
+
+
+def test_test_automation_fails_for_a_planned_criterion_no_result_links(tmp_path: Path) -> None:
+    front = _results(["S-1/AC1"], ["S-1/AC2"])  # TP-2 dropped S-2/AC1 from its covers
+    out = _outcome(
+        "test-automation", "test-automation.results-linked", front, tmp_path, _plan_input(tmp_path)
+    )
+    assert (out.status, out.detail) == ("fail", "S-2/AC1 covered fewer than 1 times")
+
+
+def test_test_automation_fails_when_a_planned_test_has_no_result(tmp_path: Path) -> None:
+    front = _results(["S-1/AC1"])  # TP-2 was never automated
+    out = _outcome(
+        "test-automation", "test-automation.results-linked", front, tmp_path, _plan_input(tmp_path)
+    )
+    assert (out.status, out.detail) == ("fail", "S-1/AC2 covered fewer than 1 times")
+
+
+def test_test_automation_fails_for_results_linked_to_criteria_the_plan_lacks(
+    tmp_path: Path,
+) -> None:
+    """Before #6 this passed: each result's covers were compared with every result's covers."""
+    front = _results(["S-9/AC9"], ["S-9/AC8"])
+    out = _outcome(
+        "test-automation", "test-automation.results-linked", front, tmp_path, _plan_input(tmp_path)
+    )
+    assert out.status == "fail"
+
+
+def test_test_automation_does_not_need_results_for_manual_tests(tmp_path: Path) -> None:
+    front = _results(["S-1/AC1"], ["S-1/AC2", "S-2/AC1"])  # nothing for manual TP-3 (S-3/AC1)
+    out = _outcome(
+        "test-automation", "test-automation.results-linked", front, tmp_path, _plan_input(tmp_path)
+    )
     assert out.status == "pass", out.detail
+
+
+def test_test_automation_fails_when_the_test_plan_input_is_missing(tmp_path: Path) -> None:
+    front = _results(["S-1/AC1"])
+    out = _outcome("test-automation", "test-automation.results-linked", front, tmp_path, {})
+    assert out.status == "fail"
+    assert "input test_plan" in out.detail
+
+
+def test_coverage_each_input_names_an_input_the_skill_declares() -> None:
+    """A misspelt each_input would fail every run; tie it to skill.yaml."""
+    for skill_dir in sorted(SKILLS.iterdir()):
+        if not (skill_dir / "checks.yaml").is_file():
+            continue
+        declared = {i["name"] for i in read_yaml(skill_dir / "skill.yaml").get("inputs") or []}
+        for c in _checks(skill_dir.name)["checks"]:
+            if c.get("each_input"):
+                assert c["each_input"] in declared, (c["id"], sorted(declared))
