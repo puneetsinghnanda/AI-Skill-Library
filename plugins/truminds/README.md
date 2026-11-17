@@ -66,6 +66,16 @@ Open the desktop app, Code tab, **Local** session on a companion repo, and type 
 
 Every command skill sets `disable-model-invocation: true`, so only a person typing the command starts it.
 
+### Mods (Claude Code with Mods on; optional)
+
+`hooks/register.tsx` adds two Mods. They only display and pass arguments to `tsl`, and
+`/truminds:status` and `tsl gate` do the same work where Mods are off, in Copilot or in Cursor.
+
+| Mod | What it does |
+| --- | --- |
+| `/tsl-gate [run_id [decision] [comment]]` | Runs `tsl gate`; `tsl` decides, signs and pushes |
+| Progress panel, `/tsl-panel` | A pane, "Truminds run", for the run of this session: each step with its band (High, Medium, Low), the current step and attempt, what a paused run waits on with the command to type, and the open questions. It opens by itself when a run starts in a terminal at least 144 columns wide; `/tsl-panel` opens it at any width. It reads `tsl state show --progress --json` (local, read only) after each `tsl` command, each turn and each `/tsl-gate`, and every 30 s while the run waits for an approval. When `tsl` is slow or missing it keeps the last answer, marked "as of", and never holds up the session |
+
 ## SDLC skills (SDD-01 §12)
 
 | Skill | Code | Role | Phase | Output | Version | Status | Eval cases |
@@ -175,6 +185,7 @@ uv run --python 3.12 ruff check .
 | `test_denylist.py` | No secrets, no fake key outside `evals/**`, no personal data, no networking-domain wording, and no client names (hashed n-grams against `TRUMINDS_DENYLIST_FILE`, a list kept outside the repo; skipped when not set) |
 | `test_verifiers.py` | Verifier profiles validate, folder = id, image by digest with the workflow's name, only `prepare` has network, every profile named by SDD-03, SDD-06, the plugin or an example `tsl.yaml` exists, every container step a skill uses is in every profile, Dockerfile lint (hadolint when installed, else built-in), workflow wiring; real builds only with Docker and `VERIFIER_BUILD=1` |
 | `test_tsl_hook.py` | `bin/tsl-hook` under sh, dash and bash with a fake `tsl` on PATH: version mismatch, missing, crash and timeout, each in a run (deny `E-HOOK-01`) and out of a run (allow) for pre-tool and pre-mcp; post-write fail open; session warnings; stdin and stdout pass-through; session-index route; log line; no temp files left |
+| `test_tsl_gate_mod.py` | The Mods module under Node (22.6 or newer, else skipped) with a fake host: `/tsl-gate` argument parsing and output; the progress panel's reading of `tsl`'s answer, the rows it draws, which Bash commands refresh it, one refresh at a time, the approval poll, and that a slow or missing `tsl` never holds up a hook. `panel.test.tsx` draws the pane through the engine on terminal and desktop: run `claude plugin test plugins/truminds` locally (not in CI) |
 
 The `.cmd` launcher is not exercised in CI here (no Windows runner); TC-HK-007 covers it on Windows.
 

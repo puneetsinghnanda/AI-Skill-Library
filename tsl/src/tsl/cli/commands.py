@@ -513,8 +513,24 @@ def state_resume(
 def state_show(
     run_id: Annotated[str | None, typer.Argument()] = None,
     all_: Annotated[bool, typer.Option("--all")] = False,
+    progress: Annotated[
+        bool, typer.Option("--progress", help="One run's steps, bands, waiting and questions")
+    ] = False,
+    session: Annotated[
+        str | None, typer.Option("--session", help="Claude session id (default: TSL_SESSION_ID)")
+    ] = None,
 ) -> int:
-    """Show runs in this companion repo."""
+    """Show runs in this companion repo.
+
+    --progress shows one run for the Mods progress panel: the given run, else the run bound to
+    this Claude session, else none. Read only and local (no network, no lock)."""
+    if progress:
+        from tsl.state.progress import progress as prog
+
+        r = rt()
+        p = prog(r, comp(), run_id, session or r.session_id())
+        msg = "No active run" if p is None else f"{p['ticket']} {p['status']}"
+        return emit_ok(msg, {"progress": p})
     from tsl.state.service import show
 
     data = show(rt(), comp(), run_id, all_)
