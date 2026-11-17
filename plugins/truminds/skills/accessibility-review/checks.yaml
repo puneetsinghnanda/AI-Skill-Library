@@ -4,10 +4,13 @@ schema: skill-checks.v1
 skill: accessibility-review
 artifact_schema: a11y.v1
 checks:
+# Each finding's wcag is a WCAG 2.1 A or AA criterion, and its level is that criterion's level.
 - id: accessibility-review.wcag-map
   kind: enum-file
   gate: H2
-  select: $.findings[*].wcag
+  select: $.findings[*]
+  value: wcag
+  tag: level
   file: wcag21-aa-criteria.txt
 - id: accessibility-review.node-cited
   kind: cites-required

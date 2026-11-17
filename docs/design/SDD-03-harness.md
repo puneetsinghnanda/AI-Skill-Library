@@ -305,8 +305,8 @@ A skill cannot ship its own Python. It declares checks by **kind**, and each kin
 | `lookup` | `select` (JSONPath into the artifact), `in` (file + JSONPath into a generated index), `key` | Every selected value exists in the index |
 | `no-clash` | `select`, `against`, `unless` (field and value that marks an intended change) | No selected value already exists in `against`, unless marked |
 | `coverage` | `each` (JSONPath), `covered_by` (JSONPath), `link` (field), `min` | Every item in `each` is referenced by at least `min` items |
-| `count-match` | `select`, `count_files` (glob), `where` | Count in artifact equals count computed from files |
-| `enum-file` | `select`, `file` (allowlist shipped in `tsl`) | Every value is in the allowlist |
+| `count-match` | `select`, `count_files` (glob), `where` (`field == 'value'` or `!=`) | Count in artifact equals count computed from files |
+| `enum-file` | `select`, `file` (allowlist shipped in `tsl`), optional `value` and `tag` | Every value is in the allowlist; with `tag`, each selected object's tag field equals the last word on its value's line |
 | `regex` | `select`, `must` or `must_not` | Pattern rule holds for every value |
 | `cites-required` | `select` | Every selected item has at least one citation |
 | `container` | `profile_step` | The verifier step passes (§5.5) |
