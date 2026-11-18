@@ -1,5 +1,17 @@
 # Changelog: test-automation
 
+## 1.2.0
+- #6: `test-automation.results-linked` (H2) could never fail: it compared each result's covers with
+  the covers of all results. It now reads the step's `test_plan` input and compares TP-n/S-n/ACn
+  pairs: every pair of a non-manual planned test needs a result that ran (pass or fail; skip does not
+  count). New `test-automation.results-planned` (H2) checks the other direction: no invented test
+  ids and no criteria the plan does not give a test.
+- results-linked waits while the step asks a blocking question that is not answered yet, so a step
+  that stops to ask reaches NEEDS-INPUT instead of a retry.
+- Rules 6 and 7 say what code checks and that a test that cannot run needs a blocking question.
+  MINOR: stricter checks and a rules change, same inputs and output schema. Needs a signed eval
+  result for this version before any status change (SKL-V13).
+
 ## 1.1.0
 - Roadmap item 2 (self-checks): run HMS-9 requirement-review went to band Low on S2 alone
   (RR-C12, summary over 5 sentences), which nothing reported before the review.

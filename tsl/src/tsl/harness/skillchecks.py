@@ -7,6 +7,8 @@ import json
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from functools import cache
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +32,7 @@ class CheckEnv:
     input_paths: list[str]
     input_texts: dict[str, str]
     named_inputs: dict[str, str] = field(default_factory=dict)  # step input name -> rel path
+    answered: frozenset[str] = frozenset()  # question ids answered in this run (state.json)
 
 
 Fn = Callable[[CheckEnv, dict[str, Any]], str | None]  # returns failure detail or None
@@ -369,6 +372,11 @@ KINDS = {
     "container",
     "diff-limit",
 }
+# Kinds that run outside `_kind_check`: container steps in the verifier (H3), diff limits in H6.
+# Every other kind in KINDS must have a branch in `_kind_check`; one without fails, never skips,
+# because gates count `skip` as a pass.
+RUNS_ELSEWHERE = {"container", "diff-limit"}
+WHERE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(==|!=)\s*'([^']*)'\s*$")
 
 
 def _expand(env: CheckEnv, rel: str) -> str:
@@ -381,6 +389,61 @@ def _expand(env: CheckEnv, rel: str) -> str:
             ticket = m.group(1)
             break
     return rel.replace("{run_id}", run_id).replace("{ticket}", ticket)
+
+
+ALLOWLIST_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\.txt")
+
+
+@cache
+def allowlist(name: str) -> dict[str, str] | None:
+    """An `enum-file` allowlist shipped in tsl (harness/rules/<name>) as {value: tag}, or None when
+    tsl ships no such file. One value per line: the value is the first word, the tag the last word
+    (empty when the line holds only the value). Blank and `#` lines are skipped."""
+    if not ALLOWLIST_NAME.fullmatch(name):
+        return None
+    f = resources.files("tsl.harness").joinpath("rules", name)
+    if not f.is_file():
+        return None
+    rows = (ln.split() for ln in f.read_text(encoding="utf-8").splitlines())
+    return {r[0]: r[-1] if len(r) > 1 else "" for r in rows if r and not r[0].startswith("#")}
+
+
+def _count_files(env: CheckEnv, c: dict[str, Any]) -> int | str:
+    """Files under root matching `count_files` (JSON), filtered by `where` (`field == 'value'` or
+    `!=`). Returns the count, or failure detail as a str."""
+    pattern = str(c["count_files"])
+    if pattern.startswith(("/", "\\")) or ".." in Path(pattern).parts:
+        return f"count_files {pattern} must stay inside the repo"
+    cond = None
+    if c.get("where"):
+        cond = WHERE.match(str(c["where"]))
+        if not cond:
+            return f"where {c['where']!r} is not `field == 'value'`"
+    n = 0
+    for p in sorted(env.root.glob(pattern)):
+        if not p.is_file():
+            continue
+        if cond is None:
+            n += 1
+            continue
+        try:
+            doc = json.loads(p.read_text(encoding="utf-8"))
+        except ValueError:
+            return f"{p.relative_to(env.root).as_posix()} is not valid JSON"
+        field, op, want = cond.groups()
+        have = doc.get(field) if isinstance(doc, dict) else None
+        if (str(have) == want) == (op == "=="):
+            n += 1
+    return n
+
+
+def _enum_file_problem(c: dict[str, Any]) -> str | None:
+    """Why an `enum-file` check cannot run: no `file`, or tsl ships no such allowlist."""
+    if not c.get("file"):
+        return "enum-file check needs a `file`"
+    if allowlist(str(c["file"])) is None:
+        return f"allowlist {c['file']} is not shipped in tsl"
+    return None
 
 
 def _load_json(root: Path, rel: str) -> Any:
@@ -406,25 +469,43 @@ def _input_front(env: CheckEnv, name: str) -> dict[str, Any] | None:
         return None
 
 
-def _coverage_items(env: CheckEnv, c: dict[str, Any]) -> list[Any] | str:
-    """Items `each` selects, from the named input's front matter when `each_input` is set.
-    `each_key` joins each item's `prefix` field with every value `select` finds under it
-    (stories[] + acceptance_criteria[].id -> S-1/AC1). Returns failure detail as a str."""
-    src: dict[str, Any] | None = env.front
-    if c.get("each_input"):
-        src = _input_front(env, str(c["each_input"]))
-        if src is None:
-            return f"input {c['each_input']} missing or has no front matter"
-    items = select(src, c["each"])
-    ek = c.get("each_key")
-    if not ek:
-        return items
-    sep = str(ek.get("sep", "/"))
-    keys: list[Any] = []
+def _keyed(items: list[Any], spec: dict[str, Any]) -> list[str]:
+    """Join each object's `prefix` field with every value `select` finds under it:
+    stories[] + acceptance_criteria[].id -> S-1/AC1; results[] + covers[] -> TP-1/S-1/AC1."""
+    sep = str(spec.get("sep", "/"))
+    keys: list[str] = []
     for it in items:
         if isinstance(it, dict):
-            keys.extend(f"{it.get(ek['prefix'])}{sep}{v}" for v in select(it, ek["select"]))
+            keys.extend(f"{it.get(spec['prefix'])}{sep}{v}" for v in select(it, spec["select"]))
     return keys
+
+
+def _select_from(
+    env: CheckEnv, input_name: Any, path: str, key: dict[str, Any] | None
+) -> list[Any] | str:
+    """`path` over the artifact, or over a step input's front matter when `input_name` is set;
+    keyed with `key` (see _keyed). Returns failure detail as a str."""
+    src: dict[str, Any] | None = env.front
+    if input_name:
+        src = _input_front(env, str(input_name))
+        if src is None:
+            return f"input {input_name} missing or has no front matter"
+    items = select(src, path)
+    return _keyed(items, key) if key else items
+
+
+def _coverage_items(env: CheckEnv, c: dict[str, Any]) -> list[Any] | str:
+    """Items `each` selects, from the named input's front matter when `each_input` is set,
+    keyed by `each_key`. Returns failure detail as a str."""
+    return _select_from(env, c.get("each_input"), c["each"], c.get("each_key"))
+
+
+def _blocking_open(env: CheckEnv) -> bool:
+    """The artifact asks a blocking question not yet answered in this run (questions[] or
+    unknown[] with blocking: true), the same items `tsl decide` counts as S4."""
+    qs = [q for q in env.front.get("questions") or [] if isinstance(q, dict)]
+    us = [u for u in env.front.get("unknown") or [] if isinstance(u, dict)]
+    return any(q.get("blocking") is True and q.get("id") not in env.answered for q in qs + us)
 
 
 def _kind_check(env: CheckEnv, c: dict[str, Any]) -> tuple[str, str]:
@@ -456,10 +537,18 @@ def _kind_check(env: CheckEnv, c: dict[str, Any]) -> tuple[str, str]:
                     return "fail", f"{k(v)} already exists"
             return "pass", ""
         if kind == "coverage":
+            # A step that stops to ask cannot cover everything yet; `tsl decide` sends it to
+            # NEEDS-INPUT on the open question, and the check runs again after the answer.
+            if c.get("defer_on_blocking") and _blocking_open(env):
+                return "skip", "blocking question open; checked after the answer"
             items = _coverage_items(env, c)
             if isinstance(items, str):
                 return "fail", items
-            refs = select(env.front, c["covered_by"])
+            refs = _select_from(
+                env, c.get("covered_by_input"), c["covered_by"], c.get("covered_by_key")
+            )
+            if isinstance(refs, str):
+                return "fail", refs
             link = c.get("link", "id")
             need = int(c.get("min", 1))
             # `link` names the id field: on the covering objects when covered_by selects objects
@@ -488,9 +577,39 @@ def _kind_check(env: CheckEnv, c: dict[str, Any]) -> tuple[str, str]:
                 if not (isinstance(v, dict) and v.get("cites")):
                     return "fail", "item without citation"
             return "pass", ""
+        if kind == "enum-file":
+            problem = _enum_file_problem(c)
+            if problem:
+                return "fail", problem
+            allowed = allowlist(str(c["file"])) or {}
+            field, tag = c.get("value"), c.get("tag")
+            for it in select(env.front, c["select"]):
+                # With `value`, select picks objects: their `value` field must be in the list, and
+                # their `tag` field (if set) must equal the last word on that value's line.
+                v = it.get(field) if field and isinstance(it, dict) else it
+                if str(v) not in allowed:
+                    return "fail", f"value {v!r} is not in {c['file']}"
+                if tag and isinstance(it, dict) and str(it.get(tag)) != allowed[str(v)]:
+                    return "fail", (
+                        f"{v}: {tag} {it.get(tag)!r}, but {c['file']} lists {allowed[str(v)]!r}"
+                    )
+            return "pass", ""
+        if kind == "count-match":
+            claimed = select(env.front, c["select"])
+            if len(claimed) != 1 or not isinstance(claimed[0], int) or isinstance(claimed[0], bool):
+                return "fail", f"{c['select']} must select one whole number"
+            counted = _count_files(env, c)
+            if isinstance(counted, str):
+                return "fail", counted
+            if claimed[0] != counted:
+                where = f" where {c['where']}" if c.get("where") else ""
+                return "fail", f"{c['select']} is {claimed[0]}, but {counted} files match{where}"
+            return "pass", ""
     except (PathError, KeyError, TypeError) as exc:
         return "fail", f"check error: {type(exc).__name__}"
-    return "skip", f"kind {kind} runs elsewhere"
+    if kind in RUNS_ELSEWHERE:
+        return "skip", f"kind {kind} runs elsewhere"
+    return "fail", f"kind {kind} has no check in tsl"
 
 
 def run_declared(env: CheckEnv, checks_doc: dict[str, Any] | None) -> list[CheckOutcome]:
@@ -516,8 +635,9 @@ def run_declared(env: CheckEnv, checks_doc: dict[str, Any] | None) -> list[Check
     return out
 
 
-def validate_declared(checks_doc: dict[str, Any]) -> list[str]:
-    """tsl validate rules for checks.yaml (SDD-03 §5.3, SKL-V08)."""
+def validate_declared(checks_doc: dict[str, Any], inputs: set[str] | None = None) -> list[str]:
+    """tsl validate rules for checks.yaml (SDD-03 §5.3, SKL-V08). With `inputs` (the skill.yaml
+    input names), every input a check reads must be one the skill declares."""
     from tsl.harness.jsonpath import compile_path
 
     errs: list[str] = []
@@ -534,11 +654,21 @@ def validate_declared(checks_doc: dict[str, Any]) -> list[str]:
         else:
             if c.get("kind") not in KINDS:
                 errs.append(f"{cid}: unknown kind")
+            problem = _enum_file_problem(c) if c.get("kind") == "enum-file" else None
+            if problem:
+                errs.append(f"{cid}: {problem}")
             if not cid.startswith(skill.split("-")[0]) and cid.split(".")[0] not in skill:
                 errs.append(f"{cid}: id must be prefixed by the skill")
+            if inputs is not None:
+                for k in ("each_input", "covered_by_input"):
+                    names = c.get(k) or []
+                    for name in [names] if isinstance(names, str) else names:
+                        if name not in inputs:
+                            errs.append(f"{cid}: {k} {name} is not an input of the skill")
             paths = [c[k] for k in ("select", "each", "covered_by") if k in c]
-            if isinstance(c.get("each_key"), dict) and "select" in c["each_key"]:
-                paths.append(c["each_key"]["select"])
+            for k in ("each_key", "covered_by_key"):
+                if isinstance(c.get(k), dict) and "select" in c[k]:
+                    paths.append(c[k]["select"])
             for path in paths:
                 try:
                     compile_path(path)

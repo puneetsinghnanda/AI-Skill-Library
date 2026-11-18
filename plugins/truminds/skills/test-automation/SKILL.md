@@ -29,8 +29,8 @@ test-result.v1 artifact at data.artifact_path, linking each result to its criter
 3. Every claim about the system cites at least one path#anchor from the inputs or the context pack (DEF-08). Generated facts use their fact id as the anchor, for example context/generated/module-map.json#module:<repo>:<path>. Put each claim's key term (the name, value or identifier the cited text must contain) in backticks, for example "hospital zone is `Asia/Kolkata`": tsl verifies a plain path#anchor cite by finding that term at the anchor, so a claim without one never verifies.
 4. Never copy secrets, keys, passwords, tokens or personal data from any input. If an input holds one, write "Input contains a credential or personal data; removed" under Unknown and ask the tech lead (non-blocking) to clean the source.
 5. Edit only test files. Never edit production code in this step.
-6. Every result keeps the test id TP-n and the covers list of the plan unchanged.
-7. Report pass, fail or skip only from the verifier result tsl gives you; never guess a status.
+6. Every result keeps the test id TP-n and the covers list of the plan unchanged. Code checks this both ways: every non-manual planned test has a result with its covers, and no result has an id or criterion the plan does not give it.
+7. Report pass, fail or skip only from the verifier result tsl gives you; never guess a status. A skipped test does not count as covering its criteria: if a planned test cannot run, add a blocking question saying why, and the step pauses for an answer instead of failing.
 8. Edit only product-repo files inside data.change_limits and the paths the design names; write the artifact only at data.artifact_path. Never touch CI files, lock files or secrets.
 
 ## Method

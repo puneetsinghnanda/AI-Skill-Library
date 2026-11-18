@@ -39,6 +39,26 @@ def test_grammar(raw: str, ok: bool) -> None:
     assert (cit.parse(raw, REPOS) is not None) == ok
 
 
+@pytest.mark.parametrize(
+    ("raw", "absolute"),
+    [
+        ("/home/me/AI-Skill-Library/plugins/truminds/skills/threat-model/rubric.md#L46", True),
+        ("C:/dev/AI-Skill-Library/plugins/truminds/skills/design/rubric.md#L10", True),
+        ("c:\\Users\\me\\rubric.md#L1", True),
+        ("\\\\server\\share\\a.md#x", True),
+        ("context/data-model.md#orders", False),
+        ("orders-api:src/routes/orders.js#L40", False),
+        ("c:src/a.js#L1", False),  # a one-letter repo name, not a drive
+    ],
+)
+def test_absolute_path(raw: str, absolute: bool) -> None:
+    # HMS-11: the reviewer copied the rubric's absolute path into its cites.
+    assert cit.absolute_path(raw) == absolute
+    if absolute:
+        assert cit.parse(raw, REPOS | {"c"}) is None
+        assert "absolute path" in cit.format_error(raw, REPOS)
+
+
 def test_quote_matching() -> None:
     span = "router.get('/:id', getOrder);\n  return db.query('SELECT * FROM order_archive WHERE id = $1')"
     assert cit.quote_matches("db.query('SELECT * FROM order_archive", span)

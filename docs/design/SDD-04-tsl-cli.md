@@ -370,7 +370,7 @@ Inputs form: `data.inputs[{name, path, sha256, present, stale}]`. Exit 0, or 2 w
 
 | Command | Args | Data | Exit codes |
 | --- | --- | --- | --- |
-| `review prepare` | `<artifact>` | `{artifact_path, artifact_sha256, rubric_path, rubric_sha256, context_sections[{path, anchor, sha256}], output_schema: "review.v1", instructions}` | 0; 3 (E-REV-01 if `checks.json` is missing or failing, SDD-03 §14; E-RUN-04) |
+| `review prepare` | `<artifact>` | `{artifact_path, artifact_sha256, rubric_path, rubric_sha256, context_sections[{path, anchor, sha256}], output_schema: "review.v1", instructions}`; `rubric_path` is relative to the plugin root (`skills/<id>/rubric.md`) and the rubric text is in the package, never cited | 0; 3 (E-REV-01 if `checks.json` is missing or failing, SDD-03 §14; E-RUN-04) |
 | `review record` | `<artifact> [--file PATH \| --unavailable <reason>]` (default: stdin) | `{review_path, findings: {blocker, major, minor}, rubric_score}` | 0; 2 (E-REV-02, E-REV-03, E-REV-05) |
 
 `prepare` prints the package that the forked reviewer reads (SDD-05 §4.4). It lists section paths and anchors, not file contents, so the reviewer reads them itself with Read, Grep and Glob.
