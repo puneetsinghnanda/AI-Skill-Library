@@ -3,7 +3,7 @@ name: status-report
 description: Summarises the runs of one system from their state.json files (counts per status, what each paused run waits on) and writes a status.v1 artifact whose counts must equal the files. Use only as a step of a Truminds workflow run, when tsl names status-report as the next step.
 argument-hint: <artifact path from tsl next>
 user-invocable: false
-allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write
+allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write, Edit
 ---
 
 Step context from tsl (do not edit):

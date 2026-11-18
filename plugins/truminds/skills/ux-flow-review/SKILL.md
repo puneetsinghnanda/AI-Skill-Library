@@ -3,7 +3,7 @@ name: ux-flow-review
 description: Reviews the user flows of a design file fetched read-only through the design-tool MCP server and writes a ux-flow.v1 artifact whose findings cite design node ids. Use only as a step of a Truminds workflow run, when tsl names ux-flow-review as the next step.
 argument-hint: <artifact path from tsl next>
 user-invocable: false
-allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write
+allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write, Edit
 ---
 
 Step context from tsl (do not edit):

@@ -3,7 +3,7 @@ name: test-plan
 description: Plans the tests for a set of stories so every acceptance criterion has at least one test at the right level (unit, integration, e2e, manual), and writes a test-plan.v1 artifact. Use only as a step of a Truminds workflow run, when tsl names test-plan as the next step.
 argument-hint: <artifact path from tsl next>
 user-invocable: false
-allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write
+allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write, Edit
 ---
 
 Step context from tsl (do not edit):

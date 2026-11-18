@@ -3,7 +3,7 @@ name: design
 description: Designs the change for a set of stories on top of the existing architecture, marking every component and endpoint new, changed or existing, and writes a design.v1 artifact. Use only as a step of a Truminds workflow run, when tsl names design as the next step.
 argument-hint: <artifact path from tsl next>
 user-invocable: false
-allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write
+allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write, Edit
 ---
 
 Step context from tsl (do not edit):

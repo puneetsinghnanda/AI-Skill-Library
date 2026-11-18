@@ -3,7 +3,7 @@ name: secure-code-review
 description: Reviews the run's code change for security issues, attaches the SAST and secrets scan results from the verifier by hash, and writes a secure-review.v1 artifact with cited findings. Use only as a step of a Truminds workflow run, when tsl names secure-code-review as the next step.
 argument-hint: <artifact path from tsl next>
 user-invocable: false
-allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write
+allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write, Edit
 ---
 
 Step context from tsl (do not edit):

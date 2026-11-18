@@ -3,7 +3,7 @@ name: deployment-failure-analysis
 description: Analyses a failed deployment job log, states the probable cause and writes a deploy-failure.v1 artifact whose findings cite the stored log lines. Use only as a step of a Truminds workflow run, when tsl names deployment-failure-analysis as the next step.
 argument-hint: <artifact path from tsl next>
 user-invocable: false
-allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write
+allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write, Edit
 ---
 
 Step context from tsl (do not edit):

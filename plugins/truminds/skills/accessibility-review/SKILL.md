@@ -3,7 +3,7 @@ name: accessibility-review
 description: Reviews a design file fetched read-only through the design-tool MCP server against WCAG 2.1 level AA and writes an a11y.v1 artifact whose findings map to success criteria and cite design node ids. Use only as a step of a Truminds workflow run, when tsl names accessibility-review as the next step.
 argument-hint: <artifact path from tsl next>
 user-invocable: false
-allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write
+allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write, Edit
 ---
 
 Step context from tsl (do not edit):

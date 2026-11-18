@@ -3,7 +3,7 @@ name: threat-model
 description: Builds a STRIDE threat model with at least one threat and mitigation for every component of the design (or of the architecture when no design is given) and writes a threat-model.v1 artifact. Use only as a step of a Truminds workflow run, when tsl names threat-model as the next step.
 argument-hint: <artifact path from tsl next>
 user-invocable: false
-allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write
+allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write, Edit
 ---
 
 Step context from tsl (do not edit):

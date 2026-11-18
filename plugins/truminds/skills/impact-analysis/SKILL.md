@@ -3,7 +3,7 @@ name: impact-analysis
 description: Finds the modules, APIs, tables and jobs of an existing system that a reviewed requirement set touches, using only the generated facts and context pack, and writes an impact.v1 artifact. Use only as a step of a Truminds workflow run, when tsl names impact-analysis as the next step.
 argument-hint: <artifact path from tsl next>
 user-invocable: false
-allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write
+allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write, Edit
 ---
 
 Step context from tsl (do not edit):

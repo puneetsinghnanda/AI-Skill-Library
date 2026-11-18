@@ -3,7 +3,7 @@ name: defect-triage
 description: Restates a defect ticket's symptoms and ranks the components most likely to cause it, each with cited evidence from logs and the context pack, and writes a triage.v1 artifact. Use only as a step of a Truminds workflow run, when tsl names defect-triage as the next step.
 argument-hint: <artifact path from tsl next>
 user-invocable: false
-allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write
+allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write, Edit
 ---
 
 Step context from tsl (do not edit):

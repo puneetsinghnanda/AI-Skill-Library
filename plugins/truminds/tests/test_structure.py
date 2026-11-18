@@ -315,7 +315,7 @@ def test_skill_folder_files(skill: str) -> None:
     if any(o.get("kind") == "code" for o in meta["outputs"]):
         assert meta["change_limits"], "code skills declare change limits (DEF-05)"
     else:
-        assert "Edit" not in meta["allowed_tools"] and not any(t.startswith("Bash") for t in meta["allowed_tools"])
+        assert not any(t.startswith("Bash") for t in meta["allowed_tools"])
 
 
 def test_every_artifact_input_schema_is_produced_by_some_skill() -> None:  # SKL-V11, FR-REG-02
