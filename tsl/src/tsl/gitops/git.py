@@ -7,6 +7,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from tsl.core import proc
 from tsl.core.errors import TslError
 
 
@@ -46,15 +47,8 @@ class Git:
         self, *args: str, check: bool = True, input_: str | None = None, timeout: float = 60
     ) -> subprocess.CompletedProcess[str]:
         try:
-            p = subprocess.run(
-                ["git", *args],
-                cwd=self.cwd,
-                capture_output=True,
-                text=True,
-                input=input_,
-                env=self._env(),
-                timeout=timeout,
-                check=False,
+            p = proc.run(
+                ["git", *args], cwd=self.cwd, input_=input_, env=self._env(), timeout=timeout
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise GitError(args[0], type(exc).__name__) from exc
@@ -71,14 +65,7 @@ class Git:
 
     def raw(self, *args: str) -> bytes | None:
         try:
-            p = subprocess.run(
-                ["git", *args],
-                cwd=self.cwd,
-                capture_output=True,
-                env=self._env(),
-                timeout=60,
-                check=False,
-            )
+            p = proc.run(["git", *args], cwd=self.cwd, text=False, env=self._env(), timeout=60)
         except (OSError, subprocess.TimeoutExpired):
             return None
         return p.stdout if p.returncode == 0 else None
@@ -237,15 +224,7 @@ def worktree_tree(clone: Path) -> str:
         env = g._env()
         env["GIT_INDEX_FILE"] = env_index
         for args in (["read-tree", "HEAD"], ["add", "-A"], ["write-tree"]):
-            p = subprocess.run(
-                ["git", *args],
-                cwd=clone,
-                capture_output=True,
-                text=True,
-                env=env,
-                timeout=60,
-                check=False,
-            )
+            p = proc.run(["git", *args], cwd=clone, env=env, timeout=60)
             if p.returncode != 0:
                 raise GitError(args[0], p.stderr.strip()[:120])
         return p.stdout.strip()

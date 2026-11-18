@@ -212,6 +212,11 @@ def guarded(
                     event, "timeout", f"tsl hook {event} timed out after {budget} s", parse(), home
                 )
             )
+            # Children (git push and its helpers) would outlive os._exit (item 11). Only when proc
+            # is loaded: importing it here could wait on an import lock the stuck thread holds.
+            proc = sys.modules.get("tsl.core.proc")
+            if proc is not None:
+                proc.kill_all()
             hard_exit(0)
 
     timer = threading.Timer(max(left, 0.0), on_timeout)
@@ -262,6 +267,9 @@ def guarded(
 def main(event: str, argv: list[str] | None = None) -> int:
     """Entry for `tsl hook-run <event> [--plugin-root <dir>]` (and the older `tsl hook <event>`)."""
     started = _T0
+    from tsl.core import proc
+
+    proc.contain()  # children of this hook end with it (item 11)
     root = None
     rest = list(argv or [])
     if len(rest) >= 2 and rest[0] == "--plugin-root":
