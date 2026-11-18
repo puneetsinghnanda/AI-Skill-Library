@@ -1,7 +1,7 @@
 # SDD-10 §3.2 and §4. Every pod starts at draft (SDD-10 §4, §13).
 schema: pod.v1
 id: brownfield-change-pod
-version: 1.0.0
+version: 1.1.0
 status: draft
 title: Brownfield Change Pod
 kind: brownfield
