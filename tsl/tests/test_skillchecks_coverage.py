@@ -236,5 +236,6 @@ def test_coverage_each_input_names_an_input_the_skill_declares() -> None:
             continue
         declared = {i["name"] for i in read_yaml(skill_dir / "skill.yaml").get("inputs") or []}
         for c in _checks(skill_dir.name)["checks"]:
-            if c.get("each_input"):
-                assert c["each_input"] in declared, (c["id"], sorted(declared))
+            names = c.get("each_input") or []  # one input name, or a list (first present wins)
+            for name in [names] if isinstance(names, str) else names:
+                assert name in declared, (c["id"], name, sorted(declared))
