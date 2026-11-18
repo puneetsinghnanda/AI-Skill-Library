@@ -9,10 +9,14 @@ checks:
   gate: H2
   select: $.tests[*].covers[*]
   must: ^S-[0-9]+/AC[0-9]+$
+# Every acceptance criterion of the stories has a test. Stories with no criteria at all fail, except
+# while the step asks a blocking question about them (rule 5; then decide returns NEEDS-INPUT).
 - id: test-plan.every-ac-tested
   kind: coverage
   gate: H2
+  defer_on_blocking: true
   each_input: stories
+  nonempty: true
   each: $.stories[*]
   each_key:
     prefix: id

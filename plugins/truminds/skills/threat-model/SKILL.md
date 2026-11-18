@@ -16,7 +16,7 @@ Find what could go wrong for security in each component the design touches, usin
 how each threat is mitigated. Write one file: the threat-model.v1 artifact at data.artifact_path.
 
 ## Inputs
-- data.inputs[name=design]: the design.v1 artifact. Model every component in components[]. When it is missing (security-review runs), model the components of the architecture section.
+- data.inputs[name=design]: the design.v1 artifact. Model every component in components[]. When it is missing (security-review runs), model the components listed in the architecture section's front matter (`components:`).
 - data.inputs[name=architecture]: components, authentication and jobs.
 - data.inputs[name=data_model]: what data each table holds; may be missing.
 - data.inputs[name=api_inventory]: existing routes; may be missing.
@@ -35,7 +35,7 @@ how each threat is mitigated. Write one file: the threat-model.v1 artifact at da
 2. Never invent a value: a number, limit, name, path, endpoint, table or version appears only if it appears in a cited input. Otherwise mark the item assumed (with a basis and a cite) or unknown (with a question).
 3. Every claim about the system cites at least one path#anchor from the inputs or the context pack (DEF-08). Generated facts use their fact id as the anchor, for example context/generated/module-map.json#module:<repo>:<path>. Put each claim's key term (the name, value or identifier the cited text must contain) in backticks, for example "hospital zone is `Asia/Kolkata`": tsl verifies a plain path#anchor cite by finding that term at the anchor, so a claim without one never verifies.
 4. Never copy secrets, keys, passwords, tokens or personal data from any input. If an input holds one, write "Input contains a credential or personal data; removed" under Unknown and ask the tech lead (non-blocking) to clean the source.
-5. Every component gets at least one threat row; the component name is copied exactly from the design.
+5. Every component gets at least one threat row; the component name is copied exactly from the design, or from the architecture's `components:` list when there is no design. If the design lists no components, ask about the design (blocking question). If there is no design and the architecture has no `components:` list, ask the tech lead to add it (blocking question). The step pauses on the question; without one, code fails it.
 6. Use only the six STRIDE categories. A mitigation names an existing control (cited) or a new control the implement step must build (say so).
 7. Do not write exploit steps or payloads. Describe the threat, not how to attack.
 8. Write only the file at data.artifact_path. Do not edit any other file.
@@ -79,7 +79,7 @@ Do this before you draft any question or assumption.
    not a question.
 
 ## Method
-1. List the components (from the design, else the architecture section) and the data each handles.
+1. List the components (from the design, else the architecture section's `components:` list) and the data each handles.
 2. For each component walk the six STRIDE categories; keep the ones that apply.
 3. For each threat write T-n with component, category, threat and mitigation; cite the control.
 4. Put threats you cannot assess (missing information) under Unknown with a question.

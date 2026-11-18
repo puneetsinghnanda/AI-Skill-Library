@@ -304,7 +304,7 @@ A skill cannot ship its own Python. It declares checks by **kind**, and each kin
 | --- | --- | --- |
 | `lookup` | `select` (JSONPath into the artifact), `in` (file + JSONPath into a generated index), `key` | Every selected value exists in the index |
 | `no-clash` | `select`, `against`, `unless` (field and value that marks an intended change) | No selected value already exists in `against`, unless marked |
-| `coverage` | `each` (JSONPath), `covered_by` (JSONPath), `link` (field), `min`, optional `each_input`/`covered_by_input` (a step input), `each_key`/`covered_by_key` (keyed pairs), `defer_on_blocking` | Every item in `each` is referenced by at least `min` items |
+| `coverage` | `each` (JSONPath), `covered_by` (JSONPath), `link` (field), `min`, optional `each_input`/`covered_by_input` (a step input; `each_input` may list several, of which the first the step has is used), `each_key`/`covered_by_key` (keyed pairs), `defer_on_blocking`, `nonempty` | Every item in `each` is referenced by at least `min` items; with `nonempty`, `each` selecting nothing fails |
 | `count-match` | `select`, `count_files` (glob), `where` (`field == 'value'` or `!=`) | Count in artifact equals count computed from files |
 | `enum-file` | `select`, `file` (allowlist shipped in `tsl`), optional `value` and `tag` | Every value is in the allowlist; with `tag`, each selected object's tag field equals the last word on its value's line |
 | `regex` | `select`, `must` or `must_not` | Pattern rule holds for every value |
@@ -364,11 +364,11 @@ harness:
 | implement | code + `change.v1` | `impl.risk` | diff-limit | S6 |
 | unit-test | tests + `ut-result.v1` | `ut.tests-run`, `ut.coverage-not-lower` | container | H3 |
 | defect-triage | `triage.v1` | `triage.components-exist` | lookup | H5 |
-| test-plan | `test-plan.v1` | `tplan.every-ac-tested`: each AC has ≥ 1 test | coverage | H2 |
+| test-plan | `test-plan.v1` | `tplan.every-ac-tested`: each AC has ≥ 1 test; a stories input with no AC at all fails (waits while a blocking question is open) | coverage | H2 |
 | test-automation | test code + `test-result.v1` | `tauto.tests-run`; `tauto.results-linked`: every non-manual planned test has a result that ran, with the plan's covers (waits while a blocking question is open); `tauto.results-planned`: no result id or criterion outside the plan | container, coverage | H3, H2 |
 | pipeline-review | `pipeline-review.v1` | `pipe.jobs-exist`: cited jobs and steps exist in the CI file | lookup | H5 |
 | deployment-failure-analysis | `deploy-failure.v1` | `dfa.log-lines-cited`: every finding cites the stored log input | cites-required | H2 |
-| threat-model | `threat-model.v1` | `tm.stride-per-component`: every design component has ≥ 1 STRIDE row | coverage | H2 |
+| threat-model | `threat-model.v1` | `tm.stride-per-component`: every design component (else every component in the architecture section's `components:` list) has ≥ 1 STRIDE row; no components fails | coverage | H2 |
 | secure-code-review | `secure-review.v1` | `scr.scans-attached`: SAST and secrets results from H3 of `implement` referenced by hash | lookup | H2 |
 | ux-flow-review | `ux-flow.v1` | `ux.node-cited`: every finding cites a Figma node id | cites-required | H2 |
 | accessibility-review | `a11y.v1` | `a11y.wcag-map`: each finding maps to a WCAG 2.1 AA criterion | enum-file | H2 |

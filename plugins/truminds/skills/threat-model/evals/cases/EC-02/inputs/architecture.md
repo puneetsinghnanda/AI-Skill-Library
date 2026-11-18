@@ -6,6 +6,10 @@ origin: human
 status: reviewed
 verified_at:
   sample-orders: 9e92595eaf5429b95226fc33beb1a37001eeeba3
+components:
+- name: web
+- name: api
+- name: purge-job
 ---
 # Architecture {#architecture}
 

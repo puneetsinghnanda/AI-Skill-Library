@@ -5,6 +5,11 @@ owner: tl-7a1c
 origin: human
 status: drafted
 verified_at: null
+components:
+- name: api
+- name: web
+- name: db
+- name: jobs
 ---
 
 # Architecture {#architecture}

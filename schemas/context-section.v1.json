@@ -53,6 +53,38 @@
       "additionalProperties": {
         "$ref": "#/$defs/git_sha"
       }
+    },
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "architecture section only: the system's components by name. threat-model covers these when a run has no design (SDD-03 §5.4).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        }
+      }
+    }
+  },
+  "if": {
+    "required": [
+      "components"
+    ]
+  },
+  "then": {
+    "properties": {
+      "section": {
+        "const": "architecture"
+      }
     }
   },
   "$defs": {

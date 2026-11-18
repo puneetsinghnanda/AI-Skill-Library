@@ -150,6 +150,7 @@ Sources: sample-system:api/src/jobs/purge-events.js#L12
 | Sources line | Each H2 or H3 block that states a fact about the system ends with a `Sources:` line of one or more citations. A block with no `Sources:` line is opinion and is marked as such by the reviewer, never by code |
 | Draft marker | Every AI-written block starts with `<!-- tsl:draft id=D-<n> -->`. The tech lead deletes the marker when they accept the block. `tsl context sign` refuses while any marker remains (E-CTX-04) |
 | Status | `drafted` is written by the drafting skill. Only a human sets `reviewed`. The signature is the control: by signing, the tech lead attests that every section was read |
+| Components | `architecture` only, optional: `components: [{name: api}, {name: web}, ...]` lists the system's components by the names design and threat-model use. threat-model covers this list when a run has no design (security-review); without it that step fails H2 (SDD-03 §5.4) |
 
 ### 3.4 Citation addresses into the pack
 
