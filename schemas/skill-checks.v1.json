@@ -198,6 +198,14 @@
               "link": {
                 "type": "string"
               },
+              "value": {
+                "type": "string",
+                "description": "enum-file: when `select` picks objects, the field whose value must be in the allowlist."
+              },
+              "tag": {
+                "type": "string",
+                "description": "enum-file: a field of each selected object that must equal the last word on its value's line in the allowlist (e.g. a WCAG criterion's level). Needs `value`."
+              },
               "min": {
                 "type": "integer",
                 "minimum": 1

@@ -7,6 +7,8 @@ import json
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from functools import cache
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
@@ -369,6 +371,11 @@ KINDS = {
     "container",
     "diff-limit",
 }
+# Kinds that run outside `_kind_check`: container steps in the verifier (H3), diff limits in H6.
+# Every other kind in KINDS must have a branch in `_kind_check`; one without fails, never skips,
+# because gates count `skip` as a pass.
+RUNS_ELSEWHERE = {"container", "diff-limit"}
+WHERE = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(==|!=)\s*'([^']*)'\s*$")
 
 
 def _expand(env: CheckEnv, rel: str) -> str:
@@ -381,6 +388,61 @@ def _expand(env: CheckEnv, rel: str) -> str:
             ticket = m.group(1)
             break
     return rel.replace("{run_id}", run_id).replace("{ticket}", ticket)
+
+
+ALLOWLIST_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*\.txt")
+
+
+@cache
+def allowlist(name: str) -> dict[str, str] | None:
+    """An `enum-file` allowlist shipped in tsl (harness/rules/<name>) as {value: tag}, or None when
+    tsl ships no such file. One value per line: the value is the first word, the tag the last word
+    (empty when the line holds only the value). Blank and `#` lines are skipped."""
+    if not ALLOWLIST_NAME.fullmatch(name):
+        return None
+    f = resources.files("tsl.harness").joinpath("rules", name)
+    if not f.is_file():
+        return None
+    rows = (ln.split() for ln in f.read_text(encoding="utf-8").splitlines())
+    return {r[0]: r[-1] if len(r) > 1 else "" for r in rows if r and not r[0].startswith("#")}
+
+
+def _count_files(env: CheckEnv, c: dict[str, Any]) -> int | str:
+    """Files under root matching `count_files` (JSON), filtered by `where` (`field == 'value'` or
+    `!=`). Returns the count, or failure detail as a str."""
+    pattern = str(c["count_files"])
+    if pattern.startswith(("/", "\\")) or ".." in Path(pattern).parts:
+        return f"count_files {pattern} must stay inside the repo"
+    cond = None
+    if c.get("where"):
+        cond = WHERE.match(str(c["where"]))
+        if not cond:
+            return f"where {c['where']!r} is not `field == 'value'`"
+    n = 0
+    for p in sorted(env.root.glob(pattern)):
+        if not p.is_file():
+            continue
+        if cond is None:
+            n += 1
+            continue
+        try:
+            doc = json.loads(p.read_text(encoding="utf-8"))
+        except ValueError:
+            return f"{p.relative_to(env.root).as_posix()} is not valid JSON"
+        field, op, want = cond.groups()
+        have = doc.get(field) if isinstance(doc, dict) else None
+        if (str(have) == want) == (op == "=="):
+            n += 1
+    return n
+
+
+def _enum_file_problem(c: dict[str, Any]) -> str | None:
+    """Why an `enum-file` check cannot run: no `file`, or tsl ships no such allowlist."""
+    if not c.get("file"):
+        return "enum-file check needs a `file`"
+    if allowlist(str(c["file"])) is None:
+        return f"allowlist {c['file']} is not shipped in tsl"
+    return None
 
 
 def _load_json(root: Path, rel: str) -> Any:
@@ -488,9 +550,39 @@ def _kind_check(env: CheckEnv, c: dict[str, Any]) -> tuple[str, str]:
                 if not (isinstance(v, dict) and v.get("cites")):
                     return "fail", "item without citation"
             return "pass", ""
+        if kind == "enum-file":
+            problem = _enum_file_problem(c)
+            if problem:
+                return "fail", problem
+            allowed = allowlist(str(c["file"])) or {}
+            field, tag = c.get("value"), c.get("tag")
+            for it in select(env.front, c["select"]):
+                # With `value`, select picks objects: their `value` field must be in the list, and
+                # their `tag` field (if set) must equal the last word on that value's line.
+                v = it.get(field) if field and isinstance(it, dict) else it
+                if str(v) not in allowed:
+                    return "fail", f"value {v!r} is not in {c['file']}"
+                if tag and isinstance(it, dict) and str(it.get(tag)) != allowed[str(v)]:
+                    return "fail", (
+                        f"{v}: {tag} {it.get(tag)!r}, but {c['file']} lists {allowed[str(v)]!r}"
+                    )
+            return "pass", ""
+        if kind == "count-match":
+            claimed = select(env.front, c["select"])
+            if len(claimed) != 1 or not isinstance(claimed[0], int) or isinstance(claimed[0], bool):
+                return "fail", f"{c['select']} must select one whole number"
+            counted = _count_files(env, c)
+            if isinstance(counted, str):
+                return "fail", counted
+            if claimed[0] != counted:
+                where = f" where {c['where']}" if c.get("where") else ""
+                return "fail", f"{c['select']} is {claimed[0]}, but {counted} files match{where}"
+            return "pass", ""
     except (PathError, KeyError, TypeError) as exc:
         return "fail", f"check error: {type(exc).__name__}"
-    return "skip", f"kind {kind} runs elsewhere"
+    if kind in RUNS_ELSEWHERE:
+        return "skip", f"kind {kind} runs elsewhere"
+    return "fail", f"kind {kind} has no check in tsl"
 
 
 def run_declared(env: CheckEnv, checks_doc: dict[str, Any] | None) -> list[CheckOutcome]:
@@ -534,6 +626,9 @@ def validate_declared(checks_doc: dict[str, Any]) -> list[str]:
         else:
             if c.get("kind") not in KINDS:
                 errs.append(f"{cid}: unknown kind")
+            problem = _enum_file_problem(c) if c.get("kind") == "enum-file" else None
+            if problem:
+                errs.append(f"{cid}: {problem}")
             if not cid.startswith(skill.split("-")[0]) and cid.split(".")[0] not in skill:
                 errs.append(f"{cid}: id must be prefixed by the skill")
             paths = [c[k] for k in ("select", "each", "covered_by") if k in c]
