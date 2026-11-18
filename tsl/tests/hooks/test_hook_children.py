@@ -66,6 +66,12 @@ class Stalled:
             c.close()  # lets a leaked client fail and exit
 
 
+@pytest.fixture(autouse=True)
+def fresh_proc(monkeypatch: pytest.MonkeyPatch) -> None:
+    """kill_all() closes the module for good (as in a hook process); each test starts open."""
+    monkeypatch.setattr(proc, "_closing", False)
+
+
 @pytest.fixture
 def server() -> Iterator[Stalled]:
     s = Stalled()
@@ -156,6 +162,45 @@ def test_kill_all_ends_running_children(
     proc.kill_all()
     th.join(10)
     assert not th.is_alive() and server.open_connections() == 0
+
+
+def test_no_child_starts_once_kill_all_has_begun(
+    server: Stalled, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The race Ekjot found on Windows: taskkill is slow, so a short command (rev-parse) ends on its
+    own while kill_all() runs, the next command (git push) starts, and kill_all() never sees it.
+    A _kill that waits for the child to end makes that deterministic on every OS."""
+    monkeypatch.setattr(proc, "_contained", True)
+    real_kill = proc._kill
+
+    def slow_kill(p: subprocess.Popen[str]) -> None:
+        p.wait(timeout=30)  # the short command finishes during the kill
+        real_kill(p)
+
+    monkeypatch.setattr(proc, "_kill", slow_kill)
+    push = (
+        "import socket, time; "
+        f"s = socket.create_connection(('127.0.0.1', {server.port})); time.sleep(600)"
+    )
+    refused: list[BaseException] = []
+
+    def hook() -> None:
+        proc.run([sys.executable, "-c", "import time; time.sleep(0.5)"], timeout=60)  # rev-parse
+        try:
+            proc.run([sys.executable, "-c", push], timeout=60)  # like git push
+        except OSError as exc:
+            refused.append(exc)
+
+    th = threading.Thread(target=hook, daemon=True)
+    th.start()
+    end = time.monotonic() + 10
+    while not proc._live and time.monotonic() < end:
+        time.sleep(0.005)
+    proc.kill_all()  # the watchdog, while the short command runs
+    th.join(10)
+    assert not th.is_alive() and refused, "the push-like child must be refused, not started"
+    time.sleep(1)
+    assert not server.conns
 
 
 def test_outside_a_hook_run_is_plain_subprocess_run(monkeypatch: pytest.MonkeyPatch) -> None:

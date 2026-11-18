@@ -4,8 +4,10 @@ A hook whose watchdog fires ends with os._exit (hooks/entry.py). The children it
 end with it: `git push` and git's own helpers (remote-http, the credential helper) are re-parented
 and keep running, now with no timeout at all. Inside a hook process, run() therefore starts each
 child as the leader of its own process group and keeps it in a list, so a timeout, or the watchdog
-through kill_all(), ends the whole group. Claude Code ends a timed-out hook by walking its process
-tree, which still reaches these groups.
+through kill_all(), ends the whole group. Once kill_all() has started, run() starts no new child:
+a `git push` that would follow a short command finishing during the kills is refused instead of
+leaking. Claude Code ends a timed-out hook by walking its process tree, which still reaches these
+groups.
 
 Outside a hook, run() is plain subprocess.run, so CLI commands keep the terminal (an ssh passphrase
 prompt still works).
@@ -21,6 +23,7 @@ import threading
 from typing import Any, Literal, overload
 
 _contained = False
+_closing = False  # set by kill_all(): no new children after it
 _live: set[subprocess.Popen[Any]] = set()
 _lock = threading.Lock()
 
@@ -57,22 +60,24 @@ def run(
         return subprocess.run(
             cmd, input=input_, capture_output=True, text=text, timeout=timeout, check=False, **kw
         )
-    p = subprocess.Popen(
-        cmd,
-        stdin=subprocess.DEVNULL if input_ is None else subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=text,
-        start_new_session=sys.platform != "win32",
-        **kw,
-    )
-    with _lock:
+    with _lock:  # start and register together, so kill_all() sees every child
+        if _closing:
+            raise OSError("the hook is ending; no new child processes")
+        p = subprocess.Popen(
+            cmd,
+            stdin=subprocess.DEVNULL if input_ is None else subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=text,
+            start_new_session=sys.platform != "win32",
+            **kw,
+        )
         _live.add(p)
     try:
         out, err = p.communicate(input_, timeout=timeout)
     except subprocess.TimeoutExpired:
         _kill(p)
-        p.communicate()
+        p.communicate(timeout=5)  # bounded: a descendant outside the group may hold the pipe
         raise
     finally:
         with _lock:
@@ -98,7 +103,9 @@ def _kill(p: subprocess.Popen[Any]) -> None:
 
 def kill_all() -> None:
     """End every child still running; the watchdog calls this just before os._exit."""
+    global _closing
     with _lock:
+        _closing = True
         live = list(_live)
     for p in live:
         _kill(p)
