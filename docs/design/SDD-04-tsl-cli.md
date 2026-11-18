@@ -212,6 +212,7 @@ Doc 4 §5.2 is the catalogue. This document keeps every existing code and adds t
 | E-RUN-06 | 3 | Run `<run_id>` belongs to `<pseudonym>` | Ask the owner, or a tech lead to unlock | `state resume` |
 | E-REV-02 | 2 | Reviewer output is not valid review.v1: `<pointer>` (meaning owned by SDD-03 §14; E-REV-01 is "cannot prepare review") | Re-run the review skill | `review record` |
 | E-REV-05 | 2 | `<n>` reviewer citation(s) do not verify: `<detail>` (SDD-03 §7.4 step 5; a warning with exit 0 once `retry.record` is used) | Run the review skill again with this message, then record again | `review record` |
+| E-REV-06 | 0 | `<n>` reviewer citation(s) moved to the lines that hold the quote: `<detail>` (SDD-03 §7.4 step 5; a warning) | None | `review record` |
 | E-EVAL-01 | 2 | Eval pass rate `<r>` below `<min>` or fewer than `<n>` cases | Fix the skill or add cases | `eval run` |
 | E-GIT-01 | 10 | Git `<op>` failed: `<detail>` | Check network and access, then repeat | `state`, `approve`, `pr` |
 | E-NET-02 | 10 | Insights service unreachable | Retry; offline-safe commands still work | Online-only commands |
@@ -370,10 +371,10 @@ Inputs form: `data.inputs[{name, path, sha256, present, stale}]`. Exit 0, or 2 w
 
 | Command | Args | Data | Exit codes |
 | --- | --- | --- | --- |
-| `review prepare` | `<artifact>` | `{artifact_path, artifact_sha256, rubric_path, rubric_sha256, context_sections[{path, anchor, sha256}], output_schema: "review.v1", instructions}` | 0; 3 (E-REV-01 if `checks.json` is missing or failing, SDD-03 §14; E-RUN-04) |
-| `review record` | `<artifact> [--file PATH \| --unavailable <reason>]` (default: stdin) | `{review_path, findings: {blocker, major, minor}, rubric_score}` | 0; 2 (E-REV-02, E-REV-03, E-REV-05) |
+| `review prepare` | `<artifact>` | `{artifact_path, artifact_sha256, rubric_path, rubric_sha256, context_sections[{path, anchor, sha256}], output_schema: "review.v1", instructions, review_input_path}` | 0; 3 (E-REV-01 if `checks.json` is missing or failing, SDD-03 §14; E-RUN-04) |
+| `review record` | `<artifact> [--file PATH \| --unavailable <reason>]` (default: stdin) | `{review_path, findings: {blocker, major, minor}, rubric_score}` | 0 (warnings E-REV-04, E-REV-05, E-REV-06); 2 (E-REV-02, E-REV-03, E-REV-05) |
 
-`prepare` prints the package that the forked reviewer reads (SDD-05 §4.4). It lists section paths and anchors, not file contents, so the reviewer reads them itself with Read, Grep and Glob.
+`prepare` prints the package that the forked reviewer reads (SDD-05 §4.4). It lists section paths and anchors, not file contents, so the reviewer reads them itself with Read, Grep and Glob. It also lists the run records any step may cite (`ide-answers.md`, `open-questions.md`) and `review_input_path`, where the reviewer writes its JSON for `record --file`.
 
 `record` checks four things before it writes `<artifact>.review.json`:
 

@@ -83,6 +83,40 @@
         }
       ]
     },
+    "open_questions": {
+      "description": "The run's questions still unanswered in open-questions.md. The skill does not raise them again; it cites one as `cite` (runs/<run_id>/open-questions.md#q-05).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "ask",
+          "blocking",
+          "question",
+          "cite"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^Q-[0-9]{2,}$"
+          },
+          "ask": {
+            "type": "string"
+          },
+          "blocking": {
+            "type": "boolean"
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "cite": {
+            "$ref": "#/$defs/rel_path"
+          }
+        }
+      }
+    },
     "answers": {
       "oneOf": [
         {

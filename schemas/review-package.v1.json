@@ -141,6 +141,33 @@
         }
       }
     },
+    "run_records": {
+      "description": "Run-level files any step may cite: ide-answers.md and open-questions.md, when they exist.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "path"
+        ],
+        "properties": {
+          "name": {
+            "enum": [
+              "ide-answers",
+              "open-questions"
+            ]
+          },
+          "path": {
+            "$ref": "#/$defs/rel_path"
+          }
+        }
+      }
+    },
+    "review_input_path": {
+      "description": "Where the reviewer writes its review.v1 JSON for tsl review record --file.",
+      "$ref": "#/$defs/rel_path"
+    },
     "budget_tokens": {
       "type": "integer",
       "minimum": 0

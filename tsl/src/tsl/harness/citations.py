@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import bisect
 import difflib
 import html
 import json
@@ -24,10 +25,13 @@ ITEM = re.compile(r"^(claim|item):[A-Za-z0-9][A-Za-z0-9:/._-]*$")
 # A bare item id (T-3, C8): not an anchor in an artifact, read as item:<id> in a review.
 BARE_ID = re.compile(r"^[A-Z]+-?[0-9]+$")
 IDE_ANSWERS = re.compile(r"^runs/run_[A-Za-z0-9]+/ide-answers\.md$")
+# The run's open questions: any step cites a question as open-questions.md#q-05.
+OPEN_QUESTIONS = re.compile(r"^runs/run_[A-Za-z0-9]+/open-questions\.md$")
+QUESTION_ANCHOR = re.compile(r"^(?:item:)?[Qq]-([0-9]+)$")
 ANCHOR_FORMS = (
     "a generated fact id (module:..., http:..., table:...), a lower-case heading slug, "
-    "L<n> or L<n>-L<m>, sym:<name>, key:<a.b>, an ide-answers id (a-01), or "
-    "claim:<id> / item:<id> on an upstream artifact"
+    "L<n> or L<n>-L<m>, sym:<name>, key:<a.b>, an ide-answers id (a-01), an open-questions "
+    "id (q-05), or claim:<id> / item:<id> on an upstream artifact"
 )
 READ_DENY = [
     "**/.env",
@@ -256,8 +260,17 @@ def span_for(
         return None, "fact not found"
     if c.anchor.startswith("sym:"):
         return _symbol_span(c.anchor[4:], c.path, text, generated)
+    qm = QUESTION_ANCHOR.match(c.anchor)
+    if qm and c.repo is None and OPEN_QUESTIONS.match(c.path):
+        return question_span(int(qm.group(1)), text)
     if ITEM.match(c.anchor) and c.path.endswith(".md"):
-        return _item_span(c.anchor, text)
+        item, why = _item_span(c.anchor, text)
+        if review and item is not None and c.anchor.startswith("item:"):
+            # The item as written: reviewers quote the YAML line (HMS-21 design lost two
+            # review rounds and a finding quoting CO-8's flow entry) or the body line naming it.
+            # claim:<id> stays the claims[] entry only.
+            item = "\n".join([item, *_item_lines(c.anchor.split(":", 1)[1], text)])
+        return item, why
     hs = headings(text)
     span: str | None = None
     for h in hs:
@@ -309,6 +322,84 @@ def _item_span(anchor: str, text: str) -> tuple[str | None, str | None]:
             if isinstance(it, dict) and str(it.get("id")) == ident:
                 return json.dumps(it, ensure_ascii=False, sort_keys=True, default=str), None
     return None, f"{kind} {ident} not found"
+
+
+def _item_lines(ident: str, text: str) -> list[str]:
+    """The lines that write item `ident` as authored: its front-matter entry (flow form
+    `- {id: CO-8, ...}` or block form `- id: CO-8` with its indented keys) and the body lines
+    that name it as a word (`- CO-8 Dashboard tests ...`, `| CO-8 | ...`)."""
+    lines = text.replace("\r\n", "\n").split("\n")
+    end = 0
+    if lines and lines[0].strip() == "---":
+        end = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), 0)
+    idre = re.escape(ident)
+    flow = re.compile(r"^\s*-\s*\{.*\bid:\s*['\"]?" + idre + r"['\"]?\s*[,}]")
+    block = re.compile(r"^(\s*)-\s+id:\s*['\"]?" + idre + r"['\"]?\s*$")
+    word = re.compile(r"(?<![\w-])" + idre + r"(?![\w-])")
+    out: list[str] = []
+    i = 1 if end else 0
+    while i < end:
+        line = lines[i]
+        bm = block.match(line)
+        if flow.match(line):
+            out.append(line)
+        elif bm:
+            ind = len(bm.group(1))
+            j = i + 1
+            while j < end and lines[j].strip() and (len(lines[j]) - len(lines[j].lstrip()) > ind):
+                j += 1
+            out += lines[i:j]
+            i = j
+            continue
+        i += 1
+    out += [ln for ln in lines[end + 1 if end else 0 :] if word.search(ln)]
+    return out
+
+
+def question_span(n: int, text: str) -> tuple[str | None, str | None]:
+    """Every block of question Q-<n> in open-questions.md (the question and its revisions)."""
+    lines = text.replace("\r\n", "\n").split("\n")
+    head = re.compile(r"^##\s+Q-0*" + str(n) + r"(?![0-9])")
+    out: list[str] = []
+    take = False
+    for line in lines:
+        if line.startswith("## "):
+            take = bool(head.match(line))
+        if take:
+            out.append(line)
+    if not out:
+        return None, f"question Q-{n:02d} not found"
+    return "\n".join(out), None
+
+
+def locate_unique(quote: str, text: str) -> tuple[int, int] | None:
+    """(first, last) 1-based lines of the one place `quote` is in `text`, by the same
+    normalisation as quote_matches; None when it is absent or appears more than once."""
+    q = normalise(quote)
+    if len(q) < 8:
+        return None
+    # One pass: each line normalised alone and joined by one space (as normalise would join
+    # them), with the offset where each line starts, so a match maps back to its lines.
+    parts: list[str] = []
+    starts: list[int] = []
+    nums: list[int] = []
+    pos = 0
+    for n, line in enumerate(text.replace("\r\n", "\n").split("\n"), start=1):
+        s = normalise(line)
+        if not s:
+            continue
+        starts.append(pos)
+        nums.append(n)
+        parts.append(s)
+        pos += len(s) + 1
+    joined = " ".join(parts)
+    i = joined.find(q)
+    if i < 0 or joined.find(q, i + 1) >= 0:
+        return None
+    a = bisect.bisect_right(starts, i) - 1
+    b = bisect.bisect_right(starts, i + len(q) - 1) - 1
+    first, last = nums[a], nums[b]
+    return (first, last) if last - first <= 200 else None
 
 
 def _symbol_span(
@@ -387,7 +478,8 @@ def verify_claim(
     - a cite with a quote must match its quote;
     - each backticked key term (or `element`) appears in at least one cite, so a supporting
       cite (a second fact, an IDE answer) no longer fails a good claim;
-    - an ide-answers cite must exist but needs no term of its own.
+    - an ide-answers cite must exist but needs no term of its own. An open-questions cite
+      is not exempt: an unanswered question is no evidence that a claim holds.
     """
     cites = claim.get("cites") or []
     if not cites:

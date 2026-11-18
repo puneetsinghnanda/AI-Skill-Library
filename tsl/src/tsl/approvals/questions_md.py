@@ -141,6 +141,116 @@ def originals(qs: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return out
 
 
+def unanswered(path: Path, run_id: str) -> list[dict[str, Any]]:
+    """The run's questions still open (no answer yet), oldest first, for the writer and the
+    duplicate check. Each carries the cite a writer uses for it. [] when there is no file."""
+    if not path.is_file():
+        return []
+    try:
+        qs = parse(path.read_text(encoding="utf-8")).get("questions", [])
+    except Exception:  # a hand-edited, broken file must not stop tsl next or decide
+        return []
+    first = originals(qs)
+    out: list[dict[str, Any]] = []
+    for qid, q in effective(qs).items():
+        if (q.get("answer") or "").strip():
+            continue
+        o = first.get(qid, q)
+        text = q["question"] if q.get("question") != "(revision)" else o.get("question", "")
+        out.append(
+            {
+                "id": qid,
+                "ask": q.get("ask") or o.get("ask") or "tech lead",
+                "blocking": bool(q.get("blocking")),
+                "question": str(text)[:300],
+                "evidence": list(q.get("evidence") or o.get("evidence") or []),
+                "cite": f"runs/{run_id}/open-questions.md#{qid.lower()}",
+            }
+        )
+    return out
+
+
+_IDS = re.compile(r"(?<![\w/-])(?!Q-)[A-Z]{1,5}-?[0-9]+(?![\w-])")
+_WORD = re.compile(r"[a-z0-9]{4,}")
+_STOP = frozenset(
+    [
+        "this",
+        "that",
+        "with",
+        "what",
+        "when",
+        "which",
+        "should",
+        "would",
+        "could",
+        "does",
+        "have",
+        "from",
+        "into",
+        "they",
+        "them",
+        "their",
+        "there",
+        "these",
+        "those",
+        "than",
+        "then",
+        "also",
+        "only",
+        "about",
+        "other",
+        "some",
+        "such",
+        "will",
+        "been",
+        "being",
+        "were",
+        "your",
+        "every",
+        "each",
+        "more",
+        "most",
+        "must",
+        "need",
+        "needs",
+        "make",
+        "made",
+        "please",
+        "answer",
+        "question",
+    ]
+)
+
+
+def _terms(q: dict[str, Any], ignore: set[str]) -> tuple[set[str], set[str]]:
+    """Item ids named in the question or in its evidence anchors (never in paths, which all
+    hold the ticket id), and its content words."""
+    anchors = " ".join(str(e).split("#", 1)[1] for e in q.get("evidence") or [] if "#" in str(e))
+    ids = set(_IDS.findall(f"{q.get('question', '')} {anchors}")) - ignore
+    words = set(_WORD.findall(str(q.get("question", "")).lower())) - _STOP
+    return ids, words
+
+
+def duplicate_of(
+    new: dict[str, Any], open_qs: list[dict[str, Any]], ignore: frozenset[str] = frozenset()
+) -> str | None:
+    """Id of an open question that `new` repeats, else None (HMS-21: Q-06 re-asked Q-05).
+
+    Same recipient, and the same items (T-2, REQ-5 ...; `ignore` drops the ticket id) with
+    some shared wording, or mostly the same wording. A warning only: decide still writes it."""
+    skip = set(ignore)
+    ids, words = _terms(new, skip)
+    for q in open_qs:
+        if str(q.get("ask")) != str(new.get("ask")):
+            continue
+        qids, qwords = _terms(q, skip)
+        union = words | qwords
+        jac = len(words & qwords) / len(union) if union else 0.0
+        if (ids & qids and jac >= 0.15) or jac >= 0.5:
+            return str(q["id"])
+    return None
+
+
 def append_round(
     path: Path,
     front: dict[str, Any],

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from tsl.approvals import approvals_md
+from tsl.approvals import approvals_md, questions_md
 from tsl.approvals.summary import portal_link
 from tsl.core.clock import iso
 from tsl.core.errors import TslError
@@ -63,6 +63,10 @@ def _action_for_attempt(ctx: RunCtx, sid: str, action: str) -> dict[str, Any]:
         "inputs": inputs,
         "feedback": a.get("feedback"),
         "answers": answers,
+        "open_questions": [
+            {k: q[k] for k in ("id", "ask", "blocking", "question", "cite")}
+            for q in questions_md.unanswered(ctx.comp.path(ctx.questions_rel()), ctx.run_id)
+        ],
         "context_sections": list(sk.meta.get("context_sections", [])),
         "budget": _budget(ctx, sid),
         "progress": ctx.progress(sid),
