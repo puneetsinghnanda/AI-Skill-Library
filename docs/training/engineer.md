@@ -28,6 +28,13 @@ Lines 8–12 of the [onboarding checklist](onboarding-checklist.md).
 
 The session in [hands-on-session.md](hands-on-session.md): `estimate` to completion, then `brownfield-change` to the design approval gate.
 
+Which workflow to start for a code change:
+
+- Use `brownfield-small` (`/truminds:run brownfield-small <ticket> [ticket-file]`) only when all hold: one story (about 6 acceptance criteria or fewer); existing modules only; no DB migration or schema change; no login, roles, permissions, tokens, secrets or new personal data; no new service, queue, external API or dependency; one or two modules and no shared query or contract.
+- Use `brownfield-change` when any hold: more than one story or several teams or repos; a data shape or shared contract change (needs impact-analysis); a security change (needs threat-model); a release, client or audit needs a test plan. If you are unsure, use `brownfield-change`.
+- `brownfield-small` skips impact-analysis, threat-model and test-plan. Design reads the module map, architecture and API inventory itself, secure-code-review still reviews the code, and unit-test covers a small change.
+- If story-split returns more than one story, or design finds a schema, auth or contract change, stop and start again on `brownfield-change`. Nothing checks this automatically yet.
+
 ## E4 · Pauses, PR evidence and rules (30 minutes)
 
 | Topic | Do | Reference |

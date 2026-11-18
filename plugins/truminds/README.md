@@ -109,7 +109,7 @@ RP-V08.
 | --- | --- | --- |
 | `business-analyst` | requirement-review, story-split | brownfield-change, greenfield-feature |
 | `solution-architect` | impact-analysis, design | brownfield-change, greenfield-feature |
-| `developer` | defect-triage, implement, unit-test | brownfield-change, defect-fix |
+| `developer` | defect-triage, implement, unit-test | brownfield-change, brownfield-small, defect-fix |
 | `qa-engineer` | test-plan, test-automation | brownfield-change, quality-uplift |
 | `security` | threat-model, secure-code-review | brownfield-change, security-review |
 | `devops` | pipeline-review, deployment-failure-analysis | pipeline-check, deploy-failure |
@@ -121,6 +121,7 @@ RP-V08.
 | Workflow | Steps | Gates | Kind | Status |
 | --- | --- | --- | --- | --- |
 | `brownfield-change` | req → split → impact → design → G-design → threat → impl → ut → secrev → tplan → PR | G-design, PR review | delivery | draft |
+| `brownfield-small` | req → split → design → impl → (ut ‖ secrev) → PR | PR review | delivery | draft |
 | `greenfield-feature` | req → split → design (intent baseline) → G-design → threat → impl → ut → secrev → tplan → PR | G-design, PR review | delivery | draft |
 | `defect-fix` | triage → impl → ut → PR | PR review | delivery | production |
 | `ux-review` | uxflow → a11y → G-ux-comments | comment approval | read_only | pilot |
@@ -134,6 +135,37 @@ RP-V08.
 workflow's status is never above the lowest status of its skills (SDD-01 §7), so the two workflows that start with
 `requirement-review` are `draft`. The four proposed workflows exist so the Quality and Security Pod resolves
 (POD-V04); SDD-02 has not confirmed them (SDD-10 O-03).
+
+## Choosing a workflow: brownfield-change or brownfield-small
+
+`brownfield-small` is the short variant of `brownfield-change`. It has 6 steps instead of 9. Start it with `/truminds:run brownfield-small <ticket> [ticket-file]`. Its status is draft.
+
+**Use `brownfield-small` when all of these hold:**
+
+- The ticket fits in one story (one user-visible behaviour, about 6 acceptance criteria or fewer).
+- It changes existing modules only: a field, a rule, a message, a page section or an endpoint's response.
+- It needs no DB migration or schema change.
+- It touches no login, roles, permissions, tokens or secrets, and handles no new personal data.
+- It adds no new service, queue, external API or dependency.
+- The blast radius is known: one or two modules, no shared query or contract used by many callers.
+
+**Use `brownfield-change` when any of these hold:**
+
+- The ticket splits into more than one story, or spans several teams or repos.
+- It changes data shape: a migration, a new table or column, or a change to a shared query or public API contract (impact-analysis is needed).
+- It changes security: auth, access rules, input from new sources, new personal or health data, a new external call (threat-model is needed).
+- A release, client or audit needs a test plan.
+- You are unsure. Default to `brownfield-change`.
+
+**What `brownfield-small` skips and what covers it:**
+
+| Skipped step | What covers it |
+| --- | --- |
+| impact-analysis | design reads the module map, architecture and API inventory itself |
+| threat-model | secure-code-review still reviews the code |
+| test-plan | unit-test covers a small change |
+
+**Switching mid-run:** if story-split returns more than one story, or design finds a schema, auth or contract change, stop and start again on `brownfield-change`. Nothing checks this automatically yet.
 
 ## Hooks and the launcher (SDD-05 §5)
 

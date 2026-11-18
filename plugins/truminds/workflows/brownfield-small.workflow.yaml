@@ -1,0 +1,46 @@
+# Short variant of brownfield-change for small changes: drops impact-analysis, threat-model and test-plan.
+# design reads the module map and architecture itself; secure-code-review still reviews the code; unit-test covers a small change.
+# status is draft because requirement-review is draft (SDD-01 §7: a workflow that references a draft skill must be draft).
+schema: workflow.v1
+id: brownfield-small
+version: 1.0.0
+title: Brownfield change (small)
+description: Take a small ticket on an existing system (one story; no schema, auth, new-service or shared-contract change) from requirement to a reviewed pull request.
+owner: wf-owner-2b                       # pseudonym; TBD by Puneet
+kind: delivery
+status: draft
+requires_fresh_pack: true
+inputs:
+  ticket: {required: true}
+defaults:
+  # write: post-write fast-check rejections per attempt, separate from checks (decide-time retries).
+  retry: {checks: 2, review: 2, verifier: 3, write: 4}
+  max_rework: 2
+steps:
+  - id: req
+    skill: requirement-review@^1.0
+    inputs: {ticket: run.ticket, intent_baseline: context.intent-baseline}
+  - id: split
+    skill: story-split@^1.0
+    after: [req]
+    inputs: {intent: req.intent}
+  - id: design
+    skill: design@^1.4
+    after: [split]
+    inputs: {stories: split.stories, intent: req.intent}
+  - id: impl
+    skill: implement@^1.0
+    after: [design]
+    inputs: {design: design.design, stories: split.stories}
+  - id: ut
+    skill: unit-test@^1.0
+    after: [impl]
+    inputs: {change: impl.change, stories: split.stories}
+  - id: secrev
+    skill: secure-code-review@^1.0
+    after: [impl]
+    inputs: {change: impl.change}
+  - pr: true
+    after: [ut, secrev]
+    draft_when_band: Medium
+    repos: changed
