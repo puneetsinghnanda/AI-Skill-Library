@@ -195,8 +195,47 @@
                 "type": "string",
                 "pattern": "^\\$"
               },
+              "covered_by_input": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "description": "coverage: name of the step input whose front matter `covered_by` selects from (default: the artifact itself)."
+              },
+              "covered_by_key": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "prefix",
+                  "select"
+                ],
+                "properties": {
+                  "prefix": {
+                    "type": "string"
+                  },
+                  "select": {
+                    "type": "string",
+                    "pattern": "^\\$"
+                  },
+                  "sep": {
+                    "type": "string",
+                    "default": "/"
+                  }
+                },
+                "description": "coverage: like `each_key`, for the references (results[] + covers[] -> TP-1/S-1/AC1)."
+              },
+              "defer_on_blocking": {
+                "type": "boolean",
+                "description": "coverage: skip while the artifact asks a blocking question not yet answered in this run; tsl decide then returns NEEDS-INPUT and the check runs again after the answer."
+              },
               "link": {
                 "type": "string"
+              },
+              "value": {
+                "type": "string",
+                "description": "enum-file: when `select` picks objects, the field whose value must be in the allowlist."
+              },
+              "tag": {
+                "type": "string",
+                "description": "enum-file: a field of each selected object that must equal the last word on its value's line in the allowlist (e.g. a WCAG criterion's level). Needs `value`."
               },
               "min": {
                 "type": "integer",

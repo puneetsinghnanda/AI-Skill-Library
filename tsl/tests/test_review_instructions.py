@@ -7,6 +7,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from e2e_steps import SESSION, do_req_step, start_run
 from helpers import World
 from tsl.review.service import INSTRUCTIONS
@@ -48,14 +50,35 @@ def test_reviewer_agent_mirrors_the_instructions() -> None:
     assert INSTRUCTIONS[start:end] in agent
 
 
-def test_review_built_from_the_instructions_validates_and_records(world: World) -> None:
+REF_RULES = (
+    'Never an absolute path, a drive letter (C:/...) or "..". Do not cite the rubric: score it '
+    "in rubric_items."
+)
+
+
+def _flat(text: str) -> str:
+    return " ".join(text.split())
+
+
+def test_instructions_and_agent_forbid_absolute_refs_and_rubric_cites() -> None:
+    # HMS-11 threat step: the reviewer cited the rubric by absolute path twice (E-REV-02).
+    agent = (Path(__file__).resolve().parents[2] / PLUGIN_AGENT).read_text(encoding="utf-8")
+    for text in (INSTRUCTIONS, agent):
+        assert REF_RULES in _flat(text)
+        assert '"<repo>:path"' in text
+
+
+def _prepare(world: World) -> tuple[str, dict[str, Any], str]:
     run_id = start_run(world)
     art = do_req_step(world, run_id, until="written")["artifact"]
     code, env, _, err = world.cli(["review", "prepare", art, "--json"], session=SESSION)
     assert code == 0 and env is not None, err
-    md = env["data"]["package"]
+    return art, env["data"], env["data"]["package"]
+
+
+def _review(md: str, ref: str) -> dict[str, Any]:
     data = json.loads(md.split("```DATA\n", 1)[1].split("\n```", 1)[0])
-    review = {
+    return {
         "schema": "review.v1",
         "run_id": data["run_id"],
         "step": data["step"],
@@ -73,7 +96,7 @@ def test_review_built_from_the_instructions_validates_and_records(world: World) 
                 "category": "completeness",
                 "text": "The retention period is not stated.",
                 # A real quote: review record rejects a citation that does not verify (E-REV-05).
-                "cites": [{"ref": f"{art}#requirements", "quote": "REQ-1 history list"}],
+                "cites": [{"ref": ref, "quote": "REQ-1 history list"}],
             }
         ],
         "claims_checked": [{"claim_id": "C1", "verdict": "supported"}],
@@ -87,6 +110,17 @@ def test_review_built_from_the_instructions_validates_and_records(world: World) 
             }
         ],
     }
+
+
+def test_review_built_from_the_instructions_validates_and_records(world: World) -> None:
+    art, prepared, md = _prepare(world)
+    # The rubric is in the package as text; no absolute path for the reviewer to copy into a ref.
+    rubric_line = next(ln for ln in md.splitlines() if ln.startswith("## Rubric ("))
+    assert "never cite it" in rubric_line
+    assert "## Rubric (skills/" in rubric_line
+    assert "# Rubric (test fixture)" in md
+    assert str(world.plugin) not in md and prepared["rubric_path"].startswith("skills/")
+    review = _review(md, f"{art}#requirements")
     assert list(review) == _template_keys(INSTRUCTIONS)
     assert errors("review.v1", review) == []
     code, env, _, err = world.cli(
@@ -94,3 +128,21 @@ def test_review_built_from_the_instructions_validates_and_records(world: World) 
     )
     assert code == 0 and env is not None, (env, err)
     assert env["data"]["status"] == "ok"
+
+
+@pytest.mark.parametrize(
+    "ref",
+    [
+        "/home/me/plugins/truminds/skills/requirement-review/rubric.md#L17",  # Linux (HMS-11)
+        "C:/dev/plugins/truminds/skills/requirement-review/rubric.md#L17",  # Windows: v1-valid
+    ],
+)
+def test_record_refuses_absolute_refs(world: World, ref: str) -> None:
+    art, _, md = _prepare(world)
+    review = _review(md, ref)
+    code, env, _, err = world.cli(
+        ["review", "record", art, "--json"], session=SESSION, stdin=json.dumps(review)
+    )
+    assert env is not None, err
+    assert code != 0 and env["code"] == "E-REV-02", env
+    assert "/findings/0/cites/0/ref is an absolute path" in json.dumps(env)

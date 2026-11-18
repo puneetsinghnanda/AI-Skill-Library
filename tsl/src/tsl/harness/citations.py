@@ -28,6 +28,19 @@ IDE_ANSWERS = re.compile(r"^runs/run_[A-Za-z0-9]+/ide-answers\.md$")
 # The run's open questions: any step cites a question as open-questions.md#q-05.
 OPEN_QUESTIONS = re.compile(r"^runs/run_[A-Za-z0-9]+/open-questions\.md$")
 QUESTION_ANCHOR = re.compile(r"^(?:item:)?[Qq]-([0-9]+)$")
+DRIVE = re.compile(r"^[A-Za-z]:[/\\]")
+
+
+def absolute_path(raw: str) -> bool:
+    """True when a ref's path is absolute: /..., \\... or a drive letter (C:/..., C:\\...).
+
+    No resolver can read such a path on another machine. parse() rejects it, and
+    `tsl review record` refuses it, so a reviewer gets E-REV-02 instead of a silent drop.
+    """
+    left = raw.split("#", 1)[0]
+    return left.startswith(("/", "\\")) or bool(DRIVE.match(left))
+
+
 ANCHOR_FORMS = (
     "a generated fact id (module:..., http:..., table:...), a lower-case heading slug, "
     "L<n> or L<n>-L<m>, sym:<name>, key:<a.b>, an ide-answers id (a-01), an open-questions "
@@ -70,7 +83,7 @@ class CiteResult:
 
 def parse(raw: str, repos: set[str]) -> Cite | None:
     """None when the string does not match the grammar (E-H1-05)."""
-    if "#" not in raw or any(c.isspace() for c in raw):
+    if "#" not in raw or any(c.isspace() for c in raw) or absolute_path(raw):
         return None
     left, anchor = raw.split("#", 1)
     repo: str | None = None
@@ -116,6 +129,11 @@ def format_error(raw: str, repos: set[str]) -> str:
         return f"bad citation format {raw[:80]}: no #anchor"
     if any(c.isspace() for c in raw):
         return f"bad citation format {raw[:80]}: contains whitespace"
+    if absolute_path(raw):
+        return (
+            f"bad citation format {raw[:80]}: absolute path; cite it relative to the companion "
+            "repo or as <repo>:path"
+        )
     left, anchor = raw.split("#", 1)
     if ":" in left and left.split(":", 1)[0] not in repos:
         return f"bad citation format {raw[:80]}: unknown repo {left.split(':', 1)[0]}"
