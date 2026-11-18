@@ -75,6 +75,6 @@ keep the ids of unchanged items.
 Write the file to data.artifact_path. Then run `tsl verify <data.artifact_path> --self-check --json`
 once. If data.fix lists items (failing checks, soft checks that lower S2, claims that will not
 verify and lower S1), change only the part of the file each item names: Write the whole file back with only those
-parts changed (Edit is not allowed in this step); do not redo the step. Make every change, then
+parts changed; do not redo the step. Make every change, then
 hand over without running the self-check again. Do not run the review or the decision: the run loop does that and tells you if a
 retry is needed.

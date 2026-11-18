@@ -714,10 +714,7 @@ def inputs_next_text(data: dict[str, Any]) -> str:
     parts = [f"write the artifact to {data['artifact_path']}."]
     tools = list(data.get("tools") or [])
     if tools:
-        t = f"Tools for this step: {', '.join(tools)}."
-        if "Edit" not in tools:
-            t += " Edit is not allowed; use Write."
-        parts.append(t)
+        parts.append(f"Tools for this step: {', '.join(tools)}.")
     crit = data.get("rubric_criteria") or []
     if crit:
         items = "; ".join(f"{c['id']} {c['name']}".strip() for c in crit)

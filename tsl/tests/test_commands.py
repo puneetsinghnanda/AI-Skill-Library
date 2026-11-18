@@ -558,7 +558,7 @@ def test_verify_inputs_lists_tools_and_rubric_and_next_text(world: World) -> Non
         inputs_next_text(
             {"artifact_path": "a.md", "tools": ["Read", "Write"], "rubric_criteria": []}
         )
-        == "write the artifact to a.md. Tools for this step: Read, Write. Edit is not allowed; use Write."
+        == "write the artifact to a.md. Tools for this step: Read, Write."
     )
     assert inputs_next_text(
         {
