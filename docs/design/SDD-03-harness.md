@@ -402,7 +402,9 @@ The scanner tools named above (ESLint, Semgrep, gitleaks) are proposals; the fin
 
 | Setting | Value |
 | --- | --- |
-| Command | `docker run --rm --network none --read-only --tmpfs /tmp --user 1000:1000 --cpus 2 --memory 4g --pids-limit 512 -v <worktree>:/src:ro -v <cache-volume>:/cache -v <out>:/out <image> sh -c "<cmd>"` |
+| Command | `docker run --rm --network none --read-only --tmpfs /tmp --user 1000:1000 --cpus 2 --memory 4g --pids-limit 512 -e VITEST_MAX_FORKS=2 -e VITEST_MAX_THREADS=2 -e VITEST_MIN_FORKS=1 -e VITEST_MIN_THREADS=1 -v <worktree>:/src:ro -v <cache-volume>:/cache -v <out>:/out <image> sh -c "<cmd>"` |
+| Test workers | `--cpus` caps CPU time, but Node still reports every host core, so test runners start one worker per host core. `tsl` passes `VITEST_MAX_FORKS` and `VITEST_MAX_THREADS` equal to the CPU limit (minimum 1), so vitest starts 2 workers, not one per host core (measured: test step 724–739 MB with 7 workers, 401–428 MB with 2; `docs/testing/validation/verifier-memory-HMS-11/`) |
+| Low memory | Before the first step, `tsl` warns (never blocks) when less than 1.5 GB is free, naming the top 3 memory users. The measured verifier peak is about 1 GB, the whole workflow about 1.5 GB |
 | Network | `none` for every step except `prepare`. `prepare` uses the default network to reach the package registry and writes only to the cache volume. Its lock file must be unchanged in the diff, or the change counts as a sensitive path (S6) |
 | Source mount | Read-only. `<worktree>` is a temporary copy of the files git tracks or would track in the product clone (`git ls-files --cached --others --exclude-standard`), so ignored files such as `node_modules` or a local `.env` are never built or scanned. Build output goes to `/tmp` or `/out` |
 | Docker probe | `docker info`, timeout 30 s (`TSL_DOCKER_TIMEOUT_S`), tried twice. The H3 detail says why Docker counts as unavailable: not found, not running, or timed out |
