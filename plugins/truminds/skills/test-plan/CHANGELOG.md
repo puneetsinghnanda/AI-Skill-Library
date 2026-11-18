@@ -1,5 +1,11 @@
 # Changelog: test-plan
 
+## 1.3.0
+- #5: `test-plan.every-ac-tested` (H2) passed when the stories input held no acceptance criteria, so
+  nothing was checked. With `nonempty`, a stories input with nothing to cover now fails. MINOR:
+  stricter check, same inputs and output schema. Needs a signed eval result for this version before
+  any status change (SKL-V13).
+
 ## 1.2.0
 - Roadmap item 2 (self-checks): run HMS-9 requirement-review went to band Low on S2 alone
   (RR-C12, summary over 5 sentences), which nothing reported before the review.

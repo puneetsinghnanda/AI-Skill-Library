@@ -13,6 +13,7 @@ checks:
   kind: coverage
   gate: H2
   each_input: stories
+  nonempty: true
   each: $.stories[*]
   each_key:
     prefix: id

@@ -494,10 +494,36 @@ def _select_from(
     return _keyed(items, key) if key else items
 
 
+def _names(spec: Any) -> list[str]:
+    return [str(n) for n in spec] if isinstance(spec, list) else [str(spec)]
+
+
+def _first_present(env: CheckEnv, spec: Any) -> str | None:
+    """`each_input` names one step input, or a list of which the first one present is used
+    (threat-model: design, else architecture). None when none is present."""
+    for name in _names(spec):
+        rel = env.named_inputs.get(name)
+        if rel and (env.root / rel).is_file():
+            return name
+    return None
+
+
 def _coverage_items(env: CheckEnv, c: dict[str, Any]) -> list[Any] | str:
-    """Items `each` selects, from the named input's front matter when `each_input` is set,
-    keyed by `each_key`. Returns failure detail as a str."""
-    return _select_from(env, c.get("each_input"), c["each"], c.get("each_key"))
+    """Items `each` selects (keyed by `each_key`), from a step input when `each_input` is set.
+    With `nonempty`, selecting nothing fails: an input with nothing to cover cannot pass.
+    Returns failure detail as a str."""
+    name = None
+    if c.get("each_input"):
+        name = _first_present(env, c["each_input"])
+        if name is None:
+            return f"input {' or '.join(_names(c['each_input']))} missing or has no front matter"
+    items = _select_from(env, name, c["each"], c.get("each_key"))
+    if isinstance(items, str):
+        return items
+    if c.get("nonempty") and not items:
+        where = f"input {name}" if name else "the artifact"
+        return f"{where} has nothing to cover at {c['each']}"
+    return items
 
 
 def _blocking_open(env: CheckEnv) -> bool:
