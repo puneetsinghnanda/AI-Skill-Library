@@ -7,13 +7,36 @@ checks:
 - id: test-automation.tests-run
   kind: container
   profile_step: test
-# Every criterion a non-manual test of the plan covers is linked by at least one result.
+# Results keep the plan's test ids and covers (SKILL.md rule 6), compared as TP-n/S-n/ACn pairs.
+# 1. Every pair of a non-manual planned test has a result that ran (pass or fail; skip does not
+#    count). Deferred while the step asks a blocking question, so asking leads to NEEDS-INPUT.
 - id: test-automation.results-linked
   kind: coverage
   gate: H2
+  defer_on_blocking: true
   each_input: test_plan
-  each: $.tests[?(@.level!='manual')].covers[*]
-  covered_by: $.results[*].covers[*]
+  each: $.tests[?(@.level!='manual')]
+  each_key:
+    prefix: id
+    select: $.covers[*]
+  covered_by: $.results[?(@.status!='skip')]
+  covered_by_key:
+    prefix: test_id
+    select: $.covers[*]
+  min: 1
+# 2. Every result pair belongs to a non-manual planned test: no invented test ids, no extra criteria.
+- id: test-automation.results-planned
+  kind: coverage
+  gate: H2
+  each: $.results[*]
+  each_key:
+    prefix: test_id
+    select: $.covers[*]
+  covered_by_input: test_plan
+  covered_by: $.tests[?(@.level!='manual')]
+  covered_by_key:
+    prefix: id
+    select: $.covers[*]
   min: 1
 - id: test-automation.only-test-files
   kind: regex

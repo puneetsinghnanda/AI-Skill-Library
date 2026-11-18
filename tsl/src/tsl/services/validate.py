@@ -159,7 +159,8 @@ def validate_skill(d: Path) -> dict[str, Any]:
         for se in schema_errors("skill-checks.v1", cdoc):
             e("SKL-V08", se.message, se.pointer)
         if not schema_errors("skill-checks.v1", cdoc):
-            for m in validate_declared(cdoc):
+            names = {str(i.get("name")) for i in meta.get("inputs") or [] if isinstance(i, dict)}
+            for m in validate_declared(cdoc, names):
                 e("SKL-V08", m)
     else:
         e("SKL-V08", "checks.yaml missing")
