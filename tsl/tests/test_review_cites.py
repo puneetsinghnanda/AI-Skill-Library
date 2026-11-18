@@ -115,7 +115,8 @@ def test_reviewer_forms_tsl_accepts_are_not_rejected(world: World) -> None:
 def test_bad_format_names_the_allowed_forms(world: World) -> None:
     run_id = start_run(world)
     res = do_req_step(world, run_id, until="prepared")
-    bad = {"ref": "C:/dev/plugins/truminds/skills/review/rubric.md#L46", "quote": "anything at all"}
+    # Not an absolute path (record refuses those first, E-REV-02): a repo tsl does not know.
+    bad = {"ref": "nosuchrepo:skills/review/rubric.md#L46", "quote": "anything at all"}
     code, env = _record(world, res["artifact"], res["package"], findings=[_finding("F-1", bad)])
     assert code == 2 and env["code"] == "E-REV-05", env
     [c] = env["data"]["citations"]
