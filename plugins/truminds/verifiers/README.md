@@ -41,6 +41,7 @@ instead of pulling anything.
 ```text
 docker run --rm --network none --read-only --tmpfs /tmp --user 1000:1000 --cap-drop ALL \
   --security-opt no-new-privileges --cpus 2 --memory 4g --pids-limit 512 \
+  -e VITEST_MAX_FORKS=2 -e VITEST_MAX_THREADS=2 -e VITEST_MIN_FORKS=1 -e VITEST_MIN_THREADS=1 \
   -v <worktree>:/src:ro -v tsl-verifier-cache:/cache -v <out>:/out <image@digest> sh -c "<cmd>"
 ```
 

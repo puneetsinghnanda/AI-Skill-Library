@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
@@ -74,7 +75,13 @@ class VerifierRunner(Protocol):
 
 PLACEHOLDER_DIGEST = "sha256:" + "0" * 64
 LIMITS = {"cpus": "2", "memory": "4g", "pids": "512"}  # SDD-03 §5.5
-MEMORY_MARGIN_MB = 1536  # warn when free memory is below the container limit plus this
+# Warn below this much free memory. Measured on the HMS-11 code (evidence in the PR): the highest
+# verifier step peaked at 0.55-0.89 GB, well under the 4 GB limit, and the whole workflow
+# (container, Claude Code, Docker daemon, a hook) at about 1.5 GB. The old threshold
+# (limit + 1.5 GB = 5.5 GB) fired on most runs on a 16 GB laptop.
+LOW_MEMORY_MB = 1536
+VERIFIER_NEEDS = "about 1 GB"
+TOP_USERS = 3
 OOM_EXIT = 137  # 128 + SIGKILL: the kernel killed the container, usually for memory
 RUN_USER = "1000:1000"  # SDD-03 §5.5; each verifier image has this uid
 
@@ -121,6 +128,7 @@ def docker_command(profile: dict[str, Any], step: str, worktree: Path, out_dir: 
         LIMITS["memory"],
         "--pids-limit",
         LIMITS["pids"],
+        *worker_env(LIMITS["cpus"]),
         "-v",
         f"{worktree}:{profile.get('workdir', '/src')}:ro",
         "-v",
@@ -132,6 +140,27 @@ def docker_command(profile: dict[str, Any], step: str, worktree: Path, out_dir: 
         "-c",
         str(spec["cmd"]),
     ]
+
+
+def worker_env(cpus: str) -> list[str]:
+    """`docker run -e` flags that size test-runner worker pools to the container's CPU limit.
+
+    `--cpus` caps CPU time but not the core count Node reports (os.availableParallelism() sees
+    every host core), so vitest started one worker per host core minus one: 7 on an 8-core
+    laptop, each holding its own copy of the code under test. Measured on the HMS-11 code: test
+    step 724-739 MB with 7 workers. Environment variables, not a `--maxWorkers` flag, because the
+    profile runs `npm test`, which may fan out to workspaces where a flag would not reach vitest.
+    vitest reads VITEST_MAX_FORKS / VITEST_MAX_THREADS (pool `forks` / `threads`); the minimum is
+    set too, since it otherwise defaults to the host core count and would exceed the maximum.
+    """
+    n = max(1, int(float(cpus)))
+    env = {
+        "VITEST_MAX_FORKS": n,
+        "VITEST_MAX_THREADS": n,
+        "VITEST_MIN_FORKS": 1,
+        "VITEST_MIN_THREADS": 1,
+    }
+    return [x for k, v in env.items() for x in ("-e", f"{k}={v}")]
 
 
 def available_memory_mb() -> int | None:
@@ -179,18 +208,103 @@ def available_memory_mb() -> int | None:
     return None
 
 
-def limit_mb(limit: str) -> int:
-    return int(limit[:-1]) * 1024 if limit.endswith("g") else int(limit[:-1])
+def _parse_tasklist(text: str) -> dict[str, int]:
+    """`tasklist /fo csv /nh` rows -> {image name: KB}.
+
+    Mem Usage is locale-formatted ("1,234 K", "1.234 K", "1 234 K"), so only its digits are kept.
+    """
+    import csv
+
+    out: dict[str, int] = {}
+    for row in csv.reader(text.splitlines()):
+        if len(row) < 5:
+            continue
+        digits = re.sub(r"\D", "", row[4])
+        if digits:
+            name = re.sub(r"\.exe$", "", row[0], flags=re.I)
+            out[name] = out.get(name, 0) + int(digits)
+    return out
 
 
-def low_memory_warning(available_mb: int | None) -> str | None:
-    need = limit_mb(LIMITS["memory"]) + MEMORY_MARGIN_MB
-    if available_mb is None or available_mb >= need:
+def _parse_ps(text: str) -> dict[str, int]:
+    """`ps -axo rss=,comm=` lines -> {command basename: KB}."""
+    out: dict[str, int] = {}
+    for line in text.splitlines():
+        rss, _, comm = line.strip().partition(" ")
+        if rss.isdigit() and comm.strip():
+            name = comm.strip().rsplit("/", 1)[-1]
+            out[name] = out.get(name, 0) + int(rss)
+    return out
+
+
+def _proc_rss() -> dict[str, int]:
+    """Linux: {process name: KB} from /proc/<pid>/status."""
+    out: dict[str, int] = {}
+    for st in Path("/proc").glob("[0-9]*/status"):
+        try:
+            name, rss = "", 0
+            for line in st.read_text().splitlines():
+                if line.startswith("Name:"):
+                    name = line.split(":", 1)[1].strip()
+                elif line.startswith("VmRSS:"):
+                    rss = int(line.split()[1])
+        except (OSError, ValueError, IndexError):
+            continue
+        if name and rss:
+            out[name] = out.get(name, 0) + rss
+    return out
+
+
+def top_memory_users(n: int = TOP_USERS) -> list[tuple[str, int]]:
+    """The n process names using the most memory, as (name, MB), summed over each name's processes.
+
+    Resident memory per process; shared pages count once per process, so a many-process app (a
+    browser) reads a little high. Good enough to say what to close. Never raises; [] when unknown.
+    """
+    try:
+        if sys.platform == "win32":
+            text = subprocess.run(
+                ["tasklist", "/fo", "csv", "/nh"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            ).stdout
+            kb = _parse_tasklist(text)
+        elif sys.platform == "darwin":
+            text = subprocess.run(
+                ["ps", "-axo", "rss=,comm="], capture_output=True, text=True, timeout=5, check=False
+            ).stdout
+            kb = _parse_ps(text)
+        else:
+            kb = _proc_rss()
+    except Exception:
+        return []
+    top = sorted(kb.items(), key=lambda x: -x[1])[:n]
+    return [(name, size // 1024) for name, size in top]
+
+
+def _size(mb: int) -> str:
+    return f"{mb / 1024:.1f} GB" if mb >= 1024 else f"{mb} MB"
+
+
+def low_memory_warning(
+    available_mb: int | None,
+    users: Callable[[], list[tuple[str, int]]] | None = None,
+) -> str | None:
+    """A warning when free memory is below LOW_MEMORY_MB, naming the top memory users."""
+    if available_mb is None or available_mb >= LOW_MEMORY_MB:
         return None
+    top = (users or top_memory_users)()
+    named = (
+        " Top memory users: " + ", ".join(f"{name} {_size(mb)}" for name, mb in top) + "."
+        if top
+        else ""
+    )
     return (
-        f"Low memory: {available_mb / 1024:.1f} GB free; the verifier container may use up to "
-        f"{LIMITS['memory'].upper().replace('G', ' GB')}. Close other programs (browsers, IDEs) "
-        "before the run, or it may be killed for memory."
+        f"Low memory: {available_mb / 1024:.1f} GB free; the verifier needs {VERIFIER_NEEDS} "
+        f"(its limit is {LIMITS['memory'].upper().replace('G', ' GB')}).{named} "
+        "Close some programs before the run, or the verifier may be killed for memory."
     )
 
 
