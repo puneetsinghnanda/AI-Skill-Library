@@ -280,6 +280,26 @@ def test_test_plan_fails_when_the_stories_hold_no_acceptance_criteria(tmp_path: 
     )
 
 
+def test_test_plan_waits_while_it_asks_for_missing_acceptance_criteria(tmp_path: Path) -> None:
+    """Review of #51: stories with no criteria are something the skill cannot fix. stories.v1 rejects
+    them, but test-plan's inputs are not schema-checked again, so as a safeguard rule 5 asks the tech
+    lead and the check waits: decide reaches NEEDS-INPUT, not RETRY until ESCALATE."""
+    story = {**_story("S-1", ["REQ-1"]), "acceptance_criteria": []}
+    stories = {"schema": "stories.v1", "trace": ["REQ-1"], "stories": [story]}
+    ac_errors = [e for e in schema_errors("stories.v1", stories) if "acceptance" in e.pointer]
+    assert [e.keyword for e in ac_errors] == [
+        "minItems"
+    ]  # stories.v1 rejects it at story-split (H1)
+    rel = _write_input(tmp_path, "in/stories.md", stories)
+    q = {"id": "Q-01", "blocking": True, "ask": "tech lead", "text": "S-1 has no criteria?"}
+    front = {"schema": "test-plan.v1", "tests": _tests(["S-1/AC1"]), "questions": [q]}
+    cid = "test-plan.every-ac-tested"
+    out = _outcome("test-plan", cid, front, tmp_path, {"stories": rel})
+    assert (out.status, out.detail) == ("skip", "blocking question open; checked after the answer")
+    out = _outcome("test-plan", cid, front, tmp_path, {"stories": rel}, frozenset({"Q-01"}))
+    assert out.status == "fail" and "nothing to cover" in out.detail
+
+
 def test_coverage_without_nonempty_still_passes_on_nothing_to_cover() -> None:
     """`nonempty` is opt-in: test-automation may legitimately have only manual tests (#45)."""
     check = {"id": "x.y", "kind": "coverage", "each": "$.none[*]", "covered_by": "$.refs[*]"}

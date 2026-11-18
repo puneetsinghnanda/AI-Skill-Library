@@ -364,7 +364,7 @@ harness:
 | implement | code + `change.v1` | `impl.risk` | diff-limit | S6 |
 | unit-test | tests + `ut-result.v1` | `ut.tests-run`, `ut.coverage-not-lower` | container | H3 |
 | defect-triage | `triage.v1` | `triage.components-exist` | lookup | H5 |
-| test-plan | `test-plan.v1` | `tplan.every-ac-tested`: each AC has ≥ 1 test; a stories input with no AC at all fails | coverage | H2 |
+| test-plan | `test-plan.v1` | `tplan.every-ac-tested`: each AC has ≥ 1 test; a stories input with no AC at all fails (waits while a blocking question is open) | coverage | H2 |
 | test-automation | test code + `test-result.v1` | `tauto.tests-run`; `tauto.results-linked`: every non-manual planned test has a result that ran, with the plan's covers (waits while a blocking question is open); `tauto.results-planned`: no result id or criterion outside the plan | container, coverage | H3, H2 |
 | pipeline-review | `pipeline-review.v1` | `pipe.jobs-exist`: cited jobs and steps exist in the CI file | lookup | H5 |
 | deployment-failure-analysis | `deploy-failure.v1` | `dfa.log-lines-cited`: every finding cites the stored log input | cites-required | H2 |

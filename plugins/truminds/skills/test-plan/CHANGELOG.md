@@ -2,9 +2,13 @@
 
 ## 1.3.0
 - #5: `test-plan.every-ac-tested` (H2) passed when the stories input held no acceptance criteria, so
-  nothing was checked. With `nonempty`, a stories input with nothing to cover now fails. MINOR:
-  stricter check, same inputs and output schema. Needs a signed eval result for this version before
-  any status change (SKL-V13).
+  nothing was checked. With `nonempty`, a stories input with nothing to cover now fails.
+- Stories with no criteria are something the skill cannot fix. stories.v1 rejects them (`minItems`),
+  but step inputs are not schema-checked again when test-plan reads them, so as a safeguard rule 5
+  asks the tech lead for the criteria (blocking question), and the check waits while that question is
+  open (`defer_on_blocking`): the step reaches NEEDS-INPUT instead of retrying to ESCALATE. MINOR:
+  stricter check and a rules change, same inputs and output schema. Needs a signed eval result for
+  this version before any status change (SKL-V13).
 
 ## 1.2.0
 - Roadmap item 2 (self-checks): run HMS-9 requirement-review went to band Low on S2 alone
