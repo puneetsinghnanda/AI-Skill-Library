@@ -5,7 +5,8 @@
   input. It now covers the design's components, or the architecture section's `components:` list
   (context-section.v1) when there is no design, and fails when that list is missing or empty.
 - Rule 5 and method step 1 name the architecture's `components:` list; without it the skill asks the
-  tech lead. MINOR: stricter check and a rules change, same output schema. Needs a signed eval result
+  tech lead, and the check waits while that blocking question is open (`defer_on_blocking`). A run
+  whose workflow binds a design never falls back to the architecture: a missing design fails. MINOR: stricter check and a rules change, same output schema. Needs a signed eval result
   for this version before any status change (SKL-V13).
 
 ## 1.2.0

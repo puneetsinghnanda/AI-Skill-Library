@@ -194,6 +194,37 @@ def test_threat_model_names_both_inputs_when_neither_is_present(tmp_path: Path) 
     )
 
 
+def test_threat_model_fails_for_a_bound_design_whose_file_is_missing(tmp_path: Path) -> None:
+    """Review: a workflow that binds a design (brownfield-change) must not fall back to the
+    architecture's generic components when the design file is missing."""
+    inputs = {**_architecture(tmp_path, "api", "web"), "design": "in/missing-design.md"}
+    front = {"schema": "threat-model.v1", "threats": _threats("api", "web")}
+    out = _outcome("threat-model", "threat-model.stride-per-component", front, tmp_path, inputs)
+    assert (out.status, out.detail) == ("fail", "input design missing or has no front matter")
+
+
+def test_threat_model_waits_while_it_asks_for_the_components_list(tmp_path: Path) -> None:
+    """Review: rule 5 asks the tech lead for the list; the question must reach NEEDS-INPUT, not a
+    retry. Once answered, the check runs again."""
+    inputs = _architecture(tmp_path)
+    q = {"id": "Q-01", "blocking": True, "ask": "tech lead", "text": "Add a components list?"}
+    front = {"schema": "threat-model.v1", "threats": _threats("api"), "questions": [q]}
+    cid = "threat-model.stride-per-component"
+    out = _outcome("threat-model", cid, front, tmp_path, inputs)
+    assert (out.status, out.detail) == ("skip", "blocking question open; checked after the answer")
+    out = _outcome("threat-model", cid, front, tmp_path, inputs, frozenset({"Q-01"}))
+    assert out.status == "fail"
+
+
+def test_threat_model_eval_without_a_design_lists_architecture_components() -> None:
+    """Review: EC-02 (no design) must give the check something to cover."""
+    case = SKILLS / "threat-model" / "evals" / "cases" / "EC-02"
+    assert "design" not in read_yaml(case / "case.yaml")["inputs"]
+    arch = split((case / "inputs" / "architecture.md").read_text(encoding="utf-8")).front
+    assert schema_errors("context-section.v1", dict(arch)) == []
+    assert [c["name"] for c in arch["components"]] == ["web", "api", "purge-job"]
+
+
 def test_threat_model_security_review_input_is_declared() -> None:
     """The fallback input must be one threat-model declares (context/architecture.md)."""
     meta = read_yaml(SKILLS / "threat-model" / "skill.yaml")
@@ -243,9 +274,9 @@ def test_test_plan_fails_when_the_stories_hold_no_acceptance_criteria(tmp_path: 
     rel = _write_input(tmp_path, "in/stories.md", {"schema": "stories.v1", "stories": [story]})
     front = {"schema": "test-plan.v1", "tests": _tests(["S-1/AC1"])}
     out = _outcome("test-plan", "test-plan.every-ac-tested", front, tmp_path, {"stories": rel})
-    assert (out.status, out.detail) == (
+    assert (out.status, out.detail) == (  # names the path that came back empty (review)
         "fail",
-        "input stories has nothing to cover at $.stories[*]",
+        "input stories has nothing to cover at $.stories[*] $.acceptance_criteria[*].id",
     )
 
 
@@ -254,8 +285,7 @@ def test_coverage_without_nonempty_still_passes_on_nothing_to_cover() -> None:
     check = {"id": "x.y", "kind": "coverage", "each": "$.none[*]", "covered_by": "$.refs[*]"}
     env = CheckEnv({"refs": []}, "", ROOT, [], {}, {})
     assert run_declared(env, {"checks": [check]})[0].status == "pass"
-    env_none = CheckEnv({"refs": []}, "", ROOT, [], {}, {})
-    assert run_declared(env_none, {"checks": [{**check, "nonempty": True}]})[0].detail == (
+    assert run_declared(env, {"checks": [{**check, "nonempty": True}]})[0].detail == (
         "the artifact has nothing to cover at $.none[*]"
     )
 

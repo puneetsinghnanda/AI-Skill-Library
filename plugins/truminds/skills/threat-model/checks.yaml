@@ -5,10 +5,12 @@ skill: threat-model
 artifact_schema: threat-model.v1
 checks:
 # Every component of the design, or of the architecture section's components list when the run has
-# no design (security-review), has at least one threat. A list with no components fails.
+# no design (security-review), has at least one threat. A list with no components fails, except
+# while the step asks a blocking question about it (then decide returns NEEDS-INPUT).
 - id: threat-model.stride-per-component
   kind: coverage
   gate: H2
+  defer_on_blocking: true
   each_input: [design, architecture]
   nonempty: true
   each: $.components[*].name
