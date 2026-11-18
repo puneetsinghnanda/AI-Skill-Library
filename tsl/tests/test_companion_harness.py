@@ -62,6 +62,32 @@ def test_schema_invalid(ran: tuple[World, str, dict[str, Any]]) -> None:
     assert (code, env["code"]) == (2, "E-COMP-01")
 
 
+def test_rejected_review_input_is_not_schema_checked(
+    ran: tuple[World, str, dict[str, Any]],
+) -> None:
+    # HMS-11: a reviewer output that `tsl review record` rejected (E-REV-02) was committed under
+    # review-input/ and turned every later push red with E-COMP-01.
+    w, run_id, _ = ran
+    raw = w.companion / f"runs/{run_id}/review-input/req.review.json"
+    raw.parent.mkdir(parents=True, exist_ok=True)
+    bad_ref = "/home/someone/plugin/skills/x/rubric.md#L46"
+    raw.write_text(json.dumps({"schema": "review.v1", "findings": [{"cites": [{"ref": bad_ref}]}]}))
+    _commit(w, "rejected review input")
+    code, env = _check(w)
+    assert code == 0, env["data"]["findings"]
+
+
+def test_review_input_is_still_scanned_for_secrets(ran: tuple[World, str, dict[str, Any]]) -> None:
+    w, run_id, _ = ran
+    fake = "AKIA" + "Q3VZ7KMB2XW4PLRT"
+    raw = w.companion / f"runs/{run_id}/review-input/req.review.json"
+    raw.parent.mkdir(parents=True, exist_ok=True)
+    raw.write_text(json.dumps({"schema": "review.v1", "note": f"key {fake}"}))
+    _commit(w, "review input with a secret")
+    code, env = _check(w)
+    assert (code, env["code"]) == (2, "E-COMP-04")
+
+
 def test_forbidden_content_is_reported_without_the_value(world: World) -> None:
     fake = "AKIA" + "Q3VZ7KMB2XW4PLRT"
     (world.companion / "notes.md").write_text(f"# Notes\n\nline two\nkey {fake}\n")

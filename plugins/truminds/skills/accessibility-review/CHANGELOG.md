@@ -1,12 +1,22 @@
 # Changelog: accessibility-review
 
-## 1.2.0
+## 1.3.0
 - Run HMS-21: the hook refused 24 Edit calls (requirement-review 15, design 6,
   secure-code-review 3), because the skill had no Edit tool although its hand-over says to
   fix self-check items with targeted edits. Each refusal ended in a full rewrite.
 - allowed_tools gains Edit, so self-check fixes are edits to the named parts only. The
   pre-tool hook still limits writes to the run's paths. MINOR: new tool, same inputs and
   output schema. Needs a signed eval result for this version before any status change
+  (SKL-V13). Follows 1.2.0 on main (#41).
+
+## 1.2.0
+- #7: `accessibility-review.wcag-map` (H2) now runs. Before, tsl had no `enum-file` check and no
+  allowlist, so the check skipped and a skip counts as a pass. Each finding's `wcag` must be one of the
+  49 WCAG 2.1 A and AA criteria in tsl's `wcag21-aa-criteria.txt`, and its `level` must be that
+  criterion's level (a stricter check).
+- Rule 5: a finding carries its criterion's own level, and never maps to 4.1.1 Parsing (obsolete in
+  the WCAG 2.1 errata; it is left out of the allowlist). MINOR: stricter check and a rules change, same
+  inputs and output schema. Needs a signed eval result for this version before any status change
   (SKL-V13).
 
 ## 1.1.0

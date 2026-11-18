@@ -305,9 +305,9 @@ A skill cannot ship its own Python. It declares checks by **kind**, and each kin
 | --- | --- | --- |
 | `lookup` | `select` (JSONPath into the artifact), `in` (file + JSONPath into a generated index), `key` | Every selected value exists in the index |
 | `no-clash` | `select`, `against`, `unless` (field and value that marks an intended change) | No selected value already exists in `against`, unless marked |
-| `coverage` | `each` (JSONPath), `covered_by` (JSONPath), `link` (field), `min` | Every item in `each` is referenced by at least `min` items |
-| `count-match` | `select`, `count_files` (glob), `where` | Count in artifact equals count computed from files |
-| `enum-file` | `select`, `file` (allowlist shipped in `tsl`) | Every value is in the allowlist |
+| `coverage` | `each` (JSONPath), `covered_by` (JSONPath), `link` (field), `min`, optional `each_input`/`covered_by_input` (a step input), `each_key`/`covered_by_key` (keyed pairs), `defer_on_blocking` | Every item in `each` is referenced by at least `min` items |
+| `count-match` | `select`, `count_files` (glob), `where` (`field == 'value'` or `!=`) | Count in artifact equals count computed from files |
+| `enum-file` | `select`, `file` (allowlist shipped in `tsl`), optional `value` and `tag` | Every value is in the allowlist; with `tag`, each selected object's tag field equals the last word on its value's line |
 | `regex` | `select`, `must` or `must_not` | Pattern rule holds for every value |
 | `cites-required` | `select` | Every selected item has at least one citation |
 | `container` | `profile_step` | The verifier step passes (§5.5) |
@@ -366,7 +366,7 @@ harness:
 | unit-test | tests + `ut-result.v1` | `ut.tests-run`, `ut.coverage-not-lower` | container | H3 |
 | defect-triage | `triage.v1` | `triage.components-exist` | lookup | H5 |
 | test-plan | `test-plan.v1` | `tplan.every-ac-tested`: each AC has ≥ 1 test | coverage | H2 |
-| test-automation | test code + `test-result.v1` | `tauto.tests-run`; `tauto.results-linked`: each result links to an AC | container, coverage | H3, H2 |
+| test-automation | test code + `test-result.v1` | `tauto.tests-run`; `tauto.results-linked`: every non-manual planned test has a result that ran, with the plan's covers (waits while a blocking question is open); `tauto.results-planned`: no result id or criterion outside the plan | container, coverage | H3, H2 |
 | pipeline-review | `pipeline-review.v1` | `pipe.jobs-exist`: cited jobs and steps exist in the CI file | lookup | H5 |
 | deployment-failure-analysis | `deploy-failure.v1` | `dfa.log-lines-cited`: every finding cites the stored log input | cites-required | H2 |
 | threat-model | `threat-model.v1` | `tm.stride-per-component`: every design component has ≥ 1 STRIDE row | coverage | H2 |

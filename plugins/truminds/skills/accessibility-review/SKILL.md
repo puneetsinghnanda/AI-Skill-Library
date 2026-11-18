@@ -27,7 +27,7 @@ change the design file.
 2. Never invent a value: a number, limit, name, path, endpoint, table or version appears only if it appears in a cited input. Otherwise mark the item assumed (with a basis and a cite) or unknown (with a question).
 3. Every claim about the system cites at least one path#anchor from the inputs or the context pack (DEF-08). Generated facts use their fact id as the anchor, for example context/generated/module-map.json#module:<repo>:<path>. Put each claim's key term (the name, value or identifier the cited text must contain) in backticks, for example "hospital zone is `Asia/Kolkata`": tsl verifies a plain path#anchor cite by finding that term at the anchor, so a claim without one never verifies.
 4. Never copy secrets, keys, passwords, tokens or personal data from any input. If an input holds one, write "Input contains a credential or personal data; removed" under Unknown and ask the tech lead (non-blocking) to clean the source.
-5. Every finding maps to one WCAG 2.1 success criterion (for example 1.4.3) at level A or AA, and cites the node as <design file path>#node:<id>.
+5. Every finding maps to one WCAG 2.1 success criterion (for example 1.4.3) at level A or AA, with that criterion's own level in `level`, and cites the node as <design file path>#node:<id>. Not 4.1.1 Parsing, which the WCAG 2.1 errata mark obsolete.
 6. Contrast findings state both colours and the size from the file; compute the ratio, do not estimate it.
 7. Only report what the design file shows; behaviour that needs a running app (focus order, screen reader output) goes under Unknown as a check for the test plan.
 8. Write only the file at data.artifact_path. Do not edit any other file.
