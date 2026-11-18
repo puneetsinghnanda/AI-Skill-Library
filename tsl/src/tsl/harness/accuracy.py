@@ -76,16 +76,26 @@ def _matches(f: dict[str, Any], d: dict[str, Any]) -> bool:
     return False
 
 
+def case_inputs(case_dir: Path) -> list[dict[str, Any]]:
+    """The files under a case's inputs/ as step inputs. Input names follow skill.yaml
+    (test_plan); file names often use hyphens (inputs/test-plan.md), so hyphens become `_`."""
+    folder = case_dir / "inputs"
+    files = sorted(p for p in folder.rglob("*") if p.is_file()) if folder.is_dir() else []
+    return [
+        {
+            "name": p.stem.replace("-", "_"),
+            "path": p.relative_to(case_dir).as_posix(),
+            "required": False,
+        }
+        for p in files
+    ]
+
+
 def score_case(
     case_dir: Path, case: dict[str, Any], sk: Skill | None, code_only: bool
 ) -> dict[str, Any]:
     art = artmod.load(case_dir, "artifact.md")
-    inputs = sorted((case_dir / "inputs").rglob("*")) if (case_dir / "inputs").is_dir() else []
-    expected_inputs = [
-        {"name": p.stem, "path": p.relative_to(case_dir).as_posix(), "required": False}
-        for p in inputs
-        if p.is_file()
-    ]
+    expected_inputs = case_inputs(case_dir)
     ci = CheckInput(
         root=case_dir,
         art=art,

@@ -32,6 +32,7 @@ class CheckEnv:
     input_paths: list[str]
     input_texts: dict[str, str]
     named_inputs: dict[str, str] = field(default_factory=dict)  # step input name -> rel path
+    answered: frozenset[str] = frozenset()  # question ids answered in this run (state.json)
 
 
 Fn = Callable[[CheckEnv, dict[str, Any]], str | None]  # returns failure detail or None
@@ -468,25 +469,43 @@ def _input_front(env: CheckEnv, name: str) -> dict[str, Any] | None:
         return None
 
 
-def _coverage_items(env: CheckEnv, c: dict[str, Any]) -> list[Any] | str:
-    """Items `each` selects, from the named input's front matter when `each_input` is set.
-    `each_key` joins each item's `prefix` field with every value `select` finds under it
-    (stories[] + acceptance_criteria[].id -> S-1/AC1). Returns failure detail as a str."""
-    src: dict[str, Any] | None = env.front
-    if c.get("each_input"):
-        src = _input_front(env, str(c["each_input"]))
-        if src is None:
-            return f"input {c['each_input']} missing or has no front matter"
-    items = select(src, c["each"])
-    ek = c.get("each_key")
-    if not ek:
-        return items
-    sep = str(ek.get("sep", "/"))
-    keys: list[Any] = []
+def _keyed(items: list[Any], spec: dict[str, Any]) -> list[str]:
+    """Join each object's `prefix` field with every value `select` finds under it:
+    stories[] + acceptance_criteria[].id -> S-1/AC1; results[] + covers[] -> TP-1/S-1/AC1."""
+    sep = str(spec.get("sep", "/"))
+    keys: list[str] = []
     for it in items:
         if isinstance(it, dict):
-            keys.extend(f"{it.get(ek['prefix'])}{sep}{v}" for v in select(it, ek["select"]))
+            keys.extend(f"{it.get(spec['prefix'])}{sep}{v}" for v in select(it, spec["select"]))
     return keys
+
+
+def _select_from(
+    env: CheckEnv, input_name: Any, path: str, key: dict[str, Any] | None
+) -> list[Any] | str:
+    """`path` over the artifact, or over a step input's front matter when `input_name` is set;
+    keyed with `key` (see _keyed). Returns failure detail as a str."""
+    src: dict[str, Any] | None = env.front
+    if input_name:
+        src = _input_front(env, str(input_name))
+        if src is None:
+            return f"input {input_name} missing or has no front matter"
+    items = select(src, path)
+    return _keyed(items, key) if key else items
+
+
+def _coverage_items(env: CheckEnv, c: dict[str, Any]) -> list[Any] | str:
+    """Items `each` selects, from the named input's front matter when `each_input` is set,
+    keyed by `each_key`. Returns failure detail as a str."""
+    return _select_from(env, c.get("each_input"), c["each"], c.get("each_key"))
+
+
+def _blocking_open(env: CheckEnv) -> bool:
+    """The artifact asks a blocking question not yet answered in this run (questions[] or
+    unknown[] with blocking: true), the same items `tsl decide` counts as S4."""
+    qs = [q for q in env.front.get("questions") or [] if isinstance(q, dict)]
+    us = [u for u in env.front.get("unknown") or [] if isinstance(u, dict)]
+    return any(q.get("blocking") is True and q.get("id") not in env.answered for q in qs + us)
 
 
 def _kind_check(env: CheckEnv, c: dict[str, Any]) -> tuple[str, str]:
@@ -518,10 +537,18 @@ def _kind_check(env: CheckEnv, c: dict[str, Any]) -> tuple[str, str]:
                     return "fail", f"{k(v)} already exists"
             return "pass", ""
         if kind == "coverage":
+            # A step that stops to ask cannot cover everything yet; `tsl decide` sends it to
+            # NEEDS-INPUT on the open question, and the check runs again after the answer.
+            if c.get("defer_on_blocking") and _blocking_open(env):
+                return "skip", "blocking question open; checked after the answer"
             items = _coverage_items(env, c)
             if isinstance(items, str):
                 return "fail", items
-            refs = select(env.front, c["covered_by"])
+            refs = _select_from(
+                env, c.get("covered_by_input"), c["covered_by"], c.get("covered_by_key")
+            )
+            if isinstance(refs, str):
+                return "fail", refs
             link = c.get("link", "id")
             need = int(c.get("min", 1))
             # `link` names the id field: on the covering objects when covered_by selects objects
@@ -608,8 +635,9 @@ def run_declared(env: CheckEnv, checks_doc: dict[str, Any] | None) -> list[Check
     return out
 
 
-def validate_declared(checks_doc: dict[str, Any]) -> list[str]:
-    """tsl validate rules for checks.yaml (SDD-03 §5.3, SKL-V08)."""
+def validate_declared(checks_doc: dict[str, Any], inputs: set[str] | None = None) -> list[str]:
+    """tsl validate rules for checks.yaml (SDD-03 §5.3, SKL-V08). With `inputs` (the skill.yaml
+    input names), every input a check reads must be one the skill declares."""
     from tsl.harness.jsonpath import compile_path
 
     errs: list[str] = []
@@ -631,9 +659,16 @@ def validate_declared(checks_doc: dict[str, Any]) -> list[str]:
                 errs.append(f"{cid}: {problem}")
             if not cid.startswith(skill.split("-")[0]) and cid.split(".")[0] not in skill:
                 errs.append(f"{cid}: id must be prefixed by the skill")
+            if inputs is not None:
+                for k in ("each_input", "covered_by_input"):
+                    names = c.get(k) or []
+                    for name in [names] if isinstance(names, str) else names:
+                        if name not in inputs:
+                            errs.append(f"{cid}: {k} {name} is not an input of the skill")
             paths = [c[k] for k in ("select", "each", "covered_by") if k in c]
-            if isinstance(c.get("each_key"), dict) and "select" in c["each_key"]:
-                paths.append(c["each_key"]["select"])
+            for k in ("each_key", "covered_by_key"):
+                if isinstance(c.get(k), dict) and "select" in c[k]:
+                    paths.append(c[k]["select"])
             for path in paths:
                 try:
                     compile_path(path)
