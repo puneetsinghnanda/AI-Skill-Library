@@ -640,53 +640,35 @@ def verify_inputs(
     return data
 
 
-PRIOR_ENDS = ("completed", "pr_opened", "cancelled", "aborted", "lock_released", "rejected")
 PRIOR_MAX = 200
 
 
 def prior_answers(
     comp: Companion, run_id: str, ticket: str, step: str, attempt: int
 ) -> list[dict[str, Any]]:
-    """Answers the user already gave (B3): earlier steps and attempts of this run, then ended
-    runs of the same ticket, newest run first. Each entry carries the cite to use."""
+    """Answers the user already gave in this run (B3): earlier steps and attempts. Each entry
+    carries the cite to use. Never another run's, even of the same ticket: runs are independent,
+    and an artifact may not cite another run (E-H1-06). `ticket` is kept for callers."""
     from tsl.approvals import ide_answers
     from tsl.core.paths import ide_answers_path
-    from tsl.state.store import all_runs, read_state_raw
 
-    def entries(rid: str, this_run: bool, end: str | None) -> list[dict[str, Any]]:
-        rel = ide_answers_path(rid)
-        out = []
-        for e in ide_answers.read(comp.path(rel)):
-            if this_run and e.get("step") == step and int(e.get("attempt", 0)) >= attempt:
-                continue  # this attempt's own answers come back from the post-tool hook
-            item = {
-                "run_id": rid,
+    rel = ide_answers_path(run_id)
+    found: list[dict[str, Any]] = []
+    for e in ide_answers.read(comp.path(rel)):
+        if e.get("step") == step and int(e.get("attempt", 0)) >= attempt:
+            continue  # this attempt's own answers come back from the post-tool hook
+        found.append(
+            {
+                "run_id": run_id,
                 "id": e["id"],
                 "step": e.get("step"),
                 "attempt": e.get("attempt"),
                 "question": e.get("question", ""),
                 "answer": e.get("answer", ""),
                 "cite": f"{rel}#{e['id'].lower()}",
-                "this_run": this_run,
+                "this_run": True,
             }
-            if end:
-                item["run_end"] = end
-            out.append(item)
-        return out
-
-    found = entries(run_id, True, None)
-    others: list[tuple[str, str, str]] = []
-    for rid in all_runs(comp):
-        if rid == run_id:
-            continue
-        st = read_state_raw(comp, rid) or {}
-        if st.get("ticket") != ticket or st.get("status") != "COMPLETED":
-            continue
-        end = str(st.get("end_reason") or "")
-        if end in PRIOR_ENDS:
-            others.append((str(st.get("updated_at") or ""), rid, end))
-    for _, rid, end in sorted(others, reverse=True):
-        found.extend(entries(rid, False, end))
+        )
     return found[:PRIOR_MAX]
 
 

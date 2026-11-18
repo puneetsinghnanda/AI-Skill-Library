@@ -110,9 +110,9 @@ def _assert(front: dict[str, Any], a: dict[str, Any]) -> str | None:
 
 
 def _place_answer_log(work: Path, front: dict[str, Any]) -> None:
-    """An eval case gives the answers of earlier steps as inputs/ide-answers.md, and those of
-    ended runs of the ticket as inputs/runs/<run_id>/ide-answers.md. Put them where a run keeps
-    them (runs/<run_id>/ide-answers.md), so cites and answers.logged work as in a run."""
+    """An eval case gives the answers of earlier steps of the run as inputs/ide-answers.md. Put
+    them where a run keeps them (runs/<run_id>/ide-answers.md), so cites and answers.logged work
+    as in a run. Answers of other runs are never given: runs are independent (E-H1-06)."""
     from tsl.core.paths import ide_answers_path
 
     src = work / "inputs" / "ide-answers.md"
@@ -121,11 +121,6 @@ def _place_answer_log(work: Path, front: dict[str, Any]) -> None:
         dst = work / ide_answers_path(run_id)
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(src, dst)
-    # Answers from ended runs of the same ticket (data.prior_answers in a run).
-    for log in sorted((work / "inputs" / "runs").glob("run_*/ide-answers.md")):
-        dst = work / "runs" / log.parent.name / "ide-answers.md"
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(log, dst)
 
 
 def score_case(rt: Runtime, sk: Skill, case_dir: Path, case: dict[str, Any]) -> dict[str, Any]:

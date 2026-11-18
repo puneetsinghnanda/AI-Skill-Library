@@ -137,7 +137,7 @@ The post-write hook has a 90 s hard timeout (SDD-05 §5.2). Build and test conta
 
 | Gate | Checks | Outcome on failure (Doc 3 §5.1) | Codes |
 | --- | --- | --- | --- |
-| H1 | Schema: envelope and body | RETRY | E-H1-01 … E-H1-05, E-SCH-01 |
+| H1 | Schema: envelope and body | RETRY | E-H1-01 … E-H1-06, E-SCH-01 |
 | H2 | Required sections, Known / Assumed / Unknown | RETRY | E-H2-01 … E-H2-03 |
 | H3 | Verifier profile: build, unit tests, lint, SAST, secrets scan | Fix loop (max 3), then ESCALATE | E-H3-01 … E-H3-09 |
 | H4 | Forbidden content | ABORT for secrets or PII; RETRY for invented values and client names | E-SEC-01, E-SEC-02, E-H4-03, E-H4-04 |
@@ -158,8 +158,9 @@ The post-write hook has a 90 s hard timeout (SDD-05 §5.2). Build and test conta
 5. Cross-check against `state.json`: `run_id`, `step`, `attempt` and `skill` (name@version) must equal the current step's values. Mismatch → E-H1-03.
 6. Validate the body schema's structured fields (SDD-01) → E-H1-04 on error, with the JSON pointer of each error.
 7. Check every citation string against the grammar in §8.1 → E-H1-05 per bad citation. This is a format check only; resolution happens in §8.
+8. **Runs are independent.** The artifact may not name a path into another run's folders, `artifacts/<ticket>/<other run>/…` or `runs/<other run>/…`, in a citation or in prose, not even an earlier run of the same ticket → E-H1-06 per path. A declared input of the step is allowed (status-report cites each run's `state.json`). The pre-tool hook also refuses reading another run's files while a run is bound (SDD-05 §5.3), and `data.prior_answers` holds this run's answers only.
 
-**Pass rule:** no errors from steps 1–7.
+**Pass rule:** no errors from steps 1–8.
 
 **Example:** `design.md` has `attempt: 1` but `state.json` says attempt 2 → `E-H1-03 envelope attempt 1 != state attempt 2`. Outcome RETRY.
 
@@ -888,6 +889,7 @@ sequenceDiagram
 | E-H1-03 | 2 | Envelope `<field>` `<value>` does not match run state `<expected>`. | Fix the envelope |
 | E-H1-04 | 2 | Body schema error at `<pointer>`: `<message>`. | Fix the field |
 | E-H1-05 | 2 | Citation `<ref>` does not match the citation format. | Use `repo:path#anchor` |
+| E-H1-06 | 2 | The artifact refers to another run's file `<ref>`. | Use only this run's files and the inputs tsl gave |
 | E-H2-01 | 2 | Section `<title>` missing. | Add it |
 | E-H2-02 | 2 | Section `<title>` is empty. | Add content |
 | E-H2-03 | 2 | Known / Assumed / Unknown incomplete. | Add the lists; mark each unknown blocking or not |

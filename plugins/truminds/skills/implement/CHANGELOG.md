@@ -1,5 +1,14 @@
 # Changelog: implement
 
+## 1.3.0
+- Runs are independent (HMS-5 rerun: the skill read the earlier run's artifacts and feedback
+  "as a starting point" at every step). data.prior_answers now holds this run's answers only;
+  never read or cite another run's files, even of the same ticket. The pre-tool hook refuses
+  such reads while a step is open, and tsl verify fails an artifact that names another run
+  (E-H1-06).
+- MINOR: changed instruction, same tools, inputs and output schema. Needs a signed eval
+  result for this version before any status change (SKL-V13).
+
 ## 1.2.0
 - Roadmap item 2 (self-checks): run HMS-9 requirement-review went to band Low on S2 alone
   (RR-C12, summary over 5 sentences), which nothing reported before the review.

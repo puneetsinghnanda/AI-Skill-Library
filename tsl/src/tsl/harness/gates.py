@@ -170,7 +170,35 @@ def h1(ci: CheckInput) -> GateResult:
                 f"({citations.format_error(ref_of(c), ci.repos).split(': ', 1)[-1]})",
                 "GEN-CITE-01",
             )
+    for ref in other_run_refs(art.text, str(art.front.get("run_id") or ""), ci.expected_inputs):
+        g.fail(
+            "E-H1-06",
+            f"the artifact refers to another run's file {ref[:160]}; use only this run's files "
+            "and the inputs tsl gave",
+            "GEN-CITE-01",
+        )
     return g
+
+
+# A run's own folders: artifacts/<ticket>/<run_id>/... and runs/<run_id>/...
+OTHER_RUN = re.compile(
+    r"(?<![\w.-])((?:artifacts/[A-Za-z0-9._-]+/|runs/)(run_[A-Za-z0-9]+)(?:/[^\s#'\"`),\]]*)?)"
+)
+
+
+def other_run_refs(text: str, run_id: str, inputs: list[dict[str, Any]]) -> list[str]:
+    """Paths into another run's folders that the artifact names (cites or prose). Runs are
+    independent: a run never builds on, or cites, another run's artifacts, answers or questions,
+    even of the same ticket. A declared input (status-report's run states) is allowed."""
+    if not run_id:
+        return []
+    given = {str(i.get("path")) for i in inputs}
+    out: list[str] = []
+    for m in OTHER_RUN.finditer(text.replace("\\", "/")):
+        path, rid = m.group(1).rstrip(".,;:"), m.group(2)
+        if rid != run_id and path not in given and path not in out:
+            out.append(path)
+    return out
 
 
 # ------------------------------------------------------------------------------------ H2
