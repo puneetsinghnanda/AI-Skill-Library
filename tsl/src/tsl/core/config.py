@@ -35,8 +35,10 @@ ORG_DEFAULTS: dict[str, Any] = {
         "sensitive_paths": ["**/auth/**", "**/migrations/**", ".github/**"],
     },
     # write: fast-check rejections in the post-write hook, per attempt (B5); checks stays the
-    # decide-time retry budget.
-    "retry": {"checks": 2, "review": 2, "verifier": 3, "write": 4},
+    # decide-time retry budget. record: review records rejected for citations that do not verify,
+    # per attempt (SDD-03 §7.4); only the reviewer runs again, and review stays the budget for
+    # step retries on a major finding.
+    "retry": {"checks": 2, "review": 2, "verifier": 3, "write": 4, "record": 2},
     "max_rework": 2,
     "gates": {"self_approval": False, "lock_timeout_hours": 24},
     "pr": {"branch_prefix": "tsl/", "labels": []},

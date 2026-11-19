@@ -33,6 +33,10 @@ Loop:
    the error "message", and record again. Stay within the review budget (retry.review,
    2 by default). If it still fails, run
    `tsl review record <artifact_path> --unavailable "<the error message>" --json`.
+   On E-REV-05 some citations do not verify: run the `review` skill again, passing it the
+   error "message" and the "data.citations" list (each failing citation and why), and record
+   again. tsl counts these rounds itself (retry.record) and records the review once they are
+   used, so keep going until it is recorded; never use --unavailable for E-REV-05.
    Never write or edit the review JSON yourself.
 5. Run `tsl decide <artifact_path> --json`. Show its status line to the user.
    Then go back to step 1, whatever the outcome.

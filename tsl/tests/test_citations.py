@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -66,6 +67,33 @@ def test_quote_matching() -> None:
     assert cit.quote_matches("db.query('SELECT * FROM order_archiv", span)  # tiny drift
     assert not cit.quote_matches("reads the events table for history", span)  # reworded
     assert not cit.quote_matches("", span)
+
+
+def test_html_escaped_quote_matches() -> None:
+    """Reviewers write < > & as entities in JSON (HMS-8 design F-2); the text is the same."""
+    span = "{value !== undefined && selectedLabel ? (\n  <span onClick={() => onChange()}>"
+    m = partial(cit.quote_matches, entities=True)  # as for a reviewer cite
+    assert m("{value !== undefined &amp;&amp; selectedLabel ? (", span)
+    assert m("&lt;span onClick={() =&gt; onChange()}&gt;", span)
+    assert m("<span onClick={() => onChange()}>", span)  # plain still matches
+    # A file that really holds entities matches a quote in either form.
+    assert m("<b>total</b> is &lt; 5", "<p><b>total</b> is &lt; 5</p>")
+    assert m("<b>total</b> is < 5", "<p><b>total</b> is &lt; 5</p>")
+    assert not m("&lt;div onClick={() =&gt; remove()}&gt;", span)  # other text
+
+
+def test_artifact_quotes_stay_strict_about_entities(tmp_path: Path) -> None:
+    """Only reviewer cites unescape entities; an artifact's own quote must match as written."""
+    assert not cit.quote_matches("is &lt; 5", "total is < 5")
+    assert cit.quote_matches("is < 5", "total is < 5")
+    (tmp_path / "notes.md").write_text("# Notes\n\ntotal is < 5\n", encoding="utf-8")
+    r = cit.Resolver(tmp_path, {}, {})
+    c = cit.parse("notes.md#L3", set())
+    assert c is not None
+    assert not cit.verify(c, "is &lt; 5", [], r).ok  # artifact cite
+    assert cit.verify(c, "is &lt; 5", [], r, review=True).ok  # reviewer cite
+    claim = {"id": "C1", "text": "x", "cites": [{"ref": "notes.md#L3", "quote": "is &lt; 5"}]}
+    assert not cit.verify_claim(claim, r, set()).ok
 
 
 def test_element_matching() -> None:
@@ -314,6 +342,92 @@ def test_upstream_artifact_item_anchor(world: tuple[Path, Path, str]) -> None:
     assert not res.ok
     assert f"{IMPACT}#claim:C7" in str(res.reason)
     assert "heading slug" in cit.format_error("context/a.md#Not_A_Slug", REPOS)
+
+
+def test_reviewer_bare_item_id_reads_as_item_anchor(world: tuple[Path, Path, str]) -> None:
+    """HMS-9 threat: findings citing threat.md#T-3 were dropped as bad format. In a review a bare
+    id on a .md file means item:<id>; in an artifact it stays a format error (the test above)."""
+    comp, clone, sha = world
+    c = cit.parse_review(f"{IMPACT}#C7", REPOS)
+    assert c is not None and c.anchor == "item:C7" and c.raw == f"{IMPACT}#C7"
+    assert cit.parse(f"{IMPACT}#C7", REPOS) is None  # artifact cites stay strict
+    assert cit.parse_review("context/generated/api.json#C7", REPOS) is None  # .md files only
+    assert cit.parse_review("C:/dev/plugins/rubric.md#TM-R5", REPOS) is None  # unknown repo "C"
+    assert cit.parse_review("context/a.md#Not_A_Slug", REPOS) is None
+
+    def f(fid: str, ref: str, quote: str) -> dict[str, Any]:
+        return {
+            "id": fid,
+            "severity": "minor",
+            "category": "traceability",
+            "text": "t",
+            "cites": [{"ref": ref, "quote": quote}],
+        }
+
+    findings = [
+        f("F-1", f"{IMPACT}#C7", "Rows are typed by `PatientRow`"),
+        f("F-2", f"{IMPACT}#C9", "Rows are typed by `PatientRow`"),  # no such item
+        f("F-3", f"{IMPACT}#C7", "Rows are stored as plain objects"),  # the item says otherwise
+    ]
+    d = _decide(comp, clone, sha, findings)
+    assert [k["id"] for k in d.kept] == ["F-1"]
+    reasons = {x["id"]: x["reason"] for x in d.dropped}
+    assert reasons == {"F-2": "item C9 not found", "F-3": "quote not found"}
+
+
+THREAT = f"artifacts/T-1/{RUN}/threat.md"
+THREAT_MD = (
+    "---\nschema: threat-model.v1\nclaims:\n- id: C1\n  text: Search is `parameterised`\n"
+    '  cites: ["context/data-model.md#orders"]\nopen_questions: []\nthreats:\n'
+    "  - id: T-6\n    stride: denial of service\n"
+    '    mitigation: "implement applies the subquery only to the paged rows"\n'
+    "---\n# Threat model\n\n## Threats\n- T-6 PatientRepo: a slow per-row subquery.\n\n"
+    "## Known\nNothing else.\n"
+)
+
+
+def test_reviewer_slug_also_covers_the_front_matter_key(world: tuple[Path, Path, str]) -> None:
+    """HMS-4 threat: the reviewer quoted the full threat from the front matter under #threats,
+    and cited #claims, a front-matter key with no heading. Both were dropped."""
+    comp, clone, sha = world
+    (comp / THREAT).write_text(THREAT_MD, encoding="utf-8")
+    r = cit.Resolver(comp, {"orders-api": clone}, {"orders-api": sha})
+
+    def check(anchor: str, quote: str, review: bool) -> cit.CiteResult:
+        c = cit.parse(f"{THREAT}#{anchor}", REPOS)
+        assert c is not None
+        return cit.verify(c, quote, [], r, review=review)
+
+    front_quote = "implement applies the subquery only to the paged rows"
+    assert check("threats", front_quote, True).ok  # front matter, under the heading's slug
+    assert check("threats", "a slow per-row subquery", True).ok  # the heading text still counts
+    assert check("claims", 'cites: ["context/data-model.md#orders"]', True).ok  # key, no heading
+    assert check("open-questions", "open_questions: []", True).ok  # slug form of the key
+    assert check("known", front_quote, True).reason == "quote not found"  # another section
+    assert check("nope", front_quote, True).reason == "anchor not found"
+    assert check("threats", "the subquery runs for every row in the table", True).reason == (
+        "quote not found"
+    )
+    # Not for artifact cites: a claim must not verify against its own front matter.
+    assert check("threats", front_quote, False).reason == "quote not found"
+    # The key as it is spelled (#open_questions): reviewer cites only; artifact cites stay strict.
+    under = cit.parse_review(f"{THREAT}#open_questions", REPOS)
+    assert under is not None and under.anchor == "open_questions"
+    assert cit.verify(under, "open_questions: []", [], r, review=True).ok
+    assert cit.parse(f"{THREAT}#open_questions", REPOS) is None
+    assert check("claims", "Search is `parameterised`", False).reason == "anchor not found"
+    res = _claim(r, "Search is `parameterised`", f"{THREAT}#claims")
+    assert not res.ok and "anchor not found" in str(res.reason)
+
+    finding = {
+        "id": "F-1",
+        "severity": "minor",
+        "category": "completeness",
+        "text": "The T-6 mitigation sets no threshold.",
+        "cites": [{"ref": f"{THREAT}#threats", "quote": front_quote}],
+    }
+    d = _decide(comp, clone, sha, [finding])
+    assert [k["id"] for k in d.kept] == ["F-1"] and d.dropped == []
 
 
 def test_unverified_claims_are_listed_with_reasons(world: tuple[Path, Path, str]) -> None:
