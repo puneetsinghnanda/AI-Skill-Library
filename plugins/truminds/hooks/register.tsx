@@ -22,9 +22,15 @@ const panel = atom({ plugin: 'truminds', key: 'panel' } as const, EMPTY, { shape
 
 type Row = { text: string; color?: string | undefined; dim?: boolean; bold?: boolean }
 
+// Set when tsl says this is not a companion repo, or cannot be started at all: the end of each
+// turn then stops calling tsl. A tsl command, /tsl-panel, /tsl-gate or a /truminds: command
+// tries again.
+let idle = false
+const NO_REPO = Symbol('no-repo')
+
 // The progress in tsl's answer; null for "no run here"; undefined when tsl gave no usable
 // answer (missing, timed out, too old for --progress, an error), so the last answer stays.
-function parseProgress(stdout: string): Progress | null | undefined {
+function parseProgress(stdout: string): Progress | null | undefined | typeof NO_REPO {
   const line = stdout.trim().split(/\r?\n/).filter(Boolean).pop() ?? ''
   let env: any
   try {
@@ -33,11 +39,13 @@ function parseProgress(stdout: string): Progress | null | undefined {
     return undefined
   }
   if (env?.ok === true && env.data && 'progress' in env.data) return env.data.progress ?? null
-  if (env?.code === 'E-REPO-01') return null // not a companion repo: nothing to show
+  if (env?.code === 'E-REPO-01') return NO_REPO // not a companion repo: nothing to show
   return undefined
 }
 
-// A Bash call that ran tsl (the run loop's next, verify, review record, decide, pr...).
+// A Bash or PowerShell call that ran tsl (the run loop's next, verify, review record, decide,
+// pr...). PowerShell is the main shell on Windows hosts.
+const SHELLS = ['Bash', 'PowerShell']
 function isTslCommand(command: unknown): boolean {
   return typeof command === 'string' && /(^|[\s;&|(])tsl(\.exe)?(\s|$)/.test(command)
 }
@@ -45,8 +53,8 @@ function isTslCommand(command: unknown): boolean {
 const DONE = ['DONE', 'ACCEPTED', 'APPROVED']
 const BAND_COLOR: Record<string, string> = { High: 'success', Medium: 'warning', Low: 'error' }
 
-function stepRow(s: Progress['steps'][number], current: string | null): Row {
-  const name = s.id.padEnd(10)
+function stepRow(s: Progress['steps'][number], current: string | null, width: number): Row {
+  const name = s.id.padEnd(width) + ' ' // gate ids such as G-threat-review run past 10
   if (DONE.includes(s.status)) {
     return { text: `✓ ${name}${s.band ?? ''}`, color: s.band ? BAND_COLOR[s.band] : undefined }
   }
@@ -77,8 +85,16 @@ function waitingRows(p: Progress): Row[] {
       { text: `  Answer in ${w.file ?? 'open-questions.md'}, then ${w.command}` },
     ]
   }
+  // Signed, not resumed yet: say what the decision was, never "approved" for a reject.
+  const gate = w.gate ?? 'gate'
+  const said: Record<string, Row> = {
+    approve: { text: `Approved (${gate}): the run owner resumes`, color: 'success', bold: true },
+    changes: { text: `Changes asked (${gate}): the run owner resumes; the step runs again`, color: 'warning', bold: true },
+    reject: { text: `Rejected (${gate}): the run owner resumes to close the run`, color: 'error', bold: true },
+    abort: { text: `Aborted (${gate}): the run owner resumes to close the run`, color: 'error', bold: true },
+  }
   return [
-    { text: `Approved (${w.gate ?? 'gate'}): the run owner resumes`, color: 'success', bold: true },
+    said[w.decision ?? ''] ?? { text: `Decided (${gate}): the run owner resumes`, bold: true },
     { text: `  ${w.command}` },
   ]
 }
@@ -111,7 +127,8 @@ function panelRows(d: Panel, rows: number): Row[] {
   const status = p.status === 'COMPLETED' ? `COMPLETED${p.end_reason ? ` (${p.end_reason})` : ''}` : p.status
   const out: Row[] = [{ text: `${p.ticket} · ${wf} · ${status}${pos}`, bold: true }]
   if (d.stale) out.push({ text: `as of ${d.at ?? '?'}: tsl did not answer the last refresh`, dim: true })
-  for (const s of p.steps) out.push(stepRow(s, p.current))
+  const width = Math.max(10, ...p.steps.map((s) => s.id.length))
+  for (const s of p.steps) out.push(stepRow(s, p.current, width))
   const wait = waitingRows(p)
   if (wait.length) out.push({ text: '' }, ...wait)
   const room = rows - out.length - 2
@@ -125,8 +142,9 @@ function clockTime(): string {
   return `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`
 }
 
-// One refresh at a time; a call during one asks for one more after it.
-let busy = false
+// One refresh at a time; a call during one asks for one more after it, and gets the promise
+// of the running one, so /tsl-panel waits for an answer instead of reading the old state.
+let running: Promise<void> | undefined
 let again = false
 let poll: { cancel: () => void } | undefined
 let openedFor: string | undefined // the run the pane was opened for unasked, once per run
@@ -140,13 +158,20 @@ async function fetchOnce($: any): Promise<void> {
   }
   const argv = ['tsl', 'state', 'show', '--progress', '--json']
   if (session) argv.push('--session', session)
-  let p: Progress | null | undefined
+  let got: Progress | null | undefined | typeof NO_REPO
   try {
     const r = await $.process.run(argv, { timeoutMs: TSL_TIMEOUT_MS })
-    p = parseProgress(r.stdout)
-  } catch {
-    p = undefined // tsl missing or timed out
+    got = parseProgress(r.stdout)
+  } catch (err) {
+    // tsl missing (not on PATH): stop calling it each turn. A time-out may pass, so retry.
+    if (/ENOENT|not found|cannot find/i.test(String(err))) idle = true
+    got = undefined
   }
+  if (got === NO_REPO) {
+    idle = true
+    got = null
+  }
+  const p = got
   if (p === undefined) {
     await update($, panel, (d: Panel) => ({ ...d, stale: d.progress !== null }))
     return
@@ -164,22 +189,31 @@ async function fetchOnce($: any): Promise<void> {
   }
 }
 
-async function refresh($: any): Promise<void> {
-  if (busy) {
+function refresh($: any): Promise<void> {
+  if (running) {
     again = true
-    return
+    return running
   }
-  busy = true
-  try {
-    do {
-      again = false
-      await fetchOnce($)
-    } while (again)
-  } catch {
-    // a view: a failed refresh never reaches the session
-  } finally {
-    busy = false
-  }
+  running = (async () => {
+    try {
+      do {
+        again = false
+        await fetchOnce($)
+      } while (again)
+    } catch {
+      // a view: a failed refresh never reaches the session
+    } finally {
+      running = undefined
+    }
+  })()
+  return running
+}
+
+// A refresh someone asked for (a tsl command, /tsl-panel, /tsl-gate, /truminds:...): try tsl
+// again even after it said there is nothing here.
+function wake($: any): Promise<void> {
+  idle = false
+  return refresh($)
 }
 
 // ---------------------------------------------------------------- /tsl-gate Display and argument passing only:
@@ -269,21 +303,30 @@ export const register: Register = (on) => {
 
   // /truminds:run and /truminds:resume call tsl while their prompt is built, not as a tool call,
   // so the end of every turn refreshes too.
+  // Not in a repo without tsl runs: after E-REPO-01, or with no tsl, a turn costs no process.
   on('turn.complete', async ($, e, next) => {
     const r = await next(e)
-    void refresh($).catch(() => undefined)
+    if (!idle) void refresh($).catch(() => undefined)
     return r
   })
 
-  on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+  on('prompt.submit', async ($, e, next) => {
     const r = await next(e)
-    if (isTslCommand((e as any).command)) void refresh($).catch(() => undefined)
+    if (/^\s*\/truminds:/.test(String((e as any).text ?? ''))) idle = false
     return r
   })
+
+  for (const tool of SHELLS) {
+    on('tool.call', { tool } as any, async ($: any, e: any, next: any) => {
+      const r = await next(e)
+      if (isTslCommand(e.command)) void wake($).catch(() => undefined)
+      return r
+    })
+  }
 
   on('command.run', { command: 'tsl-panel' }, async ($) => {
     await $.ui.open({ id: PANE, title: TITLE }) // asked: placed at any width
-    await refresh($)
+    await wake($)
     const d = await read($, panel)
     return { text: d.progress ? `${TITLE} pane opened.` : 'No run in this session yet; the pane fills when one starts.' }
   })
@@ -291,7 +334,7 @@ export const register: Register = (on) => {
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const { Box, Text } = $.ui.resolve(e)
     const d = await read($, panel)
-    const rows = panelRows(d, e.viewport?.rows ?? 24)
+    const rows = panelRows(d, (e as any).props?.scroll?.bodyRows ?? 24)
     // Plain h() calls, not JSX, so the Node test can load this module (tests/).
     return h(
       Box,
@@ -315,7 +358,7 @@ export const register: Register = (on) => {
       } catch {
         return { text: `tsl gate failed (exit ${r.exitCode}): ${(r.stderr || r.stdout).slice(-300)}` }
       }
-      void refresh($).catch(() => undefined) // a decision changes what the panel shows
+      void wake($).catch(() => undefined) // a decision changes what the panel shows
       return { text: render(env, p.run) }
     } catch (err) {
       return { text: `tsl could not be run (${String(err).slice(0, 200)}). Install tsl or run it yourself: tsl gate ...` }
