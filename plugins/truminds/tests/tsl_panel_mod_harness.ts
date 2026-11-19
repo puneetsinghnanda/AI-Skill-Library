@@ -24,7 +24,8 @@ assert.equal(parseProgress(''), undefined)
 assert.equal(parseProgress('Traceback ...'), undefined)
 assert.equal(parseProgress(env({ runs: [] })), undefined) // a tsl without --progress
 assert.equal(parseProgress(JSON.stringify({ ok: false, code: 'E-RUN-04', data: {} })), undefined)
-assert.equal(parseProgress(JSON.stringify({ ok: false, code: 'E-REPO-01', data: {} })), null)
+// Not a companion repo: a marker, so the end of each turn stops calling tsl here.
+assert.equal(typeof parseProgress(JSON.stringify({ ok: false, code: 'E-REPO-01', data: {} })), 'symbol')
 
 // isTslCommand: the run loop's tsl calls, not words that merely contain "tsl".
 for (const c of ['tsl next run_1 --json', 'cd x && tsl decide r s', 'tsl.exe verify', '(tsl review record r s)'])
@@ -69,6 +70,19 @@ assert.ok(!short.includes(' Q-06 (product owner) Question 6?'))
 const blocking = panelRows({ progress: input, at: null, stale: false }, 40).find((r: any) => r.text.startsWith(' Q-01'))
 assert.equal(blocking!.color, 'warning')
 
+// Signed, not resumed: the decision is said as it is; a reject is never shown as approved.
+const resume = (decision: any) => texts({ progress: run({ status: 'PAUSED_APPROVAL', waiting: { kind: 'resume', gate: 'G-1', role: null, decision, command: '/truminds:resume run_01', file: null } }), at: null, stale: false })
+assert.ok(resume('approve').includes('Approved (G-1): the run owner resumes'))
+assert.ok(resume('reject').includes('Rejected (G-1): the run owner resumes to close the run'), resume('reject').join('\n'))
+assert.ok(resume('changes').includes('Changes asked (G-1): the run owner resumes; the step runs again'))
+assert.ok(resume('abort').includes('Aborted (G-1): the run owner resumes to close the run'))
+assert.ok(resume(null).includes('Decided (G-1): the run owner resumes'))
+for (const d of ['reject', 'changes', 'abort', null]) assert.ok(!resume(d).some((x: string) => x.startsWith('Approved')), String(d))
+
+// A gate id longer than 10 characters keeps a space before its status.
+t = texts({ progress: run({ steps: [{ id: 'G-threat-review', kind: 'gate', status: 'WAITING_APPROVAL', attempt: null, band: null }], current: null }), at: null, stale: false })
+assert.ok(t.includes('⏸ G-threat-review waiting'), t.join('\n'))
+
 // Completed: its end reason, no waiting rows.
 t = texts({ progress: run({ status: 'COMPLETED', end_reason: 'pr_opened', current: null, position: null }), at: null, stale: false })
 assert.equal(t[0], 'HMS-9 · brownfield-change · COMPLETED (pr_opened)')
@@ -112,9 +126,9 @@ await settle()
 assert.equal(calls.length, 2)
 assert.deepEqual(opened, ['truminds-run'])
 
-// A slow or missing tsl: the hook returns at once, and the last answer stays, marked stale.
+// A slow tsl: the hook returns at once, and the last answer stays, marked stale.
 let release: () => void = () => undefined
-answer = () => new Promise((_res, rej) => { release = () => rej(new Error('spawn tsl ENOENT')) })
+answer = () => new Promise((_res, rej) => { release = () => rej(new Error('tsl timed out after 8000 ms')) })
 const t0 = Date.now()
 const res = await bash($, { command: 'tsl decide run_01 impact' }, async () => ({ ok: 1 }))
 assert.deepEqual(res, { ok: 1 })
@@ -149,6 +163,51 @@ await turn($, {}, async () => ({}))
 await settle()
 assert.equal(timers[0].cancelled, true)
 
+// No tsl, or not a companion repo: the end of a turn stops calling tsl; a tsl command (Bash or
+// PowerShell) or a /truminds: command tries again.
+const ps = hooks['tool.call{"tool":"PowerShell"}']
+assert.ok(ps, 'PowerShell tsl calls refresh too')
+answer = async () => { throw new Error('spawn tsl ENOENT') }
+await turn($, {}, async () => ({}))
+await settle()
+calls.length = 0
+await turn($, {}, async () => ({}))
+await settle()
+assert.equal(calls.length, 0, 'tsl missing: turns stop calling it')
+answer = async () => ({ stdout: env({ progress: run() }), stderr: '', exitCode: 0 })
+await ps($, { command: 'tsl next run_01 --json' }, async () => ({}))
+await settle()
+assert.equal(calls.length, 1, 'a tsl call through PowerShell refreshes and wakes the panel')
+await turn($, {}, async () => ({}))
+await settle()
+assert.equal(calls.length, 2)
+answer = async () => ({ stdout: JSON.stringify({ ok: false, code: 'E-REPO-01', data: {} }) + '\n', stderr: '', exitCode: 2 })
+await turn($, {}, async () => ({}))
+await settle()
+assert.equal(panelState().progress, null)
+calls.length = 0
+await turn($, {}, async () => ({}))
+await settle()
+assert.equal(calls.length, 0, 'not a companion repo: turns stop calling tsl')
+await hooks['prompt.submit']($, { text: '/truminds:run HMS-9' }, async () => ({}))
+answer = async () => ({ stdout: env({ progress: run() }), stderr: '', exitCode: 0 })
+await turn($, {}, async () => ({}))
+await settle()
+assert.equal(calls.length, 1, '/truminds: wakes the panel')
+
+// /tsl-panel during a running refresh waits for its answer instead of reading the old state.
+store.set('panel', { progress: null, at: null, stale: false })
+let done: () => void = () => undefined
+answer = () => new Promise((ok) => { done = () => ok({ stdout: env({ progress: run() }), stderr: '', exitCode: 0 }) })
+await turn($, {}, async () => ({}))
+const reply = hooks['command.run{"command":"tsl-panel"}']($, { command: 'tsl-panel', args: '' })
+await settle()
+done()
+await settle()
+done()
+assert.deepEqual(await reply, { text: 'Truminds run pane opened.' })
+answer = async () => ({ stdout: env({ progress: run() }), stderr: '', exitCode: 0 })
+
 // /tsl-panel opens the pane (asked: any width) and says what it shows.
 const cmd = hooks['command.run{"command":"tsl-panel"}']
 assert.deepEqual(await cmd($, { command: 'tsl-panel', args: '' }), { text: 'Truminds run pane opened.' })
@@ -160,9 +219,18 @@ answer = async () => ({ stdout: env({ progress: run() }), stderr: '', exitCode: 
 await turn($, {}, async () => ({}))
 await settle()
 ;(globalThis as any).h = (tag: any, props: any, ...children: any[]) => ({ tag, props, children })
-const tree = await hooks['ui.render{"component":"Pane","requestId":"truminds-run"}']($, { viewport: { columns: 80, rows: 30 } })
+const pane = hooks['ui.render{"component":"Pane","requestId":"truminds-run"}']
+const tree = await pane($, { props: { title: 'Truminds run', scroll: { offset: 0, bodyRows: 30 } } })
 assert.equal(tree.tag, 'Box')
 assert.equal(tree.children.length, 5)
+// The pane's height comes from props.scroll.bodyRows: a short pane cuts the question list.
+answer = async () => ({ stdout: env({ progress: input }), stderr: '', exitCode: 0 })
+await turn($, {}, async () => ({}))
+await settle()
+const tall = await pane($, { props: { scroll: { offset: 0, bodyRows: 40 } } })
+const low = await pane($, { props: { scroll: { offset: 0, bodyRows: 14 } } })
+assert.ok(low.children.length < tall.children.length, `${low.children.length} < ${tall.children.length}`)
+assert.ok(low.children.some((c: any) => /…and \d more/.test(c.children[0])))
 assert.equal(tree.children[1].props.color, 'success')
 assert.equal(tree.children[1].props.wrap, 'truncate-end')
 

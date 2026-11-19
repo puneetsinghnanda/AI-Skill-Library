@@ -347,8 +347,9 @@ Commands run through the Bash tool, or through the `` !`...` `` syntax in skills
 Panel behaviour:
 
 - **Opening.** It opens by itself once per run when a run of this session is open; Claude Code seats a pane opened unasked only from 144 columns (110 once the person has opened it). `/tsl-panel` opens it at any width.
-- **Refreshing.** After `session.start`, after every turn (`/truminds:run` and `/truminds:resume` call `tsl` while their prompt is built), after every Bash call that runs `tsl`, after `/tsl-gate`, and every 30 s while the run is `PAUSED_APPROVAL` (someone else signs). One `tsl` call at a time, 8 s timeout, never awaited by the hook that started it.
+- **Refreshing.** After `session.start`, after every turn (`/truminds:run` and `/truminds:resume` call `tsl` while their prompt is built), after every Bash or PowerShell call that runs `tsl`, after `/tsl-gate`, and every 30 s while the run is `PAUSED_APPROVAL` (someone else signs). One `tsl` call at a time, 8 s timeout, never awaited by the hook that started it; `/tsl-panel` waits for a running refresh before it answers. Outside a companion repo (`E-REPO-01`) or with no `tsl` on the PATH, the end of a turn stops calling `tsl` until a `tsl` command, `/tsl-panel`, `/tsl-gate` or a `/truminds:` command.
 - **Failure.** `tsl` missing, timed out, too old for `--progress`, or an error: the last answer stays, marked "as of HH:MM"; with no earlier answer the pane shows "No run in this session."
+- **Signed gates.** A gate signed but not resumed yet shows its decision (approved, changes asked, rejected, aborted) and `/truminds:resume <run_id>`; a reject is never shown as approved.
 - **State.** The last answer is kept in `$.state` (`truminds.panel`, contract `types/index.d.ts`) so a reload of the module keeps it.
 
 The status line and the approval pop-up are planned for the next release.

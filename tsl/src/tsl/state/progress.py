@@ -16,6 +16,7 @@ from tsl.core.runtime import Runtime
 from tsl.state.store import all_runs, latest, read_state_raw
 
 OPEN = ("RUNNING", "PAUSED_INPUT", "PAUSED_APPROVAL")
+SETTLED = ("DONE", "ACCEPTED", "APPROVED")
 MAX_QUESTIONS = 10
 TEXT = 300
 
@@ -25,7 +26,42 @@ def _bound(st: dict[str, Any], session: str | None) -> bool:
     return bool(session) and act.get("session_id") == str(session)[:128]
 
 
-def pick(comp: Companion, session: str | None) -> tuple[str, dict[str, Any]] | None:
+def _read(comp: Companion, rid: str) -> dict[str, Any] | None:
+    """A run's state.json, or None when it cannot be read: one broken file (merge markers, a
+    crash mid-write) must not blank the panel for every other run."""
+    try:
+        return read_state_raw(comp, rid)
+    except Exception:
+        return None
+
+
+def _from_index(
+    rt: Runtime | None, comp: Companion, session: str
+) -> tuple[str, dict[str, Any]] | None:
+    """The run this session's index names (the hooks write it on start and resume), if it is
+    in this companion repo and still bound: one file read instead of every run's state.json."""
+    if rt is None:
+        return None
+    try:
+        import json
+        from pathlib import Path
+
+        p = rt.home.session(session)
+        if not p.is_file():
+            return None
+        idx = json.loads(p.read_text(encoding="utf-8"))
+        if Path(str(idx["companion"])).resolve() != comp.root.resolve():
+            return None
+        rid = str(idx["run_id"])
+    except Exception:
+        return None
+    st = _read(comp, rid)
+    return (rid, st) if st and _bound(st, session) else None
+
+
+def pick(
+    comp: Companion, session: str | None, rt: Runtime | None = None
+) -> tuple[str, dict[str, Any]] | None:
     """The run the panel shows: the run bound to this Claude session (state.json
     active_session), open runs before finished ones, the latest update first; else none.
 
@@ -35,9 +71,12 @@ def pick(comp: Companion, session: str | None) -> tuple[str, dict[str, Any]] | N
     nothing until this session starts or resumes one; /truminds:status lists them all."""
     if not session:
         return None
+    hit = _from_index(rt, comp, session)
+    if hit is not None:
+        return hit
     found: list[tuple[bool, str, str, dict[str, Any]]] = []
     for rid in all_runs(comp):
-        st = read_state_raw(comp, rid)
+        st = _read(comp, rid)
         if st and _bound(st, session):
             found.append((st.get("status") in OPEN, str(st.get("updated_at", "")), rid, st))
     if not found:
@@ -91,17 +130,21 @@ def _waiting(comp: Companion, rid: str, st: dict[str, Any]) -> dict[str, Any] | 
             "file": None,
         }
     signed = waiting_gates(st, obj, signed=True)
-    # Signed but not resumed yet: the run owner resumes it.
+    # Signed but not resumed yet: the run owner resumes it. The decision says what resuming
+    # does (approve, reject, changes, abort), so the panel never shows a reject as approved.
+    gate = signed[0] if signed else None
+    e = (approvals_md.entry(obj, gate) or {}) if gate else {}
     return {
         "kind": "resume",
-        "gate": signed[0] if signed else None,
+        "gate": gate,
         "role": None,
+        "decision": e.get("decision"),
         "command": f"/truminds:resume {rid}",
         "file": None,
     }
 
 
-def _questions(comp: Companion, rid: str) -> dict[str, Any]:
+def _questions(comp: Companion, rid: str, st: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {"open_blocking": 0, "open_non_blocking": 0, "items": []}
     p = comp.path(questions_path(rid))
     if not p.is_file():
@@ -110,7 +153,14 @@ def _questions(comp: Companion, rid: str) -> dict[str, Any]:
         qs = questions_md.parse(p.read_text(encoding="utf-8"))["questions"]
     except Exception:  # a view: an unreadable file shows no questions
         return out
-    open_ = [q for q in questions_md.effective(qs).values() if not q.get("answer")]
+    # Accepted on resume (answered_sha256), with or without an answer: a non-blocking question
+    # left empty takes its default then, and is no longer open.
+    done = set(((st.get("questions") or {}).get("answered_sha256") or {}).keys())
+    open_ = [
+        q
+        for q in questions_md.effective(qs).values()
+        if not q.get("answer") and str(q.get("id")) not in done
+    ]
     open_.sort(key=lambda q: (not q.get("blocking"), str(q["id"])))
     out["open_blocking"] = sum(1 for q in open_ if q.get("blocking"))
     out["open_non_blocking"] = len(open_) - out["open_blocking"]
@@ -126,24 +176,39 @@ def _questions(comp: Companion, rid: str) -> dict[str, Any]:
     return out
 
 
+def _current(st: dict[str, Any], steps: list[dict[str, Any]]) -> str | None:
+    """The step the run is on. tsl decide clears the cursor after every decision, also the one
+    that pauses the run, so fall back to the step that waits, else the first one not settled."""
+    cur = (st.get("cursor") or {}).get("step")
+    if cur:
+        return str(cur)
+    if st.get("status") == "COMPLETED":
+        return None
+    waits = next((s for s in steps if s["status"] in ("WAITING_INPUT", "WAITING_APPROVAL")), None)
+    if waits is not None:
+        return str(waits["id"])
+    todo = next((s for s in steps if s["status"] not in SETTLED), None)
+    return str(todo["id"]) if todo else None
+
+
 def progress(
     rt: Runtime, comp: Companion, run_id: str | None, session: str | None
 ) -> dict[str, Any] | None:
     """The progress of `run_id`, or of the run pick() chooses; None when there is none."""
     if run_id:
-        st = read_state_raw(comp, run_id)
+        st = _read(comp, run_id)
         if st is None:
             from tsl.core.errors import TslError
 
             raise TslError("E-RUN-04", run_id=run_id)
         rid = run_id
     else:
-        got = pick(comp, session)
+        got = pick(comp, session, rt)
         if got is None:
             return None
         rid, st = got
     steps = _steps(st)
-    cur = (st.get("cursor") or {}).get("step")
+    cur = _current(st, steps)
     idx = next((i for i, s in enumerate(steps) if s["id"] == cur), None)
     return {
         "run_id": rid,
@@ -157,7 +222,7 @@ def progress(
         "position": {"n": idx + 1, "of": len(steps)} if idx is not None else None,
         "steps": steps,
         "waiting": _waiting(comp, rid, st),
-        "questions": _questions(comp, rid)
+        "questions": _questions(comp, rid, st)
         if st["status"] != "COMPLETED"
         else {"open_blocking": 0, "open_non_blocking": 0, "items": []},
     }

@@ -99,3 +99,70 @@ def test_a_broken_questions_file_shows_no_questions(world: World) -> None:
     p = _progress(world)["data"]["progress"]
     assert p["questions"] == {"open_blocking": 0, "open_non_blocking": 0, "items": []}
     assert json.dumps(p)  # still a full answer
+
+
+def test_a_paused_run_still_shows_its_step(world: World) -> None:
+    """tsl decide clears the cursor after every decision, also the one that pauses the run: the
+    panel falls back to the step that waits, so a paused run still shows 'step n of m'."""
+    run_id = start_run(world)
+    do_req_step(world, run_id, variant={"blocking_question": True})
+    st = json.loads((world.companion / f"runs/{run_id}/state.json").read_text())
+    assert not (st.get("cursor") or {}).get("step"), st.get("cursor")
+    p = _progress(world)["data"]["progress"]
+    assert p["current"] == "req" and p["position"] == {"n": 1, "of": len(p["steps"])}, p
+
+
+def test_questions_accepted_on_resume_are_not_open(world: World) -> None:
+    """A question frozen on resume (answered_sha256) is settled, even with no answer: a
+    non-blocking one takes its default then."""
+    run_id = start_run(world)
+    do_req_step(world, run_id, variant={"blocking_question": True})
+    p = _progress(world)["data"]["progress"]
+    qid = p["questions"]["items"][0]["id"]
+    sp = world.companion / f"runs/{run_id}/state.json"
+    st = json.loads(sp.read_text())
+    st["questions"]["answered_sha256"][qid] = "0" * 64
+    sp.write_text(json.dumps(st))
+    q = _progress(world)["data"]["progress"]["questions"]
+    assert qid not in [i["id"] for i in q["items"]], q
+    assert q["open_blocking"] == p["questions"]["open_blocking"] - 1, q
+
+
+def test_a_signed_reject_is_shown_as_a_reject(world: World) -> None:
+    run_id = start_run(world)
+    res = do_req_step(world, run_id, score=2)
+    gate = res["env"]["data"]["gate"]
+    code, env, _, err = world.cli(
+        ["gate", run_id, "reject", "--gate", gate, "--comment-file", "-", "--json"],
+        user="tl",
+        stdin="Out of scope for this release",
+    )
+    assert code == 0, (env, err)
+    world.sync_companion()
+    w = _progress(world)["data"]["progress"]["waiting"]
+    assert w["kind"] == "resume" and w["gate"] == gate and w["decision"] == "reject", w
+
+
+def test_one_broken_state_file_leaves_the_others(world: World) -> None:
+    run_id = start_run(world)
+    other = world.companion / "runs/run_01JZZZZZZZZZZZZZZZZZZZZZZZ/state.json"
+    other.parent.mkdir(parents=True)
+    other.write_text("<<<<<<< HEAD\n{\n", encoding="utf-8")
+    assert _progress(world)["data"]["progress"]["run_id"] == run_id
+
+
+def test_the_session_index_finds_the_run_without_a_scan(world: World, monkeypatch: Any) -> None:
+    """The hooks keep a session index (run_id, companion): the panel reads that one run."""
+    import tsl.state.progress as prog
+
+    run_id = start_run(world)
+    index = world.rt(session=SESSION).home.session(SESSION)
+    if not index.is_file():  # the start hook writes it in a session; write it as it would
+        index.parent.mkdir(parents=True, exist_ok=True)
+        index.write_text(json.dumps({"run_id": run_id, "companion": str(world.companion)}))
+
+    def no_scan(_comp: Any) -> list[str]:
+        raise AssertionError("scanned every run")
+
+    monkeypatch.setattr(prog, "all_runs", no_scan)
+    assert _progress(world)["data"]["progress"]["run_id"] == run_id

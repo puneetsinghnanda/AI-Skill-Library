@@ -15,6 +15,8 @@ export type Waiting = {
   kind: 'input' | 'approval' | 'resume'
   gate: string | null
   role: string | null
+  // kind 'resume' only: the signed decision (approve | changes | reject | abort)
+  decision?: string | null
   command: string
   file: string | null
 }
