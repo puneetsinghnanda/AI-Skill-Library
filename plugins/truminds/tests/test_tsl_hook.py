@@ -182,10 +182,13 @@ def test_active_run_found_through_the_session_index(env: dict[str, str], compani
     assert cp.returncode == 0 and cp.stdout == ""
 
 
+@pytest.mark.parametrize("shell", SHELL_PARAMS)
 @pytest.mark.parametrize("route", ["cwd", "session-index"])
-def test_backslashes_in_json_paths_are_decoded(env: dict[str, str], tmp_path: Path, route: str) -> None:
-    """Claude Code on Windows sends paths as "C:\\\\Users\\\\...". Read undecoded, the run is missed and a missing
-    tsl fails open inside it. A POSIX folder name can hold a backslash, so this runs on every OS."""
+def test_backslashes_in_json_paths_are_decoded(env: dict[str, str], tmp_path: Path, route: str, shell: str) -> None:
+    """Claude Code on Windows sends paths as "C:\\\\Users\\\\...". Git Bash reads a doubled backslash as one
+    separator, so there the run was found anyway (Japman, #42); a path that really holds a backslash is missed
+    undecoded, and a missing tsl then fails open inside the run. A POSIX folder name can hold one, so this runs on
+    every OS."""
     root = tmp_path / "CL-1\\SYS-ORD-companion"
     (root / "runs" / "active").mkdir(parents=True)
     (root / "tsl.yaml").write_text("schema: tsl-config.v1\n", encoding="utf-8")
@@ -198,7 +201,7 @@ def test_backslashes_in_json_paths_are_decoded(env: dict[str, str], tmp_path: Pa
         (sessions / "sess-0043.json").write_text(json.dumps(index), encoding="utf-8")
         cwd, session = tmp_path / "product", "sess-0043"
         cwd.mkdir()
-    assert_deny(run(missing(env), "pre-tool", hook_input(cwd, "pre-tool", session=session)))
+    assert_deny(run(missing(env), "pre-tool", hook_input(cwd, "pre-tool", session=session), shell=shell))
 
 
 def test_session_id_with_path_characters_is_not_used_as_a_path(env: dict[str, str], tmp_path: Path) -> None:

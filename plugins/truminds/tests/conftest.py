@@ -10,6 +10,7 @@ from functools import cache
 from pathlib import Path
 from typing import Any
 
+import pytest
 import yaml
 from jsonschema import Draft202012Validator
 
@@ -159,7 +160,11 @@ def is_executable(path: Path) -> bool:
     records for it (100755), which is what a POSIX checkout gets (issue #2)."""
     if os.name != "nt":
         return bool(path.stat().st_mode & 0o111)
-    out = subprocess.run(
-        ["git", "ls-files", "--stage", "--", path.name], cwd=path.parent, capture_output=True, text=True, check=False
-    ).stdout
+    try:
+        cmd = ["git", "ls-files", "--stage", "--", path.name]
+        out = subprocess.run(cmd, cwd=path.parent, capture_output=True, text=True, check=False).stdout
+    except OSError:
+        out = ""
+    if not out:
+        pytest.skip(f"{path.name}: Windows has no execute bit, and git (not on PATH or not a checkout) can't say")
     return out.startswith("100755 ")
