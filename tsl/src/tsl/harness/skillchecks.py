@@ -486,10 +486,39 @@ def _select_from(
     return _keyed(items, key) if key else items
 
 
+def _names(spec: Any) -> list[str]:
+    return [str(n) for n in spec] if isinstance(spec, list) else [str(spec)]
+
+
+def _first_bound(env: CheckEnv, spec: Any) -> str | None:
+    """`each_input` names one step input, or a list of which the first one the step has is used
+    (threat-model: design, else architecture). A step has an input when the workflow binds it,
+    whether or not its file exists: a bound design whose file is missing must fail, not fall back
+    to the architecture. Only a step without a design (security-review) falls back."""
+    for name in _names(spec):
+        if env.named_inputs.get(name):
+            return name
+    return None
+
+
 def _coverage_items(env: CheckEnv, c: dict[str, Any]) -> list[Any] | str:
-    """Items `each` selects, from the named input's front matter when `each_input` is set,
-    keyed by `each_key`. Returns failure detail as a str."""
-    return _select_from(env, c.get("each_input"), c["each"], c.get("each_key"))
+    """Items `each` selects (keyed by `each_key`), from a step input when `each_input` is set.
+    With `nonempty`, selecting nothing fails: an input with nothing to cover cannot pass.
+    Returns failure detail as a str."""
+    name = None
+    if c.get("each_input"):
+        name = _first_bound(env, c["each_input"])
+        if name is None:
+            return f"input {' or '.join(_names(c['each_input']))} missing or has no front matter"
+    ek = c.get("each_key")
+    items = _select_from(env, name, c["each"], ek)
+    if isinstance(items, str):
+        return items
+    if c.get("nonempty") and not items:
+        where = f"input {name}" if name else "the artifact"
+        at = f"{c['each']} {ek['select']}" if ek else c["each"]
+        return f"{where} has nothing to cover at {at}"
+    return items
 
 
 def _blocking_open(env: CheckEnv) -> bool:
@@ -653,8 +682,7 @@ def validate_declared(checks_doc: dict[str, Any], inputs: set[str] | None = None
                 errs.append(f"{cid}: id must be prefixed by the skill")
             if inputs is not None:
                 for k in ("each_input", "covered_by_input"):
-                    names = c.get(k) or []
-                    for name in [names] if isinstance(names, str) else names:
+                    for name in _names(c[k]) if c.get(k) else []:
                         if name not in inputs:
                             errs.append(f"{cid}: {k} {name} is not an input of the skill")
             paths = [c[k] for k in ("select", "each", "covered_by") if k in c]

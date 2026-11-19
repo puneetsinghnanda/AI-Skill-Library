@@ -21,5 +21,6 @@ rubrics:
   path: skills/unit-test/rubric.md
 default_workflows:
 - brownfield-change@^1.3
+- brownfield-small@^1.0
 - defect-fix@^1.0
 deprecated_by: null

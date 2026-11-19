@@ -33,6 +33,7 @@ cd tsl
 uv sync --python 3.12                    # venv with runtime + dev dependencies
 uv run tsl --help
 uv run --python 3.12 pytest -q           # whole suite; no network, no real tenant
+uv run --python 3.12 pytest -q -n auto   # same, in parallel (pytest-xdist); each test has its own temp world
 uv run ruff check . && uv run ruff format --check .
 uv run mypy                              # strict, src/tsl and tests
 uv build                                 # sdist + wheel (schemas bundled)

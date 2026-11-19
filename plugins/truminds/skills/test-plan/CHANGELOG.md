@@ -1,6 +1,6 @@
 # Changelog: test-plan
 
-## 1.3.0
+## 1.4.0
 - Run HMS-21: the hook refused 24 Edit calls (requirement-review 15, design 6,
   secure-code-review 3), because the skill had no Edit tool although its hand-over says to
   fix self-check items with targeted edits. Each refusal ended in a full rewrite.
@@ -13,6 +13,17 @@
   never read or cite another run's files, even of the same ticket. The pre-tool hook refuses
   such reads while a step is open, and tsl verify fails an artifact that names another run
   (E-H1-06).
+- Follows 1.3.0 on main (#51), which took that number first.
+
+## 1.3.0
+- #5: `test-plan.every-ac-tested` (H2) passed when the stories input held no acceptance criteria, so
+  nothing was checked. With `nonempty`, a stories input with nothing to cover now fails.
+- Stories with no criteria are something the skill cannot fix. stories.v1 rejects them (`minItems`),
+  but step inputs are not schema-checked again when test-plan reads them, so as a safeguard rule 5
+  asks the tech lead for the criteria (blocking question), and the check waits while that question is
+  open (`defer_on_blocking`): the step reaches NEEDS-INPUT instead of retrying to ESCALATE. MINOR:
+  stricter check and a rules change, same inputs and output schema. Needs a signed eval result for
+  this version before any status change (SKL-V13).
 
 ## 1.2.0
 - Roadmap item 2 (self-checks): run HMS-9 requirement-review went to band Low on S2 alone

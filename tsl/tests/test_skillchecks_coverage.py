@@ -125,6 +125,114 @@ def test_threat_model_fails_when_the_design_input_is_missing(tmp_path: Path) -> 
     assert "input design" in out.detail
 
 
+def _architecture(root: Path, *components: str) -> dict[str, str]:
+    """The architecture context section; `components:` only when names are given (#5)."""
+    front: dict[str, Any] = {
+        "schema": "context-section.v1",
+        "section": "architecture",
+        "owner": "tl-7a1c",
+        "origin": "human",
+        "status": "reviewed",
+        "verified_at": None,
+    }
+    if components:
+        front["components"] = [{"name": c} for c in components]
+    assert schema_errors("context-section.v1", front) == []
+    return {"architecture": _write_input(root, "context/architecture.md", front)}
+
+
+def test_threat_model_without_a_design_covers_the_architecture_components(tmp_path: Path) -> None:
+    """security-review has no design step: the architecture's components list stands in (#5)."""
+    inputs = _architecture(tmp_path, "api", "web", "db")
+    front = {"schema": "threat-model.v1", "threats": _threats("api", "web", "db")}
+    out = _outcome("threat-model", "threat-model.stride-per-component", front, tmp_path, inputs)
+    assert (out.gate, out.status) == ("H2", "pass"), out.detail
+
+
+def test_threat_model_without_a_design_fails_for_an_architecture_component_without_a_threat(
+    tmp_path: Path,
+) -> None:
+    inputs = _architecture(tmp_path, "api", "web", "db")
+    front = {"schema": "threat-model.v1", "threats": _threats("api", "web")}
+    out = _outcome("threat-model", "threat-model.stride-per-component", front, tmp_path, inputs)
+    assert (out.status, out.detail) == ("fail", "db covered fewer than 1 times")
+
+
+def test_threat_model_uses_the_design_when_both_inputs_are_present(tmp_path: Path) -> None:
+    inputs = {**_architecture(tmp_path, "api", "web"), **_design(tmp_path, "NotesRoute")}
+    front = {"schema": "threat-model.v1", "threats": _threats("NotesRoute")}
+    out = _outcome("threat-model", "threat-model.stride-per-component", front, tmp_path, inputs)
+    assert out.status == "pass", out.detail  # the architecture's api and web are not required
+
+
+def test_threat_model_fails_when_the_architecture_lists_no_components(tmp_path: Path) -> None:
+    inputs = _architecture(tmp_path)
+    front = {"schema": "threat-model.v1", "threats": _threats("api")}
+    out = _outcome("threat-model", "threat-model.stride-per-component", front, tmp_path, inputs)
+    assert (out.status, out.detail) == (
+        "fail",
+        "input architecture has nothing to cover at $.components[*].name",
+    )
+
+
+def test_threat_model_fails_for_a_design_with_no_components(tmp_path: Path) -> None:
+    inputs = _design(tmp_path)
+    front = {"schema": "threat-model.v1", "threats": _threats("api")}
+    out = _outcome("threat-model", "threat-model.stride-per-component", front, tmp_path, inputs)
+    assert (out.status, out.detail) == (
+        "fail",
+        "input design has nothing to cover at $.components[*].name",
+    )
+
+
+def test_threat_model_names_both_inputs_when_neither_is_present(tmp_path: Path) -> None:
+    front = {"schema": "threat-model.v1", "threats": _threats("api")}
+    out = _outcome("threat-model", "threat-model.stride-per-component", front, tmp_path, {})
+    assert (out.status, out.detail) == (
+        "fail",
+        "input design or architecture missing or has no front matter",
+    )
+
+
+def test_threat_model_fails_for_a_bound_design_whose_file_is_missing(tmp_path: Path) -> None:
+    """Review: a workflow that binds a design (brownfield-change) must not fall back to the
+    architecture's generic components when the design file is missing."""
+    inputs = {**_architecture(tmp_path, "api", "web"), "design": "in/missing-design.md"}
+    front = {"schema": "threat-model.v1", "threats": _threats("api", "web")}
+    out = _outcome("threat-model", "threat-model.stride-per-component", front, tmp_path, inputs)
+    assert (out.status, out.detail) == ("fail", "input design missing or has no front matter")
+
+
+def test_threat_model_waits_while_it_asks_for_the_components_list(tmp_path: Path) -> None:
+    """Review: rule 5 asks the tech lead for the list; the question must reach NEEDS-INPUT, not a
+    retry. Once answered, the check runs again."""
+    inputs = _architecture(tmp_path)
+    q = {"id": "Q-01", "blocking": True, "ask": "tech lead", "text": "Add a components list?"}
+    front = {"schema": "threat-model.v1", "threats": _threats("api"), "questions": [q]}
+    cid = "threat-model.stride-per-component"
+    out = _outcome("threat-model", cid, front, tmp_path, inputs)
+    assert (out.status, out.detail) == ("skip", "blocking question open; checked after the answer")
+    out = _outcome("threat-model", cid, front, tmp_path, inputs, frozenset({"Q-01"}))
+    assert out.status == "fail"
+
+
+def test_threat_model_eval_without_a_design_lists_architecture_components() -> None:
+    """Review: EC-02 (no design) must give the check something to cover."""
+    case = SKILLS / "threat-model" / "evals" / "cases" / "EC-02"
+    assert "design" not in read_yaml(case / "case.yaml")["inputs"]
+    arch = split((case / "inputs" / "architecture.md").read_text(encoding="utf-8")).front
+    assert schema_errors("context-section.v1", dict(arch)) == []
+    assert [c["name"] for c in arch["components"]] == ["web", "api", "purge-job"]
+
+
+def test_threat_model_security_review_input_is_declared() -> None:
+    """The fallback input must be one threat-model declares (context/architecture.md)."""
+    meta = read_yaml(SKILLS / "threat-model" / "skill.yaml")
+    names = {i["name"]: i for i in meta["inputs"]}
+    assert names["architecture"]["path"] == "context/architecture.md"
+    assert names["design"]["required"] is False
+
+
 def _tests(*covers: list[str]) -> list[dict[str, Any]]:
     return [
         {"id": f"TP-{n}", "title": f"Test {n}", "covers": c, "level": "unit"}
@@ -158,6 +266,48 @@ def test_test_plan_fails_when_the_stories_input_is_missing(tmp_path: Path) -> No
     out = _outcome("test-plan", "test-plan.every-ac-tested", front, tmp_path, {})
     assert out.status == "fail"
     assert "input stories" in out.detail
+
+
+def test_test_plan_fails_when_the_stories_hold_no_acceptance_criteria(tmp_path: Path) -> None:
+    """Before #5 this passed: nothing to cover meant nothing could be uncovered."""
+    story = {**_story("S-1", ["REQ-1"]), "acceptance_criteria": []}
+    rel = _write_input(tmp_path, "in/stories.md", {"schema": "stories.v1", "stories": [story]})
+    front = {"schema": "test-plan.v1", "tests": _tests(["S-1/AC1"])}
+    out = _outcome("test-plan", "test-plan.every-ac-tested", front, tmp_path, {"stories": rel})
+    assert (out.status, out.detail) == (  # names the path that came back empty (review)
+        "fail",
+        "input stories has nothing to cover at $.stories[*] $.acceptance_criteria[*].id",
+    )
+
+
+def test_test_plan_waits_while_it_asks_for_missing_acceptance_criteria(tmp_path: Path) -> None:
+    """Review of #51: stories with no criteria are something the skill cannot fix. stories.v1 rejects
+    them, but test-plan's inputs are not schema-checked again, so as a safeguard rule 5 asks the tech
+    lead and the check waits: decide reaches NEEDS-INPUT, not RETRY until ESCALATE."""
+    story = {**_story("S-1", ["REQ-1"]), "acceptance_criteria": []}
+    stories = {"schema": "stories.v1", "trace": ["REQ-1"], "stories": [story]}
+    ac_errors = [e for e in schema_errors("stories.v1", stories) if "acceptance" in e.pointer]
+    assert [e.keyword for e in ac_errors] == [
+        "minItems"
+    ]  # stories.v1 rejects it at story-split (H1)
+    rel = _write_input(tmp_path, "in/stories.md", stories)
+    q = {"id": "Q-01", "blocking": True, "ask": "tech lead", "text": "S-1 has no criteria?"}
+    front = {"schema": "test-plan.v1", "tests": _tests(["S-1/AC1"]), "questions": [q]}
+    cid = "test-plan.every-ac-tested"
+    out = _outcome("test-plan", cid, front, tmp_path, {"stories": rel})
+    assert (out.status, out.detail) == ("skip", "blocking question open; checked after the answer")
+    out = _outcome("test-plan", cid, front, tmp_path, {"stories": rel}, frozenset({"Q-01"}))
+    assert out.status == "fail" and "nothing to cover" in out.detail
+
+
+def test_coverage_without_nonempty_still_passes_on_nothing_to_cover() -> None:
+    """`nonempty` is opt-in: test-automation may legitimately have only manual tests (#45)."""
+    check = {"id": "x.y", "kind": "coverage", "each": "$.none[*]", "covered_by": "$.refs[*]"}
+    env = CheckEnv({"refs": []}, "", ROOT, [], {}, {})
+    assert run_declared(env, {"checks": [check]})[0].status == "pass"
+    assert run_declared(env, {"checks": [{**check, "nonempty": True}]})[0].detail == (
+        "the artifact has nothing to cover at $.none[*]"
+    )
 
 
 # test-automation (#6 and the #45 review): results must equal the plan's non-manual tests, as

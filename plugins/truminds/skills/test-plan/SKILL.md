@@ -37,7 +37,7 @@ Write one file: the test-plan.v1 artifact at data.artifact_path. You do not writ
 2. Never invent a value: a number, limit, name, path, endpoint, table or version appears only if it appears in a cited input. Otherwise mark the item assumed (with a basis and a cite) or unknown (with a question).
 3. Every claim about the system cites at least one path#anchor from the inputs or the context pack (DEF-08). Generated facts use their fact id as the anchor, for example context/generated/module-map.json#module:<repo>:<path>. Put each claim's key term (the name, value or identifier the cited text must contain) in backticks, for example "hospital zone is `Asia/Kolkata`": tsl verifies a plain path#anchor cite by finding that term at the anchor, so a claim without one never verifies.
 4. Never copy secrets, keys, passwords, tokens or personal data from any input. If an input holds one, write "Input contains a credential or personal data; removed" under Unknown and ask the tech lead (non-blocking) to clean the source.
-5. Every acceptance criterion S-n/ACm is covered by at least one test; covers uses exactly that form.
+5. Every acceptance criterion S-n/ACm is covered by at least one test; covers uses exactly that form. If a story has no acceptance criteria, do not invent any: ask the tech lead for them (blocking question naming the story). The step pauses on the question; with no criteria and no question, code fails it.
 6. Choose the lowest level that proves the criterion: unit before integration before e2e; manual only when automation is impossible, with the reason.
 7. Add one negative test per new endpoint or input field in the design.
 8. Write only the file at data.artifact_path. Do not edit any other file.

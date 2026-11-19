@@ -165,9 +165,26 @@
                 "pattern": "^\\$"
               },
               "each_input": {
-                "type": "string",
-                "pattern": "^[a-z][a-z0-9_]*$",
-                "description": "coverage: name of the step input whose front matter `each` selects from (default: the artifact itself)."
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$"
+                  },
+                  {
+                    "type": "array",
+                    "minItems": 2,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_]*$"
+                    }
+                  }
+                ],
+                "description": "coverage: name of the step input whose front matter `each` selects from (default: the artifact itself), or a list of names of which the first input the step has is used (e.g. [design, architecture]: a bound design whose file is missing fails; only a step without a design uses the architecture)."
+              },
+              "nonempty": {
+                "type": "boolean",
+                "description": "coverage: fail when `each` selects nothing, so an input with nothing to cover cannot pass."
               },
               "each_key": {
                 "type": "object",
