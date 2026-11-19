@@ -32,6 +32,17 @@ is unchanged.
 The workflow's measured peak is about 1.5 GB in total (verifier container ≤ 0.89 GB, Claude Code about 0.47 GB, Docker
 daemon about 0.15 GB, one hook ≤ 0.05 GB). So 1.5 GB free is the point where a run can really run short.
 
+Limits of this evidence and of the warning:
+
+- **One small app.** Every number here comes from the HMS sample app (22 test files, 165 tests). The 1.5 GB threshold
+  and the "needs about 1 GB" text rest on that one data point. A larger product repo may need much more, so re-measure
+  on one (with `tools/`) before relying on them.
+- **Checked once.** The warning looks at free memory once, before the first verifier step. A drop during the run is
+  not caught: in HMS-15, free memory went down to 0.68 GB during the run.
+- **Worker cap and vitest versions.** The cap is passed under every name vitest uses: `VITEST_MAX_WORKERS` (vitest 4
+  and later, checked in 4.1.12 and 5.1.1) and `VITEST_MAX_FORKS` / `VITEST_MAX_THREADS` (vitest 2 and 3, checked in
+  2.1.9 and 3.2.7). The numbers above were measured on vitest 2.1.9.
+
 ## Files
 
 | Path | Contents |
