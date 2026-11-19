@@ -1,5 +1,18 @@
 # Changelog: status-report
 
+## 1.2.0
+- Run HMS-21: the hook refused 24 Edit calls (requirement-review 15, design 6,
+  secure-code-review 3), because the skill had no Edit tool although its hand-over says to
+  fix self-check items with targeted edits. Each refusal ended in a full rewrite.
+- allowed_tools gains Edit, so self-check fixes are edits to the named parts only. The
+  pre-tool hook still limits writes to the run's paths. MINOR: new tool, same inputs and
+  output schema. Needs a signed eval result for this version before any status change
+  (SKL-V13).
+- Runs are independent, with one exception for this skill: it may still Read or Glob every
+  run's runs/<run>/state.json and cite them, and nothing else of another run. Inputs now say
+  to Glob runs/*/state.json: tsl never listed the files (source: run gives the run's ticket
+  snapshot), so "listed by tsl" was wrong.
+
 ## 1.1.0
 - Roadmap item 2 (self-checks): run HMS-9 requirement-review went to band Low on S2 alone
   (RR-C12, summary over 5 sentences), which nothing reported before the review.

@@ -10,6 +10,7 @@ from __future__ import annotations
 import fnmatch
 import json
 import os
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -85,6 +86,106 @@ def _off_step(ctx: Ctx, cmd: str, open_step: tuple[str, list[str]]) -> str | Non
     if tool == "PowerShell":
         return f"step {skill} runs tsl through the Bash tool, not PowerShell"
     return f"tool {tool} is not in step {skill}'s tools ({', '.join(allowed)})"
+
+
+READ_TOOLS = ("Read", "Grep", "Glob")
+_WILD = set("*?[{")
+
+
+def _rel_parts(root: str, path: str) -> list[str] | None:
+    """Path parts relative to the companion root, or None when the path is outside it."""
+    # normcase lowers the case on Windows and turns / into \; compare with / again.
+    r = os.path.normcase(root.rstrip("/")).replace("\\", "/")
+    p = os.path.normcase(path).replace("\\", "/")
+    if p == r:
+        return []
+    if not p.startswith(r + "/"):
+        return None
+    return [x for x in path[len(root.rstrip("/")) + 1 :].split("/") if x and x != "."]
+
+
+def _other_run_read(ctx: Ctx, idx: dict[str, Any], ti: dict[str, Any]) -> str | None:
+    """Why this Read, Grep or Glob reaches another run's files, or None (while a run is bound).
+
+    Runs are independent: the run loop, the skill and its reviewer read only this run's
+    folders (artifacts/<ticket>/<run_id>/, runs/<run_id>/), never another run's, even of the
+    same ticket, its answers or questions. A search whose scope takes in other runs (the repo
+    root, artifacts/, runs/, a ticket folder, or a wildcard there) is refused too.
+
+    One exception: a skill that reads run states (an input of schema run-state.v1, as
+    status-report has) may Read or Glob runs/<any run>/state.json, and nothing else of
+    another run."""
+    root = _abs(ctx, str(idx["companion"]))
+    run_id = str(idx["run_id"])
+    if ctx.tool == "Read":
+        target = str(ti.get("file_path") or "")
+    else:
+        base = str(ti.get("path") or ctx.data.get("cwd") or ".")
+        extra = str(ti.get("pattern") if ctx.tool == "Glob" else ti.get("glob") or "")
+        target = base + ("/" + extra if extra and not extra.startswith("!") else "")
+    parts = _rel_parts(root, _abs(ctx, target)) if target else None
+    if parts is None:
+        return None  # outside the companion repo (product repos)
+    first = parts[0] if parts else ""
+    if parts and first not in ("artifacts", "runs") and not (_WILD & set(first)):
+        return None  # context/, policy files ...
+    if ctx.tool in ("Read", "Glob") and is_run_state_path(parts) and _reads_run_states(ctx, idx):
+        return None
+    depth = 3 if first == "artifacts" else 2  # artifacts/<ticket>/<run>, runs/<run>
+    if len(parts) < depth or any(_WILD & set(x) for x in parts[:depth]):
+        return (
+            "this search also takes in other runs' files; search this run's folders "
+            f"(artifacts/<ticket>/{run_id}/, runs/{run_id}/) or context/ instead"
+        )
+    if parts[depth - 1] == run_id:
+        return None
+    rel = "/".join(parts)
+    return (
+        f"{rel} belongs to another run. Runs are independent: use only this run's files and "
+        "the inputs tsl gave, never an earlier run's artifacts, answers or questions"
+    )
+
+
+def _other_run_bash(cmd: str, run_id: str) -> str | None:
+    """A shell command that names another run's folder (cat, grep, ls ...), or None. tsl
+    commands are left to tsl, which keeps to the run it is given."""
+    from tsl.harness.commands import strip_cd
+    from tsl.harness.gates import OTHER_RUN
+
+    if strip_cd(cmd).lstrip().startswith("tsl "):
+        return None
+    flat = cmd.replace("\\", "/")
+    for m in OTHER_RUN.finditer(flat):
+        if m.group(2) != run_id:
+            return (
+                f"{m.group(1)} belongs to another run. Runs are independent: use only this run's "
+                "files and the inputs tsl gave"
+            )
+    # The folders that hold every run: artifacts/, artifacts/<ticket>/, runs/, or a wildcard there.
+    if re.search(r"(?<![\w.-])(artifacts/([^/\s'\"]+/?)?|runs/)(\*|['\"]?(\s|$))", flat):
+        return "this command takes in other runs' files; name this run's folders instead"
+    return None
+
+
+def is_run_state_path(parts: list[str]) -> bool:
+    """runs/<run>/state.json, the run id possibly a wildcard (Glob runs/*/state.json)."""
+    return len(parts) == 3 and parts[0] == "runs" and parts[2] == "state.json"
+
+
+def _reads_run_states(ctx: Ctx, idx: dict[str, Any]) -> bool:
+    """Whether the run's current step is a skill that reads run states (status-report)."""
+    step = (idx["_state"].get("cursor") or {}).get("step")
+    if not step:
+        return False
+    try:
+        from tsl.core.repo import Companion
+        from tsl.orchestrator.run import RunCtx
+        from tsl.orchestrator.skills import reads_run_states
+
+        run = RunCtx(ctx.rt, Companion(Path(idx["companion"])), idx["run_id"])
+        return reads_run_states(run.skill_for(str(step)).meta)
+    except Exception:
+        return False
 
 
 def _try_bind(ctx: Ctx) -> dict[str, Any] | None:
@@ -195,6 +296,16 @@ def handle(ctx: Ctx) -> tuple[str, int]:
                 # Refused before it runs and not written to the tool log: nothing happened,
                 # so H7 has nothing to fail. hook.log still records the refusal.
                 return deny(ctx, "E-POL-06", f"Refused: {why}. Carry on with the step's tools")
+        if ctx.tool in READ_TOOLS:
+            # While this session holds a run, in a step or between steps (HMS-5: the run loop
+            # read the earlier run "as a starting point" before each step).
+            why = _other_run_read(ctx, idx, ti)
+            if why is not None:
+                return deny(ctx, "E-POL-06", f"Refused: {why}")
+        if ctx.tool == "Bash":
+            why = _other_run_bash(str(ti.get("command") or ""), str(idx["run_id"]))
+            if why is not None:
+                return deny(ctx, "E-POL-06", f"Refused: {why}")
         if ctx.tool not in LOGGED:
             return allow(ctx)
         if ctx.tool in ("Write", "Edit", "NotebookEdit"):

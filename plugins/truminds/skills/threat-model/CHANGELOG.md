@@ -1,5 +1,20 @@
 # Changelog: threat-model
 
+## 1.4.0
+- Run HMS-21: the hook refused 24 Edit calls (requirement-review 15, design 6,
+  secure-code-review 3), because the skill had no Edit tool although its hand-over says to
+  fix self-check items with targeted edits. Each refusal ended in a full rewrite.
+- allowed_tools gains Edit, so self-check fixes are edits to the named parts only. The
+  pre-tool hook still limits writes to the run's paths. MINOR: new tool, same inputs and
+  output schema. Needs a signed eval result for this version before any status change
+  (SKL-V13).
+- Runs are independent (HMS-5 rerun: the skill read the earlier run's artifacts and feedback
+  "as a starting point" at every step). data.prior_answers now holds this run's answers only;
+  never read or cite another run's files, even of the same ticket. The pre-tool hook refuses
+  such reads while a step is open, and tsl verify fails an artifact that names another run
+  (E-H1-06).
+- Follows 1.3.0 on main (#51), which took that number first.
+
 ## 1.3.0
 - #5: `threat-model.stride-per-component` (H2) failed every security-review run, which has no design
   input. It now covers the design's components, or the architecture section's `components:` list

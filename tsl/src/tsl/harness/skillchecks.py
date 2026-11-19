@@ -112,14 +112,6 @@ def _ide_answers_rel(env: CheckEnv) -> str | None:
     return ide_answers_path(run_id) if run_id else None
 
 
-def _prior_answer_log(env: CheckEnv, path: str) -> bool:
-    """runs/<run_id>/ide-answers.md of another run (data.prior_answers, B3). Only the post-tool
-    hook writes these files, so a cite of one is the user's own earlier answer."""
-    from tsl.harness.citations import IDE_ANSWERS
-
-    return bool(IDE_ANSWERS.match(path)) and (env.root / path).is_file()
-
-
 def c_cites_present(env: CheckEnv, w: dict[str, Any]) -> str | None:
     items = list(env.front.get("requirements", [])) + list(env.front.get("claims", []))
     allowed = set(env.input_paths)
@@ -139,7 +131,7 @@ def c_cites_present(env: CheckEnv, w: dict[str, Any]) -> str | None:
             return f"{it.get('id')} has no citation"
         for c in cites:
             p = _cite_path(c)
-            if not (p in allowed or p.startswith("context/") or _prior_answer_log(env, p)):
+            if not (p in allowed or p.startswith("context/")):
                 return f"{it.get('id')} cites {p}, not a declared input"
     return None
 

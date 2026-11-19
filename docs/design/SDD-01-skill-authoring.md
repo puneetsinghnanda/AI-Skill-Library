@@ -258,7 +258,7 @@ deprecated_by: null               # NEW; skill id@version, required when status 
 | `owner` | string | Pseudonym with a `skill_owner` grant for this skill; also listed in CODEOWNERS |
 | `phase` | enum | One of the five phases in §11.2 |
 | `inputs[].source` | enum | `artifact` (output of an earlier step), `run` (written by the run loop, e.g. ticket snapshot), `context` (companion repo `context/`), `product` (product repo path or diff), `mcp` (read-only MCP fetch done by the run loop) |
-| `allowed_tools` | list | Subset of `Read, Grep, Glob, Write, Edit, Bash(<pattern>)`; `Edit` and `Bash` only for code skills with `change_limits` |
+| `allowed_tools` | list | Subset of `Read, Grep, Glob, Write, Edit, Bash(<pattern>)`; `Bash` only for code skills with `change_limits`. Every skill may have `Edit`: its hand-over fixes self-check items with targeted edits, and the pre-tool hook limits writes to the run's paths (HMS-21 refused 24 Edits) |
 | `size_budget_tokens` | int | 1 000 – 120 000 |
 
 ## 5. Declaring inputs and outputs

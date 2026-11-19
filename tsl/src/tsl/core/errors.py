@@ -580,6 +580,12 @@ CATALOGUE: dict[str, ErrorDef] = {
             "Citation {ref} does not match the citation format.",
             "Use repo:path#anchor",
         ),
+        _d(
+            "E-H1-06",
+            CHECK,
+            "The artifact refers to another run's file {ref}.",
+            "Use only this run's files and the inputs tsl gave",
+        ),
         _d("E-H2-01", CHECK, "Section {title} missing.", "Add it"),
         _d("E-H2-02", CHECK, "Section {title} is empty.", "Add content"),
         _d(

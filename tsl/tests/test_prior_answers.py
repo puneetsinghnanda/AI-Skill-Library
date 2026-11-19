@@ -1,5 +1,6 @@
-"""B3: the step context carries the answers the user already gave (data.prior_answers):
-earlier steps of this run, then ended runs of the same ticket, each with the cite to use."""
+"""B3: the step context carries the answers the user already gave in this run
+(data.prior_answers), each with the cite to use. Never another run's answers, even of the same
+ticket: runs are independent, and an artifact may not cite another run."""
 
 from __future__ import annotations
 
@@ -49,7 +50,7 @@ def _ask(root: Path, rid: str, step: str, attempt: int, q: str, a: str) -> None:
     )
 
 
-def test_prior_answers_from_this_run_and_ended_runs_of_the_ticket(tmp_path: Path) -> None:
+def test_prior_answers_come_from_this_run_only(tmp_path: Path) -> None:
     _state(tmp_path, RUN, "HMS-4", "RUNNING", None)
     _state(tmp_path, OLD, "HMS-4", "COMPLETED", "cancelled")
     _state(tmp_path, OTHER, "HMS-9", "COMPLETED", "completed")
@@ -59,13 +60,10 @@ def test_prior_answers_from_this_run_and_ended_runs_of_the_ticket(tmp_path: Path
     _ask(tmp_path, OTHER, "req", 1, "Q-01: Unrelated?", "x")
 
     got = prior_answers(Comp(tmp_path), RUN, "HMS-4", "design", 2)  # type: ignore[arg-type]
-    cites = [(g["cite"], g["this_run"]) for g in got]
-    assert cites == [
-        (f"runs/{RUN}/ide-answers.md#a-01", True),
-        (f"runs/{RUN}/ide-answers.md#a-02", True),  # an earlier attempt of this step
-        (f"runs/{OLD}/ide-answers.md#a-01", False),
-    ]
-    assert got[2]["run_end"] == "cancelled" and got[2]["answer"] == "PatientsPage only"
+    assert [g["cite"] for g in got] == [
+        f"runs/{RUN}/ide-answers.md#a-01",
+        f"runs/{RUN}/ide-answers.md#a-02",  # an earlier attempt of this step
+    ]  # the ended run of the same ticket (OLD) is not offered
 
 
 def test_this_attempts_own_answers_are_left_out(tmp_path: Path) -> None:
@@ -74,16 +72,15 @@ def test_this_attempts_own_answers_are_left_out(tmp_path: Path) -> None:
     assert prior_answers(Comp(tmp_path), RUN, "HMS-4", "design", 1) == []  # type: ignore[arg-type]
 
 
-def test_a_prior_run_answer_is_an_allowed_cite(tmp_path: Path) -> None:
+def test_another_runs_answer_is_not_an_allowed_cite(tmp_path: Path) -> None:
     from tsl.harness.skillchecks import CheckEnv, c_cites_present
 
     _ask(tmp_path, OLD, "impact", 1, "Q-02: Callers?", "PatientsPage only")
+    _ask(tmp_path, RUN, "req", 1, "Q-01: Date only?", "Date only")
     front: dict[str, Any] = {
         "run_id": RUN,
-        "claims": [
-            {"id": "C1", "text": "x", "cites": [f"runs/{OLD}/ide-answers.md#a-01"]},
-        ],
+        "claims": [{"id": "C1", "text": "x", "cites": [f"runs/{OLD}/ide-answers.md#a-01"]}],
     }
-    assert c_cites_present(CheckEnv(front, "", tmp_path, [], {}), {}) is None
-    front["claims"][0]["cites"] = [f"runs/{OTHER}/ide-answers.md#a-01"]  # no such log
     assert "not a declared input" in str(c_cites_present(CheckEnv(front, "", tmp_path, [], {}), {}))
+    front["claims"][0]["cites"] = [f"runs/{RUN}/ide-answers.md#a-01"]  # this run's own answer
+    assert c_cites_present(CheckEnv(front, "", tmp_path, [], {}), {}) is None

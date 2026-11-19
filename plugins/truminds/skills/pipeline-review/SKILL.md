@@ -3,7 +3,7 @@ name: pipeline-review
 description: Reviews the product repos' CI configuration against the system's tsl.yaml and conventions and writes a pipeline-review.v1 artifact whose findings cite the exact job and step. Use only as a step of a Truminds workflow run, when tsl names pipeline-review as the next step.
 argument-hint: <artifact path from tsl next>
 user-invocable: false
-allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write
+allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write, Edit
 ---
 
 Step context from tsl (do not edit):

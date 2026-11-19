@@ -3,7 +3,7 @@ name: estimate-review
 description: Gives each story a relative size (XS to XL) backed by cited evidence from the design and the context pack, or marks it UNSIZED with the reason, and writes an estimate.v1 artifact. Use only as a step of a Truminds workflow run, when tsl names estimate-review as the next step.
 argument-hint: <artifact path from tsl next>
 user-invocable: false
-allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write
+allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write, Edit
 ---
 
 Step context from tsl (do not edit):
