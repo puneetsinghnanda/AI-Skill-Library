@@ -79,6 +79,7 @@ def test_step_command_is_locked_down(tmp_path: Path) -> None:
         "--cpus 2",
         "--memory 4g",
         "--pids-limit 512",
+        "-e VITEST_MAX_WORKERS=2",
         "-e VITEST_MAX_FORKS=2",
         "-e VITEST_MAX_THREADS=2",
         "-e VITEST_MIN_FORKS=1",
@@ -99,6 +100,8 @@ def test_worker_env_follows_the_cpu_limit() -> None:
 
     assert worker_env("2") == [
         "-e",
+        "VITEST_MAX_WORKERS=2",  # vitest 4 and later read only this one
+        "-e",
         "VITEST_MAX_FORKS=2",
         "-e",
         "VITEST_MAX_THREADS=2",
@@ -107,7 +110,8 @@ def test_worker_env_follows_the_cpu_limit() -> None:
         "-e",
         "VITEST_MIN_THREADS=1",
     ]
-    assert "VITEST_MAX_FORKS=1" in worker_env("0.5")  # a fractional limit still gets one worker
+    half = worker_env("0.5")  # a fractional limit still gets one worker, on every vitest major
+    assert "VITEST_MAX_WORKERS=1" in half and "VITEST_MAX_FORKS=1" in half
 
 
 def test_placeholder_digest_is_refused() -> None:

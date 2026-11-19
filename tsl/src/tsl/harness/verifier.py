@@ -75,10 +75,13 @@ class VerifierRunner(Protocol):
 
 PLACEHOLDER_DIGEST = "sha256:" + "0" * 64
 LIMITS = {"cpus": "2", "memory": "4g", "pids": "512"}  # SDD-03 §5.5
-# Warn below this much free memory. Measured on the HMS-11 code (evidence in the PR): the highest
-# verifier step peaked at 0.55-0.89 GB, well under the 4 GB limit, and the whole workflow
-# (container, Claude Code, Docker daemon, a hook) at about 1.5 GB. The old threshold
-# (limit + 1.5 GB = 5.5 GB) fired on most runs on a 16 GB laptop.
+# Warn below this much free memory. Measured on ONE small app: the HMS sample app (22 test files,
+# 165 tests; docs/testing/validation/verifier-memory-HMS-11/). The highest verifier step peaked at
+# 0.55-0.89 GB, well under the 4 GB limit, and the whole workflow (container, Claude Code, Docker
+# daemon, a hook) at about 1.5 GB. A larger product repo may need much more: re-measure on one
+# before relying on 1.5 GB and VERIFIER_NEEDS. The old threshold (limit + 1.5 GB = 5.5 GB) fired
+# on most runs on a 16 GB laptop. The check runs once, before the first step (DockerVerifier.run):
+# a drop during the run is not caught (HMS-15 went down to 0.68 GB free).
 LOW_MEMORY_MB = 1536
 VERIFIER_NEEDS = "about 1 GB"
 TOP_USERS = 3
@@ -150,11 +153,16 @@ def worker_env(cpus: str) -> list[str]:
     laptop, each holding its own copy of the code under test. Measured on the HMS-11 code: test
     step 724-739 MB with 7 workers. Environment variables, not a `--maxWorkers` flag, because the
     profile runs `npm test`, which may fan out to workspaces where a flag would not reach vitest.
-    vitest reads VITEST_MAX_FORKS / VITEST_MAX_THREADS (pool `forks` / `threads`); the minimum is
-    set too, since it otherwise defaults to the host core count and would exceed the maximum.
+    Each vitest major reads its own names, and ignores the others:
+    - vitest 2 and 3 read VITEST_MAX_FORKS / VITEST_MAX_THREADS (pool `forks` / `threads`); the
+      minimum is set too, since it otherwise defaults to the host core count and would exceed
+      the maximum. Checked in 2.1.9 and 3.2.7.
+    - vitest 4 and later read only VITEST_MAX_WORKERS and have no minimum. Checked in 4.1.12
+      and 5.1.1.
     """
     n = max(1, int(float(cpus)))
     env = {
+        "VITEST_MAX_WORKERS": n,
         "VITEST_MAX_FORKS": n,
         "VITEST_MAX_THREADS": n,
         "VITEST_MIN_FORKS": 1,
