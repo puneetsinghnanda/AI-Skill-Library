@@ -8,7 +8,7 @@ from typing import Any
 from tsl.approvals import approvals_md, questions_md
 from tsl.core.clock import iso
 from tsl.core.config import effective_bands
-from tsl.core.errors import TslError
+from tsl.core.errors import TslError, warning
 from tsl.core.hashing import sha256_file, sha256_raw
 from tsl.core.jsonio import read_json, write_json
 from tsl.core.paths import ARTIFACT_RE, approvals_path, feedback_path, questions_path, sibling
@@ -356,7 +356,15 @@ def _apply(
     if outcome == "NEEDS-INPUT" or (outcome in ("PASS", "PASS-WITH-FINDINGS") and d.questions):
         # On a pass every question is non-blocking: record the defaults the run goes on with,
         # so they show in open-questions.md, the PR and the portal (SDD-02 §9.1).
+        before = questions_md.unanswered(comp.path(questions_path(ctx.run_id)), ctx.run_id)
         new_questions = _write_questions(ctx, step, attempt, d)
+        seen = list(before)
+        for q in new_questions:
+            # Against the questions open before and those raised earlier in this round.
+            dup = questions_md.duplicate_of(q, seen, frozenset({ctx.ticket}))
+            if dup:
+                warnings.append(warning("E-DEC-03", qid=q["id"], dup=dup))
+            seen.append(q)
     if outcome == "ESCALATE":
         gate_id = f"G-escalate-{step}-a{attempt['n']}"
         role = str(

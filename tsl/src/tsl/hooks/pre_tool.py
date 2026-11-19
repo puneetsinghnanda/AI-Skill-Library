@@ -20,6 +20,28 @@ BIND_WINDOW_S = 600
 # Tools the run loop itself uses between the skill and tsl decide; never step work.
 RUN_LOOP_TOOLS = frozenset({"Skill", "Agent", "Task", "ToolSearch", "AskUserQuestion", "TodoWrite"})
 LOGGED = ("Write", "Edit", "NotebookEdit", "Bash")
+WRITE_TOOLS = ("Write", "Edit", "NotebookEdit")
+
+
+def _is_reviewer(ctx: Ctx) -> bool:
+    """The call comes from the truminds reviewer subagent (hook input agent_type)."""
+    at = str(ctx.data.get("agent_type") or "")
+    return at in ("reviewer", "truminds:reviewer") or at.endswith(":reviewer")
+
+
+def _reviewer_write_refused(ctx: Ctx, idx: dict[str, Any] | None) -> str | None:
+    """Why the reviewer may not make this write, or None. It may Write one file only: the
+    review input of the bound run's current step. Outside a bound run it writes nothing."""
+    if idx is None:
+        return "the reviewer writes only inside a bound run; return the JSON instead"
+    step = str((idx["_state"].get("cursor") or {}).get("step") or "")
+    want = _abs(ctx, f"{idx['companion']}/runs/{idx['run_id']}/review-input/{step}.review.json")
+    ti = ctx.data.get("tool_input") or {}
+    got = _abs(ctx, str(ti.get("file_path") or ti.get("notebook_path") or ""))
+    if ctx.tool == "Write" and step and os.path.normcase(got) == os.path.normcase(want):
+        return None
+    rel = f"runs/{idx['run_id']}/review-input/{step or '<step>'}.review.json"
+    return f"the reviewer writes only {rel} with Write; return the JSON instead"
 
 
 def _open_step(ctx: Ctx, idx: dict[str, Any]) -> tuple[str, list[str]] | None:
@@ -150,6 +172,12 @@ def handle(ctx: Ctx) -> tuple[str, int]:
             idx = _try_bind(ctx)
     except Exception:
         idx = None
+    if _is_reviewer(ctx) and ctx.tool in WRITE_TOOLS:
+        why = _reviewer_write_refused(ctx, idx)
+        if why is not None:
+            # Refused before it runs and not written to the tool log, so H7 has nothing to
+            # fail: the reviewer then hands its JSON back instead (SDD-05 §4.3).
+            return deny(ctx, "E-POL-06", f"Refused: {why}")
     if idx is None:
         return allow(ctx)  # outside a run: static rules come from managed settings
     try:

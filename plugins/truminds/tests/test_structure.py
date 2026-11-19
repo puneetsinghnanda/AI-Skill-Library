@@ -160,10 +160,11 @@ def test_hooks_json_lists_exactly_the_sdd05_hooks_with_timeouts() -> None:
     assert (PLUGIN / "bin" / "tsl-hook.cmd").is_file()
 
 
-def test_reviewer_agent_is_read_only_and_review_skill_forks() -> None:
+def test_reviewer_agent_reads_writes_its_review_only_and_review_skill_forks() -> None:
+    """Read, Grep, Glob and Write: the pre-tool hook limits Write to the review-input file."""
     agent = front_matter(PLUGIN / "agents" / "reviewer.md")
     assert agent and agent["name"] == "reviewer"
-    assert [t.strip() for t in agent["tools"].split(",")] == ["Read", "Grep", "Glob"]
+    assert [t.strip() for t in agent["tools"].split(",")] == ["Read", "Grep", "Glob", "Write"]
     review = front_matter(SKILLS / "review" / "SKILL.md")
     assert review == {
         "name": "review",
@@ -171,7 +172,7 @@ def test_reviewer_agent_is_read_only_and_review_skill_forks() -> None:
         "context": "fork",
         "agent": "truminds:reviewer",
         "user-invocable": False,
-        "allowed-tools": "Bash(tsl review prepare *)",
+        "allowed-tools": "Bash(tsl review prepare *), Write",
     }
     assert "!`tsl review prepare $ARGUMENTS --json`" in body(SKILLS / "review" / "SKILL.md")
 

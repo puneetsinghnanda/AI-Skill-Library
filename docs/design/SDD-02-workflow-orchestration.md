@@ -446,6 +446,7 @@ Output (`next-action.v1`, inside the standard `--json` envelope of Doc 5 §2.3, 
 | `inputs[]` | `{name, path, sha256, schema}` for every binding |
 | `feedback` | Path to `feedback.v1` on a retry, else null |
 | `answers` | Path to `open-questions.md` when the attempt follows a pause for input, else null |
+| `open_questions[]` | The run's questions still unanswered: `{id, ask, blocking, question, cite}`. The skill does not raise them again; it refers to one by citing `cite` (`runs/<run_id>/open-questions.md#q-05`, SDD-03 §8). HMS-21 re-asked Q-05 as Q-06 |
 | `context_sections[]` | From `skill-metadata.v1` (DEF-04 size budget) |
 | `budget` | `{checks: "1/2", review: "0/2", verifier: "0/3"}` |
 | `progress` | `{index: 5, total: 11}` for messages like "Step design (5/11)" |

@@ -17,6 +17,9 @@ Loop:
 2. run_skill: invoke the skill named in "data.skill" with "data.artifact_path" as its argument
    (its preamble runs `tsl verify <path> --inputs` from it). Give it "data.inputs",
    "data.feedback" and "data.answers". It must write exactly "data.artifact_path".
+   Also give it "data.open_questions": questions of this run still unanswered. It must not
+   raise them again; to refer to one it cites the question's "cite"
+   (runs/<run_id>/open-questions.md#q-05), never the question id in prose alone.
    If the post-write hook blocks the write, fix what it says and write again.
 3. Run `tsl verify <artifact_path> --json`. It runs every check, including the verifier
    container (H3) for steps that change code; the post-write hook ran only the fast checks.
@@ -24,10 +27,12 @@ Loop:
    go straight to step 5: decide records the review as skipped, then retries the step with
    feedback or stops the run. Do not investigate with other tools while a step is open; the
    pre-tool hook refuses tools outside the step's list.
-   Otherwise run the `review` skill on "data.artifact_path". It only returns JSON; it records nothing.
-4. Save that JSON, unchanged, with the Write tool to
-   `runs/<run_id>/review-input/<step>.review.json`, then run
+   Otherwise run the `review` skill on "data.artifact_path". The reviewer writes its JSON to
+   `runs/<run_id>/review-input/<step>.review.json` and answers with that path; it records nothing.
+4. Run
    `tsl review record <artifact_path> --file runs/<run_id>/review-input/<step>.review.json --json`.
+   Only if the reviewer answered with the JSON itself (its write was refused), first save
+   that JSON, unchanged, with the Write tool to that path.
    (A file, not stdin: long JSON on a shell command line breaks some shell wrappers.)
    On E-REV-02 the JSON did not match review.v1: run the `review` skill again, passing it
    the error "message", and record again. Stay within the review budget (retry.review,
@@ -37,7 +42,8 @@ Loop:
    error "message" and the "data.citations" list (each failing citation and why), and record
    again. tsl counts these rounds itself (retry.record) and records the review once they are
    used, so keep going until it is recorded; never use --unavailable for E-REV-05.
-   Never write or edit the review JSON yourself.
+   E-REV-06 is a warning only: tsl moved a citation to the one place its quote is.
+   Never edit the review JSON yourself.
 5. Run `tsl decide <artifact_path> --json`. Show its status line to the user.
    Then go back to step 1, whatever the outcome.
 6. run_decide: go straight to step 5.
