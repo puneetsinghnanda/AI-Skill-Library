@@ -222,17 +222,20 @@ The exact orchestration loop (`tsl next`, retries, gates) belongs to SDD-02. `ts
 ---
 name: reviewer
 description: Truminds harness reviewer. Checks one artifact against the context pack and rubric and returns findings as JSON with citations. Use only through the truminds review skill.
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, Write
 model: inherit
 ---
 You review one artifact. You did not write it.
 For every finding give severity (blocker, major, minor), a one-line statement,
 and at least one citation path#anchor that proves it.
 If you cannot cite it, do not report it.
-Return only JSON matching review.v1. Never edit files.
+(... the run records rule, then:)
+Write the review.v1 JSON with the Write tool to the "Write the review to" path in the
+package, then answer with that path and the finding counts only, not the JSON.
+Write no other file; the hook blocks any other path.
 ```
 
-**Why read-only:** the reviewer gets only Read, Grep and Glob, so it cannot change the artifact or the evidence it judges. Plugin agents ignore their own hooks and permission settings (V-14), so the read-only limit comes from this `tools` list plus the managed deny rules in §6.
+**Why it writes one file:** the reviewer reads with Read, Grep and Glob, and writes only its own review JSON, `runs/<run_id>/review-input/<step>.review.json`. Plugin agents ignore their own hooks and permission settings (V-14), so the limit comes from the plugin's pre-tool hook: a Write, Edit or NotebookEdit from `agent_type` `truminds:reviewer` is refused (E-POL-06) unless it is a Write of the bound run's current step's review input. Outside a bound run every reviewer write is refused. The refusal is not written to the tool log, so H7 does not fail the step for it; the reviewer then hands back the JSON. `tsl review prepare` deletes the last round's review input, so each round writes a new file and `record --file` never reads an old one. Limit: a Claude Code that sends no `agent_type` cannot be told apart from the main session, and the general run write rules apply. Editing the artifact would not help it anyway: `tsl review record` refuses a review whose `artifact_sha256` is not the current file (E-REV-03). Writing the file itself replaced handing the JSON back: the main session re-typed every review (about 20 s each), and in HMS-21 the auto-mode check of one 147k-character hand-back hung for 11 minutes.
 
 ### 4.4 How the reviewer is called (`skills/review/SKILL.md`)
 
@@ -252,11 +255,11 @@ Review package from tsl (artifact, rubric, cited context sections):
 
 1. The main session runs the `review` skill.
 2. Claude Code starts the `truminds:reviewer` subagent with a fresh context window (V-15). That window holds only the review package, not the conversation that produced the artifact.
-3. The subagent returns its JSON.
-4. The main session runs `tsl review record <artifact>` with that JSON on standard input. `tsl` validates it against `review.v1` and writes `<artifact>.review.json`.
+3. The subagent writes its JSON to the package's `review_input_path` and answers with that path and the finding counts. The package also lists the run records (`ide-answers.md`, `open-questions.md`) that any step may cite.
+4. The main session runs `tsl review record <artifact> --file <review_input_path>`. `tsl` validates it against `review.v1`, moves a citation whose quote is in the cited file exactly once (E-REV-06), and writes `<artifact>.review.json`. If the reviewer's write was refused it answers with the JSON, and the main session saves it to that path first.
 5. `tsl decide` then verifies every citation itself; any finding it cannot verify is dropped (Doc 3 §5).
 
-**Accepted limit:** the main session handles the reviewer's JSON on its way to `tsl`, so in theory it could alter it. This is covered by L-06: citations are re-checked by code, and the human PR review stays as the final check.
+**Accepted limit:** the main session can still write the review-input file, so in theory it could alter the JSON. This is covered by L-06: citations are re-checked by code, and the human PR review stays as the final check.
 
 ## 5. Hooks
 

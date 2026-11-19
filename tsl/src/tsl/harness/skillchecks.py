@@ -118,6 +118,13 @@ def c_cites_present(env: CheckEnv, w: dict[str, Any]) -> str | None:
     ide = _ide_answers_rel(env)
     if ide and (env.root / ide).is_file():
         allowed.add(ide)  # the user's own answers, recorded by the post-tool hook
+    run_id = str(env.front.get("run_id") or "")
+    if run_id:
+        from tsl.core.paths import questions_path
+
+        oq = questions_path(run_id)
+        if (env.root / oq).is_file():
+            allowed.add(oq)  # the run's open questions, written by tsl decide
     for it in items:
         cites = it.get("cites") or []
         if not cites:
@@ -134,7 +141,8 @@ def _norm_num(s: str) -> str:
 
 
 def c_values_sourced(env: CheckEnv, w: dict[str, Any]) -> str | None:
-    from tsl.harness.citations import LINES
+    from tsl.approvals import questions_md
+    from tsl.harness.citations import LINES, OPEN_QUESTIONS, QUESTION_ANCHOR
 
     for r in env.front.get("requirements", []):
         if r.get("status") != "known":
@@ -163,6 +171,16 @@ def c_values_sourced(env: CheckEnv, w: dict[str, Any]) -> str | None:
                     for e in ide_answers.parse(text)
                     if e["id"].lower() == anchor.lower()
                 )
+            elif OPEN_QUESTIONS.match(path):
+                # Only the cited question's answer counts: never its text or proposed default
+                # (a value the skill proposed is not known), never another question.
+                qm = QUESTION_ANCHOR.match(anchor)
+                qid = f"Q-{int(qm.group(1)):02d}" if qm else ""
+                try:
+                    eff = questions_md.effective(questions_md.parse(text).get("questions", []))
+                except Exception:
+                    eff = {}
+                cited += str((eff.get(qid) or {}).get("answer") or "") + "\n"
             else:
                 cited += text
         for v in NUM.findall(str(r.get("statement", ""))):

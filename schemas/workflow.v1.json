@@ -219,6 +219,12 @@
           "minimum": 0,
           "maximum": 4,
           "description": "Fast-check rejections allowed per attempt in the post-write hook, separate from checks (decide-time retries). Optional; the org default is 4."
+        },
+        "record": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Review records rejected per attempt because a citation does not verify (E-REV-05); only the reviewer runs again. Separate from review (step retries on a major finding). Optional; the org default is 2."
         }
       }
     },

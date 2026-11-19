@@ -8,7 +8,7 @@ from typing import Any
 from tsl.approvals import approvals_md, questions_md
 from tsl.core.clock import iso
 from tsl.core.config import effective_bands
-from tsl.core.errors import TslError
+from tsl.core.errors import TslError, warning
 from tsl.core.hashing import sha256_file, sha256_raw
 from tsl.core.jsonio import read_json, write_json
 from tsl.core.paths import ARTIFACT_RE, approvals_path, feedback_path, questions_path, sibling
@@ -148,26 +148,10 @@ def decide(
         prev_fb = None
         if attempt.get("feedback") and comp.path(str(attempt["feedback"])).is_file():
             prev_fb = read_json(comp.path(str(attempt["feedback"])))
-        pack = ctx.state.get("pack") or {}
         from tsl.core.frontmatter import split
 
         front = split(comp.path(rel).read_text(encoding="utf-8")).front
-        # Product cites resolve against the code the reviewer saw: this step's tree, else the
-        # run branch head, else the pack commit. The pack commit lacks lines the run added.
-        shas = dict(pack.get("source_sha") or {})
-        shas.update({k: v for k, v in (front.get("pack_sha") or {}).items()})
-        shas.update(
-            {
-                r: str(b["head_sha"])
-                for r, b in (ctx.state.get("branch") or {}).items()
-                if b.get("head_sha")
-            }
-        )
-        shas.update(
-            {r: c["tree_sha"] for c in checks.get("product_changes") or [] for r in [c["repo"]]}
-        )
-        repos = {r.name for r in cfg.product_repos} | {str(r["name"]) for r in cfg.read_only_repos}
-        gen_mm = comp.path("context/generated/module-map.json")
+        resolver, repos, generated = citation_resolver(ctx, comp, rel, front, checks)
         inp = DecideInput(
             checks=checks,
             review=review,
@@ -180,12 +164,12 @@ def decide(
             requires_fresh_pack=ctx.requires_fresh_pack,
             is_code=sk.is_code,
             change_limits=cfg.limits(),
-            resolver=citations.Resolver(comp.root, comp.local_paths(), shas),
+            resolver=resolver,
             repos=repos,
             answered=_answered(ctx),
             prev_feedback=prev_fb,
             stale_steps=_stale_steps(ctx, step),
-            generated=read_json(gen_mm) if gen_mm.is_file() else None,
+            generated=generated,
         )
         d = evaluate(inp)
         record = _record(rt, ctx, rel, attempt, checks, review, d, thresholds, signer, sk.ref)
@@ -372,7 +356,15 @@ def _apply(
     if outcome == "NEEDS-INPUT" or (outcome in ("PASS", "PASS-WITH-FINDINGS") and d.questions):
         # On a pass every question is non-blocking: record the defaults the run goes on with,
         # so they show in open-questions.md, the PR and the portal (SDD-02 §9.1).
+        before = questions_md.unanswered(comp.path(questions_path(ctx.run_id)), ctx.run_id)
         new_questions = _write_questions(ctx, step, attempt, d)
+        seen = list(before)
+        for q in new_questions:
+            # Against the questions open before and those raised earlier in this round.
+            dup = questions_md.duplicate_of(q, seen, frozenset({ctx.ticket}))
+            if dup:
+                warnings.append(warning("E-DEC-03", qid=q["id"], dup=dup))
+            seen.append(q)
     if outcome == "ESCALATE":
         gate_id = f"G-escalate-{step}-a{attempt['n']}"
         role = str(
@@ -612,6 +604,39 @@ def _checkpoint(ctx: RunCtx, step: str, attempt: dict[str, Any]) -> dict[str, st
     return out
 
 
+def citation_resolver(
+    ctx: RunCtx,
+    comp: Companion,
+    rel: str,
+    front: dict[str, Any],
+    checks: dict[str, Any] | None = None,
+) -> tuple[citations.Resolver, set[str], dict[str, Any] | None]:
+    """The resolver, repo names and generated facts that cites of `rel` are verified with.
+
+    One copy for tsl decide, the record-time citation check and the weak-claim check, so all
+    three agree. Product cites resolve against the code the reviewer saw: this step's tree (from
+    `checks`, else the artifact's .checks.json), else the run branch head, else the pack commit.
+    The pack commit lacks lines the run added."""
+    shas = dict((ctx.state.get("pack") or {}).get("source_sha") or {})
+    shas.update({k: v for k, v in (front.get("pack_sha") or {}).items()})
+    shas.update(
+        {
+            r: str(b["head_sha"])
+            for r, b in (ctx.state.get("branch") or {}).items()
+            if b.get("head_sha")
+        }
+    )
+    if checks is None:
+        checks_p = comp.path(sibling(rel, ".checks.json"))
+        checks = read_json(checks_p) if checks_p.is_file() else {}
+    shas.update({c["repo"]: c["tree_sha"] for c in checks.get("product_changes") or []})
+    cfg = comp.config
+    repos = {r.name for r in cfg.product_repos} | {str(r["name"]) for r in cfg.read_only_repos}
+    gen_mm = comp.path("context/generated/module-map.json")
+    generated = read_json(gen_mm) if gen_mm.is_file() else None
+    return citations.Resolver(comp.root, comp.local_paths(), shas), repos, generated
+
+
 def unverified_claims(rt: Runtime, comp: Companion, rel: str) -> list[dict[str, str]]:
     """Claims of an artifact that tsl decide would not count as verified (B6).
 
@@ -629,25 +654,7 @@ def unverified_claims(rt: Runtime, comp: Companion, rel: str) -> list[dict[str, 
     claims = front.get("claims") or []
     if not claims:
         return []
-    pack = ctx.state.get("pack") or {}
-    shas = dict(pack.get("source_sha") or {})
-    shas.update({k: v for k, v in (front.get("pack_sha") or {}).items()})
-    shas.update(
-        {
-            r: str(b["head_sha"])
-            for r, b in (ctx.state.get("branch") or {}).items()
-            if b.get("head_sha")
-        }
-    )
-    checks_p = comp.path(sibling(rel, ".checks.json"))
-    if checks_p.is_file():
-        changes = read_json(checks_p).get("product_changes") or []
-        shas.update({c["repo"]: c["tree_sha"] for c in changes})
-    cfg = comp.config
-    repos = {r.name for r in cfg.product_repos} | {str(r["name"]) for r in cfg.read_only_repos}
-    gen_mm = comp.path("context/generated/module-map.json")
-    generated = read_json(gen_mm) if gen_mm.is_file() else None
-    resolver = citations.Resolver(comp.root, comp.local_paths(), shas)
+    resolver, repos, generated = citation_resolver(ctx, comp, rel, front)
     out: list[dict[str, str]] = []
     for cl in claims:
         if not isinstance(cl, dict):

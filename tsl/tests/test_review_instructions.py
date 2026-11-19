@@ -95,7 +95,8 @@ def _review(md: str, ref: str) -> dict[str, Any]:
                 "severity": "minor",
                 "category": "completeness",
                 "text": "The retention period is not stated.",
-                "cites": [{"ref": ref, "quote": "export orders as CSV"}],
+                # A real quote: review record rejects a citation that does not verify (E-REV-05).
+                "cites": [{"ref": ref, "quote": "REQ-1 history list"}],
             }
         ],
         "claims_checked": [{"claim_id": "C1", "verdict": "supported"}],

@@ -81,11 +81,13 @@ def verify_findings(inp: DecideInput) -> tuple[list[dict[str, Any]], list[dict[s
         reason = None
         fo = False
         for c in f.get("cites", []):
-            cite = citations.parse(str(c["ref"]), inp.repos)
+            cite = citations.parse_review(str(c["ref"]), inp.repos)
             if cite is None:
                 reason = f"bad citation format {str(c['ref'])[:80]}"
                 break
-            r = citations.verify(cite, str(c["quote"]), [], inp.resolver, inp.generated)
+            r = citations.verify(
+                cite, str(c["quote"]), [], inp.resolver, inp.generated, review=True
+            )
             if not r.ok:
                 reason = r.reason or "not verified"
                 break
@@ -134,11 +136,13 @@ def _unsupported_by_review(inp: DecideInput) -> set[str]:
                 continue
             ok = False
             for c in cc.get("cites", []):
-                cite = citations.parse(str(c["ref"]), inp.repos)
-                if (
-                    cite
-                    and citations.verify(cite, str(c["quote"]), [], inp.resolver, inp.generated).ok
-                ):
+                cite = citations.parse_review(str(c["ref"]), inp.repos)
+                if cite is None:
+                    continue
+                r = citations.verify(
+                    cite, str(c["quote"]), [], inp.resolver, inp.generated, review=True
+                )
+                if r.ok:
                     ok = True
             if ok:
                 unsupported.add(str(cc["claim_id"]))

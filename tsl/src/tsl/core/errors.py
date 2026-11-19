@@ -228,6 +228,12 @@ CATALOGUE: dict[str, ErrorDef] = {
         ),
         _d("E-DEC-01", BLOCKED, "Gate {gate} still pending.", "tsl verify --status, then decide"),
         _d("E-DEC-02", BLOCKED, "Artifact changed since checks ran.", "Run tsl verify"),
+        _d(
+            "E-DEC-03",
+            OK,
+            "{qid} looks like open question {dup}: answer one and mark the other answered with it.",
+            "Answer one and mark the other answered with it",
+        ),
         _d("E-DEP-01", OK, "{thing} is deprecated.", "Use {replacement}"),
         _d("E-ENV-01", BLOCKED, "Prerequisite missing: {item}", "Fix hint from tsl doctor"),
         _d(
@@ -442,6 +448,24 @@ CATALOGUE: dict[str, ErrorDef] = {
             OK,
             "Reviewer could not review: {reason}. Band capped at Low.",
             "None; decide will escalate",
+        ),
+        _d(
+            "E-REV-05",
+            CHECK,
+            "{n} reviewer citation(s) do not verify: {detail}",
+            "Run the review skill again with this message, then record again",
+        ),
+        _d(
+            "E-REV-06",
+            OK,
+            "{n} reviewer citation(s) moved to the lines that hold the quote: {detail}",
+            "None; each quote is in the cited file exactly once",
+        ),
+        _d(
+            "E-REV-07",
+            OK,
+            "Reviewer citations were not checked at record: {error}. tsl decide still checks them.",
+            "None; report it with ~/.truminds/logs/tsl.log",
         ),
         _d("E-RUN-01", PAUSED, "Run paused for input.", "Answer open-questions.md, then resume"),
         _d(

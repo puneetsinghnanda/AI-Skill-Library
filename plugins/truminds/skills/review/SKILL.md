@@ -4,7 +4,7 @@ description: Harness review step for one artifact. Used by truminds workflows on
 context: fork
 agent: truminds:reviewer
 user-invocable: false
-allowed-tools: Bash(tsl review prepare *)
+allowed-tools: Bash(tsl review prepare *), Write
 ---
 Review package from tsl (artifact, rubric, cited context sections):
 !`tsl review prepare $ARGUMENTS --json`
