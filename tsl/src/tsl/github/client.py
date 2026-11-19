@@ -57,18 +57,14 @@ class HttpGitHubClient:
     def _token(self) -> str:
         if self._credential:
             return self._credential
-        import subprocess
         from urllib.parse import urlparse
+
+        from tsl.core import proc
 
         host = urlparse(self.api).hostname or "github.com"
         host = "github.com" if host == "api.github.com" else host
-        out = subprocess.run(
-            ["git", "credential", "fill"],
-            input=f"protocol=https\nhost={host}\n\n",
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=False,
+        out = proc.run(
+            ["git", "credential", "fill"], input_=f"protocol=https\nhost={host}\n\n", timeout=10
         )
         for line in out.stdout.splitlines():
             if line.startswith("password="):
