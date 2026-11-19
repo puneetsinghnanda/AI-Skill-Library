@@ -115,7 +115,7 @@ Every suite should pass. A failure is a finding (§8).
    $env:TSL_ORG_FILE = "$PWD\deploy\render\tsl-org.github.toml"
    uv tool install --python 3.12 --reinstall --no-cache .\tsl
    Remove-Item Env:TSL_ORG_FILE
-   tsl --version          # the version in tsl/src/tsl/__init__.py, for example tsl 0.1.6
+   tsl --version          # the version in tsl/src/tsl/__init__.py, for example tsl 0.1.7
    ```
    On macOS or Linux, the same in one line:
    ```bash
