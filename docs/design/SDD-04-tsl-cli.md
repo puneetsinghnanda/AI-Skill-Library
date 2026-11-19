@@ -275,9 +275,9 @@ leaves one cancelled run in the companion history.
 | `docker` | `docker info` succeeds within 3 s |
 | `version` | `tsl` version equals `--plugin-version`, or the version in `$CLAUDE_PLUGIN_ROOT/.claude-plugin/plugin.json` |
 | `keychain` | An allowed keyring backend (SDD-07 §4.3) |
-| `login` | Silent token acquisition succeeds |
-| `key` | This device's key is registered and active; warns 14 days before max age |
 | `service` | `GET /v1/health` returns 200 within 3 s |
+| `login` | Silent token acquisition succeeds and `GET /v1/me` accepts it; on 401 the token is force-refreshed once (for GitHub this deletes a token GitHub rejects). Fails on 401 after the refresh (expired or revoked sign-in) or 403 (no role); warns when the service or provider cannot be reached to confirm it |
+| `key` | This device's key is registered and active; warns 14 days before max age |
 | `outbox` | No pending events older than 24 h; no dead events |
 | `repo` | If inside a companion repo: `tsl.yaml` valid; pack present and fresh |
 
