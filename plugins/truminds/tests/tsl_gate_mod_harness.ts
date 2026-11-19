@@ -28,7 +28,8 @@ assert.match(render({ ok: false, message: 'bad', next: 'do x', data: {} }), /Nex
 // end to end with a fake host
 const reg: any = {}; register(((ev: string, ...r: any[]) => { reg[ev] = r[r.length - 1] }) as any)
 let seen: any
-const $ = { process: { run: async (argv: string[], o: any) => { seen = [argv, o.stdin]; return { stdout: JSON.stringify({ ok: true, message: 'm', data: {} }) + '\n', stderr: '', exitCode: 0 } } } }
+// Only the tsl gate call: a decision also starts a panel refresh (tsl state show --progress).
+const $ = { process: { run: async (argv: string[], o: any) => { if (argv[1] === 'gate') seen = [argv, o.stdin]; return { stdout: JSON.stringify({ ok: true, message: 'm', data: {} }) + '\n', stderr: '', exitCode: 0 } } } }
 assert.deepEqual(await reg['command.run']($, { args: 'R1 approve --gate W-1' }), { text: 'm' })
 assert.deepEqual(seen, [['tsl', 'gate', '--json', 'R1', 'approve', '--gate', 'W-1'], undefined])
 assert.match((await reg['command.run']($, { args: 'R1 nope' })).text, /^Usage/)

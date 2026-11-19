@@ -213,7 +213,7 @@ review and a signed decision, cancels the run and confirms the portal received i
 3. Follow the run:
    - **Questions:** answer in `open-questions.md`, then type `/truminds:resume <run_id>`.
    - **Approval gate:** the approver runs `/tsl-gate <run_id> approve|changes|reject|abort [comment]` in Claude Code (elsewhere: `tsl gate <run_id> approve|changes|reject|abort --comment TEXT`). It writes the decision, signs and pushes in one step; never edit `approvals.md` by hand. The run owner then types `/truminds:resume <run_id>`. With no run id, `/tsl-gate` lists the gates waiting for your role.
-   - **Progress:** type `/truminds:status`.
+   - **Progress:** type `/truminds:status`. With Mods on in Claude Code, the **Truminds run** pane shows the run's steps with their bands, what it waits on and the open questions, and updates as the run goes. It opens by itself in a terminal at least 144 columns wide; otherwise type `/tsl-panel`.
 4. Check the portal: your run and its steps appear in the Engineer view.
 
 **Docker for code steps:** the brownfield run's `implement` and `unit-test` steps run gate H3 in the `node-22` verifier container. Start Docker Desktop before the run. The first time, `tsl` downloads the image from `ghcr.io/puneetsinghnanda` (public, about 1 GB). Without Docker, those steps stop with **E-H3-07**; start Docker, then `/truminds:resume <run_id>`. Workflows without code steps (`estimate`, `security-review`, `ux-review`, `pipeline-check`) need no Docker.

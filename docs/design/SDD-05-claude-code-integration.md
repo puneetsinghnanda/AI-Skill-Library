@@ -110,7 +110,9 @@ AI-Skill-Library/
 │     ├─ agents/
 │     │  └─ reviewer.md            # truminds:reviewer subagent
 │     ├─ hooks/
-│     │  └─ hooks.json
+│     │  ├─ hooks.json
+│     │  └─ register.tsx           # Mods module (§5.6): /tsl-gate, progress panel
+│     ├─ types/index.d.ts          # state contract of the Mods module
 │     ├─ bin/
 │     │  └─ tsl-hook               # thin launcher: checks tsl version, runs `tsl hook <event>`
 │     ├─ workflows/                # workflow.v1 files (SDD-02)
@@ -136,11 +138,12 @@ The repository also needs a `.mcp.json` once Jira, Confluence and GitHub MCP ser
   "author": { "name": "Truminds" },
   "repository": "https://github.com/puneetsinghnanda/AI-Skill-Library",
   "license": "UNLICENSED",
-  "keywords": ["sdlc", "harness", "truminds"]
+  "keywords": ["sdlc", "harness", "truminds"],
+  "types": "./types/index.d.ts"
 }
 ```
 
-Components use the default folders, so no component paths are needed in the manifest. The version follows SemVer and must equal the `tsl` version it requires (§7.1).
+Components use the default folders, so no component paths are needed in the manifest. `types` names the state contract of the Mods module (§5.6). The version follows SemVer and must equal the `tsl` version it requires (§7.1).
 
 ### 3.3 Marketplace file (`.claude-plugin/marketplace.json`)
 
@@ -326,6 +329,29 @@ Every hook appends one line to `~/.truminds/hook.log` and one `hook.decision` ev
 ### 5.5 Why the session id goes through `CLAUDE_ENV_FILE`
 
 Commands run through the Bash tool, or through the `` !`...` `` syntax in skills, do not receive the session id. The SessionStart hook is the only place that sees it and can export variables for later commands. Whether `` !`...` `` injection also sees exported variables is unverified (U-06, spike S-08). The fallback: the pre-tool hook binds the lock to the session on the first tool call after `tsl state start`.
+
+### 5.6 Mods module (`hooks/register.tsx`)
+
+`hooks.json` also lists `"modules": ["./register.tsx"]`, a Claude Code Mods module. Mods are optional: where they are off, and in Copilot or Cursor, the skills and the hooks above work unchanged. Four rules hold for every Mod:
+
+- **Display only.** A Mod never decides, signs or writes run files; it passes arguments to `tsl` and shows the answer.
+- **Optional.** Each Mod has a command that does the same work without it (`tsl gate`, `/truminds:status`).
+- **Nothing leaves the laptop.** A Mod runs only the local `tsl`.
+- **Never blocks.** A Mod shows nothing rather than holding up the session when `tsl` is slow or missing.
+
+| Mod | Does | Reads |
+| --- | --- | --- |
+| `/tsl-gate` | Decides on an approval gate: lists gates, shows a summary, or signs a decision | `tsl gate --json` (SDD-04) |
+| Progress panel, `/tsl-panel` | A pane, "Truminds run", for the run bound to this session (`active_session`): ticket, workflow, status and step n of m; each step with its band (High, Medium, Low, no scores); the current step's attempt; what a paused run waits on and the command to type (`/tsl-gate <run_id>` for the approver, `/truminds:resume <run_id>` for the owner); open questions, blocking first, with their text | `tsl state show --progress --json` (SDD-04): local and read only, no network, no lock |
+
+Panel behaviour:
+
+- **Opening.** It opens by itself once per run when a run of this session is open; Claude Code seats a pane opened unasked only from 144 columns (110 once the person has opened it). `/tsl-panel` opens it at any width.
+- **Refreshing.** After `session.start`, after every turn (`/truminds:run` and `/truminds:resume` call `tsl` while their prompt is built), after every Bash call that runs `tsl`, after `/tsl-gate`, and every 30 s while the run is `PAUSED_APPROVAL` (someone else signs). One `tsl` call at a time, 8 s timeout, never awaited by the hook that started it.
+- **Failure.** `tsl` missing, timed out, too old for `--progress`, or an error: the last answer stays, marked "as of HH:MM"; with no earlier answer the pane shows "No run in this session."
+- **State.** The last answer is kept in `$.state` (`truminds.panel`, contract `types/index.d.ts`) so a reload of the module keeps it.
+
+The status line and the approval pop-up are planned for the next release.
 
 ## 6. Enforcement model
 

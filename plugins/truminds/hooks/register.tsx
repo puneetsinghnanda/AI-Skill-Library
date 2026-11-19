@@ -1,6 +1,188 @@
-import type { Register } from 'claude-code'
+import { atom, read, update } from 'claude-code'
+import type { Register, RenderElement } from 'claude-code'
+import type { Panel, Progress } from '../types'
 
-// /tsl-gate - decide on an approval gate. Display and argument passing only:
+// Two Mods, both display only (roadmap 12-20 Nov, item 5; SDD-05):
+// - /tsl-gate: decide on an approval gate. tsl decides, signs and pushes.
+// - The progress panel and /tsl-panel: the run of this session, its steps and bands, what a
+//   paused run waits on and its open questions. It reads `tsl state show --progress`, which is
+//   local and read only, and never decides, signs or blocks: when tsl is slow, missing or too
+//   old, the panel keeps its last answer or shows nothing. Where Mods are off,
+//   /truminds:status shows the same run.
+
+// ---------------------------------------------------------------- progress panel
+
+const PANE = 'truminds-run'
+const TITLE = 'Truminds run'
+const TSL_TIMEOUT_MS = 8000
+const POLL_MS = 30000 // only while a run waits for someone else's approval
+const EMPTY: Panel = { progress: null, at: null, stale: false }
+// Change the shape tag when Panel changes: it drops what an older version stored.
+const panel = atom({ plugin: 'truminds', key: 'panel' } as const, EMPTY, { shape: 'panel-1' })
+
+type Row = { text: string; color?: string | undefined; dim?: boolean; bold?: boolean }
+
+// The progress in tsl's answer; null for "no run here"; undefined when tsl gave no usable
+// answer (missing, timed out, too old for --progress, an error), so the last answer stays.
+function parseProgress(stdout: string): Progress | null | undefined {
+  const line = stdout.trim().split(/\r?\n/).filter(Boolean).pop() ?? ''
+  let env: any
+  try {
+    env = JSON.parse(line)
+  } catch {
+    return undefined
+  }
+  if (env?.ok === true && env.data && 'progress' in env.data) return env.data.progress ?? null
+  if (env?.code === 'E-REPO-01') return null // not a companion repo: nothing to show
+  return undefined
+}
+
+// A Bash call that ran tsl (the run loop's next, verify, review record, decide, pr...).
+function isTslCommand(command: unknown): boolean {
+  return typeof command === 'string' && /(^|[\s;&|(])tsl(\.exe)?(\s|$)/.test(command)
+}
+
+const DONE = ['DONE', 'ACCEPTED', 'APPROVED']
+const BAND_COLOR: Record<string, string> = { High: 'success', Medium: 'warning', Low: 'error' }
+
+function stepRow(s: Progress['steps'][number], current: string | null): Row {
+  const name = s.id.padEnd(10)
+  if (DONE.includes(s.status)) {
+    return { text: `✓ ${name}${s.band ?? ''}`, color: s.band ? BAND_COLOR[s.band] : undefined }
+  }
+  if (s.id === current || s.status === 'IN_PROGRESS') {
+    const att = s.attempt ? `attempt ${s.attempt}` : 'running'
+    return { text: `▶ ${name}${att}`, bold: true }
+  }
+  if (s.status === 'WAITING_INPUT' || s.status === 'WAITING_APPROVAL') {
+    return { text: `⏸ ${name}waiting`, color: 'warning' }
+  }
+  if (s.status === 'FAILED') return { text: `✗ ${name}failed`, color: 'error' }
+  if (s.status === 'STALE') return { text: `↺ ${name}to redo`, dim: true }
+  return { text: `· ${s.id}`, dim: true }
+}
+
+function waitingRows(p: Progress): Row[] {
+  const w = p.waiting
+  if (!w) return []
+  if (w.kind === 'approval') {
+    return [
+      { text: `Waiting on: approval by ${w.role ?? 'an approver'} (${w.gate ?? 'gate'})`, color: 'warning', bold: true },
+      { text: `  The approver runs ${w.command}` },
+    ]
+  }
+  if (w.kind === 'input') {
+    return [
+      { text: 'Waiting on: your answers', color: 'warning', bold: true },
+      { text: `  Answer in ${w.file ?? 'open-questions.md'}, then ${w.command}` },
+    ]
+  }
+  return [
+    { text: `Approved (${w.gate ?? 'gate'}): the run owner resumes`, color: 'success', bold: true },
+    { text: `  ${w.command}` },
+  ]
+}
+
+function questionRows(p: Progress, room: number): Row[] {
+  const q = p.questions
+  const total = q.open_blocking + q.open_non_blocking
+  if (total === 0) return []
+  const out: Row[] = [{ text: `Open questions: ${q.open_blocking} blocking, ${q.open_non_blocking} other`, bold: true }]
+  const items = q.items.slice(0, Math.max(0, room - 1))
+  for (const it of items) {
+    const who = it.ask ? ` (${it.ask})` : ''
+    out.push({ text: ` ${it.id}${who} ${it.text}`, color: it.blocking ? 'warning' : undefined })
+  }
+  if (items.length < total) out.push({ text: ` …and ${total - items.length} more in open-questions.md`, dim: true })
+  return out
+}
+
+// Everything the pane draws, as plain rows: tested under Node without the engine.
+function panelRows(d: Panel, rows: number): Row[] {
+  const p = d.progress
+  if (!p) {
+    return [
+      { text: 'No run in this session.', dim: true },
+      { text: 'Start one with /truminds:run or /truminds:resume; /truminds:status lists all runs.', dim: true },
+    ]
+  }
+  const wf = p.workflow.split('@')[0]
+  const pos = p.position ? `   step ${p.position.n} of ${p.position.of}` : ''
+  const status = p.status === 'COMPLETED' ? `COMPLETED${p.end_reason ? ` (${p.end_reason})` : ''}` : p.status
+  const out: Row[] = [{ text: `${p.ticket} · ${wf} · ${status}${pos}`, bold: true }]
+  if (d.stale) out.push({ text: `as of ${d.at ?? '?'}: tsl did not answer the last refresh`, dim: true })
+  for (const s of p.steps) out.push(stepRow(s, p.current))
+  const wait = waitingRows(p)
+  if (wait.length) out.push({ text: '' }, ...wait)
+  const room = rows - out.length - 2
+  const qs = questionRows(p, room)
+  if (qs.length) out.push({ text: '' }, ...qs)
+  return out
+}
+
+function clockTime(): string {
+  const t = new Date()
+  return `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`
+}
+
+// One refresh at a time; a call during one asks for one more after it.
+let busy = false
+let again = false
+let poll: { cancel: () => void } | undefined
+let openedFor: string | undefined // the run the pane was opened for unasked, once per run
+
+async function fetchOnce($: any): Promise<void> {
+  let session = ''
+  try {
+    session = String(await $.session.id())
+  } catch {
+    session = ''
+  }
+  const argv = ['tsl', 'state', 'show', '--progress', '--json']
+  if (session) argv.push('--session', session)
+  let p: Progress | null | undefined
+  try {
+    const r = await $.process.run(argv, { timeoutMs: TSL_TIMEOUT_MS })
+    p = parseProgress(r.stdout)
+  } catch {
+    p = undefined // tsl missing or timed out
+  }
+  if (p === undefined) {
+    await update($, panel, (d: Panel) => ({ ...d, stale: d.progress !== null }))
+    return
+  }
+  await update($, panel, () => ({ progress: p, at: clockTime(), stale: false }))
+  if (p && p.status === 'PAUSED_APPROVAL') {
+    poll ??= $.clock.every(POLL_MS, () => void refresh($).catch(() => undefined))
+  } else if (poll) {
+    poll.cancel()
+    poll = undefined
+  }
+  if (p && p.status !== 'COMPLETED' && openedFor !== p.run_id) {
+    openedFor = p.run_id
+    void $.ui.open({ id: PANE, title: TITLE }).catch(() => undefined)
+  }
+}
+
+async function refresh($: any): Promise<void> {
+  if (busy) {
+    again = true
+    return
+  }
+  busy = true
+  try {
+    do {
+      again = false
+      await fetchOnce($)
+    } while (again)
+  } catch {
+    // a view: a failed refresh never reaches the session
+  } finally {
+    busy = false
+  }
+}
+
+// ---------------------------------------------------------------- /tsl-gate Display and argument passing only:
 // tsl checks the role, writes the decision, signs and pushes. The comment goes to tsl on
 // stdin, so nothing a person types is parsed by a shell. Where Mods are off, run `tsl gate`.
 
@@ -76,7 +258,48 @@ export const register: Register = (on) => {
       description: 'Decide on an approval gate (list, summary, or approve|changes|reject|abort)',
       argumentHint: '[run_id [approve|changes|reject|abort] [comment]]',
     })
-    return next(e)
+    await $.command.register({
+      name: 'tsl-panel',
+      description: "Show this session's Truminds run: steps, bands, what it waits on, open questions",
+    })
+    const r = await next(e)
+    void refresh($).catch(() => undefined) // never awaited: a slow tsl must not hold the session up
+    return r
+  })
+
+  // /truminds:run and /truminds:resume call tsl while their prompt is built, not as a tool call,
+  // so the end of every turn refreshes too.
+  on('turn.complete', async ($, e, next) => {
+    const r = await next(e)
+    void refresh($).catch(() => undefined)
+    return r
+  })
+
+  on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+    const r = await next(e)
+    if (isTslCommand((e as any).command)) void refresh($).catch(() => undefined)
+    return r
+  })
+
+  on('command.run', { command: 'tsl-panel' }, async ($) => {
+    await $.ui.open({ id: PANE, title: TITLE }) // asked: placed at any width
+    await refresh($)
+    const d = await read($, panel)
+    return { text: d.progress ? `${TITLE} pane opened.` : 'No run in this session yet; the pane fills when one starts.' }
+  })
+
+  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
+    const { Box, Text } = $.ui.resolve(e)
+    const d = await read($, panel)
+    const rows = panelRows(d, e.viewport?.rows ?? 24)
+    // Plain h() calls, not JSX, so the Node test can load this module (tests/).
+    return h(
+      Box,
+      { flexDirection: 'column' },
+      ...rows.map((r) =>
+        h(Text, { color: r.color, dimColor: r.dim, bold: r.bold, wrap: 'truncate-end' }, r.text || ' '),
+      ),
+    ) as RenderElement
   })
 
   on('command.run', { command: 'tsl-gate' }, async ($, e) => {
@@ -92,6 +315,7 @@ export const register: Register = (on) => {
       } catch {
         return { text: `tsl gate failed (exit ${r.exitCode}): ${(r.stderr || r.stdout).slice(-300)}` }
       }
+      void refresh($).catch(() => undefined) // a decision changes what the panel shows
       return { text: render(env, p.run) }
     } catch (err) {
       return { text: `tsl could not be run (${String(err).slice(0, 200)}). Install tsl or run it yourself: tsl gate ...` }
