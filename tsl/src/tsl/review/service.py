@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from tsl.core.clock import iso
-from tsl.core.errors import TslError
+from tsl.core.errors import TslError, warning
 from tsl.core.hashing import sha256_file, sha256_raw
 from tsl.core.jsonio import read_json, write_json
 from tsl.core.paths import ARTIFACT_RE, history_dir, sibling
@@ -262,27 +262,10 @@ def cite_failures(
     verdict whose cites decide reads). Same parse, resolver and SHAs as decide, so the two agree:
     this step's working tree for code steps, else the run branch head, else the pack commit."""
     from tsl.core.frontmatter import split
-    from tsl.harness import citations
+    from tsl.harness.decide_service import citation_resolver
 
     front = split(comp.path(rel).read_text(encoding="utf-8")).front
-    shas = dict((ctx.state.get("pack") or {}).get("source_sha") or {})
-    shas.update(dict(front.get("pack_sha") or {}))
-    shas.update(
-        {
-            r: str(b["head_sha"])
-            for r, b in (ctx.state.get("branch") or {}).items()
-            if b.get("head_sha")
-        }
-    )
-    checks_p = comp.path(sibling(rel, ".checks.json"))
-    if checks_p.is_file():
-        changes = read_json(checks_p).get("product_changes") or []
-        shas.update({c["repo"]: c["tree_sha"] for c in changes})
-    cfg = comp.config
-    repos = {r.name for r in cfg.product_repos} | {str(r["name"]) for r in cfg.read_only_repos}
-    gen_mm = comp.path("context/generated/module-map.json")
-    generated = read_json(gen_mm) if gen_mm.is_file() else None
-    resolver = citations.Resolver(comp.root, comp.local_paths(), shas)
+    resolver, repos, generated = citation_resolver(ctx, comp, rel, front)
     items = [(f"finding {f['id']}", f.get("cites") or []) for f in obj.get("findings") or []]
     items += [
         (f"claim {cc['claim_id']}", cc.get("cites") or [])
@@ -305,6 +288,23 @@ def cite_failures(
     return out
 
 
+def _log_skipped(ctx: RunCtx, exc: BaseException) -> None:
+    import traceback
+
+    from tsl.core.log import append_line
+
+    append_line(
+        ctx.rt.home.logs / "tsl.log",
+        {
+            "ts": iso(ctx.rt.clock()),
+            "level": "warning",
+            "cmd": "review record",
+            "code": "E-REV-07",
+            "msg": "".join(traceback.format_exception(exc))[-4000:],
+        },
+    )
+
+
 def _check_cites(
     ctx: RunCtx,
     comp: Companion,
@@ -320,8 +320,12 @@ def _check_cites(
     is, with a warning, and decide drops what still fails: never could_not_review."""
     try:
         bad = cite_failures(ctx, comp, rel, obj)
-    except Exception:  # a pre-check only; decide verifies every cite anyway
-        return None
+    except Exception as exc:
+        # A pre-check only: decide still verifies every cite, so the review is recorded. But a
+        # bug here must not turn the check off quietly: the trace goes to tsl.log and the
+        # record output carries a warning.
+        _log_skipped(ctx, exc)
+        return warning("E-REV-07", error=f"{type(exc).__name__}: {exc}"[:160])
     if not bad:
         return None
     limit = int(ctx.retry_limits(step).get("record", 0))

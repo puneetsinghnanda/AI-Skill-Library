@@ -131,6 +131,7 @@ Every code lives in `tsl/src/tsl/core/errors.py` (CLI codes) or the insights ser
 | E-REV-03 | Review is for an older artifact or package | 2 | `review record` | SDD-03 §14 |
 | E-REV-04 | Reviewer could not review; band capped at Low (warning) | 0 | `review record --unavailable` | SDD-03 §14 |
 | E-REV-05 | Reviewer citations do not verify; the reviewer corrects them (a warning once `retry.record` is used) | 2 | `review record` | SDD-03 §14 |
+| E-REV-07 | The record-time citation check failed with an error and was skipped; `decide` still checks the citations (warning) | 0 | `review record` | SDD-03 §14 |
 | E-RUN-01 | Run paused for input | 4 | `decide`, `next` | Doc 4 §5.2 |
 | E-RUN-02 | Run paused for approval | 4 | `decide`, `next` | Doc 4 §5.2 |
 | E-RUN-03 | Cannot resume: blocking questions unanswered | 2 | `state resume` | Doc 4 §5.2 |

@@ -594,6 +594,7 @@ Reads the reviewer output on stdin (SDD-05 §4.4 step 4).
 5. **Check the citations** (status `ok` only). Run the §8 check `decide` will run, with the same resolver and SHAs, on every citation of every finding and on the citations of each `unsupported` claim verdict. If any fails:
    - While the attempt's `record_rejects` is below `retry.record` (2 by default): add 1 to `record_rejects` in `state.json`, write nothing and exit 2 with **E-REV-05**. `data.citations` lists each failing citation as `{item, ref, reason}`. The run skill runs the reviewer again with that list. Only the reviewer runs again; the artifact is not touched.
    - Once `retry.record` is used: write the review as it is with warning E-REV-05. `tsl decide` drops the findings that still fail (§8.4). A citation failure never becomes `could_not_review`.
+   - If the check itself fails with an error, the review is written with warning **E-REV-07** and the trace goes to `tsl.log`. `tsl decide` still checks every citation, so nothing is lost, but the skipped check is visible.
    - `record_rejects` is separate from `budget_used.review`, which counts step retries on a major finding (§11).
    - An error inside this check is ignored; `decide` verifies every citation anyway.
 6. Add `recorded_at` and `recorded_by`; write `<artifact>.review.json` (keys sorted, 2-space indent).
@@ -641,7 +642,7 @@ In the envelope, a citation may be a plain string (Doc 5 §3.6) or `{ref, quote}
 
 A citation is **verified** when it resolves (§8.2) **and** the content matches:
 
-- **With a quote:** normalise both sides (HTML entities to their characters, Unicode NFC, tabs to spaces, collapse runs of whitespace, strip trailing spaces). Entities are unescaped because reviewers write `<` as `&lt;` in JSON; both sides are treated alike, so a file that really contains `&lt;` still matches. The quote must be an exact substring of the span. If not, compute `difflib.SequenceMatcher` ratio between the quote and the best window of the same length in the span; verified if ratio ≥ 0.92 (tolerates reformatting, not rewording).
+- **With a quote:** normalise both sides (Unicode NFC, tabs to spaces, collapse runs of whitespace, strip trailing spaces). For a reviewer's cite only, HTML entities are also turned into their characters first, because reviewers write `<` as `&lt;` in JSON; both sides are treated alike, so a file that really contains `&lt;` still matches. An artifact's own quotes stay strict. The quote must be an exact substring of the span. If not, compute `difflib.SequenceMatcher` ratio between the quote and the best window of the same length in the span; verified if ratio ≥ 0.92 (tolerates reformatting, not rewording).
 - **Without a quote (plain envelope string):** the claim's named element must appear in the span. The element is the claim's `element` field, else every token in backticks in the claim `text`. Matching is a case-sensitive whole-word search. No element found → the citation is **unverifiable** (DEF-08 cannot be applied).
 
 ### 8.4 What happens to findings and claims
@@ -926,6 +927,7 @@ sequenceDiagram
 | E-REV-03 | 2 | Review is for an older artifact or package. | Run the review step again |
 | E-REV-04 | 0 (warn) | Reviewer could not review: `<reason>`. Band capped at Low. | None; decide will escalate |
 | E-REV-05 | 2; 0 (warn) once `retry.record` is used | `<n>` reviewer citation(s) do not verify: `<detail>`. | Run the review skill again with this message, then record again |
+| E-REV-07 | 0 (warn) | Reviewer citations were not checked at record: `<error>`. `tsl decide` still checks them. | None; report it with `~/.truminds/logs/tsl.log` |
 | E-DEC-01 | 3 | Gate `<id>` still pending. | `tsl verify --status`, then decide |
 | E-DEC-02 | 3 | Artifact changed since checks ran. | Run `tsl verify` |
 | E-CI-04 | 2 | PR code differs from the verified change (tree or diff hash). | Resume the run so the code step is re-verified |

@@ -121,3 +121,24 @@ def test_bad_format_names_the_allowed_forms(world: World) -> None:
     assert code == 2 and env["code"] == "E-REV-05", env
     [c] = env["data"]["citations"]
     assert c["item"] == "finding F-1" and c["reason"].startswith("unknown repo"), c
+
+
+def test_a_failing_pre_check_records_with_a_warning(world: World, monkeypatch: Any) -> None:
+    """A bug in the record-time check must not turn it off quietly: the review is recorded
+    (decide still checks every cite), with E-REV-07 and the trace in tsl.log."""
+    import tsl.review.service as svc
+
+    def boom(*_a: Any, **_k: Any) -> list[dict[str, str]]:
+        raise RuntimeError("resolver broke")
+
+    monkeypatch.setattr(svc, "cite_failures", boom)
+    run_id = start_run(world)
+    res = do_req_step(world, run_id, until="prepared")
+    code, env = _record(world, res["artifact"], res["package"], findings=[_finding("F-1", BAD)])
+    assert code == 0, env
+    [warn] = env["warnings"]
+    assert warn["code"] == "E-REV-07" and "RuntimeError: resolver broke" in warn["message"], warn
+    assert "record_rejects" not in _attempt(world, run_id)
+    log = world.rt().home.logs / "tsl.log"
+    lines = [json.loads(x) for x in log.read_text(encoding="utf-8").splitlines()]
+    assert any(x["code"] == "E-REV-07" and "resolver broke" in x["msg"] for x in lines), lines

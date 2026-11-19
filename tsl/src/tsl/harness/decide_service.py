@@ -148,26 +148,10 @@ def decide(
         prev_fb = None
         if attempt.get("feedback") and comp.path(str(attempt["feedback"])).is_file():
             prev_fb = read_json(comp.path(str(attempt["feedback"])))
-        pack = ctx.state.get("pack") or {}
         from tsl.core.frontmatter import split
 
         front = split(comp.path(rel).read_text(encoding="utf-8")).front
-        # Product cites resolve against the code the reviewer saw: this step's tree, else the
-        # run branch head, else the pack commit. The pack commit lacks lines the run added.
-        shas = dict(pack.get("source_sha") or {})
-        shas.update({k: v for k, v in (front.get("pack_sha") or {}).items()})
-        shas.update(
-            {
-                r: str(b["head_sha"])
-                for r, b in (ctx.state.get("branch") or {}).items()
-                if b.get("head_sha")
-            }
-        )
-        shas.update(
-            {r: c["tree_sha"] for c in checks.get("product_changes") or [] for r in [c["repo"]]}
-        )
-        repos = {r.name for r in cfg.product_repos} | {str(r["name"]) for r in cfg.read_only_repos}
-        gen_mm = comp.path("context/generated/module-map.json")
+        resolver, repos, generated = citation_resolver(ctx, comp, rel, front, checks)
         inp = DecideInput(
             checks=checks,
             review=review,
@@ -180,12 +164,12 @@ def decide(
             requires_fresh_pack=ctx.requires_fresh_pack,
             is_code=sk.is_code,
             change_limits=cfg.limits(),
-            resolver=citations.Resolver(comp.root, comp.local_paths(), shas),
+            resolver=resolver,
             repos=repos,
             answered=_answered(ctx),
             prev_feedback=prev_fb,
             stale_steps=_stale_steps(ctx, step),
-            generated=read_json(gen_mm) if gen_mm.is_file() else None,
+            generated=generated,
         )
         d = evaluate(inp)
         record = _record(rt, ctx, rel, attempt, checks, review, d, thresholds, signer, sk.ref)
@@ -612,6 +596,39 @@ def _checkpoint(ctx: RunCtx, step: str, attempt: dict[str, Any]) -> dict[str, st
     return out
 
 
+def citation_resolver(
+    ctx: RunCtx,
+    comp: Companion,
+    rel: str,
+    front: dict[str, Any],
+    checks: dict[str, Any] | None = None,
+) -> tuple[citations.Resolver, set[str], dict[str, Any] | None]:
+    """The resolver, repo names and generated facts that cites of `rel` are verified with.
+
+    One copy for tsl decide, the record-time citation check and the weak-claim check, so all
+    three agree. Product cites resolve against the code the reviewer saw: this step's tree (from
+    `checks`, else the artifact's .checks.json), else the run branch head, else the pack commit.
+    The pack commit lacks lines the run added."""
+    shas = dict((ctx.state.get("pack") or {}).get("source_sha") or {})
+    shas.update({k: v for k, v in (front.get("pack_sha") or {}).items()})
+    shas.update(
+        {
+            r: str(b["head_sha"])
+            for r, b in (ctx.state.get("branch") or {}).items()
+            if b.get("head_sha")
+        }
+    )
+    if checks is None:
+        checks_p = comp.path(sibling(rel, ".checks.json"))
+        checks = read_json(checks_p) if checks_p.is_file() else {}
+    shas.update({c["repo"]: c["tree_sha"] for c in checks.get("product_changes") or []})
+    cfg = comp.config
+    repos = {r.name for r in cfg.product_repos} | {str(r["name"]) for r in cfg.read_only_repos}
+    gen_mm = comp.path("context/generated/module-map.json")
+    generated = read_json(gen_mm) if gen_mm.is_file() else None
+    return citations.Resolver(comp.root, comp.local_paths(), shas), repos, generated
+
+
 def unverified_claims(rt: Runtime, comp: Companion, rel: str) -> list[dict[str, str]]:
     """Claims of an artifact that tsl decide would not count as verified (B6).
 
@@ -629,25 +646,7 @@ def unverified_claims(rt: Runtime, comp: Companion, rel: str) -> list[dict[str, 
     claims = front.get("claims") or []
     if not claims:
         return []
-    pack = ctx.state.get("pack") or {}
-    shas = dict(pack.get("source_sha") or {})
-    shas.update({k: v for k, v in (front.get("pack_sha") or {}).items()})
-    shas.update(
-        {
-            r: str(b["head_sha"])
-            for r, b in (ctx.state.get("branch") or {}).items()
-            if b.get("head_sha")
-        }
-    )
-    checks_p = comp.path(sibling(rel, ".checks.json"))
-    if checks_p.is_file():
-        changes = read_json(checks_p).get("product_changes") or []
-        shas.update({c["repo"]: c["tree_sha"] for c in changes})
-    cfg = comp.config
-    repos = {r.name for r in cfg.product_repos} | {str(r["name"]) for r in cfg.read_only_repos}
-    gen_mm = comp.path("context/generated/module-map.json")
-    generated = read_json(gen_mm) if gen_mm.is_file() else None
-    resolver = citations.Resolver(comp.root, comp.local_paths(), shas)
+    resolver, repos, generated = citation_resolver(ctx, comp, rel, front)
     out: list[dict[str, str]] = []
     for cl in claims:
         if not isinstance(cl, dict):
