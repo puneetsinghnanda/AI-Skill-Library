@@ -88,8 +88,11 @@ def _other_run_read(ctx: Ctx, idx: dict[str, Any], ti: dict[str, Any]) -> str | 
     Runs are independent: the run loop, the skill and its reviewer read only this run's
     folders (artifacts/<ticket>/<run_id>/, runs/<run_id>/), never another run's, even of the
     same ticket, its answers or questions. A search whose scope takes in other runs (the repo
-    root, artifacts/, runs/, a ticket folder, or a wildcard there) is refused too. A declared
-    input of the step (status-report's run states) stays readable."""
+    root, artifacts/, runs/, a ticket folder, or a wildcard there) is refused too.
+
+    One exception: a skill that reads run states (an input of schema run-state.v1, as
+    status-report has) may Read or Glob runs/<any run>/state.json, and nothing else of
+    another run."""
     root = _abs(ctx, str(idx["companion"]))
     run_id = str(idx["run_id"])
     if ctx.tool == "Read":
@@ -104,6 +107,8 @@ def _other_run_read(ctx: Ctx, idx: dict[str, Any], ti: dict[str, Any]) -> str | 
     first = parts[0] if parts else ""
     if parts and first not in ("artifacts", "runs") and not (_WILD & set(first)):
         return None  # context/, policy files ...
+    if ctx.tool in ("Read", "Glob") and is_run_state_path(parts) and _reads_run_states(ctx, idx):
+        return None
     depth = 3 if first == "artifacts" else 2  # artifacts/<ticket>/<run>, runs/<run>
     if len(parts) < depth or any(_WILD & set(x) for x in parts[:depth]):
         return (
@@ -113,8 +118,6 @@ def _other_run_read(ctx: Ctx, idx: dict[str, Any], ti: dict[str, Any]) -> str | 
     if parts[depth - 1] == run_id:
         return None
     rel = "/".join(parts)
-    if ctx.tool == "Read" and rel in _declared_inputs(ctx, idx):
-        return None
     return (
         f"{rel} belongs to another run. Runs are independent: use only this run's files and "
         "the inputs tsl gave, never an earlier run's artifacts, answers or questions"
@@ -142,19 +145,25 @@ def _other_run_bash(cmd: str, run_id: str) -> str | None:
     return None
 
 
-def _declared_inputs(ctx: Ctx, idx: dict[str, Any]) -> set[str]:
-    st = idx["_state"]
-    step = (st.get("cursor") or {}).get("step")
+def is_run_state_path(parts: list[str]) -> bool:
+    """runs/<run>/state.json, the run id possibly a wildcard (Glob runs/*/state.json)."""
+    return len(parts) == 3 and parts[0] == "runs" and parts[2] == "state.json"
+
+
+def _reads_run_states(ctx: Ctx, idx: dict[str, Any]) -> bool:
+    """Whether the run's current step is a skill that reads run states (status-report)."""
+    step = (idx["_state"].get("cursor") or {}).get("step")
     if not step:
-        return set()
+        return False
     try:
         from tsl.core.repo import Companion
         from tsl.orchestrator.run import RunCtx
+        from tsl.orchestrator.skills import reads_run_states
 
         run = RunCtx(ctx.rt, Companion(Path(idx["companion"])), idx["run_id"])
-        return {str(i["path"]) for i in run.resolve_inputs(str(step)) if i.get("path")}
+        return reads_run_states(run.skill_for(str(step)).meta)
     except Exception:
-        return set()
+        return False
 
 
 def _try_bind(ctx: Ctx) -> dict[str, Any] | None:

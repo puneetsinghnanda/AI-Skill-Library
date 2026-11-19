@@ -124,3 +124,9 @@ def installed(plugin_root: Path) -> dict[str, Skill]:
             s = load_skill(d)
             out[s.id] = s
     return out
+
+
+def reads_run_states(meta: dict[str, Any]) -> bool:
+    """A skill with a run-state.v1 input (status-report) reads every run's state.json: the one
+    exception to runs being independent (pre-tool hook, H1 E-H1-06)."""
+    return any(i.get("schema") == "run-state.v1" for i in meta.get("inputs") or [])

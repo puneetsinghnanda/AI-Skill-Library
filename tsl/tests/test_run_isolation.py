@@ -9,6 +9,7 @@ starting point" at every step, and reviewers read other tickets' runs).
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 from e2e_steps import hook, next_action, start_run
@@ -104,3 +105,41 @@ def test_bash_naming_another_run_is_refused() -> None:
     assert _other_run_bash(f"cat artifacts/HMS-5/{RUN}/req.md", RUN) is None
     assert _other_run_bash(f"tsl state show {OLD} --json", RUN) is None
     assert _other_run_bash("echo two runs ok", RUN) is None
+
+
+# ------------------------------------------------- status-report: the one exception (run states)
+def test_status_report_declares_run_states() -> None:
+    import yaml
+
+    from tsl.orchestrator.skills import reads_run_states
+
+    root = Path(__file__).resolve().parents[2] / "plugins" / "truminds" / "skills"
+    meta = yaml.safe_load((root / "status-report" / "skill.yaml").read_text(encoding="utf-8"))
+    assert reads_run_states(meta)
+    design = yaml.safe_load((root / "design" / "skill.yaml").read_text(encoding="utf-8"))
+    assert not reads_run_states(design)
+
+
+def test_run_state_skill_cites_other_runs_state_only() -> None:
+    text = f"cites: [runs/{OLD}/state.json#key:status, runs/{OLD}/ide-answers.md#a-01]"
+    assert other_run_refs(text, RUN, [], run_states=True) == [f"runs/{OLD}/ide-answers.md"]
+    assert other_run_refs(text, RUN, []) == [
+        f"runs/{OLD}/state.json",
+        f"runs/{OLD}/ide-answers.md",
+    ]
+
+
+def test_run_state_skill_reads_other_runs_state_only(world: World, monkeypatch: Any) -> None:
+    import tsl.hooks.pre_tool as pt
+
+    run_id = start_run(world)
+    next_action(world, run_id)
+    c = world.companion
+    state = str(c / "runs" / OLD / "state.json")
+    assert _decide(world, "Read", {"file_path": state}) == "deny"  # an ordinary step
+    monkeypatch.setattr(pt, "_reads_run_states", lambda *_a: True)  # a status-report step
+    assert _decide(world, "Read", {"file_path": state}) == "allow"
+    assert _decide(world, "Glob", {"pattern": "runs/*/state.json"}) == "allow"
+    assert _decide(world, "Read", {"file_path": str(c / "runs" / OLD / "ide-answers.md")}) == "deny"
+    assert _decide(world, "Glob", {"pattern": "runs/*/ide-answers.md"}) == "deny"
+    assert _decide(world, "Grep", {"pattern": "x", "path": str(c / "runs")}) == "deny"

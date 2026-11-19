@@ -158,7 +158,7 @@ The post-write hook has a 90 s hard timeout (SDD-05 §5.2). Build and test conta
 5. Cross-check against `state.json`: `run_id`, `step`, `attempt` and `skill` (name@version) must equal the current step's values. Mismatch → E-H1-03.
 6. Validate the body schema's structured fields (SDD-01) → E-H1-04 on error, with the JSON pointer of each error.
 7. Check every citation string against the grammar in §8.1 → E-H1-05 per bad citation. This is a format check only; resolution happens in §8.
-8. **Runs are independent.** The artifact may not name a path into another run's folders, `artifacts/<ticket>/<other run>/…` or `runs/<other run>/…`, in a citation or in prose, not even an earlier run of the same ticket → E-H1-06 per path. A declared input of the step is allowed (status-report cites each run's `state.json`). The pre-tool hook also refuses reading another run's files while a run is bound (SDD-05 §5.3), and `data.prior_answers` holds this run's answers only.
+8. **Runs are independent.** The artifact may not name a path into another run's folders, `artifacts/<ticket>/<other run>/…` or `runs/<other run>/…`, in a citation or in prose, not even an earlier run of the same ticket → E-H1-06 per path. A declared input of the step is allowed. A skill with a `run-state.v1` input (status-report) may also name `runs/<run>/state.json` of any run, and nothing else of another run. The pre-tool hook also refuses reading another run's files while a run is bound (SDD-05 §5.3), and `data.prior_answers` holds this run's answers only.
 
 **Pass rule:** no errors from steps 1–8.
 

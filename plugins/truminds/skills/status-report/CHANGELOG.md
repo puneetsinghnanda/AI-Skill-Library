@@ -8,6 +8,10 @@
   pre-tool hook still limits writes to the run's paths. MINOR: new tool, same inputs and
   output schema. Needs a signed eval result for this version before any status change
   (SKL-V13).
+- Runs are independent, with one exception for this skill: it may still Read or Glob every
+  run's runs/<run>/state.json and cite them, and nothing else of another run. Inputs now say
+  to Glob runs/*/state.json: tsl never listed the files (source: run gives the run's ticket
+  snapshot), so "listed by tsl" was wrong.
 
 ## 1.1.0
 - Roadmap item 2 (self-checks): run HMS-9 requirement-review went to band Low on S2 alone

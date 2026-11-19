@@ -170,7 +170,12 @@ def h1(ci: CheckInput) -> GateResult:
                 f"({citations.format_error(ref_of(c), ci.repos).split(': ', 1)[-1]})",
                 "GEN-CITE-01",
             )
-    for ref in other_run_refs(art.text, str(art.front.get("run_id") or ""), ci.expected_inputs):
+    from tsl.orchestrator.skills import reads_run_states
+
+    states = ci.skill is not None and reads_run_states(ci.skill.meta)
+    for ref in other_run_refs(
+        art.text, str(art.front.get("run_id") or ""), ci.expected_inputs, run_states=states
+    ):
         g.fail(
             "E-H1-06",
             f"the artifact refers to another run's file {ref[:160]}; use only this run's files "
@@ -186,16 +191,21 @@ OTHER_RUN = re.compile(
 )
 
 
-def other_run_refs(text: str, run_id: str, inputs: list[dict[str, Any]]) -> list[str]:
+def other_run_refs(
+    text: str, run_id: str, inputs: list[dict[str, Any]], *, run_states: bool = False
+) -> list[str]:
     """Paths into another run's folders that the artifact names (cites or prose). Runs are
     independent: a run never builds on, or cites, another run's artifacts, answers or questions,
-    even of the same ticket. A declared input (status-report's run states) is allowed."""
+    even of the same ticket. A declared input is allowed, and with `run_states` (a skill with a
+    run-state.v1 input, status-report) so is runs/<run>/state.json."""
     if not run_id:
         return []
     given = {str(i.get("path")) for i in inputs}
     out: list[str] = []
     for m in OTHER_RUN.finditer(text.replace("\\", "/")):
         path, rid = m.group(1).rstrip(".,;:"), m.group(2)
+        if run_states and path.split("/")[0] == "runs" and path.split("/")[2:] == ["state.json"]:
+            continue
         if rid != run_id and path not in given and path not in out:
             out.append(path)
     return out

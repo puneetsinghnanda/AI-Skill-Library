@@ -17,7 +17,8 @@ approval and completed, and what each paused run waits on. Write one file: the s
 at data.artifact_path.
 
 ## Inputs
-- data.inputs[name=run_states]: the state.json files of the system's runs (run-state.v1), listed by tsl.
+- The state.json files of the system's runs (run-state.v1): Glob runs/*/state.json, then read each.
+  These are the only files of other runs you may read or cite; the hook refuses any other.
 - Stay under data.size_budget_tokens; read only status, end_reason, cursor, questions, gates and updated_at.
 
 ## Rules
