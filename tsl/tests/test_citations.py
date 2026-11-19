@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -71,13 +72,28 @@ def test_quote_matching() -> None:
 def test_html_escaped_quote_matches() -> None:
     """Reviewers write < > & as entities in JSON (HMS-8 design F-2); the text is the same."""
     span = "{value !== undefined && selectedLabel ? (\n  <span onClick={() => onChange()}>"
-    assert cit.quote_matches("{value !== undefined &amp;&amp; selectedLabel ? (", span)
-    assert cit.quote_matches("&lt;span onClick={() =&gt; onChange()}&gt;", span)
-    assert cit.quote_matches("<span onClick={() => onChange()}>", span)  # plain still matches
+    m = partial(cit.quote_matches, entities=True)  # as for a reviewer cite
+    assert m("{value !== undefined &amp;&amp; selectedLabel ? (", span)
+    assert m("&lt;span onClick={() =&gt; onChange()}&gt;", span)
+    assert m("<span onClick={() => onChange()}>", span)  # plain still matches
     # A file that really holds entities matches a quote in either form.
-    assert cit.quote_matches("<b>total</b> is &lt; 5", "<p><b>total</b> is &lt; 5</p>")
-    assert cit.quote_matches("<b>total</b> is < 5", "<p><b>total</b> is &lt; 5</p>")
-    assert not cit.quote_matches("&lt;div onClick={() =&gt; remove()}&gt;", span)  # other text
+    assert m("<b>total</b> is &lt; 5", "<p><b>total</b> is &lt; 5</p>")
+    assert m("<b>total</b> is < 5", "<p><b>total</b> is &lt; 5</p>")
+    assert not m("&lt;div onClick={() =&gt; remove()}&gt;", span)  # other text
+
+
+def test_artifact_quotes_stay_strict_about_entities(tmp_path: Path) -> None:
+    """Only reviewer cites unescape entities; an artifact's own quote must match as written."""
+    assert not cit.quote_matches("is &lt; 5", "total is < 5")
+    assert cit.quote_matches("is < 5", "total is < 5")
+    (tmp_path / "notes.md").write_text("# Notes\n\ntotal is < 5\n", encoding="utf-8")
+    r = cit.Resolver(tmp_path, {}, {})
+    c = cit.parse("notes.md#L3", set())
+    assert c is not None
+    assert not cit.verify(c, "is &lt; 5", [], r).ok  # artifact cite
+    assert cit.verify(c, "is &lt; 5", [], r, review=True).ok  # reviewer cite
+    claim = {"id": "C1", "text": "x", "cites": [{"ref": "notes.md#L3", "quote": "is &lt; 5"}]}
+    assert not cit.verify_claim(claim, r, set()).ok
 
 
 def test_element_matching() -> None:
@@ -394,6 +410,11 @@ def test_reviewer_slug_also_covers_the_front_matter_key(world: tuple[Path, Path,
     )
     # Not for artifact cites: a claim must not verify against its own front matter.
     assert check("threats", front_quote, False).reason == "quote not found"
+    # The key as it is spelled (#open_questions): reviewer cites only; artifact cites stay strict.
+    under = cit.parse_review(f"{THREAT}#open_questions", REPOS)
+    assert under is not None and under.anchor == "open_questions"
+    assert cit.verify(under, "open_questions: []", [], r, review=True).ok
+    assert cit.parse(f"{THREAT}#open_questions", REPOS) is None
     assert check("claims", "Search is `parameterised`", False).reason == "anchor not found"
     res = _claim(r, "Search is `parameterised`", f"{THREAT}#claims")
     assert not res.ok and "anchor not found" in str(res.reason)

@@ -461,6 +461,12 @@ CATALOGUE: dict[str, ErrorDef] = {
             "{n} reviewer citation(s) moved to the lines that hold the quote: {detail}",
             "None; each quote is in the cited file exactly once",
         ),
+        _d(
+            "E-REV-07",
+            OK,
+            "Reviewer citations were not checked at record: {error}. tsl decide still checks them.",
+            "None; report it with ~/.truminds/logs/tsl.log",
+        ),
         _d("E-RUN-01", PAUSED, "Run paused for input.", "Answer open-questions.md, then resume"),
         _d(
             "E-RUN-02",

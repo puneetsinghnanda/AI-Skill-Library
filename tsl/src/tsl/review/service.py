@@ -313,27 +313,10 @@ def cite_failures(
     once is moved to those lines (path#L<n>-L<m>) in `obj`, and listed in `repaired` instead
     of failing: only the anchor changes, never the file or the quote."""
     from tsl.core.frontmatter import split
-    from tsl.harness import citations
+    from tsl.harness.decide_service import citation_resolver
 
     front = split(comp.path(rel).read_text(encoding="utf-8")).front
-    shas = dict((ctx.state.get("pack") or {}).get("source_sha") or {})
-    shas.update(dict(front.get("pack_sha") or {}))
-    shas.update(
-        {
-            r: str(b["head_sha"])
-            for r, b in (ctx.state.get("branch") or {}).items()
-            if b.get("head_sha")
-        }
-    )
-    checks_p = comp.path(sibling(rel, ".checks.json"))
-    if checks_p.is_file():
-        changes = read_json(checks_p).get("product_changes") or []
-        shas.update({c["repo"]: c["tree_sha"] for c in changes})
-    cfg = comp.config
-    repos = {r.name for r in cfg.product_repos} | {str(r["name"]) for r in cfg.read_only_repos}
-    gen_mm = comp.path("context/generated/module-map.json")
-    generated = read_json(gen_mm) if gen_mm.is_file() else None
-    resolver = citations.Resolver(comp.root, comp.local_paths(), shas)
+    resolver, repos, generated = citation_resolver(ctx, comp, rel, front)
     items = [(f"finding {f['id']}", f.get("cites") or [], True) for f in obj.get("findings") or []]
     items += [
         (f"claim {cc['claim_id']}", cc.get("cites") or [], False)
@@ -399,6 +382,23 @@ def _repair(cite: Any, quote: str, resolver: Any) -> str | None:
     return moved
 
 
+def _log_skipped(ctx: RunCtx, exc: BaseException) -> None:
+    import traceback
+
+    from tsl.core.log import append_line
+
+    append_line(
+        ctx.rt.home.logs / "tsl.log",
+        {
+            "ts": iso(ctx.rt.clock()),
+            "level": "warning",
+            "cmd": "review record",
+            "code": "E-REV-07",
+            "msg": "".join(traceback.format_exception(exc))[-4000:],
+        },
+    )
+
+
 def _check_cites(
     ctx: RunCtx,
     comp: Companion,
@@ -417,12 +417,18 @@ def _check_cites(
     repaired: list[dict[str, str]] = []
     try:
         bad = cite_failures(ctx, comp, rel, obj, repaired)
-    except Exception:  # a pre-check only; decide verifies every cite anyway
-        return []
+    except Exception as exc:
+        # A pre-check only: decide still verifies every cite, so the review is recorded. But a
+        # bug here must not turn the check off quietly: the trace goes to tsl.log and the
+        # record output carries a warning. Cites already moved stay moved, so say so too.
+        _log_skipped(ctx, exc)
+        bad, failed = None, f"{type(exc).__name__}: {exc}"[:160]
     warns: list[dict[str, str]] = []
     if repaired:
         detail = "; ".join(f"{x['item']} {x['ref']} -> {x['to']}" for x in repaired)
         warns.append(warning("E-REV-06", n=len(repaired), detail=detail))
+    if bad is None:
+        return [*warns, warning("E-REV-07", error=failed)]
     if not bad:
         return warns
     limit = int(ctx.retry_limits(step).get("record", 0))

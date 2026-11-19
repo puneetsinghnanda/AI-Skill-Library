@@ -19,6 +19,8 @@ from tsl.gitops.git import Git
 
 LINES = re.compile(r"^L([1-9][0-9]*)(?:-L([1-9][0-9]*))?$")
 SLUG = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+# A reviewer may write a front-matter key as it is spelled (#open_questions for open_questions:).
+KEY_SLUG = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 FACT = re.compile(r"^(module|dep|import|http|ui|call|table|column|index|migration|test|sym):\S+$")
 # Upstream artifact items (B4): artifacts/<t>/<run>/impact.md#claim:C7 or #item:CO-1.
 ITEM = re.compile(r"^(claim|item):[A-Za-z0-9][A-Za-z0-9:/._-]*$")
@@ -120,6 +122,13 @@ def parse_review(raw: str, repos: set[str]) -> Cite | None:
             c = parse(f"{left}#item:{anchor}", repos)
             if c is not None:
                 c = replace(c, raw=raw)
+        elif KEY_SLUG.match(anchor) and left.endswith(".md"):
+            # The path is checked as for any slug; the anchor keeps its underscores, so a
+            # heading slug that has them still matches, and the front-matter key match below
+            # reads _ as -.
+            c = parse(f"{left}#{anchor.replace('_', '-')}", repos)
+            if c is not None:
+                c = replace(c, anchor=anchor, raw=raw)
     return c
 
 
@@ -146,15 +155,18 @@ def format_error(raw: str, repos: set[str]) -> str:
     return f"bad citation format {raw[:80]}: the anchor must be {ANCHOR_FORMS}"
 
 
-def normalise(s: str) -> str:
-    # Entities first: reviewers write `<` as `&lt;` in JSON (HMS-6 to HMS-9: 16 of 34 dropped
+def normalise(s: str, *, entities: bool = False) -> str:
+    # entities: reviewers write `<` as `&lt;` in JSON (HMS-6 to HMS-9: 16 of 34 dropped
     # findings). Both sides are unescaped, so a file that really holds `&lt;` still matches.
-    s = unicodedata.normalize("NFC", html.unescape(s)).replace("\t", " ")
+    # Reviewer cites only: an artifact's own quotes stay strict.
+    if entities:
+        s = html.unescape(s)
+    s = unicodedata.normalize("NFC", s).replace("\t", " ")
     return re.sub(r"\s+", " ", s).strip()
 
 
-def quote_matches(quote: str, span: str) -> bool:
-    q, sp = normalise(quote), normalise(span)
+def quote_matches(quote: str, span: str, *, entities: bool = False) -> bool:
+    q, sp = normalise(quote, entities=entities), normalise(span, entities=entities)
     if not q:
         return False
     if q in sp:
@@ -315,7 +327,7 @@ def _front_key_block(anchor: str, text: str) -> str | None:
         return None
     for i in range(1, end):
         m = re.match(r"^([A-Za-z0-9_-]+)\s*:", lines[i])
-        if m and m.group(1).lower().replace("_", "-") == anchor:
+        if m and m.group(1).lower().replace("_", "-") == anchor.replace("_", "-"):
             j = i + 1
             while j < end and (not lines[j].strip() or lines[j][0] in " \t-"):
                 j += 1
@@ -471,7 +483,9 @@ def verify(
         return CiteResult(False, why)
     if quote is not None:
         return (
-            CiteResult(True) if quote_matches(quote, span) else CiteResult(False, "quote not found")
+            CiteResult(True)
+            if quote_matches(quote, span, entities=review)
+            else CiteResult(False, "quote not found")
         )
     if not elements:
         return CiteResult(False, "unverifiable: no element")
