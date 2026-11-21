@@ -149,9 +149,11 @@ def _review(conn: Connection, event: str, payload: dict[str, Any], repos: Sequen
     return "stored" if n else "ignored"
 
 
-def _check_run(conn: Connection, payload: dict[str, Any], repos: Sequence[Any]) -> str:
+def _check_run(
+    conn: Connection, payload: dict[str, Any], repos: Sequence[Any], names: set[str]
+) -> str:
     cr = payload.get("check_run") or {}
-    if cr.get("name") != "tsl-ci-verify":
+    if cr.get("name") not in names:
         return "ignored"
     head = str(cr.get("head_sha") or "")
     prs = cr.get("pull_requests") or []
@@ -243,7 +245,8 @@ def handle(
             elif event in ("pull_request_review", "pull_request_review_comment"):
                 result, status = _review(conn, event, payload, repos), 200
             else:
-                result, status = _check_run(conn, payload, repos), 200
+                names = {n.strip() for n in s.ci_check_names.split(",") if n.strip()}
+                result, status = _check_run(conn, payload, repos, names), 200
         conn.execute(
             text(
                 "UPDATE webhook_deliveries SET result = :r, repo_full_name = :g WHERE "

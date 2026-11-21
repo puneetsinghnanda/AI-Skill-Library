@@ -239,6 +239,36 @@ def test_pr_opened_before_webhook(
     assert rows == 1 and ci.result == "pass" and ci.source == "webhook"
 
 
+def test_product_ci_check_run(client: TestClient, hook: int, owner_db: Engine) -> None:
+    """The product repo's own CI job (`build`) sets the PR's CI status; other checks do not."""
+
+    def check(name: str, head: str, conclusion: str) -> dict[str, Any]:
+        return {
+            "action": "completed",
+            "repository": {"full_name": "example-org/orders-api"},
+            "check_run": {
+                "name": name,
+                "head_sha": head,
+                "conclusion": conclusion,
+                "completed_at": now_iso(),
+                "pull_requests": [],
+            },
+        }
+
+    build, other = f"{random.getrandbits(160):040x}", f"{random.getrandbits(160):040x}"
+    assert send(client, "check_run", check("build", build, "failure")).status_code == 200
+    assert send(client, "check_run", check("lint", other, "success")).status_code == 200
+    with owner_db.connect() as c:
+        got = {
+            r.head_sha: r.result
+            for r in c.execute(
+                text("SELECT head_sha, result FROM ci_checks WHERE head_sha IN (:a, :b)"),
+                {"a": build, "b": other},
+            )
+        }
+    assert got == {build: "fail"}
+
+
 def test_ignored_and_unknown_repo(client: TestClient, hook: int) -> None:
     assert (
         send(
