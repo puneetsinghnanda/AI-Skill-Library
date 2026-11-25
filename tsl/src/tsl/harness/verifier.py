@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
-from tsl.core.jsonio import atomic_write
+from tsl.core.jsonio import atomic_write, loads_strict
 
 STEP_ORDER = ("build", "test", "lint", "sast", "secrets", "coverage")
 SKIP_EXIT = 78  # EX_CONFIG: a profile step exits 78 when the project has nothing to run for it
@@ -479,11 +479,13 @@ def compact_sarif(path: Path) -> bool:
     renumbered to the kept list, and run.properties.truminds_rules_dropped says how many went.
     A rule stays when a result names it, or names a sub-rule of it ("js/xss" for
     "js/xss/reflected"). A run that points at rules any other way (rule.toolComponent into
-    tool.extensions, notifications' associatedRule) is left whole, and so is a file that is not
+    tool.extensions, rule.guid, notifications' associatedRule, ruleConfigurationOverrides, rule
+    relationships or deprecated ids) is left whole, and so is a file that is not
     SARIF JSON or cannot be rewritten: the report is then hashed as the tool wrote it."""
     try:
         text = path.read_text(encoding="utf-8")
-        doc = json.loads(text)
+        # Strict: duplicate keys or NaN would come back changed, so such a file stays as written.
+        doc = loads_strict(text)
     except (OSError, UnicodeDecodeError, ValueError):
         return False
     runs = doc.get("runs") if isinstance(doc, dict) else None
@@ -523,15 +525,21 @@ def _compact_run(run: Any) -> bool:
     for r in results:
         ref = r.get("rule")
         refs.append(ref if isinstance(ref, dict) else {})
-    # Other places that point at rules by position (SARIF 2.1.0): a result's rule.toolComponent
-    # (into tool.extensions), notifications' associatedRule and ruleConfigurationOverrides'
-    # descriptor in invocations, and rules' relationships. Renumbering could break them.
+    # Other ways to point at a rule (SARIF 2.1.0): a result's rule.toolComponent (into
+    # tool.extensions) or rule.guid, notifications' associatedRule, ruleConfigurationOverrides
+    # in invocations, rules' relationships and deprecatedIds/deprecatedGuids. Dropping or
+    # renumbering could break them. A notification's own "descriptor" names the notification
+    # (Semgrep: "Syntax error"), not a rule, so it does not count.
     invocations = json.dumps(run.get("invocations", []))
     if (
-        any("toolComponent" in f for f in refs)
+        any("toolComponent" in f or "guid" in f for f in refs)
         or '"associatedRule"' in invocations
-        or '"descriptor"' in invocations
-        or any(isinstance(rule, dict) and "relationships" in rule for rule in rules)
+        or '"ruleConfigurationOverrides"' in invocations
+        or any(
+            isinstance(rule, dict)
+            and ({"relationships", "deprecatedIds", "deprecatedGuids"} & rule.keys())
+            for rule in rules
+        )
     ):
         return False
     # Only string ids and integer indexes count: anything else names no rule (and a list or an

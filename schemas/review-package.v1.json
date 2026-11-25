@@ -180,6 +180,11 @@
           "description": "A copy of the refused review: the rerun reviewer starts from it.",
           "$ref": "#/$defs/rel_path"
         },
+        "citations_total": {
+          "description": "How many citations failed when more than the citations listed.",
+          "type": "integer",
+          "minimum": 0
+        },
         "citations": {
           "type": "array",
           "maxItems": 20,

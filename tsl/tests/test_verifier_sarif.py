@@ -96,6 +96,11 @@ def test_a_report_whose_rules_are_all_used_is_not_rewritten(tmp_path: Path) -> N
         '{"runs": "x"}',
         '{"runs": [{"tool": null}]}',
         '{"runs": [{"tool": {"driver": {"rules": [{"id": "a"}]}}, "results": 5}]}',
+        # Not strict JSON: rewriting would change it (NaN, the duplicate key's first value).
+        '{"runs": [{"tool": {"driver": {"rules": [{"id": "a"}, {"id": "b"}]}},'
+        ' "results": [], "score": NaN}]}',
+        '{"runs": [{"tool": {"driver": {"rules": [{"id": "a"}, {"id": "b"}]}},'
+        ' "results": [], "x": 1, "x": 2}]}',
     ],
 )
 def test_a_file_that_is_not_sarif_is_left_alone(tmp_path: Path, text: str) -> None:
@@ -155,6 +160,23 @@ def test_a_sub_rule_result_keeps_its_parent_rule(tmp_path: Path) -> None:
     assert [r["id"] for r in _run(p)["tool"]["driver"]["rules"]] == ["js/xss"]
 
 
+def test_semgrep_error_notices_do_not_stop_compaction(tmp_path: Path) -> None:
+    """Semgrep reports a file it cannot parse as a toolExecutionNotification whose descriptor
+    names the notification ("Syntax error"), not a rule: the report is still compacted."""
+    doc = _sarif([_rule(f"r{i}") for i in range(10)], [_result(ruleId="r2")])
+    doc["runs"][0]["invocations"] = [
+        {
+            "executionSuccessful": True,
+            "toolExecutionNotifications": [
+                {"descriptor": {"id": "Syntax error"}, "level": "warning", "message": {"text": "x"}}
+            ],
+        }
+    ]
+    p = _write(tmp_path / "sast.sarif", doc)
+    assert compact_sarif(p) is True
+    assert [r["id"] for r in _run(p)["tool"]["driver"]["rules"]] == ["r2"]
+
+
 def test_a_run_pointing_at_rules_another_way_is_left_whole(tmp_path: Path) -> None:
     """rule.toolComponent (indexes into tool.extensions) or a notification's associatedRule:
     renumbering could break them, so nothing is dropped."""
@@ -169,7 +191,16 @@ def test_a_run_pointing_at_rules_another_way_is_left_whole(tmp_path: Path) -> No
         {"ruleConfigurationOverrides": [{"descriptor": {"index": 0}, "configuration": {}}]}
     ]
     rel = _sarif([_rule("a"), dict(_rule("b"), relationships=[{"target": {"index": 0}}])], [])
-    cases = (("ext.sarif", ext), ("note.sarif", note), ("over.sarif", over), ("rel.sarif", rel))
+    guid = _sarif(rules, [_result(rule={"guid": "0b9c2f0e-0000-4000-8000-000000000001"})])
+    dep = _sarif([_rule("a"), dict(_rule("b"), deprecatedIds=["old-b"])], [_result(ruleId="a")])
+    cases = (
+        ("ext.sarif", ext),
+        ("note.sarif", note),
+        ("over.sarif", over),
+        ("rel.sarif", rel),
+        ("guid.sarif", guid),
+        ("dep.sarif", dep),
+    )
     for name, doc in cases:
         p = _write(tmp_path / name, doc)
         before = p.read_bytes()

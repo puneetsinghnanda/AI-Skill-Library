@@ -9,7 +9,7 @@ from typing import Any
 from tsl.core.clock import iso
 from tsl.core.errors import TslError, warning
 from tsl.core.hashing import sha256_file, sha256_raw
-from tsl.core.jsonio import atomic_write, read_json, write_json
+from tsl.core.jsonio import read_json, write_json
 from tsl.core.paths import ARTIFACT_RE, history_dir, sibling
 from tsl.core.repo import Companion
 from tsl.core.runtime import Runtime
@@ -162,6 +162,8 @@ def prepare(rt: Runtime, comp: Companion, artifact: str) -> dict[str, Any]:
     if rec_err:
         pkg["record_error"] = rec_err
     pkg["package_sha256"] = sha256_raw(canonical(pkg))
+    if rec_err and rec_err.get("refused_review"):
+        _refresh_refused_ids(comp, rec_err["refused_review"], pkg)
     from tsl.schemas.registry import require_valid
 
     require_valid("review-package.v1", pkg, sibling(rel, ".review-package.json"))
@@ -235,6 +237,9 @@ def _record_error(comp: Companion, run_id: str, step: str, attempt: int) -> dict
         out["citations"] = [
             {k: str(c.get(k, ""))[:300] for k in ("item", "ref", "reason")} for c in cites
         ]
+        total = e.get("citations_total")
+        if isinstance(total, int) and not isinstance(total, bool) and total > len(cites):
+            out["citations_total"] = total
     refused = refused_review_path(run_id, step)
     if e.get("refused_review") == refused and comp.path(refused).is_file():
         out["refused_review"] = refused
@@ -354,6 +359,11 @@ def render_markdown(pkg: dict[str, Any], rubric_text: str, version: str) -> str:
             )
         else:
             lines.append("Write the whole review again without that error.")
+        if err.get("citations_total"):
+            lines.append(
+                f"Only the first {len(err['citations'])} of {err['citations_total']} failing "
+                "citations are listed: check every citation in the review the same way."
+            )
         if err.get("citations"):
             lines.append(
                 "For each citation listed: cite a line that holds the quote, in a file that can be "
@@ -556,6 +566,9 @@ def record(
     except TslError as exc:
         _keep_record_error(comp, ctx.run_id, step, int(attempt["n"]), exc, text)
         raise
+    except Exception:
+        _clear_record_error(comp, ctx.run_id, step)  # not a refusal the rerun can act on
+        raise
     _clear_record_error(comp, ctx.run_id, step)
     return out
 
@@ -565,28 +578,42 @@ def _keep_record_error(
 ) -> None:
     """Keep an E-REV-02/05 refusal for the rerun; any other refusal clears the last one, so a
     later package never shows an error that is no longer the last. Saving is best effort: a
-    failed write must not replace the refusal the run loop acts on."""
-    with contextlib.suppress(OSError):
-        if exc.code not in RERUN_CODES:
-            _clear_record_error(comp, run_id, step)
-            return
-        refused = refused_review_path(run_id, step)
-        # Only a JSON object is a review to start from; prose would only confuse the rerun.
-        keep = bool(text) and extract_json(text or "") is not None
-        if keep:
-            atomic_write(comp.path(refused), text or "")
-        else:
-            comp.path(refused).unlink(missing_ok=True)
+    failed write must not replace the refusal the run loop acts on, and a half-done save is
+    removed so the error and the copy always belong together."""
+    _clear_record_error(comp, run_id, step)
+    if exc.code not in RERUN_CODES:
+        return
+    refused = refused_review_path(run_id, step)
+    # Only a JSON object is a review to start from; prose would only confuse the rerun.
+    obj = extract_json(text or "")
+    cites = exc.data.get("citations", [])
+    try:
+        if obj is not None:
+            write_json(comp.path(refused), obj)
         write_json(
             comp.path(record_error_path(run_id, step)),
             {
                 "attempt": attempt,
                 "code": exc.code,
                 "message": exc.message,
-                "citations": exc.data.get("citations", []),
-                "refused_review": refused if keep else None,
+                "citations": cites,
+                "citations_total": len(cites) if isinstance(cites, list) else 0,
+                "refused_review": refused if obj is not None else None,
             },
         )
+    except OSError:
+        _clear_record_error(comp, run_id, step)
+
+
+def _refresh_refused_ids(comp: Companion, refused: str, pkg: dict[str, Any]) -> None:
+    """Give the refused copy this package's ids, which change on every prepare: a reviewer that
+    keeps the copy's ids would otherwise be refused again with E-REV-03."""
+    with contextlib.suppress(OSError, ValueError):
+        obj = read_json(comp.path(refused))
+        if isinstance(obj, dict):
+            for k in ("run_id", "step", "attempt", "artifact_sha256", "package_sha256"):
+                obj[k] = pkg[k]
+            write_json(comp.path(refused), obj)
 
 
 def _clear_record_error(comp: Companion, run_id: str, step: str) -> None:
