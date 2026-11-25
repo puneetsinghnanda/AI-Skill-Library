@@ -211,7 +211,7 @@ Doc 4 §5.2 is the catalogue. This document keeps every existing code and adds t
 | E-RUN-05 | 3 | Run is `<status>`; `<command>` needs `<status>` | Shown per case | `approve`, `pr`, `next` |
 | E-RUN-06 | 3 | Run `<run_id>` belongs to `<pseudonym>` | Ask the owner, or a tech lead to unlock | `state resume` |
 | E-REV-02 | 2 | Reviewer output is not valid review.v1: `<pointer>` (meaning owned by SDD-03 §14; E-REV-01 is "cannot prepare review") | Re-run the review skill | `review record` |
-| E-REV-05 | 2 | `<n>` reviewer citation(s) do not verify: `<detail>` (SDD-03 §7.4 step 5; a warning with exit 0 once `retry.record` is used) | Run the review skill again with this message, then record again | `review record` |
+| E-REV-05 | 2 | `<n>` reviewer citation(s) do not verify: `<detail>` (SDD-03 §7.4 step 5; a warning with exit 0 once `retry.record` is used) | Run the review skill again on the artifact (its package carries this error), then record again | `review record` |
 | E-REV-06 | 0 | `<n>` reviewer citation(s) moved to the lines that hold the quote: `<detail>` (SDD-03 §7.4 step 5; a warning) | None | `review record` |
 | E-REV-07 | 0 | Reviewer citations were not checked at record: `<error>` (warning; `tsl decide` still checks them) | None; report it with `~/.truminds/logs/tsl.log` | `review record` |
 | E-EVAL-01 | 2 | Eval pass rate `<r>` below `<min>` or fewer than `<n>` cases | Fix the skill or add cases | `eval run` |

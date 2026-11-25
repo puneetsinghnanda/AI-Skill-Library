@@ -168,6 +168,39 @@
       "description": "Where the reviewer writes its review.v1 JSON for tsl review record --file.",
       "$ref": "#/$defs/rel_path"
     },
+    "record_error": {
+      "description": "Why tsl review record refused the last review of this attempt (E-REV-02, E-REV-05), so the rerun reviewer can fix it. Absent when there is none.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": {"enum": ["E-REV-02", "E-REV-05"]},
+        "message": {"type": "string", "maxLength": 300},
+        "refused_review": {
+          "description": "A copy of the refused review: the rerun reviewer starts from it.",
+          "$ref": "#/$defs/rel_path"
+        },
+        "citations_total": {
+          "description": "How many citations failed when more than the citations listed.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "citations": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["item", "ref", "reason"],
+            "properties": {
+              "item": {"type": "string", "maxLength": 300},
+              "ref": {"type": "string", "maxLength": 300},
+              "reason": {"type": "string", "maxLength": 300}
+            }
+          }
+        }
+      }
+    },
     "budget_tokens": {
       "type": "integer",
       "minimum": 0

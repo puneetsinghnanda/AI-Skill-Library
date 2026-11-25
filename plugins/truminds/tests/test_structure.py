@@ -175,7 +175,20 @@ def test_reviewer_agent_reads_writes_its_review_only_and_review_skill_forks() ->
         "user-invocable": False,
         "allowed-tools": "Bash(tsl review prepare *), Write",
     }
-    assert "!`tsl review prepare $ARGUMENTS --json`" in body(SKILLS / "review" / "SKILL.md")
+    # Only the artifact path reaches the shell: extra arguments (an error text with quotes and
+    # braces) made Claude Code refuse the preamble and the rerun reviewer never saw the error.
+    assert "!`tsl review prepare $0 --json`" in body(SKILLS / "review" / "SKILL.md")
+
+
+def test_review_reruns_never_carry_the_error_text() -> None:
+    """run and resume drive the same loop: a rerun gets the error from its package, and the
+    E-REV-02 fallback uses a fixed reason, never the error text with its quotes and braces."""
+    for name in ("run", "resume"):
+        text = body(SKILLS / name / "SKILL.md")
+        assert "passing it" not in text, name
+        assert '--unavailable "<the error message>"' not in text, name
+        assert "never message the reviewer" in text, name
+        assert '--unavailable "reviewer output still invalid (E-REV-02)"' in text, name
 
 
 def test_every_preamble_command_is_pre_approved() -> None:

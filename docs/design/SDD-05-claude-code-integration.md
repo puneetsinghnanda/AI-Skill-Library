@@ -251,7 +251,7 @@ agent: truminds:reviewer
 user-invocable: false
 ---
 Review package from tsl (artifact, rubric, cited context sections):
-!`tsl review prepare $ARGUMENTS --json`
+!`tsl review prepare $0 --json`
 ```
 
 **Flow:**

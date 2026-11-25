@@ -6,6 +6,7 @@ Tests use a fake runner, and Docker-dependent tests skip when Docker is absent.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -17,6 +18,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
+
+from tsl.core.jsonio import atomic_write, loads_strict
 
 STEP_ORDER = ("build", "test", "lint", "sast", "secrets", "coverage")
 SKIP_EXIT = 78  # EX_CONFIG: a profile step exits 78 when the project has nothing to run for it
@@ -411,6 +414,8 @@ class DockerVerifier:
             ms = int((time.monotonic() - t0) * 1000)
             log = _write_log(out_dir, name, *outs, attempt=_attempt_of(out_dir))
             report = spec.get("report")
+            if report and spec.get("parse") == "sarif" and (out_dir / report).exists():
+                compact_sarif(out_dir / report)  # before the hash: the stored file is the one cited
             rsha = sha256_file(out_dir / report) if report and (out_dir / report).exists() else None
             if name == "prepare":
                 if timed_out or code != 0:
@@ -463,6 +468,118 @@ def _oom(step: str) -> VerifierUnavailable:
         step=step,
         limit=LIMITS["memory"],
     )
+
+
+def compact_sarif(path: Path) -> bool:
+    """Keep only the rules a SARIF report's results use; True when the file was rewritten.
+
+    Semgrep lists every rule of its ruleset in tool.driver.rules: in run HMS-28 that was 2.0 of
+    the 2.4 MB of sast.sarif, for 4 results, and a reviewer's cite into it failed E-REV-05 "file
+    too large" (citations.MAX_BYTES). Results are kept whole; ruleIndex and rule.index are
+    renumbered to the kept list, and run.properties.truminds_rules_dropped says how many went.
+    A rule stays when a result names it, or names a sub-rule of it ("js/xss" for
+    "js/xss/reflected"). A run that points at rules any other way (rule.toolComponent into
+    tool.extensions, rule.guid, notifications' associatedRule, ruleConfigurationOverrides, rule
+    relationships or deprecated ids) is left whole, and so is a file that is not
+    SARIF JSON or cannot be rewritten: the report is then hashed as the tool wrote it."""
+    try:
+        text = path.read_text(encoding="utf-8")
+        # Strict: duplicate keys or NaN would come back changed, so such a file stays as written.
+        doc = loads_strict(text)
+    except (OSError, UnicodeDecodeError, ValueError):
+        return False
+    runs = doc.get("runs") if isinstance(doc, dict) else None
+    changed = False
+    for run in runs if isinstance(runs, list) else []:
+        if _compact_run(run):
+            changed = True
+    if not changed:
+        return False
+    # Keep the tool's layout: an indented report stays citeable by line, a minified one stays
+    # small. Written only when it is smaller than what the tool wrote.
+    indented = text.count("\n") > 1
+    try:
+        if indented:
+            out = json.dumps(doc, indent=2, ensure_ascii=False) + "\n"
+        else:
+            out = json.dumps(doc, separators=(",", ":"), ensure_ascii=False) + "\n"
+        if len(out.encode("utf-8")) >= len(text.encode("utf-8")):
+            return False
+        atomic_write(path, out)
+    except (OSError, ValueError):
+        # A report the container's user owns, or one that cannot be written back as it was read
+        # (a lone surrogate escape cannot be encoded): keep it as the tool wrote it.
+        return False
+    return True
+
+
+def _compact_run(run: Any) -> bool:
+    if not isinstance(run, dict):
+        return False
+    tool = run.get("tool")
+    driver = tool.get("driver") if isinstance(tool, dict) else None
+    if not isinstance(driver, dict) or not isinstance(driver.get("rules"), list):
+        return False
+    rules: list[Any] = driver["rules"]
+    raw = run.get("results")
+    if raw is not None and not isinstance(raw, list):
+        return False
+    if "properties" in run and not isinstance(run["properties"], dict):
+        return False  # nowhere to record how many rules were dropped
+    results: list[dict[str, Any]] = [r for r in raw or [] if isinstance(r, dict)]
+    # A result may also name its rule by reportingDescriptorReference (rule.id, rule.index).
+    refs: list[dict[str, Any]] = []
+    for r in results:
+        ref = r.get("rule")
+        refs.append(ref if isinstance(ref, dict) else {})
+    # Other ways to point at a rule (SARIF 2.1.0): a result's rule.toolComponent (into
+    # tool.extensions) or rule.guid, notifications' associatedRule, ruleConfigurationOverrides
+    # in invocations, rules' relationships and deprecatedIds/deprecatedGuids. Dropping or
+    # renumbering could break them. A notification's own "descriptor" names the notification
+    # (Semgrep: "Syntax error"), not a rule, so it does not count.
+    invocations = json.dumps(run.get("invocations", []))
+    if (
+        any("toolComponent" in f or "guid" in f for f in refs)
+        or '"associatedRule"' in invocations
+        or '"ruleConfigurationOverrides"' in invocations
+        or any(
+            isinstance(rule, dict)
+            and ({"relationships", "deprecatedIds", "deprecatedGuids"} & rule.keys())
+            for rule in rules
+        )
+    ):
+        return False
+    # Only string ids and integer indexes count: anything else names no rule (and a list or an
+    # object in a set would raise).
+    named = [r.get("ruleId") for r in results] + [f.get("id") for f in refs]
+    ids = {x for x in named if isinstance(x, str) and x}
+    pos = [r.get("ruleIndex") for r in results] + [f.get("index") for f in refs]
+    idx = {x for x in pos if isinstance(x, int) and not isinstance(x, bool)}
+
+    def used(i: int, rule: Any) -> bool:
+        rid = rule.get("id") if isinstance(rule, dict) else None
+        if i in idx:
+            return True
+        if not isinstance(rid, str):
+            return False
+        return rid in ids or any(x.startswith(rid + "/") for x in ids)
+
+    keep = [i for i, rule in enumerate(rules) if used(i, rule)]
+    if len(keep) == len(rules):
+        return False
+    new = {old: n for n, old in enumerate(keep)}
+
+    def renumber(holder: dict[str, Any], key: str) -> None:
+        v = holder.get(key)
+        if isinstance(v, int) and not isinstance(v, bool) and v in new:
+            holder[key] = new[v]
+
+    for r, f in zip(results, refs, strict=True):
+        renumber(r, "ruleIndex")
+        renumber(f, "index")
+    driver["rules"] = [rules[i] for i in keep]
+    run.setdefault("properties", {})["truminds_rules_dropped"] = len(rules) - len(keep)
+    return True
 
 
 def _attempt_of(out_dir: Path) -> str | None:
