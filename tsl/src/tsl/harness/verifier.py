@@ -484,11 +484,15 @@ def compact_sarif(path: Path) -> bool:
     changed = False
     for run in runs if isinstance(runs, list) else []:
         driver = run.get("tool", {}).get("driver") if isinstance(run, dict) else None
-        rules = driver.get("rules") if isinstance(driver, dict) else None
-        if not isinstance(rules, list):
+        if not isinstance(driver, dict) or not isinstance(driver.get("rules"), list):
             continue
-        results = [r for r in run.get("results") or [] if isinstance(r, dict)]
-        refs = [r.get("rule") if isinstance(r.get("rule"), dict) else {} for r in results]
+        rules: list[Any] = driver["rules"]
+        results: list[dict[str, Any]] = [r for r in run.get("results") or [] if isinstance(r, dict)]
+        # A result may also name its rule by reportingDescriptorReference (rule.id, rule.index).
+        refs: list[dict[str, Any]] = []
+        for r in results:
+            ref = r.get("rule")
+            refs.append(ref if isinstance(ref, dict) else {})
         ids = {r.get("ruleId") for r in results} | {f.get("id") for f in refs}
         idx = {r.get("ruleIndex") for r in results} | {f.get("index") for f in refs}
         keep = [
