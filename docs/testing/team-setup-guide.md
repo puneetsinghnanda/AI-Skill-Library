@@ -226,6 +226,7 @@ There is **no GitHub release yet**. A new version means the version on `main` (s
 
 1. In your clone (`C:\dev\AI-Skill-Library`): `git checkout main`, then `git pull`.
 2. Reinstall `tsl` exactly as in §5 step 2, with `TSL_ORG_FILE` set. Your settings file from §5 step 1 is still there.
+   Windows, if you use the §9a `tsl.exe` workaround: the reinstall puts `tsl.exe` back. If `tsl --version` is then blocked, remove it again (§9a).
 3. Update the plugin:
    ```text
    claude plugin marketplace update truminds-skill-library
@@ -307,9 +308,20 @@ it has not seen before, even one you installed yourself. Two `tsl` files have be
   [IO.File]::WriteAllText("$bin\tsl", "#!/bin/sh`nexec `"$($py -replace '\\','/')`" -m tsl `"`$@`"`n")
   tsl --version
   ```
-  Then restart Claude Code and run `tsl doctor`. Every reinstall (§7a) creates a new `tsl.exe`: if it is
-  blocked too, run `Remove-Item "$bin\tsl.exe"` (the two files stay). To undo, delete `tsl` and `tsl.cmd`
-  and rename `tsl.exe.blocked` back to `tsl.exe`.
+  Then restart Claude Code and run `tsl doctor`. Every reinstall (§7a) creates a new `tsl.exe`, which
+  PowerShell and the plugin pick before `tsl.cmd`: if it is blocked too, remove it again with
+  `Remove-Item "$env:USERPROFILE\.local\bin\tsl.exe"` (the two files stay). To undo, delete `tsl` and
+  `tsl.cmd` and rename `tsl.exe.blocked` back to `tsl.exe`.
+
+  Limits of this workaround:
+  - **The progress panel and `/tsl-gate` don't work.** They start `tsl` directly, without a shell, and on
+    Windows that finds only `tsl.exe`: the panel stays empty and `/tsl-gate` can't run. `/truminds:run`,
+    the plugin hooks and `tsl` commands in a terminal do work. If you need the panel, ask IT to allow
+    `tsl.exe`.
+  - `tsl.cmd` passes its arguments through `cmd.exe`: put an argument that holds `&`, `|`, `<`, `>` or `^`
+    in quotes, or run that command from Git Bash.
+  - Each hook call starts one more small process (the `tsl` script, then Python), so tool calls can take
+    a fraction of a second longer.
 
 If your company manages App Control, you can also ask IT to allow these files instead.
 

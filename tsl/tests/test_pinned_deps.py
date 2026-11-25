@@ -2,6 +2,8 @@
 
 `uv tool install` ignores uv.lock, so a version range in pyproject.toml installs the newest release.
 On Windows, App Control blocked a new pydantic-core DLL and every tsl command failed on import.
+CI's `uv sync --locked` already fails when pyproject.toml and uv.lock disagree; these tests keep
+the pins exact and the pair installable.
 """
 
 from __future__ import annotations
@@ -13,47 +15,45 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PINNED = ("pydantic", "pydantic-core")
+EXACT = re.compile(r"==\s*([0-9][0-9A-Za-z.]*)")
 
 
-def _declared() -> dict[str, str]:
-    """Dependency name -> version specifier, from pyproject.toml."""
-    deps = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"][
-        "dependencies"
-    ]
+def _pins() -> dict[str, str]:
+    """Name -> exact version for PINNED, from pyproject.toml; a non-exact spec maps to ''."""
+    deps = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     out: dict[str, str] = {}
-    for dep in deps:
+    for dep in deps["dependencies"]:
         m = re.fullmatch(r"([A-Za-z0-9_.-]+)\s*(.*)", dep.strip())
         assert m, dep
-        out[m.group(1).lower()] = m.group(2).strip()
+        name = m.group(1).lower().replace("_", "-")
+        if name in PINNED:
+            exact = EXACT.fullmatch(m.group(2).strip())
+            out[name] = exact.group(1) if exact else ""
     return out
 
 
-def _locked() -> dict[str, str]:
-    """Package name -> version, from uv.lock."""
-    lock = tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))
-    return {p["name"]: p["version"] for p in lock["package"] if "version" in p}
-
-
-def test_pins_are_exact_and_equal_to_the_lock() -> None:
-    declared, locked = _declared(), _locked()
+def test_pins_are_exact() -> None:
+    pins = _pins()
     for name in PINNED:
-        spec = declared.get(name)
-        assert spec is not None and re.fullmatch(r"==[0-9][0-9A-Za-z.]*", spec), (
-            f"{name} must be pinned with == in pyproject.toml, found {spec!r}"
-        )
-        assert spec[2:] == locked.get(name), (
-            f"{name}: pyproject.toml pins {spec[2:]}, uv.lock has {locked.get(name)}; run `uv lock` and test"
-        )
+        assert pins.get(name), f"{name} must be pinned with == in pyproject.toml, found none"
 
 
-def test_core_pin_is_the_one_the_pinned_pydantic_requires() -> None:
+def test_the_pinned_pair_is_installed_and_installable() -> None:
+    pins = _pins()
+    # The installed pydantic is the pinned one, so its requirements below are the pin's.
+    assert metadata.version("pydantic") == pins["pydantic"], (
+        f"installed pydantic {metadata.version('pydantic')}, pinned {pins['pydantic']}: run uv sync"
+    )
+    assert metadata.version("pydantic-core") == pins["pydantic-core"]
     # pydantic requires one exact pydantic-core; a pair that disagrees cannot be installed.
-    core = _declared()["pydantic-core"][2:]
-    requires = metadata.requires("pydantic") or []
     wanted = [
-        r for r in requires if re.match(r"pydantic[-_]core\b", r, re.I) and "extra ==" not in r
+        r
+        for r in metadata.requires("pydantic") or []
+        if re.match(r"pydantic[-_]core\b", r, re.I) and "extra ==" not in r
     ]
-    assert wanted, requires
-    assert any(f"=={core}" in r.replace(" ", "") for r in wanted), (
-        f"pydantic {metadata.version('pydantic')} requires {wanted}, pyproject.toml pins pydantic-core=={core}"
+    assert len(wanted) == 1, wanted
+    exact = EXACT.search(wanted[0])
+    assert exact and exact.group(1) == pins["pydantic-core"], (
+        f"pydantic {pins['pydantic']} requires {wanted[0]}, "
+        f"pyproject.toml pins pydantic-core=={pins['pydantic-core']}"
     )
