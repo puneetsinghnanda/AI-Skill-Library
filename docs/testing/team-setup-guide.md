@@ -301,21 +301,24 @@ it has not seen before, even one you installed yourself. Two `tsl` files have be
   the launcher with two small files that call it: `tsl.cmd` for PowerShell, and `tsl` for Git Bash (Claude
   Code runs `/truminds:run` and the plugin hooks in Git Bash). In PowerShell:
   ```powershell
-  $bin = "$env:USERPROFILE\.local\bin"
+  $bin = uv tool dir --bin
   $py  = Join-Path (uv tool dir) 'truminds-tsl\Scripts\python.exe'
   if (Test-Path "$bin\tsl.exe") { Move-Item -Force "$bin\tsl.exe" "$bin\tsl.exe.blocked" }
-  [IO.File]::WriteAllText("$bin\tsl.cmd", "@`"$py`" -P -m tsl %*`r`n")
-  [IO.File]::WriteAllText("$bin\tsl", "#!/bin/sh`nexec `"$($py -replace '\\','/')`" -P -m tsl `"`$@`"`n")
+  [IO.File]::WriteAllText("$bin\tsl.cmd", "@`"$($py.Replace($env:APPDATA, '%APPDATA%'))`" -P -m tsl %*`r`n")
+  [IO.File]::WriteAllText("$bin\tsl", "#!/bin/sh`nexec '$($py -replace '\\','/')' -P -m tsl `"`$@`"`n")
   tsl --version
   ```
   Keep `-P`: without it, Python looks in the current folder first, and the hooks run inside your
   repos, so a file or folder there with the name of a module `tsl` uses (even `tsl` itself) would run
-  in its place. The commands can be run again safely.
+  in its place. `tsl.cmd` names the Python path as `%APPDATA%\...`, because `cmd.exe` reads the file in
+  the console's code page and a user folder with letters such as `é` would not match. The commands can
+  be run again safely.
 
   Then restart Claude Code and run `tsl doctor`. Every reinstall (§7a) creates a new `tsl.exe`, which
   PowerShell, the progress panel and `/tsl-gate` pick before `tsl.cmd` (the hooks in Git Bash keep using
   the `tsl` file): if it is blocked too, run the commands above again. To undo, delete `tsl` and
-  `tsl.cmd` and rename `tsl.exe.blocked` back to `tsl.exe`.
+  `tsl.cmd`; then, if a reinstall has already put a new `tsl.exe` there, delete `tsl.exe.blocked`,
+  otherwise rename it back to `tsl.exe`.
 
   Limits of this workaround:
   - **The progress panel and `/tsl-gate` don't work.** They start `tsl` directly, without a shell, and on

@@ -55,7 +55,9 @@ def test_the_pinned_pair_is_installed_and_installable() -> None:
     assert metadata.version("pydantic") == pyd, (
         f"installed pydantic {metadata.version('pydantic')}, pinned {pyd}: run uv sync"
     )
-    assert metadata.version("pydantic-core") == core
+    assert metadata.version("pydantic-core") == core, (
+        f"installed pydantic-core {metadata.version('pydantic-core')}, pinned {core}: run uv sync"
+    )
     # pydantic requires one exact pydantic-core; a pair that disagrees cannot be installed.
     requires = [Requirement(r) for r in metadata.requires("pydantic") or []]
     wanted = [r for r in requires if canonicalize_name(r.name) == "pydantic-core" and _base(r)]
