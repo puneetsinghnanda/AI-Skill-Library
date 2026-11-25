@@ -175,7 +175,9 @@ def test_reviewer_agent_reads_writes_its_review_only_and_review_skill_forks() ->
         "user-invocable": False,
         "allowed-tools": "Bash(tsl review prepare *), Write",
     }
-    assert "!`tsl review prepare $ARGUMENTS --json`" in body(SKILLS / "review" / "SKILL.md")
+    # Only the artifact path reaches the shell: extra arguments (an error text with quotes and
+    # braces) made Claude Code refuse the preamble and the rerun reviewer never saw the error.
+    assert "!`tsl review prepare $0 --json`" in body(SKILLS / "review" / "SKILL.md")
 
 
 def test_every_preamble_command_is_pre_approved() -> None:

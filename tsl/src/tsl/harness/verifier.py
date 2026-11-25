@@ -6,6 +6,7 @@ Tests use a fake runner, and Docker-dependent tests skip when Docker is absent.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -411,6 +412,8 @@ class DockerVerifier:
             ms = int((time.monotonic() - t0) * 1000)
             log = _write_log(out_dir, name, *outs, attempt=_attempt_of(out_dir))
             report = spec.get("report")
+            if report and spec.get("parse") == "sarif" and (out_dir / report).exists():
+                compact_sarif(out_dir / report)  # before the hash: the stored file is the one cited
             rsha = sha256_file(out_dir / report) if report and (out_dir / report).exists() else None
             if name == "prepare":
                 if timed_out or code != 0:
@@ -463,6 +466,52 @@ def _oom(step: str) -> VerifierUnavailable:
         step=step,
         limit=LIMITS["memory"],
     )
+
+
+def compact_sarif(path: Path) -> bool:
+    """Keep only the rules a SARIF report's results use; True when the file was rewritten.
+
+    Semgrep lists every rule of its ruleset in tool.driver.rules: in run HMS-28 that was 2.0 of
+    the 2.4 MB of sast.sarif, for 4 results, and a reviewer's cite into it failed E-REV-05 "file
+    too large" (citations.MAX_BYTES). Results are kept whole; ruleIndex and rule.index are
+    renumbered to the kept list, and run.properties.truminds_rules_dropped says how many went.
+    A file that is not SARIF JSON is left as it is."""
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError):
+        return False
+    runs = doc.get("runs") if isinstance(doc, dict) else None
+    changed = False
+    for run in runs if isinstance(runs, list) else []:
+        driver = run.get("tool", {}).get("driver") if isinstance(run, dict) else None
+        rules = driver.get("rules") if isinstance(driver, dict) else None
+        if not isinstance(rules, list):
+            continue
+        results = [r for r in run.get("results") or [] if isinstance(r, dict)]
+        refs = [r.get("rule") if isinstance(r.get("rule"), dict) else {} for r in results]
+        ids = {r.get("ruleId") for r in results} | {f.get("id") for f in refs}
+        idx = {r.get("ruleIndex") for r in results} | {f.get("index") for f in refs}
+        keep = [
+            i
+            for i, rule in enumerate(rules)
+            if i in idx or (isinstance(rule, dict) and rule.get("id") in ids)
+        ]
+        if len(keep) == len(rules):
+            continue
+        new = {old: n for n, old in enumerate(keep)}
+        for r, f in zip(results, refs, strict=True):
+            if isinstance(r.get("ruleIndex"), int) and r["ruleIndex"] in new:
+                r["ruleIndex"] = new[r["ruleIndex"]]
+            if isinstance(f.get("index"), int) and f["index"] in new:
+                f["index"] = new[f["index"]]
+        driver["rules"] = [rules[i] for i in keep]
+        props = run.setdefault("properties", {})
+        if isinstance(props, dict):
+            props["truminds_rules_dropped"] = len(rules) - len(keep)
+        changed = True
+    if changed:
+        path.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return changed
 
 
 def _attempt_of(out_dir: Path) -> str | None:

@@ -187,7 +187,7 @@ The post-write hook has a 90 s hard timeout (SDD-05 §5.2). Build and test conta
 
 1. Resolve the profile and its image by digest. Docker not running or image unavailable → E-H3-07 (environment error; see §14).
 2. Run `prepare` (dependency install from the lock file), then each step in profile order: `build`, `test`, `lint`, `sast`, `secrets`, plus `coverage` if the skill declares it. Each step runs in its own container with the limits in §5.5.
-3. Parse each step's output with its parser (exit code, JUnit XML, SARIF, coverage JSON).
+3. Parse each step's output with its parser (exit code, JUnit XML, SARIF, coverage JSON). A SARIF report keeps only the rules its results use (results whole, `ruleIndex` renumbered, `run.properties.truminds_rules_dropped` counts the rest) before its hash is taken, so it stays under the citation size limit: Semgrep's full rule list was 2.0 of the 2.4 MB of `sast.sarif` in run HMS-28.
 4. Apply each step's pass rule:
 
 | Step | Pass rule | Code on failure |
@@ -608,7 +608,7 @@ Reads the reviewer output on stdin (SDD-05 §4.4 step 4).
    - A reviewer's `#item:<id>` (not `#claim:<id>`) on an artifact also covers the item's lines as written: its front-matter entry (flow `- {id: X, ...}` or block `- id: X`) and the body lines that name `X`. A cite of the run's `open-questions.md#q-05` covers question Q-05 (§8).
 
    If any citation still fails:
-   - While the attempt's `record_rejects` is below `retry.record` (2 by default): add 1 to `record_rejects` in `state.json`, write nothing and exit 2 with **E-REV-05**. `data.citations` lists each failing citation as `{item, ref, reason}`. The run skill runs the reviewer again with that list. Only the reviewer runs again; the artifact is not touched.
+   - While the attempt's `record_rejects` is below `retry.record` (2 by default): add 1 to `record_rejects` in `state.json`, write nothing and exit 2 with **E-REV-05**. `data.citations` lists each failing citation as `{item, ref, reason}`. The run skill runs the reviewer again on the artifact only: tsl keeps the refusal (E-REV-02 or E-REV-05, with the citations) in `runs/<run_id>/review-input/<step>.record-error.json`, and `tsl review prepare` puts it in the new package as `record_error` for the same attempt. A recorded review removes the file. The error never travels as skill arguments: its quotes and braces made Claude Code refuse the review skill's shell command (run HMS-28). Only the reviewer runs again; the artifact is not touched.
    - Once `retry.record` is used: write the review as it is with warning E-REV-05. `tsl decide` drops the findings that still fail (§8.4). A citation failure never becomes `could_not_review`.
    - If the check itself fails with an error, the review is written with warning **E-REV-07** and the trace goes to `tsl.log`. `tsl decide` still checks every citation, so nothing is lost, but the skipped check is visible.
    - `record_rejects` is separate from `budget_used.review`, which counts step retries on a major finding (§11).
@@ -944,7 +944,7 @@ sequenceDiagram
 | E-REV-02 | 2 | Reviewer output is not valid `review.v1`: `<pointer>`. | Run the review step again |
 | E-REV-03 | 2 | Review is for an older artifact or package. | Run the review step again |
 | E-REV-04 | 0 (warn) | Reviewer could not review: `<reason>`. Band capped at Low. | None; decide will escalate |
-| E-REV-05 | 2; 0 (warn) once `retry.record` is used | `<n>` reviewer citation(s) do not verify: `<detail>`. | Run the review skill again with this message, then record again |
+| E-REV-05 | 2; 0 (warn) once `retry.record` is used | `<n>` reviewer citation(s) do not verify: `<detail>`. | Run the review skill again on the artifact (its package carries this error), then record again |
 | E-REV-06 | 0 (warn) | `<n>` reviewer citation(s) moved to the lines that hold the quote: `<detail>`. | None; each quote is in the cited file exactly once |
 | E-REV-07 | 0 (warn) | Reviewer citations were not checked at record: `<error>`. `tsl decide` still checks them. | None; report it with `~/.truminds/logs/tsl.log` |
 | E-DEC-01 | 3 | Gate `<id>` still pending. | `tsl verify --status`, then decide |
