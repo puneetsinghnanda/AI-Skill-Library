@@ -445,7 +445,7 @@ For code steps, `verifier` holds `{profile, image_digest, steps[{name, status, e
 
 ### 7.1 `tsl review prepare <artifact> [--json]`
 
-Called inside the `review` skill through `` !`tsl review prepare $ARGUMENTS --json` `` (SDD-05 §4.4).
+Called inside the `review` skill through `` !`tsl review prepare $0 --json` `` (SDD-05 §4.4).
 
 | Step | Detail |
 | --- | --- |

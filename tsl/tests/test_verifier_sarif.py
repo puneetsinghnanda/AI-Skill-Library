@@ -164,7 +164,13 @@ def test_a_run_pointing_at_rules_another_way_is_left_whole(tmp_path: Path) -> No
     note["runs"][0]["invocations"] = [
         {"toolConfigurationNotifications": [{"associatedRule": {"index": 1}}]}
     ]
-    for name, doc in (("ext.sarif", ext), ("note.sarif", note)):
+    over = _sarif(rules, [_result(ruleId="b")])
+    over["runs"][0]["invocations"] = [
+        {"ruleConfigurationOverrides": [{"descriptor": {"index": 0}, "configuration": {}}]}
+    ]
+    rel = _sarif([_rule("a"), dict(_rule("b"), relationships=[{"target": {"index": 0}}])], [])
+    cases = (("ext.sarif", ext), ("note.sarif", note), ("over.sarif", over), ("rel.sarif", rel))
+    for name, doc in cases:
         p = _write(tmp_path / name, doc)
         before = p.read_bytes()
         assert compact_sarif(p) is False, name
@@ -184,3 +190,43 @@ def test_a_report_that_cannot_be_rewritten_is_kept_as_written(
     before = p.read_bytes()
     assert compact_sarif(p) is False
     assert p.read_bytes() == before
+
+
+def test_ids_and_indexes_of_the_wrong_type_name_no_rule(tmp_path: Path) -> None:
+    """A list or object where SARIF has a string id or an integer index must not crash."""
+    rules = [_rule("a"), {"id": {"odd": 1}}, _rule("c")]
+    results = [
+        _result(ruleId=["a"]),
+        _result(rule={"id": {"x": 1}, "index": [1]}),
+        _result(ruleId="c", ruleIndex=True),
+    ]
+    p = _write(tmp_path / "lint.sarif", _sarif(rules, results))
+    assert compact_sarif(p) is True
+    assert [r["id"] for r in _run(p)["tool"]["driver"]["rules"]] == ["c"]
+
+
+def test_a_minified_report_stays_minified(tmp_path: Path) -> None:
+    rules = [_rule(f"r{i}", pad=50) for i in range(20)]
+    p = tmp_path / "sast.sarif"
+    p.write_text(json.dumps(_sarif(rules, [_result(ruleId="r4")])), encoding="utf-8")
+    size = p.stat().st_size
+    assert compact_sarif(p) is True
+    assert p.read_text(encoding="utf-8").count("\n") == 1 and p.stat().st_size < size
+
+
+def test_a_report_is_rewritten_only_when_it_gets_smaller(tmp_path: Path) -> None:
+    """Written indented, a minified report with thousands of results would grow; and the added
+    truminds_rules_dropped property can outweigh a tiny dropped rule."""
+    results = [_result(ruleId="a") for _ in range(30)]
+    p = tmp_path / "lint.sarif"
+    p.write_text(json.dumps(_sarif([_rule("a"), _rule("b", pad=200)], results)), encoding="utf-8")
+    before = p.read_bytes()
+    # Minified, with 30 results: indenting them would outweigh the dropped rule. It stays
+    # minified, so dropping the rule makes it smaller and it is written.
+    assert compact_sarif(p) is True and len(p.read_bytes()) < len(before)
+    assert len(json.dumps(json.loads(p.read_text(encoding="utf-8")), indent=2)) > len(before)
+    # An indented file whose only unused rule is tiny: the added property outweighs it.
+    q = _write(tmp_path / "tiny.sarif", _sarif([_rule("a"), {"id": "b"}], results[:1]))
+    before = q.read_bytes()
+    assert compact_sarif(q) is False
+    assert q.read_bytes() == before

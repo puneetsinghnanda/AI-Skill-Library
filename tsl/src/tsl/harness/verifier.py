@@ -482,7 +482,8 @@ def compact_sarif(path: Path) -> bool:
     tool.extensions, notifications' associatedRule) is left whole, and so is a file that is not
     SARIF JSON or cannot be rewritten: the report is then hashed as the tool wrote it."""
     try:
-        doc = json.loads(path.read_text(encoding="utf-8"))
+        text = path.read_text(encoding="utf-8")
+        doc = json.loads(text)
     except (OSError, UnicodeDecodeError, ValueError):
         return False
     runs = doc.get("runs") if isinstance(doc, dict) else None
@@ -492,8 +493,14 @@ def compact_sarif(path: Path) -> bool:
             changed = True
     if not changed:
         return False
+    # Keep the tool's layout: an indented report stays citeable by line, a minified one stays
+    # small. Written only when it is smaller than what the tool wrote.
+    indented = text.count("\n") > 1
+    out = json.dumps(doc, indent=2 if indented else None, ensure_ascii=False) + "\n"
+    if len(out.encode("utf-8")) >= len(text.encode("utf-8")):
+        return False
     try:
-        atomic_write(path, json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
+        atomic_write(path, out)
     except OSError:
         return False  # e.g. a report the container's user owns: keep it as the tool wrote it
     return True
@@ -516,18 +523,31 @@ def _compact_run(run: Any) -> bool:
     for r in results:
         ref = r.get("rule")
         refs.append(ref if isinstance(ref, dict) else {})
-    if any("toolComponent" in f for f in refs) or "associatedRule" in json.dumps(
-        run.get("invocations", [])
+    # Other places that point at rules by position (SARIF 2.1.0): a result's rule.toolComponent
+    # (into tool.extensions), notifications' associatedRule and ruleConfigurationOverrides'
+    # descriptor in invocations, and rules' relationships. Renumbering could break them.
+    invocations = json.dumps(run.get("invocations", []))
+    if (
+        any("toolComponent" in f for f in refs)
+        or '"associatedRule"' in invocations
+        or '"descriptor"' in invocations
+        or any(isinstance(rule, dict) and "relationships" in rule for rule in rules)
     ):
-        return False  # indexes that may not point into driver.rules: renumbering could break them
-    ids = {x for x in [r.get("ruleId") for r in results] + [f.get("id") for f in refs] if x}
-    idx = {r.get("ruleIndex") for r in results} | {f.get("index") for f in refs}
+        return False
+    # Only string ids and integer indexes count: anything else names no rule (and a list or an
+    # object in a set would raise).
+    named = [r.get("ruleId") for r in results] + [f.get("id") for f in refs]
+    ids = {x for x in named if isinstance(x, str) and x}
+    pos = [r.get("ruleIndex") for r in results] + [f.get("index") for f in refs]
+    idx = {x for x in pos if isinstance(x, int) and not isinstance(x, bool)}
 
     def used(i: int, rule: Any) -> bool:
         rid = rule.get("id") if isinstance(rule, dict) else None
-        if i in idx or rid in ids:
+        if i in idx:
             return True
-        return isinstance(rid, str) and any(str(x).startswith(rid + "/") for x in ids)
+        if not isinstance(rid, str):
+            return False
+        return rid in ids or any(x.startswith(rid + "/") for x in ids)
 
     keep = [i for i, rule in enumerate(rules) if used(i, rule)]
     if len(keep) == len(rules):

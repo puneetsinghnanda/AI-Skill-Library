@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 from typing import Any
 
@@ -132,6 +133,8 @@ def prepare(rt: Runtime, comp: Companion, artifact: str) -> dict[str, Any]:
                 for f in read_json(hp).get("findings", [])
             ]
     rec_err = _record_error(comp, ctx.run_id, step, int(attempt["n"]))
+    if rec_err is None:  # none, or left by an earlier attempt: never shown, so not kept
+        _clear_record_error(comp, ctx.run_id, step)
     pkg: dict[str, Any] = {
         "schema": "review-package.v1",
         "run_id": ctx.run_id,
@@ -338,7 +341,8 @@ def render_markdown(pkg: dict[str, Any], rubric_text: str, version: str) -> str:
             "",
             "tsl refused it for this reason:",
             "```DATA",
-            json.dumps(shown, indent=2, ensure_ascii=False),
+            # ` keeps a backtick in the text from closing the fence early.
+            json.dumps(shown, indent=2, ensure_ascii=False).replace("`", "\\u0060"),
             "```",
             "",
         ]
@@ -547,30 +551,48 @@ def record(
     attempt = latest(ctx.step(step))
     if attempt is None:
         raise TslError("E-RUN-09", step=step, run_id=ctx.run_id)
-    err_p = comp.path(record_error_path(ctx.run_id, step))
-    refused = refused_review_path(ctx.run_id, step)
     try:
         out = _record(rt, comp, ctx, rel, step, attempt, text, unavailable)
     except TslError as exc:
-        if exc.code in RERUN_CODES:
-            if text:
-                atomic_write(comp.path(refused), text)
-            else:
-                comp.path(refused).unlink(missing_ok=True)
-            write_json(
-                err_p,
-                {
-                    "attempt": attempt["n"],
-                    "code": exc.code,
-                    "message": exc.message,
-                    "citations": exc.data.get("citations", []),
-                    "refused_review": refused if text else None,
-                },
-            )
+        _keep_record_error(comp, ctx.run_id, step, int(attempt["n"]), exc, text)
         raise
-    err_p.unlink(missing_ok=True)
-    comp.path(refused).unlink(missing_ok=True)
+    _clear_record_error(comp, ctx.run_id, step)
     return out
+
+
+def _keep_record_error(
+    comp: Companion, run_id: str, step: str, attempt: int, exc: TslError, text: str | None
+) -> None:
+    """Keep an E-REV-02/05 refusal for the rerun; any other refusal clears the last one, so a
+    later package never shows an error that is no longer the last. Saving is best effort: a
+    failed write must not replace the refusal the run loop acts on."""
+    with contextlib.suppress(OSError):
+        if exc.code not in RERUN_CODES:
+            _clear_record_error(comp, run_id, step)
+            return
+        refused = refused_review_path(run_id, step)
+        # Only a JSON object is a review to start from; prose would only confuse the rerun.
+        keep = bool(text) and extract_json(text or "") is not None
+        if keep:
+            atomic_write(comp.path(refused), text or "")
+        else:
+            comp.path(refused).unlink(missing_ok=True)
+        write_json(
+            comp.path(record_error_path(run_id, step)),
+            {
+                "attempt": attempt,
+                "code": exc.code,
+                "message": exc.message,
+                "citations": exc.data.get("citations", []),
+                "refused_review": refused if keep else None,
+            },
+        )
+
+
+def _clear_record_error(comp: Companion, run_id: str, step: str) -> None:
+    for rel in (record_error_path(run_id, step), refused_review_path(run_id, step)):
+        with contextlib.suppress(OSError):
+            comp.path(rel).unlink(missing_ok=True)
 
 
 def _record(
