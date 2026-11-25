@@ -19,6 +19,7 @@ from tsl.core.runtime import Runtime
 from tsl.gitops.git import Git, GitError, worktree_tree
 from tsl.harness import artifact as artmod
 from tsl.harness import injection
+from tsl.harness.commands import STEP_BASH
 from tsl.harness.gates import ABORT_CODES, CheckInput, CheckRun, GateResult, run_all
 from tsl.harness.verifier import StepResult, VerifierUnavailable, export_source, log_tail
 from tsl.identity.keys import public_key
@@ -621,6 +622,9 @@ def verify_inputs(
         },
         "envelope": envelope,
         "size_budget_tokens": sk.meta.get("size_budget_tokens"),
+        # The step's tools, as its SKILL.md declares them (SKL-V09). Told up front so the step
+        # does not learn them from pre-tool refusals (E-POL-06); the hook still enforces them.
+        "allowed_tools": [*sk.allowed_tools, STEP_BASH],
         "retry": retry,
         "feedback": attempt.get("feedback")
         or (feedback_path(run_id, step, attempt["n"] - 1) if attempt["n"] > 1 else None),

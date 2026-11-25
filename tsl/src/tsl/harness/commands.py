@@ -9,6 +9,10 @@ from __future__ import annotations
 import fnmatch
 import re
 
+# The one shell command a step skill runs, on top of its skill.yaml allowed_tools. SKILL.md
+# declares it (SKL-V09) and tsl verify --inputs lists it in data.allowed_tools.
+STEP_BASH = "Bash(tsl verify *)"
+
 # Variables that may prefix a command without changing which program runs or what it may touch.
 SAFE_ENV = frozenset(
     {"PYTHONIOENCODING", "PYTHONUTF8", "NO_COLOR", "FORCE_COLOR", "LANG", "LC_ALL", "TERM"}

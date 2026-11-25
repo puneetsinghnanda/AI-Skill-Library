@@ -58,6 +58,12 @@
     "read_only": {
       "type": "boolean",
       "description": "Bash only: the pre-tool hook found the whole command read-only (H7 retries instead of aborting)."
+    },
+    "agent_type": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The subagent that made the call (hook input agent_type). Absent for the main session."
     }
   },
   "allOf": [

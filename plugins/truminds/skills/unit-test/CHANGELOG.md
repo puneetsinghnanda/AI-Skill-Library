@@ -1,5 +1,13 @@
 # Changelog: unit-test
 
+## 1.4.0
+- Roadmap 25-27 Nov, B (each step knows its tools): the step was never told its allowed
+  tools and learned them from pre-tool refusals (E-POL-06), even for a read-only `grep`.
+  tsl verify --inputs now lists them in data.allowed_tools, and the preamble says to use
+  only those.
+- MINOR: changed instruction, same tools, inputs and output schema. Needs a signed eval
+  result for this version before any status change (SKL-V13).
+
 ## 1.3.0
 - Runs are independent (HMS-5 rerun: the skill read the earlier run's artifacts and feedback
   "as a starting point" at every step). data.prior_answers now holds this run's answers only;

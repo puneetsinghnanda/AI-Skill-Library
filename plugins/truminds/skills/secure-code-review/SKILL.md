@@ -11,6 +11,9 @@ Step context from tsl (do not edit):
 
 If the JSON above has "ok": false, show its "message" and "next" to the user and stop. Write nothing.
 
+Use only the tools in data.allowed_tools. Read files with Read, Grep and Glob, never with
+shell commands; Bash runs only `tsl verify`. The pre-tool hook refuses any other call (E-POL-06).
+
 ## Job
 Review the changed code for security weaknesses, using the verifier's SAST and secrets scans plus
 your own reading of the diff. Write one file: the secure-review.v1 artifact at data.artifact_path.

@@ -11,6 +11,9 @@ Step context from tsl (do not edit):
 
 If the JSON above has "ok": false, show its "message" and "next" to the user and stop. Write nothing.
 
+Use only the tools in data.allowed_tools. Read files with Read, Grep and Glob, never with
+shell commands; Bash runs only `tsl verify`. The pre-tool hook refuses any other call (E-POL-06).
+
 ## Job
 Say which parts of the existing system the requirements touch: modules, HTTP APIs, tables and
 scheduled jobs, each marked new, changed, existing or removed. Before you write, ask the user in

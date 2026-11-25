@@ -11,6 +11,9 @@ Step context from tsl (do not edit):
 
 If the JSON above has "ok": false, show its "message" and "next" to the user and stop. Write nothing.
 
+Use only the tools in data.allowed_tools. Read files with Read, Grep and Glob, never with
+shell commands; Bash runs only `tsl verify`. The pre-tool hook refuses any other call (E-POL-06).
+
 ## Job
 Report where the runs of one system stand: how many are running, paused for input, paused for
 approval and completed, and what each paused run waits on. Write one file: the status.v1 artifact
