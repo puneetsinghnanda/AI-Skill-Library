@@ -86,10 +86,24 @@ Do this before you draft any question or assumption.
 1. Read the change summary and the changed files.
 2. Find the matching existing tests in the test layout; extend them, or add files where the strategy says.
 3. Write tests for the normal path, error paths and each acceptance criterion the change serves.
-4. After the last test edit, run `tsl verify <data.artifact_path> --inputs --json` once more and copy
+   Before you write a test, check its data can tell right from wrong: every status the AC names
+   gets its own case; an AC that picks one item by order ("most recent", "next") has at least two
+   candidates in an order where the wrong pick fails; an AC that needs a count or a size has data of
+   that count or size (21 rows for the 21st on page 2, a 300-character text); an answer the user
+   gave in this run has a test that fails if the code followed the option they did not choose.
+4. Run the Docker test: `tsl verify <data.artifact_path> --self-check --verifier --json`. Before the
+   artifact exists it runs only build, test and lint on your working tree, as tsl's verifier (H3)
+   will, and it counts as no attempt. It takes a few minutes: give the Bash call a 600000 ms
+   timeout. For each data.fix item of kind verifier, read its error lines
+   (the full log is at the path it names) and fix the test with a targeted edit when the test is
+   wrong. If the production code is wrong, change neither: keep the test, say so under Unknown, and
+   let tsl verify report it. Run the command again after your fixes. Stop when
+   data.verifier.status is pass, unavailable, skip or limit (at most data.verifier.max runs per
+   attempt).
+5. After the last test edit, run `tsl verify <data.artifact_path> --inputs --json` once more and copy
    its data.envelope, which now carries code[] measured from the run branch. Never type code[]
    yourself; H5 rejects a code[] that does not match the branch diff (E-H5-03).
-5. Write the artifact. tests and coverage come only from the verifier: include them when data holds
+6. Write the artifact. tests and coverage come only from the verifier: include them when data holds
    a verifier result; otherwise leave both keys out and say under Summary that tsl records them in
    checks.json when it runs the verifier (H3).
 
@@ -111,7 +125,10 @@ coverage: {base, after}        # only from a verifier result in data; else omit
 ---
 # Unit tests: <ticket id>
 ## Summary          (what is tested and the result)
-## Tests            (one line per test file and the behaviour it covers)
+## Tests            (per test file, one line per test: the behaviour it checks, its REQ id and
+                    each AC it covers as `S-n ACm`, never S-n alone; an existing test that
+                    really checks an AC may be listed too. Every AC of data.inputs[name=stories]
+                    is named here, or under Unknown with the reason it cannot be unit-tested.)
 ## Known            (ids and one-line reason each)
 ## Assumed          (ids, the assumption and its basis)
 ## Unknown          (U ids and the question each raises)
@@ -131,10 +148,20 @@ keep the ids of unchanged items.
 For an H3 failure, fix the failing test only if the test is wrong; if the code is wrong, say so under Unknown.
 
 ## Hand-over
-Make the product-repo edits first, then write the artifact to data.artifact_path. Then run
-`tsl verify <data.artifact_path> --self-check --json` once; it does not start the verifier. If
-data.fix lists items, fix only what each item names, with targeted edits, and leave everything else
-unchanged; do not rewrite the whole artifact or redo the step. Make every edit, then hand over
-without running the self-check again. Do not run builds, tests, the review or the decision yourself:
-tsl runs the verifier container (H3) and the run loop tells you if a retry is needed. Never commit,
-push or open a pull request; tsl pr does that.
+Make the product-repo edits and run the Docker test first (Method 4), then write the artifact to
+data.artifact_path. Then run `tsl verify <data.artifact_path> --self-check --json` once, without
+--verifier.
+- data.fix: fix only what each item names, with targeted edits, and leave everything else
+  unchanged; do not rewrite the whole artifact or redo the step. A content item names an AC that
+  no Tests line names, or a REQ of the stories missing from trace: add the test, or list it under
+  Unknown with the reason.
+- data.check: questions the reviewer asks of unit tests (a status with no test, an AC value no
+  test data holds, an order rule with one candidate, a changed file no test touches, a user's
+  answer no test guards). Answer each from your tests. If a test already covers it, change
+  nothing. Otherwise add or fix the test, or say under Unknown why it cannot be unit-tested.
+- If these edits changed a test file, run the Method 4 command once more (it does not count as an
+  attempt; stop at data.verifier.max runs), then copy code[] again from a fresh `--inputs` run.
+Make every edit, then hand over without running the self-check again. Do not run builds or tests
+any other way, and do not run the review or the decision: tsl runs the full verifier (H3, with SAST,
+secrets and coverage) and the run loop tells you if a retry is needed. Never commit, push or open
+a pull request; tsl pr does that.

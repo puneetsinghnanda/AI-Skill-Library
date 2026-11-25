@@ -172,7 +172,7 @@ SDD-04 owns the command surface (names, flags, envelope, exit codes). The "Logic
 | `tsl doctor` | SDD-04 §6.3 | SDD-04 §6.3 |
 | `tsl init` | SDD-12 §5.3 | SDD-04 §6.4 |
 | `tsl validate <path>... [--lock]` (skills, workflows, pods, policy, `tsl.yaml`, `plugins/truminds`) | SDD-01 §14.1, SDD-02 §3.5, SDD-10 §9 | SDD-04 §6.5 |
-| `tsl verify <artifact>` and `verify --inputs` (flags `--fast`, `--gates`, `--detach`, `--status`, `--ci`, `--self-check`) | SDD-03 | SDD-04 §6.6 |
+| `tsl verify <artifact>` and `verify --inputs` (flags `--fast`, `--gates`, `--detach`, `--status`, `--ci`, `--self-check`, `--verifier`) | SDD-03 | SDD-04 §6.6 |
 | `tsl state start \| resume \| show \| unlock` | SDD-02 | SDD-04 §6.7 |
 | `tsl state cancel`, `state repair`, `state repin`, `state resume --take-over` | SDD-02 §11–§12 | SDD-04 §6.21 |
 | `tsl next` | SDD-02 §6 | SDD-04 §6.8 |

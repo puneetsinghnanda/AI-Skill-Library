@@ -95,7 +95,15 @@ Do this before you draft any question or assumption.
 3. Make the smallest edits that implement the component. Keep existing public behaviour unless the
    design marks it changed.
 4. Re-read your diff: every edit maps to a component or a triage candidate; nothing else changed.
-5. After the last product edit, run `tsl verify <data.artifact_path> --inputs --json` once more. Its
+5. Run the Docker test: `tsl verify <data.artifact_path> --self-check --verifier --json`. Before the
+   artifact exists it runs only build, test and lint on your working tree, as tsl's verifier (H3)
+   will, and it counts as no attempt. It takes a few minutes: give the Bash call a 600000 ms
+   timeout. For each data.fix item of kind verifier, read its error lines
+   (the full log is at the path it names; lint lists the errors in your files first) and fix the
+   code with a targeted edit. Run the command again after your fixes. Stop when
+   data.verifier.status is pass, unavailable, skip or limit (at most data.verifier.max runs per
+   attempt). A lint error outside the files you changed is not yours to fix: say so under Unknown.
+6. After the last product edit, run `tsl verify <data.artifact_path> --inputs --json` once more. Its
    data.envelope now carries code[] (repo, base_sha, head_sha, diff_sha256, files) measured from the
    run branch. Write the artifact: copy that envelope, including code[], then summary, the files you
    changed, Known/Assumed/Unknown. Never type code[] yourself; H5 rejects a code[] that does not
@@ -139,10 +147,12 @@ For an H3 failure, read the verifier report named in the failure and fix the cod
 unless the test pins behaviour the design marks changed (rule 10).
 
 ## Hand-over
-Make the product-repo edits first, then write the artifact to data.artifact_path. Then run
-`tsl verify <data.artifact_path> --self-check --json` once; it does not start the verifier. If
-data.fix lists items, fix only what each item names, with targeted edits, and leave everything else
-unchanged; do not rewrite the whole artifact or redo the step. Make every edit, then hand over
-without running the self-check again. Do not run builds, tests, the review or the decision yourself:
-tsl runs the verifier container (H3) and the run loop tells you if a retry is needed. Never commit,
-push or open a pull request; tsl pr does that.
+Make the product-repo edits and run the Docker test first (Method 5), then write the artifact to
+data.artifact_path. Then run `tsl verify <data.artifact_path> --self-check --json` once, without
+--verifier. If data.fix lists items, fix only what each item names, with targeted edits, and leave
+everything else unchanged; do not rewrite the whole artifact or redo the step. If a fix changed
+product code, run the Method 5 command once more (stop at data.verifier.max runs), then copy code[]
+again from a fresh `--inputs` run. Make every edit, then hand over without running the self-check
+again. Do not run builds or tests any other way, and do not run the review or the decision: tsl
+runs the full verifier (H3, with SAST and secrets) and the run loop tells you if a retry is needed.
+Never commit, push or open a pull request; tsl pr does that.

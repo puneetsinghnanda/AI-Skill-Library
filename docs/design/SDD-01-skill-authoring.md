@@ -154,7 +154,7 @@ If the JSON above has "ok": false, show its "message" and "next" to the user and
 | Method | Numbered steps the model follows |
 | Output | Exact envelope and body format, with a filled skeleton |
 | If this is a retry | How to use `data.retry.failures` and `data.retry.findings` |
-| Hand-over | "Write the file to `$0`, run `tsl verify $0 --self-check --json` once and fix every item in `data.fix` with targeted edits to only the parts each item names (no full rewrite, no re-run of the step). Do not run the review or decide; the run loop does that." The self-check runs the fast checks only (no verifier); it lists failing gates, failing soft checks (S2) and claims that will not verify (S1), so hosts without hooks get the same feedback as the post-write hook |
+| Hand-over | "Write the file to `$0`, run `tsl verify $0 --self-check --json` once and fix every item in `data.fix` with targeted edits to only the parts each item names (no full rewrite, no re-run of the step). Do not run the review or decide; the run loop does that." The self-check runs the fast checks only (no verifier); it lists failing gates, failing soft checks (S2) and claims that will not verify (S1), so hosts without hooks get the same feedback as the post-write hook. For story-split and unit-test it also lists content gaps in `data.fix` and the reviewer's content questions in `data.check`, which the skill answers from its artifact and edits only where it finds a gap. A code skill (implement, unit-test, test-automation) first runs `tsl verify $0 --self-check --verifier --json` before writing the artifact: the Docker test (build, test, lint), fixed and rerun up to `data.verifier.max` times, so a build or lint slip costs no retry (SDD-03 §3.3) |
 
 ### 3.3 The input-check preamble
 

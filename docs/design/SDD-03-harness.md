@@ -120,6 +120,48 @@ The post-write hook has a 90 s hard timeout (SDD-05 §5.2). Build and test conta
 
 `tsl decide` refuses to run (E-DEC-01) while any applicable gate in `checks.json` has status `pending`.
 
+### 3.3 Self-check before hand-over (roadmap A3)
+
+The skill checks its own work before the run loop verifies it: `tsl verify <artifact>
+--self-check` (SDD-04 §6.6). It writes nothing a decision reads, uses no attempt and no retry
+budget, and never fails the command. Two parts go beyond the post-write hook's fast checks.
+
+**Content checks** (`tsl/harness/content.py`, `stories.v1` and `ut-result.v1`). In the eight
+brownfield lite runs on 0.1.7, `split` and `ut` each retried in 6 of 7 team runs, almost always on
+a reviewer finding the step could have found itself. The checks turn the artifact, its inputs
+(intent, stories, change), the run's IDE answers, the status lists named in the context and
+inputs ("Status is A, B, C or D") and, for unit-test, the test files the step changed, into:
+
+| List | Kind | Items | Run it came from |
+| --- | --- | --- | --- |
+| `data.fix` | `content` | unit-test: an AC of the stories that no Tests line names as `S-n ACm` and Unknown does not list; a REQ the stories trace that is missing from the ut trace and from Unknown | HMS-31 (S-4 AC2, AC4), HMS-28 (REQ-12), HMS-24 (REQ-1), HMS-33 (S-2 AC3, REQ-7) |
+| `data.check` | `check` | story-split, per story: a status list partly named in its ACs when a REQ it traces counts, filters or keeps behaviour unchanged. Per REQ: list items no AC names; a limit, order, unchanged, exclusion, default, count or filter rule and the AC that discriminates it; a local-date rule with no clock time in any AC. Per user answer: the AC whose result differs under the options not chosen | HMS-23, 24, 26, 28, 30, 31, 32 |
+| `data.check` | `check` | unit-test: a status the story's ACs name that no added test line names; an AC named as covered whose values (numbers, clock times) no added test line holds; an order AC (two candidates); a REQ in trace no changed test names (when tests are named after REQs); a file changed in the run no changed test mentions; no error or edge path on any Tests line; per user answer, the test that guards it | HMS-24, 26, 28, 30, 31, 33 |
+
+`fix` items are facts code proves; `check` items are questions found by text rules, so the skill
+answers each from its artifact and edits only where it finds a gap. At most 25 check items, in that
+order. Back-test on the team's attempt-1 artifacts (no test code, which those attempts did not
+keep): of the 8 `ut` review findings, the fix items reproduce 4 (HMS-24 F-1, HMS-28 F-1, HMS-31
+F-2, HMS-33 F-1) and an answer check names a fifth (HMS-26 F-1, the A-02 decision); the check items
+name the case behind 12 of the 14 `split` findings (not HMS-28 F-1, weekday coding; not HMS-31
+F-3, fields the API returns). The same artifacts also show the cost: 5 to 17 check items per
+`split` artifact, which the skill answers in one pass.
+
+**Docker test** (`--self-check --verifier`, code skills). HMS-24 impl and HMS-33 ut used verifier
+retries on build and lint slips; the retry feedback showed npm's trailer (the log's last 8 lines),
+not the TS error, and a lint failure showed an empty `lint.log`. The self-check runs prepare,
+build, test and lint of the step's verifier profile on its working tree (`SELF_CHECK_STEPS`;
+SAST, secrets and coverage stay with H3), into `runs/<run_id>/verifier/<step>/a<n>/self-check/`.
+A failing step becomes a `data.fix` item with the lines that say what broke (`error_lines`: tsc,
+vitest, jest, pytest, eslint and ruff error lines, npm's trailer dropped; lint: `sarif_errors`,
+errors only, suppressed results left out, the step's own files first). At most 3 runs per attempt
+(`self-check.json` there counts them); Docker unavailable or a failed install is reported in
+`data.verifier`, not as an item to fix. The skill runs it before it copies code[] and writes the
+artifact, so the artifact describes code that builds. It is synchronous like `tsl verify` with H3
+in the run loop, so the skill gives the Bash call a 600 s timeout. H3 still runs in full at `tsl
+verify`: the self-check result is never reused for the gate, so nothing the session writes can
+stand in for the verifier.
+
 ## 4. Hard gates H1–H7
 
 ### 4.1 Common rules

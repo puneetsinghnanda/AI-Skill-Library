@@ -320,19 +320,38 @@ class FakeVerifier:
         self.up = True
         self.fail_step: str | None = None
         self.calls = 0
+        self.steps_asked: list[tuple[str, ...] | None] = []
+        # Written to out_dir when the failing step runs: its log text, and lint.sarif.
+        self.fail_log: str | None = None
+        self.sarif: dict[str, Any] | None = None
 
     def available(self) -> bool:
         return self.up
 
     def run(
-        self, profile: dict[str, Any], worktree: Path, out_dir: Path, with_coverage: bool
+        self,
+        profile: dict[str, Any],
+        worktree: Path,
+        out_dir: Path,
+        with_coverage: bool,
+        steps: Any = None,
     ) -> VerifierResult:
         if not self.up:
             raise VerifierUnavailable("docker not running")
         self.calls += 1
+        self.steps_asked.append(tuple(steps) if steps is not None else None)
         res = VerifierResult(str(profile["id"]), "sha256:" + "0" * 64)
+        out_dir.mkdir(parents=True, exist_ok=True)
         for s in ("build", "test", "lint", "sast", "secrets"):
+            if steps is not None and s not in steps:
+                continue
             if s == self.fail_step:
+                log = None
+                if self.fail_log is not None:
+                    log = f"{s}.log"
+                    (out_dir / log).write_text(self.fail_log, encoding="utf-8")
+                if s == "lint" and self.sarif is not None:
+                    (out_dir / "lint.sarif").write_text(json.dumps(self.sarif), encoding="utf-8")
                 code = {
                     "build": "E-H3-01",
                     "test": "E-H3-02",
@@ -340,7 +359,7 @@ class FakeVerifier:
                     "sast": "E-H3-04",
                     "secrets": "E-SEC-01",
                 }[s]
-                res.steps.append(StepResult(s, "fail", 1, 10, None, code, f"{s} exit 1"))
+                res.steps.append(StepResult(s, "fail", 1, 10, None, code, f"{s} exit 1", log))
             else:
                 res.steps.append(StepResult(s, "pass", 0, 10, None))
         return res

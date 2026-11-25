@@ -1,5 +1,16 @@
 # Changelog: implement
 
+## 1.4.0
+- Roadmap A3 (Docker test in the self-check): HMS-24 impl used a verifier retry on a TS2741 build
+  error, and the retry's feedback showed only npm's trailer, not the error.
+- New Method 5 runs `tsl verify --self-check --verifier` before code[] is copied: build, test and
+  lint on the working tree, no attempt used, the error lines (lint: SARIF errors in the changed
+  files first) in data.fix; fix and run again, at most data.verifier.max runs per attempt.
+- Hand-over: a self-check fix that changes product code reruns the Docker test once and copies
+  code[] again.
+- MINOR: changed instruction, same tools, inputs and output schema. Needs a signed eval result
+  for this version before any status change (SKL-V13).
+
 ## 1.3.0
 - Runs are independent (HMS-5 rerun: the skill read the earlier run's artifacts and feedback
   "as a starting point" at every step). data.prior_answers now holds this run's answers only;
