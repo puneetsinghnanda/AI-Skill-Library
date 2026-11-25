@@ -19,6 +19,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
+from tsl.core.jsonio import atomic_write
+
 STEP_ORDER = ("build", "test", "lint", "sast", "secrets", "coverage")
 SKIP_EXIT = 78  # EX_CONFIG: a profile step exits 78 when the project has nothing to run for it
 LOG_MAX_BYTES = 200_000  # each step log keeps the last 200 kB of stdout and stderr
@@ -475,7 +477,10 @@ def compact_sarif(path: Path) -> bool:
     the 2.4 MB of sast.sarif, for 4 results, and a reviewer's cite into it failed E-REV-05 "file
     too large" (citations.MAX_BYTES). Results are kept whole; ruleIndex and rule.index are
     renumbered to the kept list, and run.properties.truminds_rules_dropped says how many went.
-    A file that is not SARIF JSON is left as it is."""
+    A rule stays when a result names it, or names a sub-rule of it ("js/xss" for
+    "js/xss/reflected"). A run that points at rules any other way (rule.toolComponent into
+    tool.extensions, notifications' associatedRule) is left whole, and so is a file that is not
+    SARIF JSON or cannot be rewritten: the report is then hashed as the tool wrote it."""
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, ValueError):
@@ -483,39 +488,61 @@ def compact_sarif(path: Path) -> bool:
     runs = doc.get("runs") if isinstance(doc, dict) else None
     changed = False
     for run in runs if isinstance(runs, list) else []:
-        driver = run.get("tool", {}).get("driver") if isinstance(run, dict) else None
-        if not isinstance(driver, dict) or not isinstance(driver.get("rules"), list):
-            continue
-        rules: list[Any] = driver["rules"]
-        results: list[dict[str, Any]] = [r for r in run.get("results") or [] if isinstance(r, dict)]
-        # A result may also name its rule by reportingDescriptorReference (rule.id, rule.index).
-        refs: list[dict[str, Any]] = []
-        for r in results:
-            ref = r.get("rule")
-            refs.append(ref if isinstance(ref, dict) else {})
-        ids = {r.get("ruleId") for r in results} | {f.get("id") for f in refs}
-        idx = {r.get("ruleIndex") for r in results} | {f.get("index") for f in refs}
-        keep = [
-            i
-            for i, rule in enumerate(rules)
-            if i in idx or (isinstance(rule, dict) and rule.get("id") in ids)
-        ]
-        if len(keep) == len(rules):
-            continue
-        new = {old: n for n, old in enumerate(keep)}
-        for r, f in zip(results, refs, strict=True):
-            if isinstance(r.get("ruleIndex"), int) and r["ruleIndex"] in new:
-                r["ruleIndex"] = new[r["ruleIndex"]]
-            if isinstance(f.get("index"), int) and f["index"] in new:
-                f["index"] = new[f["index"]]
-        driver["rules"] = [rules[i] for i in keep]
-        props = run.setdefault("properties", {})
-        if isinstance(props, dict):
-            props["truminds_rules_dropped"] = len(rules) - len(keep)
-        changed = True
-    if changed:
-        path.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return changed
+        if _compact_run(run):
+            changed = True
+    if not changed:
+        return False
+    try:
+        atomic_write(path, json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
+    except OSError:
+        return False  # e.g. a report the container's user owns: keep it as the tool wrote it
+    return True
+
+
+def _compact_run(run: Any) -> bool:
+    if not isinstance(run, dict):
+        return False
+    tool = run.get("tool")
+    driver = tool.get("driver") if isinstance(tool, dict) else None
+    if not isinstance(driver, dict) or not isinstance(driver.get("rules"), list):
+        return False
+    rules: list[Any] = driver["rules"]
+    raw = run.get("results")
+    if raw is not None and not isinstance(raw, list):
+        return False
+    results: list[dict[str, Any]] = [r for r in raw or [] if isinstance(r, dict)]
+    # A result may also name its rule by reportingDescriptorReference (rule.id, rule.index).
+    refs: list[dict[str, Any]] = []
+    for r in results:
+        ref = r.get("rule")
+        refs.append(ref if isinstance(ref, dict) else {})
+    if any("toolComponent" in f for f in refs) or "associatedRule" in json.dumps(
+        run.get("invocations", [])
+    ):
+        return False  # indexes that may not point into driver.rules: renumbering could break them
+    ids = {x for x in [r.get("ruleId") for r in results] + [f.get("id") for f in refs] if x}
+    idx = {r.get("ruleIndex") for r in results} | {f.get("index") for f in refs}
+
+    def used(i: int, rule: Any) -> bool:
+        rid = rule.get("id") if isinstance(rule, dict) else None
+        if i in idx or rid in ids:
+            return True
+        return isinstance(rid, str) and any(str(x).startswith(rid + "/") for x in ids)
+
+    keep = [i for i, rule in enumerate(rules) if used(i, rule)]
+    if len(keep) == len(rules):
+        return False
+    new = {old: n for n, old in enumerate(keep)}
+    for r, f in zip(results, refs, strict=True):
+        if isinstance(r.get("ruleIndex"), int) and r["ruleIndex"] in new:
+            r["ruleIndex"] = new[r["ruleIndex"]]
+        if isinstance(f.get("index"), int) and f["index"] in new:
+            f["index"] = new[f["index"]]
+    driver["rules"] = [rules[i] for i in keep]
+    props = run.setdefault("properties", {})
+    if isinstance(props, dict):
+        props["truminds_rules_dropped"] = len(rules) - len(keep)
+    return True
 
 
 def _attempt_of(out_dir: Path) -> str | None:

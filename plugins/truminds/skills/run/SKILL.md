@@ -34,13 +34,15 @@ Loop:
    Only if the reviewer answered with the JSON itself (its write was refused), first save
    that JSON, unchanged, with the Write tool to that path.
    (A file, not stdin: long JSON on a shell command line breaks some shell wrappers.)
-   On E-REV-02 or E-REV-05, run the `review` skill again on "data.artifact_path" only, and
-   record again. tsl puts the error (and for E-REV-05 each failing citation and why) in the
-   new reviewer's package. Never pass the error as skill arguments (its quotes and braces make
+   On E-REV-02 or E-REV-05, run the `review` skill again with only the same <artifact_path>
+   you recorded (the error output has no path of its own), and record again. tsl puts the
+   error (and for E-REV-05 each failing citation and why) and the refused review in the new
+   reviewer's package. Never pass the error as skill arguments (its quotes and braces make
    the skill's shell command fail) and never message the reviewer.
    On E-REV-02 the JSON did not match review.v1: stay within the review budget (retry.review,
    2 by default). If it still fails, run
-   `tsl review record <artifact_path> --unavailable "<the error message>" --json`.
+   `tsl review record <artifact_path> --unavailable "reviewer output still invalid (E-REV-02)" --json`,
+   with exactly that reason: never put the error message itself on the command line.
    On E-REV-05 some citations do not verify: tsl counts these rounds itself (retry.record) and
    records the review once they are used, so keep going until it is recorded; never use
    --unavailable for E-REV-05.

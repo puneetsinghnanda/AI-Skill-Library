@@ -8,7 +8,7 @@ from typing import Any
 from tsl.core.clock import iso
 from tsl.core.errors import TslError, warning
 from tsl.core.hashing import sha256_file, sha256_raw
-from tsl.core.jsonio import read_json, write_json
+from tsl.core.jsonio import atomic_write, read_json, write_json
 from tsl.core.paths import ARTIFACT_RE, history_dir, sibling
 from tsl.core.repo import Companion
 from tsl.core.runtime import Runtime
@@ -205,7 +205,15 @@ def record_error_path(run_id: str, step: str) -> str:
     return f"runs/{run_id}/review-input/{step}.record-error.json"
 
 
+def refused_review_path(run_id: str, step: str) -> str:
+    """A copy of the refused review: the rerun reviewer starts from it and changes only what the
+    error names. prepare removes the review file itself, and the rerun is a fresh fork."""
+    return f"runs/{run_id}/review-input/{step}.refused-review.json"
+
+
 def _record_error(comp: Companion, run_id: str, step: str, attempt: int) -> dict[str, Any] | None:
+    """The refusal for this attempt, or None. A file from another attempt, or one tsl did not
+    write in this form, is ignored: it must never stop prepare."""
     p = comp.path(record_error_path(run_id, step))
     if not p.is_file():
         return None
@@ -213,14 +221,20 @@ def _record_error(comp: Companion, run_id: str, step: str, attempt: int) -> dict
         e = read_json(p)
     except (OSError, ValueError):
         return None
-    if not isinstance(e, dict) or e.get("attempt") != attempt:
-        return None  # an earlier attempt's error: that review is gone
-    out: dict[str, Any] = {"code": str(e.get("code")), "message": str(e.get("message", ""))[:300]}
-    cites = [c for c in e.get("citations") or [] if isinstance(c, dict)][:MAX_ERROR_CITES]
+    if not isinstance(e, dict) or e.get("attempt") != attempt or e.get("code") not in RERUN_CODES:
+        return None
+    out: dict[str, Any] = {"code": e["code"], "message": str(e.get("message", ""))[:300]}
+    raw = e.get("citations")
+    cites = (
+        [c for c in raw if isinstance(c, dict)][:MAX_ERROR_CITES] if isinstance(raw, list) else []
+    )
     if cites:
         out["citations"] = [
             {k: str(c.get(k, ""))[:300] for k in ("item", "ref", "reason")} for c in cites
         ]
+    refused = refused_review_path(run_id, step)
+    if e.get("refused_review") == refused and comp.path(refused).is_file():
+        out["refused_review"] = refused
     return out
 
 
@@ -315,21 +329,33 @@ def render_markdown(pkg: dict[str, Any], rubric_text: str, version: str) -> str:
         ]
     err = pkg.get("record_error")
     if err:
+        # The message and the refs come from tsl and from the refused review, which the artifact
+        # may have steered: they go in a DATA block like all other evidence.
+        shown = {k: err[k] for k in ("code", "message", "citations") if k in err}
         lines += [
             "",
-            f"## Your last review of this attempt was not recorded ({err['code']})",
+            "## Your last review of this attempt was not recorded",
             "",
-            err["message"],
+            "tsl refused it for this reason:",
+            "```DATA",
+            json.dumps(shown, indent=2, ensure_ascii=False),
+            "```",
+            "",
         ]
-        if err.get("citations"):
-            lines += [
-                "",
-                "Fix each citation below: cite a line that holds the quote, in a file that can be "
-                "cited (for a file too large, cite the code line or another source instead), or "
-                "drop the finding. Keep the rest of the review and write the whole review again.",
-            ] + [f"- {c['item']}: {c['ref']} ({c['reason']})" for c in err["citations"]]
+        if err.get("refused_review"):
+            lines.append(
+                f"Read that review at {err['refused_review']} and start from it: change only what "
+                "the reason names, keep every other score, finding and claim as it is, and copy "
+                "package_sha256 and the other ids from this package."
+            )
         else:
-            lines += ["", "Fix that, keep the rest of the review and write the whole review again."]
+            lines.append("Write the whole review again without that error.")
+        if err.get("citations"):
+            lines.append(
+                "For each citation listed: cite a line that holds the quote, in a file that can be "
+                "cited (for a file too large, cite the code line or another source instead), or "
+                "drop that finding."
+            )
     return "\n".join(lines)
 
 
@@ -522,11 +548,15 @@ def record(
     if attempt is None:
         raise TslError("E-RUN-09", step=step, run_id=ctx.run_id)
     err_p = comp.path(record_error_path(ctx.run_id, step))
+    refused = refused_review_path(ctx.run_id, step)
     try:
         out = _record(rt, comp, ctx, rel, step, attempt, text, unavailable)
     except TslError as exc:
         if exc.code in RERUN_CODES:
-            err_p.parent.mkdir(parents=True, exist_ok=True)
+            if text:
+                atomic_write(comp.path(refused), text)
+            else:
+                comp.path(refused).unlink(missing_ok=True)
             write_json(
                 err_p,
                 {
@@ -534,10 +564,12 @@ def record(
                     "code": exc.code,
                     "message": exc.message,
                     "citations": exc.data.get("citations", []),
+                    "refused_review": refused if text else None,
                 },
             )
         raise
     err_p.unlink(missing_ok=True)
+    comp.path(refused).unlink(missing_ok=True)
     return out
 
 

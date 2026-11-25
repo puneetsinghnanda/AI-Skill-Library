@@ -87,7 +87,17 @@ def test_a_report_whose_rules_are_all_used_is_not_rewritten(tmp_path: Path) -> N
     assert p.read_bytes() == before
 
 
-@pytest.mark.parametrize("text", ["", "not json", "[1, 2]", '{"runs": "x"}'])
+@pytest.mark.parametrize(
+    "text",
+    [
+        "",
+        "not json",
+        "[1, 2]",
+        '{"runs": "x"}',
+        '{"runs": [{"tool": null}]}',
+        '{"runs": [{"tool": {"driver": {"rules": [{"id": "a"}]}}, "results": 5}]}',
+    ],
+)
 def test_a_file_that_is_not_sarif_is_left_alone(tmp_path: Path, text: str) -> None:
     p = tmp_path / "sast.sarif"
     p.write_text(text, encoding="utf-8")
@@ -135,3 +145,42 @@ def test_verifier_hashes_the_compacted_report(
     (sast,) = res.steps
     assert [r["id"] for r in _run(out / "sast.sarif")["tool"]["driver"]["rules"]] == ["r3"]
     assert sast.report_sha256 == sha256_file(out / "sast.sarif")
+
+
+def test_a_sub_rule_result_keeps_its_parent_rule(tmp_path: Path) -> None:
+    """SARIF hierarchical ids: a result for js/xss/reflected keeps the rule js/xss."""
+    rules = [_rule("js/xss"), _rule("js/xs"), _rule("py/sql")]
+    p = _write(tmp_path / "sast.sarif", _sarif(rules, [_result(ruleId="js/xss/reflected")]))
+    assert compact_sarif(p) is True
+    assert [r["id"] for r in _run(p)["tool"]["driver"]["rules"]] == ["js/xss"]
+
+
+def test_a_run_pointing_at_rules_another_way_is_left_whole(tmp_path: Path) -> None:
+    """rule.toolComponent (indexes into tool.extensions) or a notification's associatedRule:
+    renumbering could break them, so nothing is dropped."""
+    rules = [_rule("a"), _rule("b")]
+    ext = _sarif(rules, [_result(rule={"id": "x", "index": 0, "toolComponent": {"index": 0}})])
+    note = _sarif(rules, [_result(ruleId="b", ruleIndex=1)])
+    note["runs"][0]["invocations"] = [
+        {"toolConfigurationNotifications": [{"associatedRule": {"index": 1}}]}
+    ]
+    for name, doc in (("ext.sarif", ext), ("note.sarif", note)):
+        p = _write(tmp_path / name, doc)
+        before = p.read_bytes()
+        assert compact_sarif(p) is False, name
+        assert p.read_bytes() == before, name
+
+
+def test_a_report_that_cannot_be_rewritten_is_kept_as_written(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A container-owned report on Linux CI: the rewrite fails, the verifier goes on."""
+
+    def refuse(path: Path, text: str) -> None:
+        raise PermissionError(13, "Permission denied", str(path))
+
+    monkeypatch.setattr("tsl.harness.verifier.atomic_write", refuse)
+    p = _write(tmp_path / "sast.sarif", _sarif([_rule("a"), _rule("b")], [_result(ruleId="a")]))
+    before = p.read_bytes()
+    assert compact_sarif(p) is False
+    assert p.read_bytes() == before

@@ -176,6 +176,10 @@
       "properties": {
         "code": {"enum": ["E-REV-02", "E-REV-05"]},
         "message": {"type": "string", "maxLength": 300},
+        "refused_review": {
+          "description": "A copy of the refused review: the rerun reviewer starts from it.",
+          "$ref": "#/$defs/rel_path"
+        },
         "citations": {
           "type": "array",
           "maxItems": 20,
