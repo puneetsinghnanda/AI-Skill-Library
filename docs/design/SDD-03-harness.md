@@ -123,44 +123,55 @@ The post-write hook has a 90 s hard timeout (SDD-05 §5.2). Build and test conta
 ### 3.3 Self-check before hand-over (roadmap A3)
 
 The skill checks its own work before the run loop verifies it: `tsl verify <artifact>
---self-check` (SDD-04 §6.6). It writes nothing a decision reads, uses no attempt and no retry
-budget, and never fails the command. Two parts go beyond the post-write hook's fast checks.
+--self-check` (SDD-04 §6.6, PR #38). It writes nothing a decision reads, uses no attempt and no
+retry budget, and never fails the command: every problem, including an internal error, is an item
+in `data.fix`. In the eight brownfield lite runs on 0.1.7, `split` and `ut` each retried in 6 of 7
+team runs, almost always on a reviewer finding the step could have found itself, and HMS-24 impl
+and HMS-33 ut lost verifier retries to a type error and a lint slip in code they had just written.
+A3 adds two things.
 
-**Content checks** (`tsl/harness/content.py`, `stories.v1` and `ut-result.v1`). In the eight
-brownfield lite runs on 0.1.7, `split` and `ut` each retried in 6 of 7 team runs, almost always on
-a reviewer finding the step could have found itself. The checks turn the artifact, its inputs
-(intent, stories, change), the run's IDE answers, the status lists named in the context and
-inputs ("Status is A, B, C or D") and, for unit-test, the test files the step changed, into:
+**Content checks** are ordinary skill checks in the skill's `checks.yaml` (§5.4), tied to a rubric
+criterion and built from shared kinds (§5.2: `named-in`, `values-named`, `values-in-code`, and
+`coverage` with `or_named_in`). Their failures come back in `data.fix` like every other check, and
+the post-write hook reports them too. Exact checks are hard gates (H5): an AC of the stories that
+no `unit-test` Tests line names, a REQ of the stories missing from the ut trace. Checks that match
+text are soft (they lower S2 and never cost a retry), since they can be wrong: a data-model status
+missing from the ACs of stories about statuses, an AC value missing from the step's added test
+lines. Questions that need judgement (two candidates for an order rule, the options a user did not
+choose, defaults, exclusions) stay with the reviewer: `story-split` Rule 10 and SS-R3.
 
-| List | Kind | Items | Run it came from |
+Back-test on the team's attempt-1 artifacts (HMS-23 to 33). `unit-test`: the two hard gates
+reproduce 4 of the 8 review findings (HMS-24 F-1, HMS-28 F-1, HMS-31 F-2, HMS-33 F-1) and find two
+REQs the reviewer missed (HMS-26 REQ-17, HMS-28 REQ-13). `story-split`: the status check fails on
+HMS-23 (the reviewer's F-1, gone at attempt 2) and HMS-31 (S-2 has no Scheduled AC; arguable),
+and passes the other six; a doctor's "status filter" (HMS-28) is not an appointment status.
+
+A failing soft check is not free: S2 is the share of soft checks that pass, and band High needs
+S2 = 1.00 and Medium 0.90 (§10.2). With three or four soft checks on a `split` or `ut` artifact,
+one failure gives band Low, which ESCALATEs (§11.1 row 8). The skill sees the item in its
+self-check and fixes it first; one it judges wrong is left for the approver, with the reason
+under Unknown.
+
+**Local checks** (`--self-check --local`, code skills, `tsl/harness/local.py`): a type check and
+lint of the files the step changed, on the engineer's machine, as a developer does before pushing.
+The verifier (H3, Docker) stays the independent check, like CI; tests stay with `unit-test` and the
+verifier. Per product repo, by the family of its verifier profile:
+
+| Family | Packages (only when needed) | Type check | Lint |
 | --- | --- | --- | --- |
-| `data.fix` | `content` | unit-test: an AC of the stories that no Tests line names as `S-n ACm` and Unknown does not list; a REQ the stories trace that is missing from the ut trace and from Unknown | HMS-31 (S-4 AC2, AC4), HMS-28 (REQ-12), HMS-24 (REQ-1), HMS-33 (S-2 AC3, REQ-7) |
-| `data.check` | `check` | story-split, per story: a status list partly named in its ACs when a REQ it traces counts, filters or keeps behaviour unchanged. Per REQ: list items no AC names; a limit, order, unchanged, exclusion, default, count or filter rule and the AC that discriminates it; a local-date rule with no clock time in any AC. Per user answer: the AC whose result differs under the options not chosen | HMS-23, 24, 26, 28, 30, 31, 32 |
-| `data.check` | `check` | unit-test: a status the story's ACs name that no added test line names; an AC named as covered whose values (numbers, clock times) no added test line holds; an order AC (two candidates); a REQ in trace no changed test names (when tests are named after REQs); a file changed in the run no changed test mentions; no error or edge path on any Tests line; per user answer, the test that guards it | HMS-24, 26, 28, 30, 31, 33 |
+| node | `npm ci --ignore-scripts` when node_modules is missing or its packages differ from package-lock.json | `tsc --noEmit -p` the nearest tsconfig.json of each changed TypeScript file | `eslint -f json` on the changed files |
+| python | `uv sync --frozen` when .venv is missing or uv.lock changed since tsl last synced | `py_compile` each changed .py file | `ruff check --output-format sarif` on the changed files |
 
-`fix` items are facts code proves; `check` items are questions found by text rules, so the skill
-answers each from its artifact and edits only where it finds a gap. At most 25 check items, in that
-order. Back-test on the team's attempt-1 artifacts (no test code, which those attempts did not
-keep): of the 8 `ut` review findings, the fix items reproduce 4 (HMS-24 F-1, HMS-28 F-1, HMS-31
-F-2, HMS-33 F-1) and an answer check names a fifth (HMS-26 F-1, the A-02 decision); the check items
-name the case behind 12 of the 14 `split` findings (not HMS-28 F-1, weekday coding; not HMS-31
-F-3, fields the API returns). The same artifacts also show the cost: 5 to 17 check items per
-`split` artifact, which the skill answers in one pass.
-
-**Docker test** (`--self-check --verifier`, code skills). HMS-24 impl and HMS-33 ut used verifier
-retries on build and lint slips; the retry feedback showed npm's trailer (the log's last 8 lines),
-not the TS error, and a lint failure showed an empty `lint.log`. The self-check runs prepare,
-build, test and lint of the step's verifier profile on its working tree (`SELF_CHECK_STEPS`;
-SAST, secrets and coverage stay with H3), into `runs/<run_id>/verifier/<step>/a<n>/self-check/`.
-A failing step becomes a `data.fix` item with the lines that say what broke (`error_lines`: tsc,
-vitest, jest, pytest, eslint and ruff error lines, npm's trailer dropped; lint: `sarif_errors`,
-errors only, suppressed results left out, the step's own files first). At most 3 runs per attempt
-(`self-check.json` there counts them); Docker unavailable or a failed install is reported in
-`data.verifier`, not as an item to fix. The skill runs it before it copies code[] and writes the
-artifact, so the artifact describes code that builds. It is synchronous like `tsl verify` with H3
-in the run loop, so the skill gives the Bash call a 600 s timeout. H3 still runs in full at `tsl
-verify`: the self-check result is never reused for the gate, so nothing the session writes can
-stand in for the verifier.
+Each failing check is a `data.fix` item of kind `local` with its errors, those in the step's own
+files first (`error_lines`, `sarif_errors`, the ESLint JSON report). Tools run from the repo's own
+install through `node` and `uv`, never through a project script. They do not run, and
+`data.local` says why, when what runs could be the model's code: the step changed a file that
+decides which packages install or how the linter loads (package.json, a lock file, `.npmrc`, an
+ESLint config, pyproject.toml, uv.lock ...), or the run's tool log shows a write into node_modules
+or .venv. The verifier still checks those changes in Docker. A missing tool, a failed install or a
+linter crash is reported in `data.local`, not as an item to fix. On the sample app: a planted
+TS2322 and an unused variable reported exactly, 9 s with the install and 3 s without, against 65 s
+for the same build, test and lint in Docker.
 
 ## 4. Hard gates H1–H7
 
@@ -347,7 +358,10 @@ A skill cannot ship its own Python. It declares checks by **kind**, and each kin
 | --- | --- | --- |
 | `lookup` | `select` (JSONPath into the artifact), `in` (file + JSONPath into a generated index), `key` | Every selected value exists in the index |
 | `no-clash` | `select`, `against`, `unless` (field and value that marks an intended change) | No selected value already exists in `against`, unless marked |
-| `coverage` | `each` (JSONPath), `covered_by` (JSONPath), `link` (field), `min`, optional `each_input`/`covered_by_input` (a step input; `each_input` may list several, of which the first the step has is used), `each_key`/`covered_by_key` (keyed pairs), `defer_on_blocking`, `nonempty` | Every item in `each` is referenced by at least `min` items; with `nonempty`, `each` selecting nothing fails |
+| `coverage` | `each` (JSONPath), `covered_by` (JSONPath), `link` (field), `min`, optional `each_input`/`covered_by_input` (a step input; `each_input` may list several, of which the first the step has is used), `each_key`/`covered_by_key` (keyed pairs), `defer_on_blocking`, `nonempty`, `optional_input`, `or_named_in` (body sections) | Every item in `each` is referenced by at least `min` items, or (with `or_named_in`) named as a word in one of those sections; with `nonempty`, `each` selecting nothing fails; with `optional_input`, a step without the input skips |
+| `named-in` | `each`, `each_key`, `sections` (level-2 body sections), optional `each_input`, `optional_input` | Every item is named in one of the sections. A keyed item `S-1/AC2` is named when AC2 follows S-1 in the same bullet: `S-1 AC2`, `S-1/AC2`, `S-1 AC1-AC3`, `S-1 AC1 to AC3`, `S-1: ... (AC2)` |
+| `values-named` | `values` (`file` + the word `after` which a value list follows), `each`, `text` (JSONPath inside each object), optional `when` (`input`, `each`, `link`, `text`) | Every value of each list ("Status is A, B, C or D", three or more) appears in the `text` of at least one `each` object; with `when`, only objects linked to an input item about the list count: its text names a value, or the word with the list's owner (the heading the list sits under: "appointment status"). No file or no list: skip |
+| `values-in-code` | `each`, `items` (JSONPath inside each object: items with `id` and `text`), `named_in` (sections), `files` (regex over repo paths), optional `each_input`, `optional_input` | Each item named in `named_in` has at least one of its values (clock times, numbers of two digits or more) in the lines the step added to files matching `files`. No product change to read (eval, CI): skip |
 | `count-match` | `select`, `count_files` (glob), `where` (`field == 'value'` or `!=`) | Count in artifact equals count computed from files |
 | `enum-file` | `select`, `file` (allowlist shipped in `tsl`), optional `value` and `tag` | Every value is in the allowlist; with `tag`, each selected object's tag field equals the last word on its value's line |
 | `regex` | `select`, `must` or `must_not` | Pattern rule holds for every value |
@@ -401,11 +415,15 @@ harness:
 | requirement-review | `intent.v1` | `req.glossary-terms`: terms in bold exist in `context/glossary.md` | lookup | soft |
 | story-split | `stories.v1` | `stories.trace-req`: each story traces to a REQ | coverage | H5 |
 | story-split | `stories.v1` | `stories.ac-format`: each AC matches Given/When/Then | regex | H2 |
+| story-split | `stories.v1` | `story-split.status-values`: every status the data model lists appears in an AC of a story whose REQ is about statuses (SS-R3) | values-named | soft |
 | impact-analysis | `impact.v1` | `impact.modules-exist`, `impact.apis-exist`, `impact.tables-exist` | lookup | H5 |
 | design | `design.v1` | `design.modules-exist`, `design.endpoints-no-clash`, `design.claims-cited` | lookup, no-clash, cites-required | H5, H5, soft |
 | implement | code + `change.v1` | `impl.verifier` | container | H3 |
 | implement | code + `change.v1` | `impl.risk` | diff-limit | S6 |
 | unit-test | tests + `ut-result.v1` | `ut.tests-run`, `ut.coverage-not-lower` | container | H3 |
+| unit-test | `ut-result.v1` | `unit-test.acs-named`: every AC of the stories is named on a Tests line, or under Unknown (UT-R1) | named-in | H5 |
+| unit-test | `ut-result.v1` | `unit-test.reqs-traced`: every REQ the stories trace is in trace, or under Unknown (UT-R1) | coverage | H5 |
+| unit-test | tests + `ut-result.v1` | `unit-test.ac-values-in-tests`: an AC named as covered has a value of it in the lines the step added to its tests (UT-R2) | values-in-code | soft |
 | defect-triage | `triage.v1` | `triage.components-exist` | lookup | H5 |
 | test-plan | `test-plan.v1` | `tplan.every-ac-tested`: each AC has ≥ 1 test; a stories input with no AC at all fails (waits while a blocking question is open) | coverage | H2 |
 | test-automation | test code + `test-result.v1` | `tauto.tests-run`; `tauto.results-linked`: every non-manual planned test has a result that ran, with the plan's covers (waits while a blocking question is open); `tauto.results-planned`: no result id or criterion outside the plan | container, coverage | H3, H2 |

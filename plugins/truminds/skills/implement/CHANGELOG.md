@@ -1,12 +1,13 @@
 # Changelog: implement
 
 ## 1.4.0
-- Roadmap A3 (Docker test in the self-check): HMS-24 impl used a verifier retry on a TS2741 build
-  error, and the retry's feedback showed only npm's trailer, not the error.
-- New Method 5 runs `tsl verify --self-check --verifier` before code[] is copied: build, test and
-  lint on the working tree, no attempt used, the error lines (lint: SARIF errors in the changed
-  files first) in data.fix; fix and run again, at most data.verifier.max runs per attempt.
-- Hand-over: a self-check fix that changes product code reruns the Docker test once and copies
+- Roadmap A3 (local checks): HMS-24 impl used a verifier retry on a TS2741 type error in code it
+  had just written.
+- New Method 5 runs `tsl verify --self-check --local` before code[] is copied: a type check and
+  lint of the files it changed, on this machine, as a developer does before pushing (no attempt
+  used; packages install only when they do not match the lock file). The verifier (H3) stays the
+  independent check.
+- Hand-over: a self-check fix that changes product code reruns the local checks once and copies
   code[] again.
 - MINOR: changed instruction, same tools, inputs and output schema. Needs a signed eval result
   for this version before any status change (SKL-V13).

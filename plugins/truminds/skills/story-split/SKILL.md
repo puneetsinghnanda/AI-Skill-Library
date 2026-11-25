@@ -135,15 +135,11 @@ keep the ids of unchanged items.
 
 ## Hand-over
 Write the file to data.artifact_path. Then run `tsl verify <data.artifact_path> --self-check --json`
-once.
-- data.fix (failing checks, soft checks that lower S2, claims that will not verify and lower S1):
-  edit only the part of the file each item names and leave the rest unchanged; do not rewrite the
-  whole file or redo the step.
-- data.check: the questions the reviewer asks of stories, one per REQ, story or user answer: a
-  status with no AC, a limit with no AC exactly on it, an order rule with one candidate, a default
-  value, a filter or list item no AC names, an answer whose rejected option every AC still passes.
-  Answer each from your ACs. If an AC already covers it, or another story does ("covered by S-n
-  ACm" in the body block), change nothing. Otherwise add or tighten the AC in that story, keeping
-  Rule 7 for its values and Rule 8 (split a story that needs more than five ACs).
-Make every edit, then hand over without running the self-check again. Do not run the review or the
-decision: the run loop does that and tells you if a retry is needed.
+once. If data.fix lists items (failing checks, soft checks that lower S2, claims that will not
+verify and lower S1), edit only the part of the file each item names and leave the rest unchanged;
+do not rewrite the whole file or redo the step. The soft item story-split.status-values names a
+status of the data model that no AC of the stories about those statuses sets up: add an AC with
+that status to the story whose REQ it touches (Rule 10, each partition). It matches text and can
+be wrong: if the status cannot occur there, leave it and say why under Unknown.
+Make every edit, then hand over without running the self-check again. Do not run the review or
+the decision: the run loop does that and tells you if a retry is needed.

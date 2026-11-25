@@ -17,3 +17,34 @@ checks:
   must: (^|/)(test|tests|__tests__)/|\.(test|spec)\.[a-z]+$
 - id: unit-test.risk
   kind: diff-limit
+# UT-R1 (covers changed behaviour): every AC of the stories is named on a Tests line as S-n ACm,
+# or under Unknown with the reason it cannot be unit-tested (HMS-31 S-4 AC2/AC4, HMS-33 S-2 AC3).
+- id: unit-test.acs-named
+  kind: named-in
+  gate: H5
+  each_input: stories
+  optional_input: true
+  each: $.stories[*]
+  each_key: {prefix: id, select: "$.acceptance_criteria[*].id"}
+  sections: [Tests, Unknown]
+# UT-R1: every REQ the stories trace is in this trace, or under Unknown (HMS-24 REQ-1, HMS-28 REQ-12).
+- id: unit-test.reqs-traced
+  kind: coverage
+  gate: H5
+  each_input: stories
+  optional_input: true
+  each: $.stories[*].trace[*]
+  covered_by: $.trace[*]
+  or_named_in: [Unknown]
+# UT-R2 (meaningful assertions): an AC named as covered has at least one of its values (a count,
+# size or time such as 21, 300, 09:30) in the lines the step added to its tests (HMS-30: page 2
+# needs 21 rows, the fixture had 5). Soft: it matches text, so it lowers S2 and costs no retry.
+- id: unit-test.ac-values-in-tests
+  kind: values-in-code
+  gate: soft
+  each_input: stories
+  optional_input: true
+  each: $.stories[*]
+  items: $.acceptance_criteria[*]
+  named_in: [Tests]
+  files: '(^|/)(test|tests|__tests__)/|\.(test|spec)\.[a-z]+$'

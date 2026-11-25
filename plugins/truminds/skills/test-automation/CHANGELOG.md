@@ -1,10 +1,9 @@
 # Changelog: test-automation
 
 ## 1.3.0
-- Roadmap A3 (Docker test in the self-check), as implement 1.4.0 and unit-test 1.4.0: new Method 3
-  runs `tsl verify --self-check --verifier` (build, test, lint; no attempt used) and fixes what it
-  lists before the artifact is written; at most data.verifier.max runs per attempt. A failing
-  test whose code under test is wrong is kept and explained, never changed to pass.
+- Roadmap A3 (local checks), as implement 1.4.0 and unit-test 1.4.0: new Method 3 runs
+  `tsl verify --self-check --local` (type check and lint of the changed files on this machine; no
+  attempt used) and fixes what it lists before the artifact is written.
 - MINOR: changed instruction, same tools, inputs and output schema. Needs a signed eval result
   for this version before any status change (SKL-V13).
 

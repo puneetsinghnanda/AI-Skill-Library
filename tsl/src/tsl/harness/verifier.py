@@ -19,10 +19,6 @@ from pathlib import Path
 from typing import Any, Protocol
 
 STEP_ORDER = ("build", "test", "lint", "sast", "secrets", "coverage")
-# What `tsl verify --self-check --verifier` runs: the steps a skill can still fix inside its
-# attempt (HMS-24 impl, HMS-33 ut lost retries to build and lint slips). SAST, secrets and
-# coverage stay with the full run at tsl verify.
-SELF_CHECK_STEPS = ("build", "test", "lint")
 SKIP_EXIT = 78  # EX_CONFIG: a profile step exits 78 when the project has nothing to run for it
 LOG_MAX_BYTES = 200_000  # each step log keeps the last 200 kB of stdout and stderr
 NO_LOG_STEPS = frozenset({"secrets"})  # its output can hold the secret it found
@@ -73,12 +69,7 @@ class VerifierResult:
 class VerifierRunner(Protocol):
     def available(self) -> bool: ...
     def run(
-        self,
-        profile: dict[str, Any],
-        worktree: Path,
-        out_dir: Path,
-        with_coverage: bool,
-        steps: Collection[str] | None = None,
+        self, profile: dict[str, Any], worktree: Path, out_dir: Path, with_coverage: bool
     ) -> VerifierResult: ...
 
 
@@ -386,33 +377,25 @@ class DockerVerifier:
         return self.probe() is None
 
     def run(
-        self,
-        profile: dict[str, Any],
-        worktree: Path,
-        out_dir: Path,
-        with_coverage: bool,
-        steps: Collection[str] | None = None,
+        self, profile: dict[str, Any], worktree: Path, out_dir: Path, with_coverage: bool
     ) -> VerifierResult:
-        """Run prepare, then each profile step in STEP_ORDER; `steps` keeps only those named."""
         if not self.available():
             raise VerifierUnavailable(self.probe() or "docker not running")
         from tsl.core.hashing import sha256_file
 
         digest = image_digest(profile)
         res = VerifierResult(str(profile["id"]), digest)
-        spec_of: dict[str, Any] = profile["steps"]
+        steps: dict[str, Any] = profile["steps"]
         out_dir.mkdir(parents=True, exist_ok=True)
         warn = low_memory_warning(available_memory_mb())
         if warn:
             self.warnings.append(warn)
             print(f"warning: {warn}", file=sys.stderr)
-        names = ["prepare", *[s for s in STEP_ORDER if s in spec_of]]
+        names = ["prepare", *[s for s in STEP_ORDER if s in steps]]
         for name in names:
             if name == "coverage" and not with_coverage:
                 continue
-            if name != "prepare" and steps is not None and name not in steps:
-                continue
-            spec = spec_of[name]
+            spec = steps[name]
             cmd = docker_command(profile, name, worktree, out_dir)
             t0 = time.monotonic()
             try:
@@ -530,19 +513,24 @@ _NOISE = re.compile(r"^\s*npm (?:error|ERR!|warn|notice)\b", re.I)
 
 
 def error_lines(path: Path, max_chars: int = 1500, max_lines: int = 15) -> str:
-    """The lines of a step log that say what failed, newest-first order kept, one per line.
-
-    Falls back to the log tail when no line looks like an error. Never raises."""
+    """The lines of a step log that say what failed, in the order the log has them, one per
+    line. Falls back to the log tail when no line looks like an error. Never raises."""
     try:
         text = path.read_bytes().decode("utf-8", "replace")
     except OSError:
         return ""
+    return error_lines_of(text, max_chars, max_lines) or log_tail(path, max_chars)
+
+
+def error_lines_of(text: str, max_chars: int = 1500, max_lines: int = 15) -> str:
+    """error_lines over output text (a local tool's stdout and stderr); "" when nothing looks
+    like an error."""
     lines = [ln.rstrip() for ln in text.splitlines() if ln.strip() and not _NOISE.search(ln)]
     hits = [ln.strip() for ln in lines if _ERROR_LINE.search(ln)]
     if not hits:
         hits = [ln.strip() for ln in lines if re.search(r"\berror\b", ln, re.I)]
     if not hits:
-        return log_tail(path, max_chars)
+        return ""
     out: list[str] = []
     size = 0
     for ln in dict.fromkeys(hits):
@@ -555,8 +543,9 @@ def error_lines(path: Path, max_chars: int = 1500, max_lines: int = 15) -> str:
     return "\n".join(out)
 
 
-def _sarif_path(loc: dict[str, Any], bases: dict[str, Any]) -> str:
-    """Repo-relative path of a SARIF location; the verifier works on a copy in /cache/w."""
+def _sarif_path(loc: dict[str, Any], bases: dict[str, Any], root: str = "") -> str:
+    """Repo-relative path of a SARIF location: the verifier works on a copy in /cache/w (or
+    /src); a local tool reports absolute paths under `root`."""
     from urllib.parse import unquote
 
     art = (loc.get("physicalLocation") or {}).get("artifactLocation") or {}
@@ -564,11 +553,18 @@ def _sarif_path(loc: dict[str, Any], bases: dict[str, Any]) -> str:
     base = (bases.get(str(art.get("uriBaseId") or "")) or {}).get("uri") or ""
     if base and "://" not in uri and not uri.startswith("/"):
         uri = str(base).rstrip("/") + "/" + uri
-    path = unquote(re.sub(r"^file://", "", uri))
-    for root in ("/cache/w/", "/src/"):
-        if root in path:
-            return path.split(root, 1)[1]
-    return path.lstrip("./")
+    path = unquote(re.sub(r"^file://", "", uri)).replace("\\", "/")
+    if re.match(r"^/[A-Za-z]:/", path):  # file:///C:/x on Windows
+        path = path[1:]
+    local = root.replace("\\", "/").rstrip("/") + "/" if root else ""
+    if local and path.lower().startswith(local.lower()):
+        return path[len(local) :]
+    for base_dir in ("/cache/w/", "/src/"):
+        if base_dir in path:
+            return path.split(base_dir, 1)[1]
+    while path.startswith("./"):
+        path = path[2:]
+    return path
 
 
 def sarif_errors(
@@ -579,11 +575,25 @@ def sarif_errors(
 
     Returns (lines, errors in `files`, all errors). When `files` is given only results in those
     files are listed, unless none is, then the first of all results. Never raises."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return [], 0, 0
+    return sarif_errors_of(text, files, limit)
+
+
+def sarif_errors_of(
+    text: str, files: Collection[str] | None = None, limit: int = 20, root: str = ""
+) -> tuple[list[str], int, int]:
+    """sarif_errors over SARIF text (a local `ruff check --output-format sarif`), paths made
+    relative to `root`."""
     import json
 
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        data = json.loads(text)
+    except ValueError:
+        return [], 0, 0
+    if not isinstance(data, dict):
         return [], 0, 0
     found: list[tuple[str, str]] = []
     for run in data.get("runs") or []:
@@ -592,7 +602,7 @@ def sarif_errors(
             if r.get("suppressions") or str(r.get("level") or "warning") != "error":
                 continue
             locs = r.get("locations") or [{}]
-            where = _sarif_path(locs[0], bases)
+            where = _sarif_path(locs[0], bases, root)
             reg = (locs[0].get("physicalLocation") or {}).get("region") or {}
             pos = f"{where}:{reg.get('startLine', '?')}:{reg.get('startColumn', '?')}"
             msg = re.sub(r"\s+", " ", str((r.get("message") or {}).get("text") or "")).strip()

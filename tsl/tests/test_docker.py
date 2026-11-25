@@ -9,12 +9,14 @@ from pathlib import Path
 import pytest
 
 from tsl.harness.verifier import (
-    SELF_CHECK_STEPS,
     DockerVerifier,
     VerifierUnavailable,
+    _sarif_path,
     error_lines,
+    error_lines_of,
     log_tail,
     sarif_errors,
+    sarif_errors_of,
 )
 
 
@@ -293,33 +295,7 @@ def test_low_memory_warns_but_does_not_block(
     assert res.passed and v.warnings and "Low memory" in err and "chrome 2.9 GB" in err
 
 
-# ---------------------------------------------------------- self-check helpers (A3)
-def test_run_with_steps_keeps_only_those_after_prepare(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    calls: list[str] = []
-    monkeypatch.setattr(DockerVerifier, "available", lambda self: True)
-    monkeypatch.setattr(DockerVerifier, "probe", lambda self: None)
-    monkeypatch.setattr("tsl.harness.verifier.available_memory_mb", lambda: None)
-
-    def fake_run(cmd, **kw):  # type: ignore[no-untyped-def]
-        calls.append(cmd[-1])
-        return subprocess.CompletedProcess(cmd, 0, b"", b"")
-
-    monkeypatch.setattr(subprocess, "run", fake_run)
-    prof = {
-        "id": "node-22@1",
-        "image": "img@sha256:" + "1" * 64,
-        "steps": {
-            n: {"cmd": n, "timeout_s": 9}
-            for n in ("prepare", "build", "test", "lint", "sast", "secrets", "coverage")
-        },
-    }
-    res = DockerVerifier().run(prof, tmp_path, tmp_path / "out", True, steps=SELF_CHECK_STEPS)
-    assert calls == ["prepare", "build", "test", "lint"]
-    assert [s.name for s in res.steps] == ["build", "test", "lint"]
-
-
+# --------------------------------------- error lines and lint errors (A3, C4)
 def test_error_lines_skip_npm_trailer_and_find_the_error(tmp_path: Path) -> None:
     """HMS-24 impl a1: the last 8 lines were npm's trailer; the TS2741 line was the error."""
     log = tmp_path / "build.log"
@@ -402,3 +378,27 @@ def test_sarif_errors_levels_suppressions_and_paths(tmp_path: Path) -> None:
     assert mine == 0 and len(lines) == 2  # none in the change: show every error
     (tmp_path / "bad.sarif").write_text("{not json")
     assert sarif_errors(tmp_path / "bad.sarif") == ([], 0, 0)
+
+
+def test_sarif_paths_strip_prefixes_not_characters() -> None:
+    """`.github/x.ts` keeps its dot: a leading ./ is a prefix, not a set of characters."""
+
+    def loc(uri: str) -> dict[str, object]:
+        return {"physicalLocation": {"artifactLocation": {"uri": uri}}}
+
+    assert _sarif_path(loc(".github/x.ts"), {}) == ".github/x.ts"
+    assert _sarif_path(loc("./.github/x.ts"), {}) == ".github/x.ts"
+    assert _sarif_path(loc("file:///cache/w/.eslintrc.js"), {}) == ".eslintrc.js"
+    assert _sarif_path(loc("file:///home/u/repo/app/y.py"), {}, "/home/u/repo") == "app/y.py"
+    assert (
+        _sarif_path(loc("file:///C:/Users/u/repo/app/y.py"), {}, "C:\\Users\\u\\repo") == "app/y.py"
+    )
+
+
+def test_error_lines_of_text_and_sarif_of_text() -> None:
+    assert error_lines_of("all good\n") == ""
+    assert error_lines_of("x\nsrc/a.ts(1,2): error TS2322: no\nnpm error code 2\n") == (
+        "src/a.ts(1,2): error TS2322: no"
+    )
+    assert sarif_errors_of("not json") == ([], 0, 0)
+    assert sarif_errors_of("[1, 2]") == ([], 0, 0)

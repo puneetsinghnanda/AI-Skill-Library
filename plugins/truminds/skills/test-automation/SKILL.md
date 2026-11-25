@@ -36,14 +36,13 @@ test-result.v1 artifact at data.artifact_path, linking each result to its criter
 ## Method
 1. Read the plan; pick every test whose level is unit, integration or e2e.
 2. Write each test in the folder and framework the strategy names, named after its TP id.
-3. Run the Docker test: `tsl verify <data.artifact_path> --self-check --verifier --json`. Before the
-   artifact exists it runs only build, test and lint on your working tree, as tsl's verifier (H3)
-   will, and it counts as no attempt. It takes a few minutes: give the Bash call a 600000 ms
-   timeout. For each data.fix item of kind verifier, read its error lines
-   (the full log is at the path it names) and fix the test with a targeted edit; if the code under
-   test is wrong, change neither: keep the test and say why in its result. Run
-   the command again after your fixes. Stop when data.verifier.status is pass, unavailable, skip or
-   limit (at most data.verifier.max runs per attempt).
+3. Run the local checks: `tsl verify <data.artifact_path> --self-check --local --json`.
+   Before the artifact exists it only type-checks and lints the files you changed, on this
+   machine, as a developer does before pushing; it counts as no attempt. A first run may install
+   the packages: give the Bash call a 600000 ms timeout. For each data.fix item of kind local,
+   read its error lines (errors in your own files come first) and fix the test with a targeted
+   edit, then run the command again; stop when it lists no local item, after at most three runs.
+   If data.local says the checks did not run, carry on: tsl's verifier (H3) checks the code.
 4. Write the artifact with one result per automated test, copying covers from the plan and status
    from the verifier result in data (or pending tsl's verifier run, as tsl instructs).
 
@@ -82,11 +81,12 @@ add {id, how} to resolves in the front matter. Change only what the failures and
 keep the ids of unchanged items.
 
 ## Hand-over
-Make the product-repo edits and run the Docker test first (Method 3), then write the artifact to
-data.artifact_path. Then run `tsl verify <data.artifact_path> --self-check --json` once, without
---verifier. If data.fix lists items, fix only what each item names, with targeted edits, and leave
-everything else unchanged; do not rewrite the whole artifact or redo the step. If a fix changed a
-test file, run the Method 3 command once more (stop at data.verifier.max runs). Make every edit,
-then hand over without running the self-check again. Do not run builds or tests any other way, and
-do not run the review or the decision: tsl runs the full verifier (H3) and the run loop tells you
-if a retry is needed. Never commit, push or open a pull request; tsl pr does that.
+Make the product-repo edits and run the local checks first (Method 3), then write the artifact
+to data.artifact_path. Then run `tsl verify <data.artifact_path> --self-check --json` once. If
+data.fix lists items, fix only what each item names, with targeted edits, and leave everything else
+unchanged; do not rewrite the whole artifact or redo the step. If a fix changed product
+code, run the Method 3 command once more, then copy code[] again from a fresh `--inputs` run.
+Make every edit, then hand over without running the self-check again. Do not run builds or tests
+yourself, and do not run the review or the decision: tsl runs the verifier container (H3) and the
+run loop tells you if a retry is needed. Never commit, push or open a pull request; tsl pr does
+that.

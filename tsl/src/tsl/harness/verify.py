@@ -438,25 +438,21 @@ def verify_artifact(
     return data
 
 
-SELF_CHECK_VERIFIER_MAX = 3  # Docker test runs per attempt from the self-check
-
-
 def self_check(
-    rt: Runtime, comp: Companion, artifact: str, *, verifier: bool = False
+    rt: Runtime, comp: Companion, artifact: str, *, local: bool = False
 ) -> dict[str, Any]:
     """tsl verify <artifact> --self-check: what the skill can still fix before the review.
 
-    The same fast checks the post-write hook runs (no review, no decision), as one list:
-    failing hard gates, failing soft checks (they lower S2), claims that will not verify (they
-    lower S1) and, for story-split and unit-test, content gaps code can prove (harness/content).
-    Hosts without hooks (Copilot, Cursor) get the same feedback this way. `check` lists the
-    content questions the reviewer asks (status partitions, boundaries, the user's answers):
-    the skill answers each from the artifact and edits only when it finds a gap.
+    The same fast checks the post-write hook runs (no verifier, no review, no decision), as one
+    list: failing hard gates, failing soft checks (they lower S2) and claims that will not verify
+    (they lower S1). Hosts without hooks (Copilot, Cursor) get the same feedback this way. The
+    skill's own checks.yaml checks come back here like any gate or soft check (story-split and
+    unit-test content checks, roadmap A3).
 
-    verifier=True also runs the Docker test (build, test, lint) of a code step on the working
-    tree, so a build or lint slip is fixed inside the attempt instead of costing a verifier
-    retry (HMS-24 impl, HMS-33 ut). It works before the artifact exists: then only the Docker
-    test runs. Nothing it does counts as an attempt, and it changes no run state.
+    local=True also type-checks and lints the files a code step changed, on this machine
+    (harness/local.py), so a type or lint slip is fixed inside the attempt instead of costing a
+    verifier retry (HMS-24 impl, HMS-33 ut). It works before the artifact exists: then only the
+    local checks run. It counts as no attempt and changes no run state.
 
     A preliminary check only: it never raises. Any failure, including an abort code (secret,
     policy) or an internal error, comes back as an item in fix; the harness decides at decide."""
@@ -464,30 +460,21 @@ def self_check(
 
     rel = str(artifact)
     fix: list[dict[str, str]] = []
-    check: list[dict[str, str]] = []
-    out: dict[str, Any] = {"artifact": rel}
+    out: dict[str, Any] = {}
     try:
         rel = to_rel(comp, artifact)
     except TslError as exc:
         fix.append({"kind": "error", "id": exc.code, "detail": exc.message})
-    out["artifact"] = rel
-    if verifier and not fix:
-        out["verifier"] = _self_check_verifier(rt, comp, rel, fix)
-    if not (verifier and not comp.path(rel).is_file()):  # before the write: Docker test only
-        _self_check_artifact(rt, comp, rel, fix, check, out, unverified_claims)
+    if local and not fix:
+        out["local"] = _self_check_local(rt, comp, rel, fix)
+    if not (local and not comp.path(rel).is_file()):  # before the write: local checks only
+        _self_check_artifact(rt, comp, rel, fix, unverified_claims)
     fix = [dict(t) for t in dict.fromkeys(tuple(f.items()) for f in fix)]
-    out.update({"ok": not fix, "fix": fix, "check": check})
-    return out
+    return {"artifact": rel, "ok": not fix, "fix": fix, **out}
 
 
 def _self_check_artifact(
-    rt: Runtime,
-    comp: Companion,
-    rel: str,
-    fix: list[dict[str, str]],
-    check: list[dict[str, str]],
-    out: dict[str, Any],
-    unverified_claims: Any,
+    rt: Runtime, comp: Companion, rel: str, fix: list[dict[str, str]], unverified_claims: Any
 ) -> None:
     data: dict[str, Any] = {}
     try:
@@ -506,134 +493,51 @@ def _self_check_artifact(
     for s in data.get("soft_failed", []):
         fix.append({"kind": "soft", "id": s["id"], "detail": s["detail"][:300]})
     no_front = any("E-H1-01" in g.get("codes", []) for g in data.get("gates", []))
-    if not data or no_front:
-        return
-    try:
-        for c in unverified_claims(rt, comp, rel):
-            fix.append({"kind": "claim", "id": c["id"], "detail": c["reason"]})
-    except Exception:  # noqa: S110 - claims are a hint; decide reports them anyway
-        pass
-    from tsl.harness import content
-
-    try:
-        facts = content.gather(rt, comp, rel)
-        if facts is not None:
-            more_fix, more_check = content.items(facts)
-            fix.extend(more_fix)
-            check.extend(more_check)
-    except Exception as exc:  # content checks are a hint: never block the hand-over on them
-        out["content_error"] = (str(exc) or type(exc).__name__)[:300]
+    if data and not no_front:
+        try:
+            for c in unverified_claims(rt, comp, rel):
+                fix.append({"kind": "claim", "id": c["id"], "detail": c["reason"]})
+        except Exception:  # noqa: S110 - claims are a hint; decide reports them anyway
+            pass
 
 
-def _self_check_verifier(
+def _self_check_local(
     rt: Runtime, comp: Companion, rel: str, fix: list[dict[str, str]]
 ) -> dict[str, Any]:
-    """Docker test (SELF_CHECK_STEPS) of this step's working tree; failing steps go to fix with
-    the lines that say what broke. Logs: runs/<run>/verifier/<step>/a<n>/self-check/."""
-    from tsl.harness.verifier import SELF_CHECK_STEPS, error_lines, sarif_errors
+    """Local type check and lint of the files this code step changed (harness/local.py).
+    Failing checks go to fix as kind `local`; anything that goes wrong is an `error` item."""
+    from tsl.harness import local
 
-    m = ARTIFACT_RE.match(rel)
-    if not m:
-        fix.append({"kind": "error", "id": "E-USE-01", "detail": f"{rel} is not an artifact path"})
-        return {"status": "error"}
-    step = m.group("step")
     try:
+        m = ARTIFACT_RE.match(rel)
+        if not m:
+            raise TslError("E-USE-01", detail=f"{rel} is not an artifact path", cmd="verify")
+        step = m.group("step")
         ctx = RunCtx(rt, comp, m.group("run_id"))
         ctx.assert_lock_held()
-        attempt = _attempt_for(ctx, step, ci=False)
+        _attempt_for(ctx, step, ci=False)
         if not ctx.skill_for(step).is_code:
             return {"status": "skip", "detail": f"step {step} changes no product code"}
-        changed = {c["repo"]: set(c["files"]) for c in product_changes(ctx) or []}
+        repos = []
+        for c in product_changes(ctx) or []:
+            cfg = comp.config.repo(c["repo"])
+            repos.append(
+                (
+                    str(c["repo"]),
+                    cfg.verifier_profile if cfg else None,
+                    comp.product_clone(c["repo"]),
+                    [str(f) for f in c["files"]],
+                )
+            )
+        info, items = local.check_repos(repos, comp.path(tool_log_path(ctx.run_id)))
+        fix.extend(items)
+        return info
     except TslError as exc:
         fix.append({"kind": "error", "id": exc.code, "detail": exc.message})
-        return {"status": "error"}
-    base = f"runs/{ctx.run_id}/verifier/{step}/a{attempt['n']}/self-check"
-    count_p = comp.path(f"{base}.json")
-    runs = read_json(count_p).get("runs", []) if count_p.is_file() else []
-    info: dict[str, Any] = {"runs": len(runs), "max": SELF_CHECK_VERIFIER_MAX, "log_dir": base}
-    if len(runs) >= SELF_CHECK_VERIFIER_MAX:
-        return {
-            **info,
-            "status": "limit",
-            "detail": f"the Docker test already ran {len(runs)} times in this attempt; hand "
-            "over, tsl verify runs it again and a retry gets its failures",
-        }
-    repos = sorted(ctx.state.get("branch") or {})
-    steps_out: list[dict[str, Any]] = []
-    failed = False
-    for repo in repos:
-        cfg, clone = comp.config.repo(repo), comp.product_clone(repo)
-        if cfg is None or clone is None:
-            continue
-        prof = find_profile(rt, cfg.verifier_profile)
-        if prof is None:
-            return {
-                **info,
-                "status": "skip",
-                "detail": f"no verifier profile {cfg.verifier_profile}",
-            }
-        rel_dir = base if len(repos) == 1 else f"{base}/{repo}"
-        outdir = comp.path(rel_dir)
-        # A fresh folder each run: a stale lint.sarif or log must never stand for this run.
-        shutil.rmtree(outdir, ignore_errors=True)
-        src = export_source(clone)
-        try:
-            res = rt.verifier.run(prof, src, outdir, with_coverage=False, steps=SELF_CHECK_STEPS)
-        except VerifierUnavailable as exc:
-            # Not the skill's to fix: say so, and let tsl verify report it as it does today.
-            return {**info, "status": "unavailable", "code": exc.code, "detail": str(exc)[:300]}
-        finally:
-            shutil.rmtree(src, ignore_errors=True)
-        for st in res.steps:
-            steps_out.append({"repo": repo, "name": st.name, "status": st.status})
-            if st.status != "fail":
-                continue
-            failed = True
-            fix.append(
-                {
-                    "kind": "verifier",
-                    "id": st.name,
-                    "detail": _verifier_detail(
-                        st, outdir, rel_dir, changed.get(repo), error_lines, sarif_errors
-                    ),
-                }
-            )
-    status = "fail" if failed else "pass"
-    runs.append({"at": iso(rt.clock()), "status": status})
-    write_json(count_p, {"runs": runs})
-    return {**info, "runs": len(runs), "status": status, "steps": steps_out}
-
-
-def _verifier_detail(
-    st: StepResult,
-    outdir: Path,
-    rel_dir: str,
-    files: set[str] | None,
-    error_lines: Any,
-    sarif_errors: Any,
-) -> str:
-    """What a failing Docker test step reports to the skill: the step, its log, and the lines
-    that say what broke (lint: the SARIF errors, the change's own files first)."""
-    head = st.detail or f"{st.name} failed"
-    if st.log:
-        head += f"; log {rel_dir}/{st.log}"
-    body = ""
-    sarif = outdir / "lint.sarif"
-    if st.name == "lint" and sarif.is_file():
-        lines, mine, total = sarif_errors(sarif, files)
-        if lines:
-            where = (
-                f"{mine} of {total} lint error(s) are in files this step changed"
-                if files is not None and mine
-                else f"{total} lint error(s), none in files this step changed: the base may "
-                "already fail lint; fix only what this step caused"
-                if files is not None
-                else f"{total} lint error(s)"
-            )
-            body = where + ":\n" + "\n".join(lines)
-    if not body and st.log:
-        body = error_lines(outdir / st.log)
-    return (head + (":\n" + body if body else ""))[:2500]
+    except Exception as exc:  # never stop the skill: an error item instead (a git or file error)
+        detail = f"local checks: {(str(exc) or type(exc).__name__)[:280]}"
+        fix.append({"kind": "error", "id": "E-INT-01", "detail": detail})
+    return {"status": "error"}
 
 
 def h3_status(rt: Runtime, comp: Companion, artifact: str) -> dict[str, Any]:

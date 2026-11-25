@@ -350,40 +350,35 @@ def validate(paths: list[Path], lock: Annotated[bool, typer.Option("--lock")] = 
 
 
 # ------------------------------------------------------------------------------- harness
-def _self_check_message(data: dict[str, Any]) -> tuple[str]:
-    n, m = len(data["fix"]), len(data.get("check") or [])
-    v = data.get("verifier") or {}
-    parts = [f"{n} item(s) to fix" if n else "nothing to fix"]
-    if m:
-        parts.append(f"{m} content question(s) to answer")
-    if v.get("status") in ("pass", "fail"):
-        parts.append(f"Docker test {v['status']}ed (run {v['runs']} of {v['max']})")
-    elif v.get("status") in ("unavailable", "limit", "skip"):
-        parts.append(f"Docker test not run: {v.get('detail', v['status'])}")
-    if not n and not m and v.get("status") in (None, "pass"):
-        return ("Self-check clean" + (f"; {parts[-1]}" if v else ""),)
-    return ("Self-check: " + "; ".join(parts),)
+def _self_check_message(data: dict[str, Any]) -> str:
+    n = len(data["fix"])
+    loc = data.get("local") or {}
+    head = f"Self-check: {n} item(s) to fix" if n else "Self-check clean"
+    st = loc.get("status")
+    if st in ("pass", "fail"):
+        head += f"; local checks {st}ed"
+    elif st == "skip":
+        why = loc.get("detail") or "; ".join(x["detail"] for x in loc.get("not_run", [])[:1])
+        head += f"; local checks not run{': ' + why if why else ''}"
+    return head
 
 
 def _self_check_next(data: dict[str, Any]) -> str:
-    v = data.get("verifier") or {}
-    docker = any(f["kind"] == "verifier" for f in data["fix"])
+    local_items = any(f["kind"] == "local" for f in data["fix"])
+    other = [f for f in data["fix"] if f["kind"] != "local"]
     steps: list[str] = []
-    if docker:
+    if local_items:
         steps.append(
-            "fix the code each verifier item names, then run the self-check with --verifier "
-            f"again (at most {v.get('max', 3)} Docker runs per attempt)"
+            "fix the code each local item names, then run the self-check with --local again"
         )
-    if any(f["kind"] != "verifier" for f in data["fix"]):
-        other = "each other item" if docker else "each item"
-        steps.append(f"edit only what {other} in data.fix names (no full rewrite)")
-    if data.get("check"):
+    if other:
         steps.append(
-            "answer each item in data.check from the artifact; edit only where it finds a gap"
+            f"edit only what {'each other' if local_items else 'each'} item in data.fix names "
+            "(no full rewrite)"
         )
     if not steps:
         return "hand over"
-    return "; ".join(steps) + ("" if docker else "; then hand over without checking again")
+    return "; ".join(steps) + ("" if local_items else "; then hand over without checking again")
 
 
 @app.command()
@@ -399,23 +394,23 @@ def verify(
     status: Annotated[bool, typer.Option("--status")] = False,
     ci: Annotated[bool, typer.Option("--ci")] = False,
     self_check: Annotated[bool, typer.Option("--self-check")] = False,
-    with_verifier: Annotated[bool, typer.Option("--verifier")] = False,
+    local: Annotated[bool, typer.Option("--local")] = False,
 ) -> int:
     """Run the code checks H1-H7 on an artifact, or check a step's inputs with --inputs.
 
-    --self-check lists what the skill can still fix before the review, in data.fix, and the
-    content questions to answer, in data.check. With --verifier it also runs the Docker test
-    (build, test, lint) of a code step; that works before the artifact is written."""
+    --self-check lists what the skill can still fix before the review, in data.fix. With
+    --local it also type-checks and lints the files a code step changed, on this machine; that
+    works before the artifact is written."""
     from tsl.harness import verify as svc
 
     c = comp()
-    if with_verifier and not self_check:
-        raise TslError("E-USE-01", detail="--verifier needs --self-check", cmd="verify")
+    if local and not self_check:
+        raise TslError("E-USE-01", detail="--local needs --self-check", cmd="verify")
     if self_check:
         if artifact is None:
             raise TslError("E-USE-01", detail="artifact path required", cmd="verify")
-        data = svc.self_check(rt(), c, artifact, verifier=with_verifier)
-        return emit_ok(*_self_check_message(data), data, c.warnings, _self_check_next(data))
+        data = svc.self_check(rt(), c, artifact, local=local)
+        return emit_ok(_self_check_message(data), data, c.warnings, _self_check_next(data))
     if inputs:
         data = svc.verify_inputs(rt(), c, run, step, artifact)
         return emit_ok(

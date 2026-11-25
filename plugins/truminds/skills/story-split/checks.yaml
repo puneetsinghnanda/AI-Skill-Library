@@ -25,3 +25,13 @@ checks:
   kind: cites-required
   gate: soft
   select: $.claims[*]
+# SS-R3 (discriminating criteria; severity trigger "each partition of an unchanged requirement"):
+# every status the data model lists appears in an AC of a story whose REQ is about statuses.
+# Soft: it matches text, so it lowers S2 and never costs a retry (HMS-23, 24, 31 split findings).
+- id: story-split.status-values
+  kind: values-named
+  gate: soft
+  values: {file: context/data-model.md, after: status}
+  each: $.stories[*]
+  text: $.acceptance_criteria[*].text
+  when: {input: intent, each: "$.requirements[*]", link: trace, text: statement}

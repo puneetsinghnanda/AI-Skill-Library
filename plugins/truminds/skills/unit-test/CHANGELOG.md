@@ -1,21 +1,23 @@
 # Changelog: unit-test
 
 ## 1.4.0
-- Roadmap A3 (content self-check and Docker test): on 0.1.7 `ut` retried in 6 of 7 team runs on
-  reviewer findings it could have found itself (HMS-24, 26, 28, 30, 31, 33) and HMS-33 used both
-  verifier retries on a build and a lint slip in its own tests.
+- Roadmap A3 (content self-check and local checks): on 0.1.7 `ut` retried in 6 of 7 team runs
+  on reviewer findings it could have found itself (HMS-24, 26, 28, 30, 31, 33), and HMS-33 used
+  both verifier retries on a type error and a lint slip in its own tests.
+- checks.yaml: `unit-test.acs-named` (H5, kind named-in): every AC of the stories is named on a
+  Tests line as `S-n ACm`, or under Unknown. `unit-test.reqs-traced` (H5, coverage with
+  or_named_in): every REQ the stories trace is in trace, or under Unknown. Both skip without a
+  stories input (defect runs). `unit-test.ac-values-in-tests` (soft, kind values-in-code): an AC
+  named as covered has one of its values in the lines the step added to its tests.
 - Method: before writing a test, check its data can tell right from wrong (each status the AC
   names, two candidates for an order rule, data of the count or size the AC needs, a test that
-  guards each answer the user gave). New Method 4 runs the Docker test
-  (`tsl verify --self-check --verifier`: build, test, lint; no attempt used) and fixes what it
-  lists before code[] is copied; at most data.verifier.max runs per attempt.
+  guards each answer the user gave). New Method 4 runs the local checks
+  (`tsl verify --self-check --local`: type check and lint of the changed files on this machine;
+  no attempt used) and fixes what they list before code[] is copied.
 - Output: each Tests line names its REQ and every AC it covers as `S-n ACm` (S-n alone does not
-  count); every AC of the stories is named there or under Unknown with the reason.
-- Hand-over: data.fix now also lists content gaps (an AC no Tests line names, a REQ of the stories
-  missing from trace); data.check lists the reviewer's questions, answered from the tests. A test
-  edit then reruns the Docker test once and copies code[] again.
-- MINOR: changed instruction, same tools, inputs and output schema. Needs a signed eval result
-  for this version before any status change (SKL-V13).
+  count).
+- MINOR: changed instruction and new checks, same tools, inputs and output schema. Needs a signed
+  eval result for this version before any status change (SKL-V13).
 
 ## 1.3.0
 - Runs are independent (HMS-5 rerun: the skill read the earlier run's artifacts and feedback

@@ -1,0 +1,46 @@
+{
+  "schema": "skill-checks.v1",
+  "skill": "unit-test",
+  "checks": [
+    {
+      "id": "unit-test.acs-named",
+      "kind": "named-in",
+      "gate": "H5",
+      "each_input": "stories",
+      "optional_input": true,
+      "each": "$.stories[*]",
+      "each_key": {"prefix": "id", "select": "$.acceptance_criteria[*].id"},
+      "sections": ["Tests", "Unknown"]
+    },
+    {
+      "id": "unit-test.reqs-traced",
+      "kind": "coverage",
+      "gate": "H5",
+      "each_input": "stories",
+      "optional_input": true,
+      "each": "$.stories[*].trace[*]",
+      "covered_by": "$.trace[*]",
+      "or_named_in": ["Unknown"]
+    },
+    {
+      "id": "unit-test.ac-values-in-tests",
+      "kind": "values-in-code",
+      "gate": "soft",
+      "each_input": "stories",
+      "optional_input": true,
+      "each": "$.stories[*]",
+      "items": "$.acceptance_criteria[*]",
+      "named_in": ["Tests"],
+      "files": "(^|/)(test|tests|__tests__)/|\\.(test|spec)\\.[a-z]+$"
+    },
+    {
+      "id": "unit-test.status-values",
+      "kind": "values-named",
+      "gate": "soft",
+      "values": {"file": "context/data-model.md", "after": "status"},
+      "each": "$.stories[*]",
+      "text": "$.acceptance_criteria[*].text",
+      "when": {"input": "intent", "each": "$.requirements[*]", "link": "trace", "text": "statement"}
+    }
+  ]
+}

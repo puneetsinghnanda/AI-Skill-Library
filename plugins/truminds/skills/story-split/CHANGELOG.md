@@ -1,15 +1,16 @@
 # Changelog: story-split
 
 ## 1.5.0
-- Roadmap A3 (content self-check): on 0.1.7 `split` retried in 6 of 7 team runs, each time on a
-  reviewer finding about a missing discriminating AC: a status or other partition (HMS-23, 24, 31,
-  32), a limit with no AC on it (HMS-23, 30), "most recent" with one candidate (HMS-24), a default
-  value (HMS-26), a listed filter with no AC (HMS-28, 30).
-- Hand-over: `tsl verify --self-check` now also returns data.check, one question per REQ, story
-  or user answer naming the case the reviewer looks for. The skill answers each from its ACs and
-  edits only where it finds a gap (Rule 7 values, Rule 8 split over five ACs).
-- MINOR: changed instruction, same tools, inputs and output schema. Needs a signed eval result
-  for this version before any status change (SKL-V13).
+- Roadmap A3 (content self-check): on 0.1.7 `split` retried in 6 of 7 team runs on reviewer
+  findings about a missing discriminating AC, three of them a status partition (HMS-23, 24, 31).
+- checks.yaml: `story-split.status-values` (soft, kind values-named): every status the data model
+  lists (context/data-model.md, "Status is A, B, C or D" under its entity's heading) appears in an
+  AC of a story whose REQ is about those statuses (names one, or "appointment status"). Soft
+  because it matches text: it lowers S2 instead of failing a gate.
+- Hand-over: add an AC with the missing status to the story whose REQ touches it; if the status
+  cannot occur there, leave it and say why under Unknown.
+- MINOR: new soft check and a hand-over note, same tools, inputs and output schema. Needs a signed
+  eval result for this version before any status change (SKL-V13).
 
 ## 1.4.0
 - Run HMS-21: the hook refused 24 Edit calls (requirement-review 15, design 6,
