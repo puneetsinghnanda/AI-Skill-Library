@@ -281,8 +281,37 @@ A run you started before the update can usually be resumed after it (same major 
 | `devcontainers/cli` can't reach Docker | Start Docker Desktop and wait for **Engine running**; reopen VS Code if it was already open |
 | `git commit` from Windows says `pre-commit not found` | Commit with `git commit --no-verify`, or commit inside the dev container |
 | `git status` shows `.devcontainer/devcontainer-lock.json` | It's ignored on `main`; run `git pull` |
+| Windows: every `tsl` command fails with `DLL load failed while importing _pydantic_core: An Application Control policy has blocked this file` | Your `tsl` was installed from a version without the pydantic pin and got a newer pydantic-core. `git pull`, then reinstall as in §5 step 2 (§9a) |
+| Windows: `Program 'tsl.exe' failed to run: An Application Control policy has blocked this file` | App Control blocks the `tsl.exe` launcher; `tsl` itself still works. See §9a |
 
 Still stuck? Open a `validation:blocked` issue with the command, the output (secrets removed) and your `tsl doctor` result.
+
+### 9a. Windows App Control blocks `tsl`
+
+Some Windows laptops run App Control (Smart App Control or a company policy). It can block a program file
+it has not seen before, even one you installed yourself. Two `tsl` files have been blocked this way:
+
+- **The pydantic-core DLL.** `uv tool install` doesn't use `tsl/uv.lock`, so before the pin it installed
+  the newest pydantic, and a brand-new pydantic-core DLL was blocked. `tsl` now pins `pydantic` and
+  `pydantic-core` to the tested versions. Pull `main` and reinstall (§5 step 2); `--reinstall --no-cache`
+  replaces the blocked DLL.
+- **The `tsl.exe` launcher** in `%USERPROFILE%\.local\bin`, which uv creates on every install. `uv.exe`
+  and `claude.exe` in the same folder kept working. `tsl` still runs through its own Python, so replace
+  the launcher with two small files that call it: `tsl.cmd` for PowerShell, and `tsl` for Git Bash (Claude
+  Code runs `/truminds:run` and the plugin hooks in Git Bash). In PowerShell:
+  ```powershell
+  $bin = "$env:USERPROFILE\.local\bin"
+  $py  = Join-Path (uv tool dir) 'truminds-tsl\Scripts\python.exe'
+  Rename-Item "$bin\tsl.exe" 'tsl.exe.blocked'
+  [IO.File]::WriteAllText("$bin\tsl.cmd", "@`"$py`" -m tsl %*`r`n")
+  [IO.File]::WriteAllText("$bin\tsl", "#!/bin/sh`nexec `"$($py -replace '\\','/')`" -m tsl `"`$@`"`n")
+  tsl --version
+  ```
+  Then restart Claude Code and run `tsl doctor`. Every reinstall (§7a) creates a new `tsl.exe`: if it is
+  blocked too, run `Remove-Item "$bin\tsl.exe"` (the two files stay). To undo, delete `tsl` and `tsl.cmd`
+  and rename `tsl.exe.blocked` back to `tsl.exe`.
+
+If your company manages App Control, you can also ask IT to allow these files instead.
 
 ## Done criteria
 
