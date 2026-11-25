@@ -226,7 +226,7 @@ There is **no GitHub release yet**. A new version means the version on `main` (s
 
 1. In your clone (`C:\dev\AI-Skill-Library`): `git checkout main`, then `git pull`.
 2. Reinstall `tsl` exactly as in §5 step 2, with `TSL_ORG_FILE` set. Your settings file from §5 step 1 is still there.
-   Windows, if you use the §9a `tsl.exe` workaround: the reinstall puts `tsl.exe` back. If `tsl --version` is then blocked, remove it again (§9a).
+   Windows, if you use the §9a `tsl.exe` workaround: the reinstall puts `tsl.exe` back. If `tsl --version` is then blocked, run the §9a commands again.
 3. Update the plugin:
    ```text
    claude plugin marketplace update truminds-skill-library
@@ -282,7 +282,7 @@ A run you started before the update can usually be resumed after it (same major 
 | `devcontainers/cli` can't reach Docker | Start Docker Desktop and wait for **Engine running**; reopen VS Code if it was already open |
 | `git commit` from Windows says `pre-commit not found` | Commit with `git commit --no-verify`, or commit inside the dev container |
 | `git status` shows `.devcontainer/devcontainer-lock.json` | It's ignored on `main`; run `git pull` |
-| Windows: every `tsl` command fails with `DLL load failed while importing _pydantic_core: An Application Control policy has blocked this file` | Your `tsl` was installed from a version without the pydantic pin and got a newer pydantic-core. `git pull`, then reinstall as in §5 step 2 (§9a) |
+| Windows: every `tsl` command fails with `DLL load failed while importing _pydantic_core: An Application Control policy has blocked this file` | Your `tsl` was installed from a version without the pydantic pin and got a newer pydantic-core. `git pull`, then reinstall as in §5 step 2 (§9a). If the pinned DLL is blocked too, ask IT to allow it |
 | Windows: `Program 'tsl.exe' failed to run: An Application Control policy has blocked this file` | App Control blocks the `tsl.exe` launcher; `tsl` itself still works. See §9a |
 
 Still stuck? Open a `validation:blocked` issue with the command, the output (secrets removed) and your `tsl doctor` result.
@@ -303,14 +303,18 @@ it has not seen before, even one you installed yourself. Two `tsl` files have be
   ```powershell
   $bin = "$env:USERPROFILE\.local\bin"
   $py  = Join-Path (uv tool dir) 'truminds-tsl\Scripts\python.exe'
-  Rename-Item "$bin\tsl.exe" 'tsl.exe.blocked'
-  [IO.File]::WriteAllText("$bin\tsl.cmd", "@`"$py`" -m tsl %*`r`n")
-  [IO.File]::WriteAllText("$bin\tsl", "#!/bin/sh`nexec `"$($py -replace '\\','/')`" -m tsl `"`$@`"`n")
+  if (Test-Path "$bin\tsl.exe") { Move-Item -Force "$bin\tsl.exe" "$bin\tsl.exe.blocked" }
+  [IO.File]::WriteAllText("$bin\tsl.cmd", "@`"$py`" -P -m tsl %*`r`n")
+  [IO.File]::WriteAllText("$bin\tsl", "#!/bin/sh`nexec `"$($py -replace '\\','/')`" -P -m tsl `"`$@`"`n")
   tsl --version
   ```
+  Keep `-P`: without it, Python looks in the current folder first, and the hooks run inside your
+  repos, so a file or folder there with the name of a module `tsl` uses (even `tsl` itself) would run
+  in its place. The commands can be run again safely.
+
   Then restart Claude Code and run `tsl doctor`. Every reinstall (§7a) creates a new `tsl.exe`, which
-  PowerShell and the plugin pick before `tsl.cmd`: if it is blocked too, remove it again with
-  `Remove-Item "$env:USERPROFILE\.local\bin\tsl.exe"` (the two files stay). To undo, delete `tsl` and
+  PowerShell, the progress panel and `/tsl-gate` pick before `tsl.cmd` (the hooks in Git Bash keep using
+  the `tsl` file): if it is blocked too, run the commands above again. To undo, delete `tsl` and
   `tsl.cmd` and rename `tsl.exe.blocked` back to `tsl.exe`.
 
   Limits of this workaround:
@@ -319,9 +323,10 @@ it has not seen before, even one you installed yourself. Two `tsl` files have be
     the plugin hooks and `tsl` commands in a terminal do work. If you need the panel, ask IT to allow
     `tsl.exe`.
   - `tsl.cmd` passes its arguments through `cmd.exe`: put an argument that holds `&`, `|`, `<`, `>` or `^`
-    in quotes, or run that command from Git Bash.
-  - Each hook call starts one more small process (the `tsl` script, then Python), so tool calls can take
-    a fraction of a second longer.
+    in quotes, and run a command whose argument holds `%` from Git Bash (`cmd.exe` expands `%NAME%` even
+    inside quotes).
+  - Each hook call starts one more process (the `tsl` script, then Python). On laptops with endpoint
+    security that can add about 0.3-0.5 s per hook, and a tool call can run two or three hooks.
 
 If your company manages App Control, you can also ask IT to allow these files instead.
 

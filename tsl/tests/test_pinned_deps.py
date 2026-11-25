@@ -8,52 +8,58 @@ the pins exact and the pair installable.
 
 from __future__ import annotations
 
-import re
 import tomllib
 from importlib import metadata
 from pathlib import Path
 
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
+
 ROOT = Path(__file__).resolve().parents[1]
 PINNED = ("pydantic", "pydantic-core")
-EXACT = re.compile(r"==\s*([0-9][0-9A-Za-z.]*)")
 
 
-def _pins() -> dict[str, str]:
-    """Name -> exact version for PINNED, from pyproject.toml; a non-exact spec maps to ''."""
-    deps = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
-    out: dict[str, str] = {}
-    for dep in deps["dependencies"]:
-        m = re.fullmatch(r"([A-Za-z0-9_.-]+)\s*(.*)", dep.strip())
-        assert m, dep
-        name = m.group(1).lower().replace("_", "-")
-        if name in PINNED:
-            exact = EXACT.fullmatch(m.group(2).strip())
-            out[name] = exact.group(1) if exact else ""
-    return out
+def _exact(req: Requirement) -> str | None:
+    """The version of a single `==` specifier (no wildcard), else None."""
+    specs = list(req.specifier)
+    if len(specs) == 1 and specs[0].operator in ("==", "===") and "*" not in specs[0].version:
+        return specs[0].version
+    return None
+
+
+def _base(req: Requirement) -> bool:
+    """A requirement of the plain install, not of an extra such as pydantic[email]."""
+    return req.marker is None or req.marker.evaluate({"extra": ""})
+
+
+def _pins() -> dict[str, str | None]:
+    """Name -> exact pinned version for PINNED in pyproject.toml (None when not exact)."""
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    reqs = [Requirement(d) for d in project["dependencies"]]
+    return {
+        canonicalize_name(r.name): _exact(r) for r in reqs if canonicalize_name(r.name) in PINNED
+    }
 
 
 def test_pins_are_exact() -> None:
     pins = _pins()
     for name in PINNED:
-        assert pins.get(name), f"{name} must be pinned with == in pyproject.toml, found none"
+        assert pins.get(name), f"{name} must be pinned with == in pyproject.toml, found {pins}"
 
 
 def test_the_pinned_pair_is_installed_and_installable() -> None:
     pins = _pins()
+    pyd, core = pins.get("pydantic"), pins.get("pydantic-core")
+    assert pyd and core, f"pydantic and pydantic-core must be pinned with ==, found {pins}"
     # The installed pydantic is the pinned one, so its requirements below are the pin's.
-    assert metadata.version("pydantic") == pins["pydantic"], (
-        f"installed pydantic {metadata.version('pydantic')}, pinned {pins['pydantic']}: run uv sync"
+    assert metadata.version("pydantic") == pyd, (
+        f"installed pydantic {metadata.version('pydantic')}, pinned {pyd}: run uv sync"
     )
-    assert metadata.version("pydantic-core") == pins["pydantic-core"]
+    assert metadata.version("pydantic-core") == core
     # pydantic requires one exact pydantic-core; a pair that disagrees cannot be installed.
-    wanted = [
-        r
-        for r in metadata.requires("pydantic") or []
-        if re.match(r"pydantic[-_]core\b", r, re.I) and "extra ==" not in r
-    ]
+    requires = [Requirement(r) for r in metadata.requires("pydantic") or []]
+    wanted = [r for r in requires if canonicalize_name(r.name) == "pydantic-core" and _base(r)]
     assert len(wanted) == 1, wanted
-    exact = EXACT.search(wanted[0])
-    assert exact and exact.group(1) == pins["pydantic-core"], (
-        f"pydantic {pins['pydantic']} requires {wanted[0]}, "
-        f"pyproject.toml pins pydantic-core=={pins['pydantic-core']}"
+    assert _exact(wanted[0]) == core, (
+        f"pydantic {pyd} requires {wanted[0]}, pyproject.toml pins pydantic-core=={core}"
     )
