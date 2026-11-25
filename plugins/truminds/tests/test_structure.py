@@ -178,6 +178,19 @@ def test_reviewer_agent_reads_writes_its_review_only_and_review_skill_forks() ->
     assert "!`tsl review prepare $ARGUMENTS --json`" in body(SKILLS / "review" / "SKILL.md")
 
 
+def test_step_skill_forks_into_the_step_runner() -> None:
+    """B1: a step run in a forked subagent gets the step's tools; the hook narrows Bash to tsl."""
+    agent = front_matter(PLUGIN / "agents" / "step-runner.md")
+    assert agent and agent["name"] == "step-runner"
+    tools = [t.strip() for t in agent["tools"].split(",")]
+    assert tools == ["Read", "Grep", "Glob", "Write", "Edit", "Bash"]
+    step = front_matter(SKILLS / "step" / "SKILL.md")
+    assert step and step["context"] == "fork" and step["agent"] == "truminds:step-runner"
+    assert step["user-invocable"] is False
+    assert "!`tsl step brief $ARGUMENTS`" in body(SKILLS / "step" / "SKILL.md")
+    assert "data.runner" in body(SKILLS / "run" / "SKILL.md")
+
+
 def test_every_preamble_command_is_pre_approved() -> None:
     """A skill's !`...` preamble cannot ask for permission, so allowed-tools must cover it."""
     import fnmatch
@@ -203,11 +216,12 @@ def test_run_loop_records_the_review_before_decide(command: str) -> None:
     assert "go straight to step 5" in text
 
 
-def test_every_skill_folder_is_a_command_the_review_step_or_an_sdlc_skill() -> None:
+def test_every_skill_folder_is_a_command_an_internal_fork_or_an_sdlc_skill() -> None:
     commands = set(registry_command_skills().values())
     for d in sorted(p for p in SKILLS.iterdir() if p.is_dir()):
         assert (d / "SKILL.md").is_file(), d.name
-        assert d.name in commands or d.name == "review" or (d / "skill.yaml").is_file(), d.name
+        internal = d.name in ("review", "step")  # forked by the run loop, not user commands
+        assert d.name in commands or internal or (d / "skill.yaml").is_file(), d.name
 
 
 # ------------------------------------------------------------------------------------------ command skills

@@ -24,6 +24,7 @@ app = typer.Typer(
 keys_app = typer.Typer(no_args_is_help=True, help="Signing keys (SDD-07 §5.5).")
 state_app = typer.Typer(no_args_is_help=True, help="Run state (SDD-02).")
 review_app = typer.Typer(no_args_is_help=True, help="Reviewer package and record (SDD-03 §7).")
+step_app = typer.Typer(no_args_is_help=True, help="A step run in a forked subagent (B1).")
 context_app = typer.Typer(no_args_is_help=True, help="Context pack (SDD-06).")
 eval_app = typer.Typer(no_args_is_help=True, help="Skill evals (SDD-01 §10).")
 improve_app = typer.Typer(no_args_is_help=True, help="Improvement loop (SDD-11).")
@@ -34,6 +35,7 @@ for name, sub in (
     ("keys", keys_app),
     ("state", state_app),
     ("review", review_app),
+    ("step", step_app),
     ("context", context_app),
     ("eval", eval_app),
     ("improve", improve_app),
@@ -457,6 +459,22 @@ def review_prepare(artifact: str) -> int:
         sys.stdout.write(data["package"] + "\n")
         return 0
     return emit_ok("Review package ready", data)
+
+
+@step_app.command("brief")
+@command
+def step_brief(
+    artifact: str,
+    context: Annotated[str, typer.Option("--context", help="artifacts or full")] = "artifacts",
+) -> int:
+    """Build the brief for a step run in a forked subagent: skill text, inputs, context."""
+    from tsl.harness.brief import build
+
+    data = build(rt(), comp(), artifact, context)
+    if not OPTS.json:
+        sys.stdout.write(data["brief"])
+        return 0
+    return emit_ok("Step brief ready", data)
 
 
 @review_app.command("record")

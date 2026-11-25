@@ -451,6 +451,26 @@
                   "type": "integer",
                   "minimum": 0,
                   "description": "Review records of this attempt rejected for citations that do not verify (E-REV-05); counted against retry.record, not retry.review. Optional (additive)."
+                },
+                "runner": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "mode",
+                    "context"
+                  ],
+                  "properties": {
+                    "mode": {
+                      "const": "fork"
+                    },
+                    "context": {
+                      "enum": [
+                        "artifacts",
+                        "full"
+                      ]
+                    }
+                  },
+                  "description": "Set by tsl step brief: the attempt ran in a forked subagent with this context (roadmap B1). Absent: the main session ran it."
                 }
               }
             }
