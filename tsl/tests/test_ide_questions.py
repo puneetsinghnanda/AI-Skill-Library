@@ -144,6 +144,42 @@ def test_next_raises_then_the_dialog_stamps_the_real_ask_time(tmp_path: Path) ->
     )
 
 
+def test_asking_again_closes_the_dismissed_dialog_and_starts_a_new_wait(tmp_path: Path) -> None:
+    # HMS-27: Esc on the dialog stopped the turn; the model's next call asked the same
+    # questions again. The first ask ends there, and the wait restarts with the new dialog.
+    a = ide_questions.raised(
+        tmp_path, RUN, "design", 1, QS, source="hook", at="2026-11-25T13:03:12Z", tool_use_id="t1"
+    )
+    b = ide_questions.raised(
+        tmp_path, RUN, "design", 1, QS, source="hook", at="2026-11-25T13:09:38Z", tool_use_id="t2"
+    )
+    assert (a, b) == ("ASK-01", "ASK-02")
+    first, second = ide_questions.load(tmp_path, RUN)["asks"]
+    assert (first["status"], first["closed_at"], first["close_reason"]) == (
+        "closed",
+        "2026-11-25T13:09:38Z",
+        "dismissed",
+    )
+    assert (second["status"], second["asked_at"]) == ("open", "2026-11-25T13:09:38Z")
+    # tsl next reporting the questions now joins the open dialog, it does not add a third.
+    assert ide_questions.raised(tmp_path, RUN, "design", 1, QS, source="next") == b
+    # Another agent's dialog leaves this one open.
+    ide_questions.raised(
+        tmp_path, RUN, "ut", 1, QS[:1], source="hook", tool_use_id="t3", agent_id="ag1"
+    )
+    assert [x["ask_id"] for x in ide_questions.open_asks(tmp_path, RUN)] == ["ASK-02", "ASK-03"]
+    ide_questions.answered(
+        tmp_path,
+        RUN,
+        b,
+        [{"question": "Q-01: Which window?", "options": [], "answer": "x"}],
+        answered_by="eng-4f2a",
+        at="2026-11-25T13:10:56Z",
+    )
+    w = ide_questions.waits(tmp_path, RUN, now="2026-11-25T13:10:56Z")
+    assert w["steps"]["design"] == 386 + 78  # the dismissed dialog, then the answered one
+
+
 def test_question_ids_come_from_the_text() -> None:
     got = ide_questions.questions_of(_tool_input(["Q-01: x?", "C7: y?", "REQ-9 - z?", "Plain?"]))
     assert [q["id"] for q in got] == ["Q-01", "C7", "REQ-9", "ASK-4"]
@@ -199,6 +235,7 @@ def test_an_ask_is_shown_while_open_and_its_wait_recorded_once_answered(world: W
         ("Q-02", "ide", True),
     ]
     assert q["items"][0]["since"] == ask["asked_at"]
+    assert q["items"][0]["text"] == "Which window?"  # the id is not repeated in the text
 
     out, code = hook(world, "post-write", _post_ask(qs, {qs[0]: "Yes", qs[1]: "No"}))
     assert code == 0 and "A-02" in json.loads(out)["hookSpecificOutput"]["additionalContext"]

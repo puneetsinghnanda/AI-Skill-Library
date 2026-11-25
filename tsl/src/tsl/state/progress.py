@@ -159,7 +159,8 @@ def _ide(comp: Companion, rid: str) -> list[dict[str, Any]]:
             "blocking": True,
             "ask": "ide",
             "since": a.get("asked_at"),
-            "text": " ".join(str(q.get("text", "")).split())[:TEXT],
+            # The text starts with its id ("Q-01: ..."); the id is a field of its own.
+            "text": " ".join(ide_questions.QID.sub("", str(q.get("text", ""))).split())[:TEXT],
         }
         for a in asks
         for q in a.get("questions") or []

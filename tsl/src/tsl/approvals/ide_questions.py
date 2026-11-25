@@ -127,17 +127,36 @@ def raised(
 ) -> str:
     """Record questions put to the engineer; returns the ask_id.
 
-    Idempotent: the same tool_use_id, or the same open questions of the same step attempt,
-    give back the ask already recorded (`tsl next` and the hooks may both report one ask)."""
+    Idempotent: the same tool_use_id gives back the ask already recorded, and so do the same
+    open questions of the same step attempt while one side has no dialog yet (`tsl next`
+    raises them, then the dialog shows them). A new dialog of an agent closes the dialog it
+    left open: that one was dismissed (HMS-27: Esc stops the turn, then the model asks the
+    same questions again), so its wait ends here and the new one starts its own."""
     obj = load(root, run_id)
     ids = [str(q.get("id")) for q in questions]
+    at = at or _now()
     for a in obj["asks"]:
         if tool_use_id and a.get("tool_use_id") == tool_use_id:
             return str(a["ask_id"])
+    changed = False
+    for a in obj["asks"]:
+        mine = (a.get("agent_id") or None) == (agent_id or None)
+        if tool_use_id and a.get("status") == "open" and a.get("tool_use_id") and mine:
+            a["status"], a["closed_at"], a["close_reason"] = "closed", at, "dismissed"
+            changed = True
+    for a in obj["asks"]:
         same = (a.get("step"), a.get("attempt")) == (step, int(attempt))
-        if same and a.get("status") == "open" and [q["id"] for q in a["questions"]] == ids:
-            if tool_use_id and not a.get("tool_use_id"):  # tsl next raised it, the dialog shows it
-                a["tool_use_id"], a["asked_at"] = tool_use_id, at or _now()
+        no_dialog = not tool_use_id or not a.get("tool_use_id")
+        if (
+            same
+            and a.get("status") == "open"
+            and no_dialog
+            and [q["id"] for q in a["questions"]] == ids
+        ):
+            if tool_use_id:  # tsl next raised it, the dialog shows it now
+                a["tool_use_id"], a["asked_at"] = tool_use_id, at
+                changed = True
+            if changed:
                 _save(root, run_id, obj)
             return str(a["ask_id"])
     ask_id = f"ASK-{len(obj['asks']) + 1:02d}"
@@ -149,7 +168,7 @@ def raised(
             "step": step,
             "attempt": int(attempt),
             "source": source,
-            "asked_at": at or _now(),
+            "asked_at": at,
             "status": "open",
             "answered_at": None,
             "closed_at": None,
