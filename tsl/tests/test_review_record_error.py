@@ -237,3 +237,32 @@ def test_the_limits_match_the_package_schema() -> None:
     props = schema["properties"]["record_error"]["properties"]
     assert tuple(props["code"]["enum"]) == service.RERUN_CODES
     assert props["citations"]["maxItems"] == service.MAX_ERROR_CITES
+
+
+def test_only_a_review_object_that_reads_back_the_same_is_kept() -> None:
+    """A JSON fragment in prose, or a review with NaN or a duplicate key, is no review to start
+    from: prepare could not refresh its ids and it would mislead the rerun."""
+    review = {"schema": "review.v1", "status": "ok", "findings": []}
+    keep = service._review_to_start_from
+    assert keep(json.dumps(review)) == review
+    assert keep('Use a cite like {"ref": "a.md#L1", "quote": "some text"} next time.') is None
+    assert keep('{"schema": "review.v1", "rubric_score": NaN}') is None
+    assert keep('{"schema": "review.v1", "status": "ok", "status": "x"}') is None
+    assert keep(None) is None
+
+
+def test_the_unavailable_reason_keeps_the_last_error(world: World) -> None:
+    """The run skill passes a fixed --unavailable reason; tsl adds the error it kept."""
+    run_id = start_run(world)
+    res = do_req_step(world, run_id, until="prepared")
+    art = res["artifact"]
+    _, env = _record(world, art, "the reviewer answered in prose")
+    assert env["code"] == "E-REV-02", env
+    reason = "reviewer output still invalid (E-REV-02)"
+    code, out, _, err = world.cli(
+        ["review", "record", art, "--unavailable", reason, "--json"], session=SESSION
+    )
+    assert code == 0, (out, err)
+    rec = json.loads((world.companion / art.replace(".md", ".review.json")).read_text())
+    assert rec["status_reason"].startswith(f"{reason}: Reviewer output is not valid review.v1")
+    assert not (world.companion / record_error_path(run_id, "req")).exists()

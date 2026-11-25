@@ -242,7 +242,34 @@ def test_a_minified_report_stays_minified(tmp_path: Path) -> None:
     p.write_text(json.dumps(_sarif(rules, [_result(ruleId="r4")])), encoding="utf-8")
     size = p.stat().st_size
     assert compact_sarif(p) is True
-    assert p.read_text(encoding="utf-8").count("\n") == 1 and p.stat().st_size < size
+    out = p.read_text(encoding="utf-8")
+    assert out.count("\n") == 1 and p.stat().st_size < size
+    assert '", "' not in out and '": ' not in out  # compact separators, like the tool's
+
+
+def test_a_boolean_rule_index_is_not_renumbered(tmp_path: Path) -> None:
+    """true == 1 in Python: a malformed ruleIndex true must not become an integer index."""
+    rules = [_rule("a"), _rule("b"), _rule("c")]
+    p = _write(tmp_path / "lint.sarif", _sarif(rules, [_result(ruleId="b", ruleIndex=True)]))
+    assert compact_sarif(p) is True
+    run = _run(p)
+    assert [r["id"] for r in run["tool"]["driver"]["rules"]] == ["b"]
+    assert run["results"][0]["ruleIndex"] is True
+
+
+def test_reports_that_cannot_be_compacted_safely_stay_as_written(tmp_path: Path) -> None:
+    """properties that is not an object (nowhere to record the count), and a lone surrogate
+    escape (cannot be written back as UTF-8)."""
+    no_props = _sarif([_rule("a"), _rule("b", pad=300)], [_result(ruleId="a")])
+    no_props["runs"][0]["properties"] = None
+    surrogate = _sarif([_rule("a"), _rule("b", pad=300)], [_result(ruleId="a")])
+    surrogate["runs"][0]["results"][0]["message"]["text"] = "\ud83d"
+    for name, doc in (("props.sarif", no_props), ("surrogate.sarif", surrogate)):
+        p = tmp_path / name
+        p.write_text(json.dumps(doc, indent=2), encoding="utf-8")  # ensure_ascii: "\\ud83d"
+        before = p.read_bytes()
+        assert compact_sarif(p) is False, name
+        assert p.read_bytes() == before, name
 
 
 def test_a_report_is_rewritten_only_when_it_gets_smaller(tmp_path: Path) -> None:

@@ -498,13 +498,18 @@ def compact_sarif(path: Path) -> bool:
     # Keep the tool's layout: an indented report stays citeable by line, a minified one stays
     # small. Written only when it is smaller than what the tool wrote.
     indented = text.count("\n") > 1
-    out = json.dumps(doc, indent=2 if indented else None, ensure_ascii=False) + "\n"
-    if len(out.encode("utf-8")) >= len(text.encode("utf-8")):
-        return False
     try:
+        if indented:
+            out = json.dumps(doc, indent=2, ensure_ascii=False) + "\n"
+        else:
+            out = json.dumps(doc, separators=(",", ":"), ensure_ascii=False) + "\n"
+        if len(out.encode("utf-8")) >= len(text.encode("utf-8")):
+            return False
         atomic_write(path, out)
-    except OSError:
-        return False  # e.g. a report the container's user owns: keep it as the tool wrote it
+    except (OSError, ValueError):
+        # A report the container's user owns, or one that cannot be written back as it was read
+        # (a lone surrogate escape cannot be encoded): keep it as the tool wrote it.
+        return False
     return True
 
 
@@ -519,6 +524,8 @@ def _compact_run(run: Any) -> bool:
     raw = run.get("results")
     if raw is not None and not isinstance(raw, list):
         return False
+    if "properties" in run and not isinstance(run["properties"], dict):
+        return False  # nowhere to record how many rules were dropped
     results: list[dict[str, Any]] = [r for r in raw or [] if isinstance(r, dict)]
     # A result may also name its rule by reportingDescriptorReference (rule.id, rule.index).
     refs: list[dict[str, Any]] = []
@@ -561,15 +568,17 @@ def _compact_run(run: Any) -> bool:
     if len(keep) == len(rules):
         return False
     new = {old: n for n, old in enumerate(keep)}
+
+    def renumber(holder: dict[str, Any], key: str) -> None:
+        v = holder.get(key)
+        if isinstance(v, int) and not isinstance(v, bool) and v in new:
+            holder[key] = new[v]
+
     for r, f in zip(results, refs, strict=True):
-        if isinstance(r.get("ruleIndex"), int) and r["ruleIndex"] in new:
-            r["ruleIndex"] = new[r["ruleIndex"]]
-        if isinstance(f.get("index"), int) and f["index"] in new:
-            f["index"] = new[f["index"]]
+        renumber(r, "ruleIndex")
+        renumber(f, "index")
     driver["rules"] = [rules[i] for i in keep]
-    props = run.setdefault("properties", {})
-    if isinstance(props, dict):
-        props["truminds_rules_dropped"] = len(rules) - len(keep)
+    run.setdefault("properties", {})["truminds_rules_dropped"] = len(rules) - len(keep)
     return True
 
 

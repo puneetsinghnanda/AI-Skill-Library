@@ -237,8 +237,8 @@ def _record_error(comp: Companion, run_id: str, step: str, attempt: int) -> dict
         out["citations"] = [
             {k: str(c.get(k, ""))[:300] for k in ("item", "ref", "reason")} for c in cites
         ]
-        total = e.get("citations_total")
-        if isinstance(total, int) and not isinstance(total, bool) and total > len(cites):
+        total = sum(1 for c in raw if isinstance(c, dict)) if isinstance(raw, list) else 0
+        if total > len(cites):
             out["citations_total"] = total
     refused = refused_review_path(run_id, step)
     if e.get("refused_review") == refused and comp.path(refused).is_file():
@@ -561,6 +561,12 @@ def record(
     attempt = latest(ctx.step(step))
     if attempt is None:
         raise TslError("E-RUN-09", step=step, run_id=ctx.run_id)
+    if unavailable is not None:
+        # The run skill passes a fixed reason (the error text cannot go on a command line): add
+        # the last refusal's message, which tsl kept, so the record says what failed.
+        last = _record_error(comp, ctx.run_id, step, int(attempt["n"]))
+        if last and last["message"] not in unavailable:
+            unavailable = f"{unavailable}: {last['message']}"
     try:
         out = _record(rt, comp, ctx, rel, step, attempt, text, unavailable)
     except TslError as exc:
@@ -584,9 +590,7 @@ def _keep_record_error(
     if exc.code not in RERUN_CODES:
         return
     refused = refused_review_path(run_id, step)
-    # Only a JSON object is a review to start from; prose would only confuse the rerun.
-    obj = extract_json(text or "")
-    cites = exc.data.get("citations", [])
+    obj = _review_to_start_from(text)
     try:
         if obj is not None:
             write_json(comp.path(refused), obj)
@@ -596,13 +600,52 @@ def _keep_record_error(
                 "attempt": attempt,
                 "code": exc.code,
                 "message": exc.message,
-                "citations": cites,
-                "citations_total": len(cites) if isinstance(cites, list) else 0,
+                "citations": exc.data.get("citations", []),
                 "refused_review": refused if obj is not None else None,
             },
         )
-    except OSError:
+    except (OSError, ValueError):  # ValueError: text that cannot be encoded back
         _clear_record_error(comp, run_id, step)
+
+
+def _review_to_start_from(text: str | None) -> dict[str, Any] | None:
+    """The refused review as an object the rerun can start from, or None: prose, a JSON fragment
+    that is not a review.v1 object, or JSON that does not read back the same (NaN, a duplicate
+    key) would only mislead it, and prepare could not refresh its ids."""
+    t = text or ""
+    lax = json.JSONDecoder()
+    i = t.find("{")
+    while i != -1:  # the same first object extract_json (and so record) takes
+        try:
+            obj, _ = lax.raw_decode(t[i:])
+        except ValueError:
+            obj = None
+        if isinstance(obj, dict):
+            if obj.get("schema") != "review.v1":
+                return None
+            try:
+                _STRICT_JSON.raw_decode(t[i:])
+            except ValueError:
+                return None
+            return obj
+        i = t.find("{", i + 1)
+    return None
+
+
+def _no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for k, v in pairs:
+        if k in out:
+            raise ValueError(f"duplicate key {k}")
+        out[k] = v
+    return out
+
+
+def _no_constant(name: str) -> Any:
+    raise ValueError(f"non-finite number {name}")
+
+
+_STRICT_JSON = json.JSONDecoder(object_pairs_hook=_no_duplicate_keys, parse_constant=_no_constant)
 
 
 def _refresh_refused_ids(comp: Companion, refused: str, pkg: dict[str, Any]) -> None:
