@@ -117,6 +117,11 @@ def ide_answers_path(run_id: str) -> str:
     return f"runs/{run_id}/ide-answers.md"
 
 
+def ide_questions_path(run_id: str) -> str:
+    """When each IDE question was asked and answered (AskUserQuestion), written only by tsl."""
+    return f"runs/{run_id}/ide-questions.json"
+
+
 def tool_log_path(run_id: str) -> str:
     return f"runs/{run_id}/tool-log.jsonl"
 
