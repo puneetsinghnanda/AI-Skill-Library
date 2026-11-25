@@ -148,7 +148,9 @@ CATALOGUE: dict[str, ErrorDef] = {
             CHECK,
             "Companion check failed: forbidden content in {path} line {line}.",
             "Remove the content in a normal commit and push; the check scans current files only. "
-            "Rewriting history with the admin is optional, only to remove it from old commits",
+            "Rewriting history with the admin is optional, only to remove it from old commits. "
+            "A false positive: a tech lead adds the SHA-256 of the matched text to "
+            "tsl.yaml h4_allow",
         ),
         _d(
             "E-COMP-05",

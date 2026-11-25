@@ -101,6 +101,25 @@ def test_forbidden_content_is_reported_without_the_value(world: World) -> None:
     assert ("notes.md", 4) in hits and ("secrets/x.txt", 0) in hits
 
 
+def test_known_false_positive_is_allowed_by_h4_allow(world: World) -> None:
+    """A tech lead marks a reviewed false positive safe by its SHA-256 in tsl.yaml (SEC-01 §7.2)."""
+    import hashlib
+
+    fake = "AKIA" + "Q3VZ7KMB2XW4PLRT"
+    (world.companion / "notes.md").write_text(f"# Notes\n\nkey {fake}\n")
+    _commit(world, "notes")
+    code, env = _check(world)
+    assert (code, env["code"]) == (2, "E-COMP-04")
+    assert "h4_allow" in env["next"]
+    cfg_path = world.companion / "tsl.yaml"
+    cfg = yaml.safe_load(cfg_path.read_text())
+    cfg["h4_allow"] = [hashlib.sha256(fake.encode()).hexdigest()]
+    cfg_path.write_text(yaml.safe_dump(cfg, sort_keys=False))
+    _commit(world, "allow a reviewed false positive")
+    code, env = _check(world)
+    assert code == 0, env
+
+
 def test_file_too_large(world: World) -> None:
     (world.companion / "big.txt").write_text("a" * (5 * 1024 * 1024 + 1))
     _commit(world, "big")

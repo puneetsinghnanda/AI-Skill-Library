@@ -214,6 +214,9 @@ def _check_content(
     from tsl.context.repoview import excluded
     from tsl.harness import detectors
 
+    # Known false positives: SHA-256 of the matched text in tsl.yaml h4_allow (SEC-01 §7.2),
+    # the same list H4 honours during a run.
+    allow = frozenset(h.lower() for h in comp.config.h4_allow)
     total = 0
     for rel in files:
         p = comp.path(rel)
@@ -234,7 +237,7 @@ def _check_content(
             text = data.decode("utf-8")
         except UnicodeDecodeError:
             continue
-        for h in detectors.scan(text, deny_term_hashes=deny):
+        for h in detectors.scan(text, allow, deny_term_hashes=deny):
             if h.kind in ("secret", "pii", "term"):
                 # file and line only: the matched value is never echoed (SDD-11 §7.3)
                 out.append(Finding("E-COMP-04", rel, h.line, f"{h.kind} rule {h.rule_id}"))

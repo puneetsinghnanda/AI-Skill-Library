@@ -45,6 +45,10 @@ def _line_of(text: str, pos: int) -> int:
 
 
 RUN_ID_IN_PATH = re.compile(r"run_[0-9A-HJKMNP-TV-Z]{26}")
+# A token followed by a short file extension is a file name, e.g. the migration in a cite
+# `repo:db/migrations/20261016T090000__create_reference_lists.sql#L16`. The extension must end
+# the word, so a JWT (`header.payload.sig`, long segments) is not mistaken for one.
+FILE_EXT_AFTER = re.compile(r"\.[A-Za-z][A-Za-z0-9]{0,4}(?![A-Za-z0-9+/=_-])")
 
 
 def _entropy(s: str) -> float:
@@ -183,6 +187,8 @@ def scan(
                 continue
             if RUN_ID_IN_PATH.search(tok):
                 continue  # citation paths carry ULID run ids; they are ids, not secrets
+            if FILE_EXT_AFTER.match(text, m.end()):
+                continue  # a file name or path (cited code, migrations), not a secret
             if not (re.search(r"[A-Za-z]", tok) and re.search(r"[0-9]", tok)):
                 continue
             if any(p in tok.lower() for p in placeholders) or re.fullmatch(r"[a-z0-9-]+", tok):
