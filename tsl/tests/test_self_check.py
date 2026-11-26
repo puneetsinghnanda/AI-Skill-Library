@@ -7,6 +7,7 @@ which nothing reported before the review."""
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -172,7 +173,7 @@ def test_local_checks_get_the_steps_changed_files_and_report_items(
     ((repo, profile, clone, files),) = repos
     assert (repo, profile, clone) == ("sample-orders", "node-20@1", world.product)
     assert "api/src/routes/orders.js" in files  # the files product_changes measures
-    assert str(tool_log).endswith(f"runs/{run_id}/tool-log.jsonl")
+    assert Path(tool_log).as_posix().endswith(f"runs/{run_id}/tool-log.jsonl")
     assert env["data"]["fix"] == [LINT_ITEM] and env["data"]["ok"] is False
     assert env["data"]["local"]["status"] == "fail"
     assert env["message"] == "Self-check: 1 item(s) to fix; local checks failed"
