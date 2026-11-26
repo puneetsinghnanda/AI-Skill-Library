@@ -27,7 +27,8 @@ MAJOR = {
 
 
 def _json(w: World, rel: str) -> dict[str, Any]:
-    return json.loads((w.companion / rel).read_text(encoding="utf-8"))
+    data: dict[str, Any] = json.loads((w.companion / rel).read_text(encoding="utf-8"))
+    return data
 
 
 def _state(w: World, run_id: str) -> dict[str, Any]:
