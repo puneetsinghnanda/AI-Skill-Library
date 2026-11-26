@@ -8,8 +8,8 @@ PY := --python 3.12
 NPM ?= npm
 
 .PHONY: help test-all lint-all check-all docs-check \
-	test-schemas test-tsl test-plugin test-insights test-portal test-portal-e2e test-sample test-deploy-ops \
-	lint-schemas lint-tsl lint-plugin lint-insights lint-portal lint-sample lint-deploy-ops
+	test-schemas test-tsl test-plugin test-insights test-portal test-portal-e2e test-sample test-deploy-ops test-bench \
+	lint-schemas lint-tsl lint-plugin lint-insights lint-portal lint-sample lint-deploy-ops lint-bench
 
 help:
 	@echo "make test-all     every component test suite"
@@ -17,9 +17,9 @@ help:
 	@echo "make docs-check   relative links, anchors, registry ids, doc control rows, backlog.csv in sync"
 	@echo "make check-all    lint-all + test-all + docs-check + portal e2e"
 
-test-all: test-schemas test-tsl test-plugin test-insights test-portal test-sample test-deploy-ops
+test-all: test-schemas test-tsl test-plugin test-insights test-portal test-sample test-deploy-ops test-bench
 
-lint-all: lint-schemas lint-tsl lint-plugin lint-insights lint-portal lint-sample lint-deploy-ops
+lint-all: lint-schemas lint-tsl lint-plugin lint-insights lint-portal lint-sample lint-deploy-ops lint-bench
 
 check-all: lint-all test-all docs-check test-portal-e2e
 
@@ -79,3 +79,9 @@ test-deploy-ops: services/insights/.venv
 lint-deploy-ops: services/insights/.venv
 	services/insights/.venv/bin/ruff check --config deploy/ruff.toml deploy
 	services/insights/.venv/bin/ruff check --config ops/ruff.toml ops
+
+# --- benchmark report (E1; uses the tsl venv) --------------------------------------------------
+test-bench:
+	cd tsl && $(UV) run --locked $(PY) pytest -q ../benchmarks/tests
+lint-bench:
+	cd benchmarks && $(UV) run --project ../tsl --locked $(PY) ruff check . && $(UV) run --project ../tsl --locked $(PY) ruff format --check . && $(UV) run --project ../tsl --locked $(PY) mypy --strict --python-version 3.12 bench_report.py tests

@@ -1,0 +1,15 @@
+{
+  "schema": "bench-set.v1",
+  "workflow": "brownfield-small",
+  "note": "E1 benchmark set (roadmap 25-27 Nov). `bench: true` runs are the fixed set rerun on every release: HMS-23 (golden) plus HMS-24 (Linux; impl build slip) and HMS-33 (Windows; ut build and lint slips). The other 0.1.7 runs are baseline only. `os` is taken from the tool-log paths when left out. Add each release's reruns with their own `release`.",
+  "runs": [
+    {"ticket": "HMS-23", "run_id": "run_01M7SQ3HAGJ230D5FQ7P2H5AA4", "release": "0.1.7", "bench": true, "note": "golden run"},
+    {"ticket": "HMS-24", "run_id": "run_01M7T1CAT0DDAGAWYAP7TPJ3YB", "release": "0.1.7", "bench": true},
+    {"ticket": "HMS-26", "run_id": "run_01M7VTSHTGA44X1D4YYX05G0DP", "release": "0.1.7", "bench": false},
+    {"ticket": "HMS-28", "run_id": "run_01M81PTAY0WBBGAGVYF6QV4PCW", "release": "0.1.7", "bench": false},
+    {"ticket": "HMS-30", "run_id": "run_01M81VYRN04SNXNMA559N6SS01", "release": "0.1.7", "bench": false},
+    {"ticket": "HMS-31", "run_id": "run_01M820V4J0VSJHKNZZ5VK0BT2Y", "release": "0.1.7", "bench": false},
+    {"ticket": "HMS-32", "run_id": "run_01M7VRZN98W4CHBZYWT1EMD8DN", "release": "0.1.7", "bench": false},
+    {"ticket": "HMS-33", "run_id": "run_01M7W20GEGAG07YJ0WPHSC463Z", "release": "0.1.7", "bench": true}
+  ]
+}
