@@ -1,0 +1,14 @@
+{
+  "schema": "skill-checks.v1",
+  "skill": "story-split",
+  "checks": [
+    {
+      "id": "story-split.status-values",
+      "kind": "values-named",
+      "gate": "soft",
+      "values": {"file": "context/data-model.md"},
+      "each": "$.stories[*]",
+      "text": "$.acceptance_criteria[*].text"
+    }
+  ]
+}

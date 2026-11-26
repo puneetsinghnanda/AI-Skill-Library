@@ -10,6 +10,7 @@ Entry shape (one level-2 heading per answer; the heading anchors are the citatio
     - step: req
     - attempt: 1
     - asked_at: 2026-11-02T10:00:00Z
+    - answered_at: 2026-11-02T10:01:30Z
     - answered_by: eng-4f2a
     - tool_use_id: toolu_...
     - question: Q-01: Ticket asks for 30 days; the baseline keeps 24 hours. Which applies?
@@ -34,6 +35,7 @@ KEYS = (
     "step",
     "attempt",
     "asked_at",
+    "answered_at",
     "answered_by",
     "tool_use_id",
     "question",
@@ -83,8 +85,12 @@ def append(
     answered_by: str,
     tool_use_id: str,
     items: list[dict[str, Any]],
+    answered_at: str = "",
 ) -> list[str]:
-    """Append one entry per {question, options, answer}; returns the new A-ids."""
+    """Append one entry per {question, options, answer}; returns the new A-ids.
+
+    asked_at is when the dialog opened (ide-questions.json), answered_at when it returned;
+    entries written before 0.1.8 have no answered_at, and their asked_at is the answer time."""
     existing = read(path)
     n = max((int(e["id"][2:]) for e in existing), default=0)
     chunks: list[str] = []
@@ -97,6 +103,7 @@ def append(
             "step": one_line(step, 40),
             "attempt": str(int(attempt)),
             "asked_at": one_line(asked_at, 40),
+            "answered_at": one_line(answered_at or asked_at, 40),
             "answered_by": one_line(answered_by, 200),
             "tool_use_id": one_line(tool_use_id, 200),
             "question": one_line(it.get("question")),

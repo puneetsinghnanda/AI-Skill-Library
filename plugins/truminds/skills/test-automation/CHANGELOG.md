@@ -1,5 +1,12 @@
 # Changelog: test-automation
 
+## 1.3.0
+- Roadmap A3 (local checks), as implement 1.4.0 and unit-test 1.4.0: new Method 3 runs
+  `tsl verify --self-check --local` (type check and lint of the changed files on this machine; no
+  attempt used) and fixes what it lists before the artifact is written.
+- MINOR: changed instruction, same tools, inputs and output schema. Needs a signed eval result
+  for this version before any status change (SKL-V13).
+
 ## 1.2.0
 - #6: `test-automation.results-linked` (H2) could never fail: it compared each result's covers with
   the covers of all results. It now reads the step's `test_plan` input and compares TP-n/S-n/ACn
