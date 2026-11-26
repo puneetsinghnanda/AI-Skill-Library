@@ -40,7 +40,7 @@ import tempfile
 import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import IO, Any
+from typing import Any
 
 from tsl.approvals import ide_answers
 from tsl.core.errors import TslError
@@ -53,6 +53,7 @@ TEXT = 1000
 # The id a question's text starts with: "Q-01: ...", "C7: ...", "REQ-9 - ...".
 QID = re.compile(r"^\s*(?P<id>[A-Z]{1,6}-?[0-9]{1,3})\b\s*[:.)\-–]")
 LOCK_WAIT_S = 2.0
+LOCK_STALE_S = 30.0  # a writer holds the lock for milliseconds
 
 
 def _now() -> str:
@@ -88,21 +89,12 @@ def load(root: Path, run_id: str) -> dict[str, Any]:
 
 def _load_for_write(root: Path, run_id: str) -> dict[str, Any]:
     """The record a writer changes: empty only when the file is missing. A record that cannot
-    be read is an error, never an empty one: saving over it would drop every ask in it. On
-    Windows a read can fail for a moment while another process (a virus scanner, a reader)
-    has the file open, so it is retried for about a second."""
+    be read or parsed (a git conflict left in it, a cut-off file) is an error, never an empty
+    one: saving over it would drop every ask in it."""
     p = _path(root, run_id)
     if not p.is_file():
         return {"schema": SCHEMA, "run_id": run_id, "asks": []}
-    for wait in (0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.4, 0):
-        try:
-            text = p.read_text(encoding="utf-8")
-            break
-        except PermissionError:
-            if sys.platform != "win32" or not wait:
-                raise
-            time.sleep(wait)
-    obj = json.loads(text)  # ValueError: a broken record is kept as it is, not replaced
+    obj = json.loads(p.read_text(encoding="utf-8"))  # ValueError: kept as it is, not replaced
     if not isinstance(obj, dict) or not isinstance(obj.get("asks"), list):
         raise ValueError(f"{p.name} is not an {SCHEMA} record")
     return obj
@@ -112,54 +104,59 @@ def _save(root: Path, run_id: str, obj: dict[str, Any]) -> None:
     write_json(_path(root, run_id), obj)
 
 
-def _try_lock(fh: IO[bytes]) -> None:
-    if sys.platform == "win32":
-        import msvcrt
+def _lock_file(root: Path, run_id: str) -> Path:
+    """The run's lock file: in the temp folder, never in the companion repo, so it is never
+    committed; one folder per user, since /tmp is shared on Linux. Named from the companion
+    root, which exists, and the run id: not from the record, whose resolved name can change on
+    Windows while the first writer creates it (realpath keeps its long-path prefix then)."""
+    key = hashlib.sha256(f"{os.path.normcase(str(Path(root).resolve()))}\n{run_id}".encode())
+    uid = getattr(os, "getuid", lambda: None)()  # Windows: the temp folder is per user already
+    folder = Path(tempfile.gettempdir()) / ("tsl-locks" if uid is None else f"tsl-locks-{uid}")
+    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+    return folder / f"{key.hexdigest()[:32]}.lock"
 
-        fh.seek(0)
-        msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
-    else:
-        import fcntl
 
-        fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-
-
-def _unlock(fh: IO[bytes]) -> None:
-    if sys.platform == "win32":
-        import msvcrt
-
-        fh.seek(0)
-        msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
-    else:
-        import fcntl
-
-        fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+def _break_stale(lock: Path) -> None:
+    """A lock file older than LOCK_STALE_S was left by a writer that died: remove it."""
+    with contextlib.suppress(OSError):
+        if time.time() - lock.stat().st_mtime > LOCK_STALE_S:
+            lock.unlink()
 
 
 @contextlib.contextmanager
 def _locked(root: Path, run_id: str) -> Iterator[None]:
-    """Hold the run's record for one load, change and save. The lock file is in the temp
-    folder, never in the companion repo, so it is never committed; one folder per user, since
-    /tmp is shared on Linux and another user's folder is not writable. TimeoutError after
-    LOCK_WAIT_S: the callers are best effort."""
-    key = hashlib.sha256(os.path.normcase(str(_path(root, run_id).resolve())).encode())
-    uid = getattr(os, "getuid", lambda: None)()  # Windows: the temp folder is per user already
-    folder = Path(tempfile.gettempdir()) / ("tsl-locks" if uid is None else f"tsl-locks-{uid}")
-    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
-    with open(folder / f"{key.hexdigest()[:32]}.lock", "a+b") as fh:
-        deadline = time.monotonic() + LOCK_WAIT_S
-        while True:
-            try:
-                _try_lock(fh)
-                break
-            except OSError:
-                if time.monotonic() >= deadline:
-                    raise TimeoutError(f"ide-questions.json of {run_id} is busy") from None
-                time.sleep(0.01)
+    """Hold the run's record for one load, change and save. The writer creates the lock file
+    (O_EXCL: atomic on every OS and file system tsl runs on) and removes it when done; the
+    others wait. The same code on Windows, macOS and Linux: no msvcrt or flock branch, so what
+    the tests check is what runs everywhere. TimeoutError after LOCK_WAIT_S: the callers are
+    best effort."""
+    lock = _lock_file(root, run_id)
+    token = f"{os.getpid()}-{time.monotonic_ns()}-{os.urandom(4).hex()}".encode()
+    deadline = time.monotonic() + LOCK_WAIT_S
+    while True:
         try:
-            yield
-        finally:
-            _unlock(fh)
+            fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            _break_stale(lock)
+        except PermissionError:
+            if sys.platform != "win32":
+                raise  # the folder is not writable: a real error, not a busy lock
+            # Windows: the last writer's lock file is still being deleted
+        else:
+            try:
+                os.write(fd, token)
+            finally:
+                os.close(fd)
+            break
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"ide-questions.json of {run_id} is busy")
+        time.sleep(0.005)
+    try:
+        yield
+    finally:
+        with contextlib.suppress(OSError):  # only our own: never a lock taken after ours broke
+            if lock.read_bytes() == token:
+                lock.unlink()
 
 
 def _one_writer[**P, R](fn: Callable[P, R]) -> Callable[P, R]:
@@ -429,7 +426,6 @@ def closed(root: Path, run_id: str, ask_id: str, *, reason: str, at: str | None 
     _save(root, run_id, obj)
 
 
-@_one_writer
 def close_open(
     root: Path,
     run_id: str,
@@ -442,9 +438,34 @@ def close_open(
 ) -> int:
     """Close the open asks of this agent (None: the main session) asked at least older_than_s
     ago: the agent went on to another tool or ended, so the dialog is gone. every_agent: all
-    open asks (the run ended). Returns how many closed."""
+    open asks (the run ended). Returns how many closed.
+
+    pre-tool calls this on every tool call in a run: with no question asked yet there is no
+    record, and nothing is locked."""
     if not _path(root, run_id).is_file():
         return 0
+    return _close_open(
+        root,
+        run_id,
+        reason=reason,
+        agent_id=agent_id,
+        older_than_s=older_than_s,
+        at=at,
+        every_agent=every_agent,
+    )
+
+
+@_one_writer
+def _close_open(
+    root: Path,
+    run_id: str,
+    *,
+    reason: str,
+    agent_id: str | None,
+    older_than_s: float,
+    at: str | None,
+    every_agent: bool,
+) -> int:
     obj = _load_for_write(root, run_id)
     now = at or _now()
     t_now = _ts(now)

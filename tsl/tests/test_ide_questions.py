@@ -433,8 +433,8 @@ def test_an_ask_between_steps_is_answered_not_dismissed(world: World) -> None:
 
 def test_parallel_writers_keep_every_ask(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Parallel agents' hooks at once: each load, change and save is locked, so no ask is lost
-    # and no two get the same id. This tests the lock, not its 2 s limit: 12 queued saves take
-    # longer than that on a slow disk (the Windows runner), and giving up is tested below.
+    # and no two get the same id. This checks that writers exclude each other, not how fast a
+    # slow CI disk is, so the wait limit is raised here; giving up at the limit is tested below.
     monkeypatch.setattr(ide_questions, "LOCK_WAIT_S", 60.0)
     errors: list[BaseException] = []
     # How many writers are between their load and their save at once: 1 when the lock holds.
@@ -691,3 +691,64 @@ def test_a_writer_never_saves_over_a_record_it_cannot_read(tmp_path: Path) -> No
     with pytest.raises(ValueError):
         ide_questions.raised(tmp_path, RUN, "req", 1, QS[1:], source="hook", tool_use_id="t2")
     assert p.read_text(encoding="utf-8") == broken
+
+
+# ------------------------------------------- the lock file (Windows CI: the old lock did not hold)
+
+
+def test_the_lock_name_does_not_depend_on_the_record_existing(tmp_path: Path) -> None:
+    # On Windows the resolved name of a file that does not exist yet can differ from the name
+    # once it exists, which gave writers different locks. The name comes from the root now.
+    before = ide_questions._lock_file(tmp_path, RUN)
+    ide_questions.raised(tmp_path, RUN, "req", 1, QS[:1], source="hook", tool_use_id="t1")
+    assert ide_questions._lock_file(tmp_path, RUN) == before
+    assert ide_questions._lock_file(tmp_path, "run_other") != before
+    assert not before.exists()  # removed by the writer that held it
+
+
+def test_a_lock_left_by_a_writer_that_died_is_broken(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(ide_questions, "LOCK_WAIT_S", 0.5)
+    lock = ide_questions._lock_file(tmp_path, RUN)
+    lock.write_bytes(b"dead")
+    assert ide_questions.close_open(tmp_path, RUN, reason="x") == 0  # no record: never locks
+    ide_questions._save(tmp_path, RUN, {"schema": "ide-questions.v1", "run_id": RUN, "asks": []})
+    with pytest.raises(TimeoutError):  # a fresh lock is someone's: wait, then give up
+        ide_questions.raised(tmp_path, RUN, "req", 1, QS[:1], source="hook", tool_use_id="t1")
+    old = time.time() - ide_questions.LOCK_STALE_S - 5
+    os.utime(lock, (old, old))
+    ide_questions.raised(tmp_path, RUN, "req", 1, QS[:1], source="hook", tool_use_id="t1")
+    assert len(ide_questions.load(tmp_path, RUN)["asks"]) == 1 and not lock.exists()
+
+
+def test_a_writer_removes_only_its_own_lock(tmp_path: Path) -> None:
+    # Its lock was broken as stale and another writer took a new one: that one stays.
+    lock = ide_questions._lock_file(tmp_path, RUN)
+    with ide_questions._locked(tmp_path, RUN):
+        lock.write_bytes(b"another writer")
+    assert lock.read_bytes() == b"another writer"
+
+
+def test_windows_waits_while_the_last_lock_file_is_being_deleted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Windows refuses to create a file that is still being deleted (PermissionError): that is
+    # a busy lock there. Elsewhere it means the folder is not writable, a real error.
+    real, refused = os.open, list[Any]()
+
+    def deleting(path: Any, flags: int, mode: int = 0o777) -> int:
+        if str(path).endswith(".lock") and len(refused) < 2:
+            refused.append(path)
+            raise PermissionError(13, "delete pending")
+        return real(path, flags, mode)
+
+    monkeypatch.setattr(os, "open", deleting)
+    monkeypatch.setattr(sys, "platform", "win32")
+    with ide_questions._locked(tmp_path, RUN):
+        pass
+    assert len(refused) == 2
+    refused.clear()
+    monkeypatch.setattr(sys, "platform", "linux")
+    with pytest.raises(PermissionError), ide_questions._locked(tmp_path, RUN):
+        pass
