@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -575,12 +577,12 @@ def test_windows_retries_a_save_while_a_reader_has_the_file_open(
             raise PermissionError(13, "in use")
         real(src, dst)
 
-    monkeypatch.setattr(jsonio.sys, "platform", "win32")
-    monkeypatch.setattr(jsonio.os, "replace", flaky)
-    monkeypatch.setattr(jsonio.time, "sleep", lambda _s: None)
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(os, "replace", flaky)
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
     ide_questions._save(tmp_path, RUN, {"schema": "ide-questions.v1", "run_id": RUN, "asks": []})
     assert len(tries) == 3 and ide_questions.load(tmp_path, RUN)["run_id"] == RUN
-    monkeypatch.setattr(jsonio.sys, "platform", "linux")  # elsewhere it is a real error
+    monkeypatch.setattr(sys, "platform", "linux")  # elsewhere it is a real error
     tries.clear()
     with pytest.raises(PermissionError):
         jsonio.write_json(tmp_path / "x.json", {})
