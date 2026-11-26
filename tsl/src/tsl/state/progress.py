@@ -167,13 +167,15 @@ def _ide(comp: Companion, rid: str) -> list[dict[str, Any]]:
     ]
 
 
-def _wait(rt: Runtime, comp: Companion, rid: str) -> dict[str, Any]:
-    """The engineer's wait on IDE questions, in seconds, per step and in total."""
+def _wait(rt: Runtime, comp: Companion, rid: str, st: dict[str, Any]) -> dict[str, Any]:
+    """The engineer's wait on IDE questions, in seconds, per step and in total. An ask left
+    open (a subagent's dismissed dialog) counts while the run is open, not after it ended."""
     from tsl.approvals import ide_questions
     from tsl.core.clock import iso
 
+    now = iso(rt.clock()) if st.get("status") in OPEN else st.get("updated_at")
     try:
-        return ide_questions.waits(comp.root, rid, now=iso(rt.clock()))
+        return ide_questions.waits(comp.root, rid, now=str(now) if now else None)
     except Exception:  # a view
         return {"total_s": 0, "steps": {}}
 
@@ -267,5 +269,5 @@ def progress(
         "questions": _questions(comp, rid, st)
         if st["status"] != "COMPLETED"
         else {"open_blocking": 0, "open_non_blocking": 0, "open_ide": 0, "items": []},
-        "wait": _wait(rt, comp, rid),
+        "wait": _wait(rt, comp, rid, st),
     }

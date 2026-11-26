@@ -6,8 +6,9 @@ an ask nobody answered (dismissed, skipped) is closed. `tsl state show --progres
 open ones, so the panel shows a question while the engineer is asked it, and the engineer's
 wait is `answered_at` (or `closed_at`) minus `asked_at` (roadmap B2, D1).
 
-Only tsl writes the file (the pre-tool hook refuses Write and Edit on it). Recording is best
-effort everywhere: a failure here never changes a hook decision or a run.
+Only tsl writes the file (the pre-tool hook refuses Write and Edit on it), one writer at a time:
+parallel agents' hooks would otherwise save over each other's change. Recording is best effort
+everywhere: a failure here never changes a hook decision or a run.
 
     {"schema": "ide-questions.v1", "run_id": "run_...",
      "asks": [{"ask_id": "ASK-01", "tool_use_id": "toolu_...", "agent_id": null,
@@ -18,7 +19,8 @@ effort everywhere: a failure here never changes a hook decision or a run.
                "questions": [{"id": "Q-01", "text": "...", "options": ["..."], "blocking": true}]}]}
 
 On a host without AskUserQuestion (Copilot, Cursor) the model asks in plain chat and writes the
-answers to a file for `tsl next <run_id> --answers <file>`, read by answered_from_file():
+answers to a file for `tsl next <run_id> --answers <file>` (wired in A2), read by
+answered_from_file():
 
     {"schema": "ide-answers-input.v1", "ask_id": "ASK-01",
      "answers": [{"id": "Q-01", "answer": "Extend retention to 30 days"}]}
@@ -26,11 +28,19 @@ answers to a file for `tsl next <run_id> --answers <file>`, read by answered_fro
 
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
+import functools
+import hashlib
 import json
+import os
 import re
+import sys
+import tempfile
+import time
+from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 from tsl.approvals import ide_answers
 from tsl.core.errors import TslError
@@ -42,6 +52,7 @@ ANSWERS_SCHEMA = "ide-answers-input.v1"
 TEXT = 1000
 # The id a question's text starts with: "Q-01: ...", "C7: ...", "REQ-9 - ...".
 QID = re.compile(r"^\s*(?P<id>[A-Z]{1,6}-?[0-9]{1,3})\b\s*[:.)\-–]")
+LOCK_WAIT_S = 2.0
 
 
 def _now() -> str:
@@ -79,6 +90,73 @@ def _save(root: Path, run_id: str, obj: dict[str, Any]) -> None:
     write_json(_path(root, run_id), obj)
 
 
+def _try_lock(fh: IO[bytes]) -> None:
+    if sys.platform == "win32":
+        import msvcrt
+
+        fh.seek(0)
+        msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+def _unlock(fh: IO[bytes]) -> None:
+    if sys.platform == "win32":
+        import msvcrt
+
+        fh.seek(0)
+        msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+
+
+@contextlib.contextmanager
+def _locked(root: Path, run_id: str) -> Iterator[None]:
+    """Hold the run's record for one load, change and save. The lock file is in the temp
+    folder, never in the companion repo, so it is never committed. TimeoutError after
+    LOCK_WAIT_S: the callers are best effort."""
+    key = hashlib.sha256(os.path.normcase(str(_path(root, run_id).resolve())).encode())
+    folder = Path(tempfile.gettempdir()) / "tsl-locks"
+    folder.mkdir(parents=True, exist_ok=True)
+    with open(folder / f"{key.hexdigest()[:32]}.lock", "a+b") as fh:
+        deadline = time.monotonic() + LOCK_WAIT_S
+        while True:
+            try:
+                _try_lock(fh)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(f"ide-questions.json of {run_id} is busy") from None
+                time.sleep(0.01)
+        try:
+            yield
+        finally:
+            _unlock(fh)
+
+
+def _one_writer[**P, R](fn: Callable[P, R]) -> Callable[P, R]:
+    """A writer of the record (root, run_id, ...): its whole load, change and save is locked."""
+
+    @functools.wraps(fn)
+    def run(*args: P.args, **kwargs: P.kwargs) -> R:
+        with _locked(Path(str(args[0])), str(args[1])):
+            return fn(*args, **kwargs)
+
+    return run
+
+
+def ask_step(state: dict[str, Any]) -> tuple[str, int]:
+    """The step attempt an ask belongs to: the run's open step, or "run" between steps (after
+    `state start`, before the first `tsl next`). Both hooks use it, so the ask recorded when the
+    dialog opens is the one its answers close."""
+    cur = state.get("cursor") or {}
+    return str(cur.get("step") or "run"), int(cur.get("attempt") or 1)
+
+
 def question_id(text: str, n: int) -> str:
     m = QID.match(text or "")
     return m.group("id") if m else f"ASK-{n}"
@@ -87,17 +165,22 @@ def question_id(text: str, n: int) -> str:
 def questions_of(tool_input: dict[str, Any]) -> list[dict[str, Any]]:
     """AskUserQuestion's questions as [{id, text, options, blocking}]."""
     out = []
+    seen: set[str] = set()
     for i, q in enumerate(tool_input.get("questions") or [], start=1):
         if not isinstance(q, dict):
             continue
         text = ide_answers.one_line(q.get("question"), TEXT)
+        qid = question_id(text, i)
+        if qid in seen:  # two questions start with the same id: each must be answerable
+            qid = f"ASK-{i}"
+        seen.add(qid)
         opts = [
             ide_answers.one_line(o.get("label"), 300)
             for o in q.get("options") or []
             if isinstance(o, dict)
         ]
         # The run waits for the engineer while the dialog is open: every IDE question blocks.
-        out.append({"id": question_id(text, i), "text": text, "options": opts, "blocking": True})
+        out.append({"id": qid, "text": text, "options": opts, "blocking": True})
     return out
 
 
@@ -113,6 +196,7 @@ def find(root: Path, run_id: str, tool_use_id: str) -> str | None:
     return str(a["ask_id"]) if a else None
 
 
+@_one_writer
 def raised(
     root: Path,
     run_id: str,
@@ -129,7 +213,7 @@ def raised(
 
     Idempotent: the same tool_use_id gives back the ask already recorded, and so do the same
     open questions of the same step attempt while one side has no dialog yet (`tsl next`
-    raises them, then the dialog shows them). A new dialog of an agent closes the dialog it
+    raises them in A2, then the dialog shows them). A new dialog of an agent closes the dialog it
     left open: that one was dismissed (HMS-27: Esc stops the turn, then the model asks the
     same questions again), so its wait ends here and the new one starts its own."""
     obj = load(root, run_id)
@@ -189,6 +273,7 @@ def raised(
     return ask_id
 
 
+@_one_writer
 def answered(
     root: Path,
     run_id: str,
@@ -204,6 +289,8 @@ def answered(
     a = _find(obj, ask_id)
     if a is None:
         raise KeyError(ask_id)
+    if a.get("status") == "answered":  # recorded already: never twice in ide-answers.md
+        return list(a.get("answers") or [])
     at = at or _now()
     ids = ide_answers.append(
         Path(root) / ide_answers_path(run_id),
@@ -273,6 +360,7 @@ def answered_from_file(
     return answered(root, run_id, str(ask["ask_id"]), items, answered_by=answered_by, at=at)
 
 
+@_one_writer
 def closed(root: Path, run_id: str, ask_id: str, *, reason: str, at: str | None = None) -> None:
     """An open ask nobody answered (dismissed or skipped): its wait ends now."""
     obj = load(root, run_id)
@@ -283,6 +371,7 @@ def closed(root: Path, run_id: str, ask_id: str, *, reason: str, at: str | None 
     _save(root, run_id, obj)
 
 
+@_one_writer
 def close_open(
     root: Path,
     run_id: str,

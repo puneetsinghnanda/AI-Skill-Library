@@ -92,6 +92,11 @@ t = texts(asking, 7)
 assert.ok(t.some((x: string) => x.startsWith('▶ impact') && x.endsWith('· 2 of 4 steps done')), t.join('\n'))
 assert.ok(t.includes(' Q-01 Which window?') && t.includes(' Q-02 Page size?') && !t.some((x: string) => x.startsWith('✓ req')), t.join('\n'))
 assert.ok(texts(asking, 40).some((x: string) => x.startsWith('✓ req'))) // room for both: the full list
+// Never more rows than the pane has: the header, what fits, and "…and N more" (review, 26 Nov).
+const many = { progress: run({ steps: [run().steps[2]], questions: { open_blocking: 0, open_non_blocking: 0, open_ide: 5, items: [...ide, ...ide, ide[0]] } }), at: null, stale: false }
+for (const n of [3, 4, 5, 6]) assert.ok(panelRows(many, n).length <= n, `${n}: ${texts(many, n).join(' | ')}`)
+t = texts(many, 8)
+assert.ok(t.includes(' …and 3 more in the chat') && t.includes(' Q-02 Page size?'), t.join('\n'))
 
 // Signed, not resumed: the decision is said as it is; a reject is never shown as approved.
 const resume = (decision: any) => texts({ progress: run({ status: 'PAUSED_APPROVAL', waiting: { kind: 'resume', gate: 'G-1', role: null, decision, command: '/truminds:resume run_01', file: null } }), at: null, stale: false })
@@ -239,6 +244,10 @@ assert.deepEqual(await asked, { answers: 1 })
 await settle()
 assert.equal(calls.length, 2, 'refreshed when the dialog returned')
 assert.equal(afters[0].cancelled, true)
+assert.equal(afters.length, 2, 'and once more after the post-tool hook')
+afters[1].fn()
+await settle()
+assert.equal(calls.length, 3)
 
 // /tsl-panel during a running refresh waits for its answer instead of reading the old state.
 store.set('panel', { progress: null, at: null, stale: false })

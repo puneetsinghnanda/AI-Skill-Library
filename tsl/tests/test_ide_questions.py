@@ -6,6 +6,7 @@ open ones and the engineer's wait per step."""
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -409,3 +410,94 @@ def test_a_closed_ask_takes_no_answers_file(tmp_path: Path) -> None:
     )
     with pytest.raises(TslError, match="closed, not open"):
         ide_questions.answered_from_file(tmp_path, RUN, f, answered_by="eng-4f2a")
+
+
+# ----------------------------------------------------------------- review of #67 (Ekjot, 26 Nov)
+
+
+def test_an_ask_between_steps_is_answered_not_dismissed(world: World) -> None:
+    # After state start and before the first tsl next the run has no open step: the pre-tool
+    # hook records the ask under "run", and the post-tool hook must finish that same ask.
+    run_id = start_run(world)
+    qs = ["Q-01: Which window?"]
+    hook(world, "pre-tool", _pre_ask(qs))
+    out, code = hook(world, "post-write", _post_ask(qs, {qs[0]: "Yes"}))
+    assert code == 0 and "A-01" in out
+    [ask] = _asks(world, run_id)
+    assert (ask["step"], ask["status"], ask["answers"]) == ("run", "answered", ["A-01"])
+    assert _progress(world)["questions"]["open_ide"] == 0
+
+
+def test_parallel_writers_keep_every_ask(tmp_path: Path) -> None:
+    # Parallel agents' hooks at once: each load, change and save is locked, so no ask is lost
+    # and no two get the same id.
+    def ask(n: int) -> None:
+        ide_questions.raised(
+            tmp_path, RUN, "ut", 1, QS[:1], source="hook", tool_use_id=f"t{n}", agent_id=f"ag{n}"
+        )
+
+    threads = [threading.Thread(target=ask, args=(n,)) for n in range(12)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    asks = ide_questions.load(tmp_path, RUN)["asks"]
+    assert sorted(a["tool_use_id"] for a in asks) == sorted(f"t{n}" for n in range(12))
+    assert len({a["ask_id"] for a in asks}) == 12
+
+
+def test_a_busy_record_times_out_instead_of_hanging(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(ide_questions, "LOCK_WAIT_S", 0.05)
+    with ide_questions._locked(tmp_path, RUN), pytest.raises(TimeoutError):
+        err: list[BaseException] = []
+
+        def other() -> None:
+            try:
+                ide_questions.closed(tmp_path, RUN, "ASK-01", reason="skipped")
+            except BaseException as exc:
+                err.append(exc)
+
+        t = threading.Thread(target=other)
+        t.start()
+        t.join()
+        raise err[0]
+
+
+def test_answering_an_ask_twice_records_it_once(tmp_path: Path) -> None:
+    a = ide_questions.raised(tmp_path, RUN, "req", 1, QS[:1], source="hook", tool_use_id="t1")
+    item = [{"question": "Q-01: Which window?", "options": [], "answer": "x"}]
+    first = ide_questions.answered(tmp_path, RUN, a, item, answered_by="eng-4f2a")
+    assert ide_questions.answered(tmp_path, RUN, a, item, answered_by="eng-4f2a") == first
+    assert len(ide_answers.read(tmp_path / "runs" / RUN / "ide-answers.md")) == 1
+
+
+def test_questions_with_the_same_id_each_get_their_own() -> None:
+    got = ide_questions.questions_of(_tool_input(["Q-01: x?", "Q-01: y?", "Q-02: z?"]))
+    assert [q["id"] for q in got] == ["Q-01", "ASK-2", "Q-02"]
+
+
+def test_an_ended_run_stops_counting_an_ask_left_open(world: World) -> None:
+    from tsl.core.clock import iso
+
+    run_id = start_run(world)
+    next_action(world, run_id)
+    ide_questions.raised(
+        world.companion,
+        run_id,
+        "req",
+        1,
+        QS[:1],
+        source="hook",
+        at=iso(world.clock()),
+        tool_use_id="t1",
+        agent_id="ag1",  # a subagent's dialog, dismissed, then it ended
+    )
+    world.clock.advance(seconds=60)
+    code, _, _, err = world.cli(["state", "cancel", run_id, "--reason", "test", "--json"])
+    assert code == 0, err
+    world.clock.advance(hours=1)
+    code, env, _, err = world.cli(["state", "show", run_id, "--progress", "--json"])
+    assert code == 0 and env is not None, err
+    assert env["data"]["progress"]["wait"]["total_s"] == 60

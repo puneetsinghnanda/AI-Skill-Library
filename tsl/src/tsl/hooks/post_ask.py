@@ -57,9 +57,6 @@ def handle(ctx: Ctx) -> tuple[str, int]:
         if idx is None:
             return _finish(ctx, None)  # outside a run: nothing to record
         st = idx["_state"]
-        cur = st.get("cursor") or {}
-        if not cur.get("step"):
-            return _finish(ctx, None)
         from tsl.approvals import ide_questions
         from tsl.core.paths import ide_answers_path
 
@@ -67,11 +64,12 @@ def handle(ctx: Ctx) -> tuple[str, int]:
         run_id = str(idx["run_id"])
         tool_use_id = str(ctx.data.get("tool_use_id") or "")
         now = _now()
+        step, attempt = ide_questions.ask_step(st)  # "run" between steps, as pre-tool
         ask_id = ide_questions.find(companion, run_id, tool_use_id) or ide_questions.raised(
             companion,  # the pre-tool record is missing: the wait is unknown, not invented
             run_id,
-            str(cur["step"]),
-            int(cur.get("attempt") or 1),
+            step,
+            attempt,
             ide_questions.questions_of(ctx.data.get("tool_input") or {}),
             source="hook",
             at=now,
