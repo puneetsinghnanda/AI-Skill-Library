@@ -149,8 +149,19 @@ function panelRows(d: Panel, rows: number): Row[] {
   const out: Row[] = [{ text: `${p.ticket} · ${wf} · ${status}${pos}`, bold: true }]
   if (d.stale) out.push({ text: `as of ${d.at ?? '?'}: tsl did not answer the last refresh`, dim: true })
   const width = Math.max(10, ...p.steps.map((s) => s.id.length))
-  for (const s of p.steps) out.push(stepRow(s, p.current, width))
   const wait = waitingRows(p)
+  // An open chat ask comes first: when the step list leaves no room for its questions, the
+  // steps fold to one line (the current step and how many are done).
+  const ideCount = p.questions.items.filter((it) => it.ask === 'ide').length
+  const after = out.length + p.steps.length + (wait.length ? wait.length + 1 : 0)
+  if (ideCount && rows - after - 2 < ideCount + 1 && p.steps.length > 1) {
+    const done = p.steps.filter((s) => DONE.includes(s.status)).length
+    const cur = p.steps.find((s) => s.id === p.current) ?? p.steps.find((s) => s.status === 'IN_PROGRESS')
+    const tally = `${done} of ${p.steps.length} steps done`
+    out.push(cur ? { ...stepRow(cur, p.current, width), text: `${stepRow(cur, p.current, width).text} · ${tally}` } : { text: tally, dim: true })
+  } else {
+    for (const s of p.steps) out.push(stepRow(s, p.current, width))
+  }
   if (wait.length) out.push({ text: '' }, ...wait)
   const ide = ideRows(p, rows - out.length - 2)
   if (ide.length) out.push({ text: '' }, ...ide)

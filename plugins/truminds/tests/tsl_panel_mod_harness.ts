@@ -86,6 +86,12 @@ t = texts({ progress: both, at: null, stale: false })
 assert.ok(t.indexOf(' Q-01 Which window?') < t.indexOf('Open questions: 1 blocking, 0 other'), t.join('\n'))
 assert.ok(t.includes(' Q-01 (product owner) Question 1?') && !t.includes(' Q-01 (ide) Which window?'))
 assert.ok(texts({ progress: run({ questions: { open_blocking: 0, open_non_blocking: 0, items: [{ ...ide[0], since: 'x' }] } }), at: null, stale: false }).includes('Waiting on you: answer in the chat'))
+// A short pane: the steps fold to one line so the chat questions show (validation note, 26 Nov).
+const asking = { progress: run({ questions: { open_blocking: 0, open_non_blocking: 0, open_ide: 2, items: ide } }), at: null, stale: false }
+t = texts(asking, 7)
+assert.ok(t.some((x: string) => x.startsWith('▶ impact') && x.endsWith('· 2 of 4 steps done')), t.join('\n'))
+assert.ok(t.includes(' Q-01 Which window?') && t.includes(' Q-02 Page size?') && !t.some((x: string) => x.startsWith('✓ req')), t.join('\n'))
+assert.ok(texts(asking, 40).some((x: string) => x.startsWith('✓ req'))) // room for both: the full list
 
 // Signed, not resumed: the decision is said as it is; a reject is never shown as approved.
 const resume = (decision: any) => texts({ progress: run({ status: 'PAUSED_APPROVAL', waiting: { kind: 'resume', gate: 'G-1', role: null, decision, command: '/truminds:resume run_01', file: null } }), at: null, stale: false })
