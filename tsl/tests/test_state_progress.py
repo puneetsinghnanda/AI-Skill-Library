@@ -97,7 +97,12 @@ def test_a_broken_questions_file_shows_no_questions(world: World) -> None:
     do_req_step(world, run_id, variant={"blocking_question": True})
     (world.companion / f"runs/{run_id}/open-questions.md").write_text("not front matter\n")
     p = _progress(world)["data"]["progress"]
-    assert p["questions"] == {"open_blocking": 0, "open_non_blocking": 0, "items": []}
+    assert p["questions"] == {
+        "open_blocking": 0,
+        "open_non_blocking": 0,
+        "open_ide": 0,
+        "items": [],
+    }
     assert json.dumps(p)  # still a full answer
 
 

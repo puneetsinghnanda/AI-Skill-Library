@@ -1,5 +1,9 @@
 """post-ask: record the user's AskUserQuestion answers for the open step (ide-answers.md).
 
+The pre-tool hook recorded the ask when the dialog opened (ide-questions.json); this marks it
+answered, so ide-answers.md gets the real asked_at and answered_at, or closes it when every
+question was skipped.
+
 Reached through the PostToolUse `post-write` event (matcher includes AskUserQuestion), so the
 launcher's fail-open rule applies: a failure never blocks the session. A missed record is
 caught later by the `answers.logged` skill check, which fails an artifact whose answers are
@@ -56,23 +60,36 @@ def handle(ctx: Ctx) -> tuple[str, int]:
         cur = st.get("cursor") or {}
         if not cur.get("step"):
             return _finish(ctx, None)
-        items = _items(ctx.data)
-        if not items:
-            return _finish(ctx, None)
-        from tsl.approvals import ide_answers
+        from tsl.approvals import ide_questions
         from tsl.core.paths import ide_answers_path
 
         companion = Path(idx["companion"])
-        rel = ide_answers_path(idx["run_id"])
-        ids = ide_answers.append(
-            companion / rel,
-            idx["run_id"],
+        run_id = str(idx["run_id"])
+        tool_use_id = str(ctx.data.get("tool_use_id") or "")
+        now = _now()
+        ask_id = ide_questions.find(companion, run_id, tool_use_id) or ide_questions.raised(
+            companion,  # the pre-tool record is missing: the wait is unknown, not invented
+            run_id,
             str(cur["step"]),
             int(cur.get("attempt") or 1),
-            _now(),
-            _answered_by(st.get("owner_pseudonym")),
-            str(ctx.data.get("tool_use_id") or ""),
+            ide_questions.questions_of(ctx.data.get("tool_input") or {}),
+            source="hook",
+            at=now,
+            tool_use_id=tool_use_id,
+            agent_id=ctx.data.get("agent_id"),
+        )
+        items = _items(ctx.data)
+        if not items:
+            ide_questions.closed(companion, run_id, ask_id, reason="skipped", at=now)
+            return _finish(ctx, None)
+        rel = ide_answers_path(run_id)
+        ids = ide_questions.answered(
+            companion,
+            run_id,
+            ask_id,
             items,
+            answered_by=_answered_by(st.get("owner_pseudonym")),
+            at=now,
         )
         ctx.decision, ctx.code = "allow", None
         lines = [
