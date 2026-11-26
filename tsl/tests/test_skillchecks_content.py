@@ -146,7 +146,7 @@ def test_without_stories_the_ut_checks_do_not_apply(tmp_path: Path) -> None:
         assert _outcome(env, "unit-test", cid)[0] == "skip", cid
 
 
-# ---------------------------------------------------------------- unit-test: soft check
+# ---------------------------------------------------------------- unit-test: hint
 def test_ac_values_must_be_in_the_added_test_lines_hms30(tmp_path: Path) -> None:
     """HMS-30 ut a1 F-1: S-2 AC1 needs the 21st row on page 2; the fixture had 5 rows."""
     s2 = _story(
@@ -159,7 +159,7 @@ def test_ac_values_must_be_in_the_added_test_lines_hms30(tmp_path: Path) -> None
     }
     env = _ut_env(tmp_path, [s2, S4], body, ["REQ-4", "REQ-11"], five)
     status, gate, detail = _outcome(env, "unit-test", "unit-test.ac-values-in-tests")
-    assert (status, gate) == ("fail", "soft")
+    assert (status, gate) == ("fail", "hint")
     assert detail == "no added test line holds a value of S-2 AC1 (21)"
     env = _ut_env(
         tmp_path, [s2, S4], body, ["REQ-4", "REQ-11"], {"api/test/list.test.ts": "make(21)"}
@@ -177,7 +177,7 @@ def test_values_of_and_value_forms() -> None:
     assert value_pattern("NO_SHOW", code=True).search("status: 'no_show'")
 
 
-# ---------------------------------------------------------------- story-split: soft check
+# ---------------------------------------------------------------- story-split: hint
 def _split_env(
     tmp_path: Path, stories: list[dict[str, Any]], reqs: list[dict[str, Any]]
 ) -> CheckEnv:
@@ -214,7 +214,7 @@ def test_split_every_status_in_a_story_about_statuses_hms31(tmp_path: Path) -> N
     status, gate, detail = _outcome(
         _split_env(tmp_path, stories, reqs), "story-split", "story-split.status-values"
     )
-    assert (status, gate) == ("fail", "soft")
+    assert (status, gate) == ("fail", "hint")
     assert detail == "COMPLETED, NO_SHOW (from context/data-model.md) named by none of S-3"
 
 

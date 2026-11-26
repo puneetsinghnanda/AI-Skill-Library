@@ -36,7 +36,7 @@
     {
       "id": "unit-test.status-values",
       "kind": "values-named",
-      "gate": "soft",
+      "gate": "hint",
       "values": {"file": "context/data-model.md", "after": "status"},
       "each": "$.stories[*]",
       "text": "$.acceptance_criteria[*].text",

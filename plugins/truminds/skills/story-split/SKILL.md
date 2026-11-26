@@ -137,9 +137,10 @@ keep the ids of unchanged items.
 Write the file to data.artifact_path. Then run `tsl verify <data.artifact_path> --self-check --json`
 once. If data.fix lists items (failing checks, soft checks that lower S2, claims that will not
 verify and lower S1), edit only the part of the file each item names and leave the rest unchanged;
-do not rewrite the whole file or redo the step. The soft item story-split.status-values names a
-status of the data model that no AC of the stories about those statuses sets up: add an AC with
-that status to the story whose REQ it touches (Rule 10, each partition). It matches text and can
-be wrong: if the status cannot occur there, leave it and say why under Unknown.
+do not rewrite the whole file or redo the step. data.hints lists checks that match text and can
+be wrong; they do not lower S2. The hint story-split.status-values names a status of the data
+model that no AC of the stories about those statuses sets up: add an AC with that status to the
+story whose REQ it touches (Rule 10, each partition); if the status cannot occur there, leave it
+and say why under Unknown.
 Make every edit, then hand over without running the self-check again. Do not run the review or
 the decision: the run loop does that and tells you if a retry is needed.

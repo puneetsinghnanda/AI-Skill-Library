@@ -3,13 +3,14 @@
 ## 1.5.0
 - Roadmap A3 (content self-check): on 0.1.7 `split` retried in 6 of 7 team runs on reviewer
   findings about a missing discriminating AC, three of them a status partition (HMS-23, 24, 31).
-- checks.yaml: `story-split.status-values` (soft, kind values-named): every status the data model
+- checks.yaml: `story-split.status-values` (hint, kind values-named): every status the data model
   lists (context/data-model.md, "Status is A, B, C or D" under its entity's heading) appears in an
-  AC of a story whose REQ is about those statuses (names one, or "appointment status"). Soft
-  because it matches text: it lowers S2 instead of failing a gate.
+  AC of a story whose REQ is about those statuses (names one, or "appointment status"). A hint
+  because it matches text and can be wrong: the self-check shows it in data.hints; it fails no
+  gate and does not lower S2.
 - Hand-over: add an AC with the missing status to the story whose REQ touches it; if the status
   cannot occur there, leave it and say why under Unknown.
-- MINOR: new soft check and a hand-over note, same tools, inputs and output schema. Needs a signed
+- MINOR: new hint check and a hand-over note, same tools, inputs and output schema. Needs a signed
   eval result for this version before any status change (SKL-V13).
 
 ## 1.4.0

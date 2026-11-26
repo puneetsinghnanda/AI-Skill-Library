@@ -54,7 +54,7 @@ def test_clean_artifact_has_nothing_to_fix(world: World) -> None:
     assert out == "", out
     env = _self_check(world, art)
     assert env["message"] == "Self-check clean"
-    assert env["data"] == {"artifact": art, "ok": True, "fix": []}
+    assert env["data"] == {"artifact": art, "ok": True, "fix": [], "hints": []}
 
 
 def test_soft_check_and_weak_claim_are_listed_and_warned(world: World) -> None:
@@ -70,6 +70,41 @@ def test_soft_check_and_weak_claim_are_listed_and_warned(world: World) -> None:
     assert fix[("soft", "RR-C12")] == "summary longer than 5 sentences"
     assert fix[("claim", "C1")].startswith("element absent: `48 hours`")
     assert "edit only what each item" in env["next"]
+
+
+def test_hint_is_shown_apart_and_counts_nowhere(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A gate `hint` check (text match that can be wrong, story-split.status-values and
+    unit-test.ac-values-in-tests) is in data.hints, not data.fix: ok stays true, and it is not a
+    soft check, so it never lowers S2 (A3 review)."""
+    from tsl.harness.skillchecks import CheckOutcome, run_declared
+
+    real = run_declared
+
+    def with_hint(env: Any, doc: Any) -> list[CheckOutcome]:
+        return [
+            *real(env, doc),
+            CheckOutcome("x.values", "hint", "fail", "COMPLETED named by none"),
+        ]
+
+    monkeypatch.setattr("tsl.harness.gates.run_declared", with_hint)
+    art, out, _ = _write(world, start_run(world))
+    assert "x.values" not in out  # the post-write hook does not nag about hints
+    env = _self_check(world, art)
+    assert env["data"]["ok"] is True and env["data"]["fix"] == []
+    assert env["data"]["hints"] == [
+        {"kind": "hint", "id": "x.values", "detail": "COMPLETED named by none"}
+    ]
+    assert env["message"] == "Self-check clean, 1 hint(s)"
+    assert env["next"] == (
+        "data.hints match text and can be wrong: act on one only if it is a real gap, otherwise "
+        "say why under Unknown; then hand over without checking again"
+    )
+    code, full, _, err = world.cli(["verify", art, "--fast", "--json"], session=SESSION)
+    assert code == 0 and full is not None, err
+    assert "x.values" not in {s["id"] for s in full["data"]["soft"]}  # not in S2
+    assert full["data"]["hints_failed"] == [{"id": "x.values", "detail": "COMPLETED named by none"}]
 
 
 def test_hard_gate_failure_is_listed_not_raised(world: World) -> None:
@@ -204,6 +239,7 @@ def test_local_checks_run_before_the_artifact_is_written(
         "artifact": info["artifact"],
         "ok": True,
         "fix": [],
+        "hints": [],
         "local": {"status": "pass", "checks": []},
     }
     assert env["message"] == "Self-check clean; local checks passed"

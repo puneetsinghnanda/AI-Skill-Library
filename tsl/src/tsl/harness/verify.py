@@ -345,6 +345,16 @@ def soft_failures(run: CheckRun) -> list[dict[str, str]]:
     ]
 
 
+def hint_failures(run: CheckRun) -> list[dict[str, str]]:
+    """Failing hint checks (gate `hint`): skill checks that match text and can be wrong. The
+    self-check shows them; they are in no gate, not in S2 and cost no retry (SDD-03 §3.3)."""
+    return [
+        {"id": o.id, "detail": o.detail or "failed"}
+        for o in run.skill_checks
+        if o.gate == "hint" and o.status == "fail"
+    ]
+
+
 def verify_artifact(
     rt: Runtime,
     comp: Companion,
@@ -403,6 +413,7 @@ def verify_artifact(
         ],
         "soft": rec["soft"],
         "soft_failed": soft_failures(run),
+        "hints_failed": hint_failures(run),
         "injection": [h.record() for h in run.injection_hits],
         "hard_failed": hard_failed,
         "duration_ms": 0,
@@ -445,9 +456,10 @@ def self_check(
 
     The same fast checks the post-write hook runs (no verifier, no review, no decision), as one
     list: failing hard gates, failing soft checks (they lower S2) and claims that will not verify
-    (they lower S1). Hosts without hooks (Copilot, Cursor) get the same feedback this way. The
-    skill's own checks.yaml checks come back here like any gate or soft check (story-split and
-    unit-test content checks, roadmap A3).
+    (they lower S1). Failing hint checks (text matches that can be wrong) come back apart, in
+    `hints`: they count nowhere, so they never make `ok` false. Hosts without hooks (Copilot,
+    Cursor) get the same feedback this way. The skill's own checks.yaml checks come back here like
+    any gate or soft check (story-split and unit-test content checks, roadmap A3).
 
     local=True also type-checks and lints the files a code step changed, on this machine
     (harness/local.py), so a type or lint slip is fixed inside the attempt instead of costing a
@@ -460,6 +472,7 @@ def self_check(
 
     rel = str(artifact)
     fix: list[dict[str, str]] = []
+    hints: list[dict[str, str]] = []
     out: dict[str, Any] = {}
     try:
         rel = to_rel(comp, artifact)
@@ -468,13 +481,18 @@ def self_check(
     if local and not fix:
         out["local"] = _self_check_local(rt, comp, rel, fix)
     if not (local and not comp.path(rel).is_file()):  # before the write: local checks only
-        _self_check_artifact(rt, comp, rel, fix, unverified_claims)
+        _self_check_artifact(rt, comp, rel, fix, hints, unverified_claims)
     fix = [dict(t) for t in dict.fromkeys(tuple(f.items()) for f in fix)]
-    return {"artifact": rel, "ok": not fix, "fix": fix, **out}
+    return {"artifact": rel, "ok": not fix, "fix": fix, "hints": hints, **out}
 
 
 def _self_check_artifact(
-    rt: Runtime, comp: Companion, rel: str, fix: list[dict[str, str]], unverified_claims: Any
+    rt: Runtime,
+    comp: Companion,
+    rel: str,
+    fix: list[dict[str, str]],
+    hints: list[dict[str, str]],
+    unverified_claims: Any,
 ) -> None:
     data: dict[str, Any] = {}
     try:
@@ -492,6 +510,8 @@ def _self_check_artifact(
                 fix.append({"kind": "gate", "id": str(g["id"]), "detail": str(d)[:300]})
     for s in data.get("soft_failed", []):
         fix.append({"kind": "soft", "id": s["id"], "detail": s["detail"][:300]})
+    for h in data.get("hints_failed", []):
+        hints.append({"kind": "hint", "id": h["id"], "detail": h["detail"][:300]})
     no_front = any("E-H1-01" in g.get("codes", []) for g in data.get("gates", []))
     if data and not no_front:
         try:

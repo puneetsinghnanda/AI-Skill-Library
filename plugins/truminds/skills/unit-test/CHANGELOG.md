@@ -7,8 +7,9 @@
 - checks.yaml: `unit-test.acs-named` (H5, kind named-in): every AC of the stories is named on a
   Tests line as `S-n ACm`, or under Unknown. `unit-test.reqs-traced` (H5, coverage with
   or_named_in): every REQ the stories trace is in trace, or under Unknown. Both skip without a
-  stories input (defect runs). `unit-test.ac-values-in-tests` (soft, kind values-in-code): an AC
-  named as covered has one of its values in the lines the step added to its tests.
+  stories input (defect runs). `unit-test.ac-values-in-tests` (hint, kind values-in-code): an AC
+  named as covered has one of its values in the lines the step added to its tests. A hint because
+  it matches text and can be wrong: the self-check shows it in data.hints; it does not lower S2.
 - Method: before writing a test, check its data can tell right from wrong (each status the AC
   names, two candidates for an order rule, data of the count or size the AC needs, a test that
   guards each answer the user gave). New Method 4 runs the local checks

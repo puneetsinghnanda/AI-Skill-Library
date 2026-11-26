@@ -354,6 +354,8 @@ def _self_check_message(data: dict[str, Any]) -> str:
     n = len(data["fix"])
     loc = data.get("local") or {}
     head = f"Self-check: {n} item(s) to fix" if n else "Self-check clean"
+    if data.get("hints"):
+        head += f", {len(data['hints'])} hint(s)"
     st = loc.get("status")
     if st in ("pass", "fail"):
         head += f"; local checks {st}ed"
@@ -375,6 +377,11 @@ def _self_check_next(data: dict[str, Any]) -> str:
         steps.append(
             f"edit only what {'each other' if local_items else 'each'} item in data.fix names "
             "(no full rewrite)"
+        )
+    if data.get("hints"):
+        steps.append(
+            "data.hints match text and can be wrong: act on one only if it is a real gap, "
+            "otherwise say why under Unknown"
         )
     if not steps:
         return "hand over"

@@ -19,7 +19,7 @@ from tsl.harness.jsonpath import PathError, select
 @dataclass
 class CheckOutcome:
     id: str
-    gate: str  # H1..H7 or soft
+    gate: str  # H1..H7, soft (counts toward S2) or hint (self-check only, counts nowhere)
     status: str  # pass | fail | skip
     detail: str = ""
 

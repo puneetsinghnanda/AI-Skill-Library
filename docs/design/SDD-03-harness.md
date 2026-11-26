@@ -132,12 +132,13 @@ A3 adds two things.
 
 **Content checks** are ordinary skill checks in the skill's `checks.yaml` (§5.4), tied to a rubric
 criterion and built from shared kinds (§5.2: `named-in`, `values-named`, `values-in-code`, and
-`coverage` with `or_named_in`). Their failures come back in `data.fix` like every other check, and
-the post-write hook reports them too. Exact checks are hard gates (H5): an AC of the stories that
-no `unit-test` Tests line names, a REQ of the stories missing from the ut trace. Checks that match
-text are soft (they lower S2 and never cost a retry), since they can be wrong: a data-model status
-missing from the ACs of stories about statuses, an AC value missing from the step's added test
-lines. Questions that need judgement (two candidates for an order rule, the options a user did not
+`coverage` with `or_named_in`). Exact checks are hard gates (H5): an AC of the stories that no
+`unit-test` Tests line names, a REQ of the stories missing from the ut trace. Their failures come
+back in `data.fix` like every other check, and the post-write hook reports them too. Checks that
+match text are hints (`gate: hint`), since they can be wrong: a data-model status missing from the
+ACs of stories about statuses, an AC value missing from the step's added test lines. The
+self-check lists a failing hint in `data.hints`, apart from `data.fix`; it fails no gate, is not a
+soft check (no S2), costs no retry and leaves `data.ok` true. Questions that need judgement (two candidates for an order rule, the options a user did not
 choose, defaults, exclusions) stay with the reviewer: `story-split` Rule 10 and SS-R3.
 
 Back-test on the team's attempt-1 artifacts (HMS-23 to 33). `unit-test`: the two hard gates
@@ -146,11 +147,11 @@ REQs the reviewer missed (HMS-26 REQ-17, HMS-28 REQ-13). `story-split`: the stat
 HMS-23 (the reviewer's F-1, gone at attempt 2) and HMS-31 (S-2 has no Scheduled AC; arguable),
 and passes the other six; a doctor's "status filter" (HMS-28) is not an appointment status.
 
-A failing soft check is not free: S2 is the share of soft checks that pass, and band High needs
-S2 = 1.00 and Medium 0.90 (§10.2). With three or four soft checks on a `split` or `ut` artifact,
-one failure gives band Low, which ESCALATEs (§11.1 row 8). The skill sees the item in its
-self-check and fixes it first; one it judges wrong is left for the approver, with the reason
-under Unknown.
+Why hints and not soft checks: a failing soft check is not free. S2 is the share of soft checks
+that pass, and band High needs S2 = 1.00 and Medium 0.90 (§10.2). With three or four soft checks
+on a `split` or `ut` artifact, one false alarm would give band Low, which ESCALATEs (§11.1 row 8).
+A hint gives the skill the same prompt in its self-check: it fixes a real gap, and says why under
+Unknown when the hint is wrong.
 
 **Local checks** (`--self-check --local`, code skills, `tsl/harness/local.py`): a type check and
 lint of the files the step changed, on the engineer's machine, as a developer does before pushing.
@@ -380,7 +381,7 @@ skill: design
 checks:
   - id: design.modules-exist
     kind: lookup
-    gate: H5                     # H2 | H5 | soft (default soft)
+    gate: H5                     # H2 | H5 | soft | hint (default soft)
     select: "$.components[*].module"
     in: {file: "context/generated/module-map.json", path: "$.modules[*].name"}
   - id: design.endpoints-no-clash
@@ -405,7 +406,7 @@ harness:
   bands: {high: {S1_min: 0.92}}   # optional, may only tighten (§10.2)
 ```
 
-**Rules checked by `tsl validate`:** every `kind` exists; every JSONPath compiles; `gate` is H2, H5 or soft only (other gates are generic and cannot be redefined); ids are unique and prefixed by the skill id.
+**Rules checked by `tsl validate`:** every `kind` exists; every JSONPath compiles; `gate` is H2, H5, soft or hint only (other gates are generic and cannot be redefined; `hint` is self-check only and counts toward no gate and not S2); ids are unique and prefixed by the skill id.
 
 ### 5.4 Skill-specific catalogue (Release-1 skills, Doc 3 §7)
 
@@ -415,7 +416,7 @@ harness:
 | requirement-review | `intent.v1` | `req.glossary-terms`: terms in bold exist in `context/glossary.md` | lookup | soft |
 | story-split | `stories.v1` | `stories.trace-req`: each story traces to a REQ | coverage | H5 |
 | story-split | `stories.v1` | `stories.ac-format`: each AC matches Given/When/Then | regex | H2 |
-| story-split | `stories.v1` | `story-split.status-values`: every status the data model lists appears in an AC of a story whose REQ is about statuses (SS-R3) | values-named | soft |
+| story-split | `stories.v1` | `story-split.status-values`: every status the data model lists appears in an AC of a story whose REQ is about statuses (SS-R3) | values-named | hint |
 | impact-analysis | `impact.v1` | `impact.modules-exist`, `impact.apis-exist`, `impact.tables-exist` | lookup | H5 |
 | design | `design.v1` | `design.modules-exist`, `design.endpoints-no-clash`, `design.claims-cited` | lookup, no-clash, cites-required | H5, H5, soft |
 | implement | code + `change.v1` | `impl.verifier` | container | H3 |
@@ -423,7 +424,7 @@ harness:
 | unit-test | tests + `ut-result.v1` | `ut.tests-run`, `ut.coverage-not-lower` | container | H3 |
 | unit-test | `ut-result.v1` | `unit-test.acs-named`: every AC of the stories is named on a Tests line, or under Unknown (UT-R1) | named-in | H5 |
 | unit-test | `ut-result.v1` | `unit-test.reqs-traced`: every REQ the stories trace is in trace, or under Unknown (UT-R1) | coverage | H5 |
-| unit-test | tests + `ut-result.v1` | `unit-test.ac-values-in-tests`: an AC named as covered has a value of it in the lines the step added to its tests (UT-R2) | values-in-code | soft |
+| unit-test | tests + `ut-result.v1` | `unit-test.ac-values-in-tests`: an AC named as covered has a value of it in the lines the step added to its tests (UT-R2) | values-in-code | hint |
 | defect-triage | `triage.v1` | `triage.components-exist` | lookup | H5 |
 | test-plan | `test-plan.v1` | `tplan.every-ac-tested`: each AC has ≥ 1 test; a stories input with no AC at all fails (waits while a blocking question is open) | coverage | H2 |
 | test-automation | test code + `test-result.v1` | `tauto.tests-run`; `tauto.results-linked`: every non-manual planned test has a result that ran, with the plan's covers (waits while a blocking question is open); `tauto.results-planned`: no result id or criterion outside the plan | container, coverage | H3, H2 |
@@ -740,7 +741,7 @@ Let `C` be the envelope claims (DEF-07), `F` the findings in `review.json`, and 
 | Signal | Formula | Range | Notes |
 | --- | --- | --- | --- |
 | S1 Evidence coverage | `S1 = (|C_verified| + |F_kept|) / (|C| + |F|)`; if `|C| + |F| = 0`, `S1 = 1.0` | 0–1, 4 decimals | Dropped findings lower S1 (R-13). A skill whose body schema sets `x-claims-required` must have `|C| ≥ 1` (H1) |
-| S2 Soft check pass rate | `S2 = soft_passed / soft_run`; skipped checks excluded; if `soft_run = 0`, `S2 = 1.0` | 0–1 | Generic soft checks (§5.1) plus skill soft checks |
+| S2 Soft check pass rate | `S2 = soft_passed / soft_run`; skipped checks excluded; if `soft_run = 0`, `S2 = 1.0` | 0–1 | Generic soft checks (§5.1) plus skill soft checks (not `hint` checks, §3.3) |
 | S3 Reviewer score | `S3 = Σ wᵢ·scoreᵢ / Σ wᵢ` over `rubric_items`, weights from the rubric file (SDD-01; default 1). Rounded to 2 decimals | 1–5 or null | Code recomputes; if the reviewer's `rubric_score` differs by > 0.05 the code value wins and a note is added. `null` if `status = could_not_review` |
 | S4 Open blockers | `S4 = |kept findings with severity blocker| + |questions with blocking true| + |envelope unknown with blocking true|` | integer ≥ 0 | Questions answered in `open-questions.md` on resume no longer count |
 | S5 Context freshness | `fresh` if DEF-01 holds at `decided_at` (signature verifies, commits behind ≤ `max_commits_behind` (SDD-06 §7.1), drift < `drift_files`, no `critical_paths` change) **and** all declared inputs exist; `stale` if any freshness test fails; `missing` if no pack | enum | Drift uses the last `tsl context-refresh --check` result; if that is older than 24 h and the network is down, `S5_basis: cached` is recorded. Non-brownfield runs with `requires_fresh_pack: false` use `fresh` when the pack is absent |

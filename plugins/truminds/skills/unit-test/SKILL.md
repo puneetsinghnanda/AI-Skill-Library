@@ -152,9 +152,10 @@ to data.artifact_path. Then run `tsl verify <data.artifact_path> --self-check --
 data.fix lists items, fix only what each item names, with targeted edits, and leave everything else
 unchanged; do not rewrite the whole artifact or redo the step. A failing
 unit-test.acs-named or unit-test.reqs-traced check names an AC or a REQ of the stories that no
-Tests line covers: add the test, or list it under Unknown with the reason. The soft item
-unit-test.ac-values-in-tests matches text and can be wrong: change a test only when its data
-really cannot reach the AC's case (21 rows for the 21st). If a fix changed product
+Tests line covers: add the test, or list it under Unknown with the reason. data.hints lists
+checks that match text and can be wrong; they do not lower S2. For the hint
+unit-test.ac-values-in-tests, change a test only when its data really cannot reach the AC's case
+(21 rows for the 21st). If a fix changed product
 code, run the Method 4 command once more, then copy code[] again from a fresh `--inputs` run.
 Make every edit, then hand over without running the self-check again. Do not run builds or tests
 yourself, and do not run the review or the decision: tsl runs the verifier container (H3) and the

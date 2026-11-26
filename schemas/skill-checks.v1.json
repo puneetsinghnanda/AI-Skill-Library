@@ -112,7 +112,8 @@
                 "enum": [
                   "H2",
                   "H5",
-                  "soft"
+                  "soft",
+                  "hint"
                 ],
                 "default": "soft"
               },

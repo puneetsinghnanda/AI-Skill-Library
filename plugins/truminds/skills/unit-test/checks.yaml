@@ -38,10 +38,11 @@ checks:
   or_named_in: [Unknown]
 # UT-R2 (meaningful assertions): an AC named as covered has at least one of its values (a count,
 # size or time such as 21, 300, 09:30) in the lines the step added to its tests (HMS-30: page 2
-# needs 21 rows, the fixture had 5). Soft: it matches text, so it lowers S2 and costs no retry.
+# needs 21 rows, the fixture had 5). Hint: it matches text and can be wrong, so it is shown in the
+# self-check and never lowers S2 or costs a retry.
 - id: unit-test.ac-values-in-tests
   kind: values-in-code
-  gate: soft
+  gate: hint
   each_input: stories
   optional_input: true
   each: $.stories[*]
