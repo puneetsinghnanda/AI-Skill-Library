@@ -431,19 +431,34 @@ def test_an_ask_between_steps_is_answered_not_dismissed(world: World) -> None:
     assert _progress(world)["questions"]["open_ide"] == 0
 
 
-def test_parallel_writers_keep_every_ask(tmp_path: Path) -> None:
+def test_parallel_writers_keep_every_ask(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     # Parallel agents' hooks at once: each load, change and save is locked, so no ask is lost
-    # and no two get the same id.
+    # and no two get the same id. This tests the lock, not its 2 s limit: 12 queued saves take
+    # longer than that on a slow disk (the Windows runner), and giving up is tested below.
+    monkeypatch.setattr(ide_questions, "LOCK_WAIT_S", 60.0)
+    errors: list[BaseException] = []
+
     def ask(n: int) -> None:
-        ide_questions.raised(
-            tmp_path, RUN, "ut", 1, QS[:1], source="hook", tool_use_id=f"t{n}", agent_id=f"ag{n}"
-        )
+        try:
+            ide_questions.raised(
+                tmp_path,
+                RUN,
+                "ut",
+                1,
+                QS[:1],
+                source="hook",
+                tool_use_id=f"t{n}",
+                agent_id=f"ag{n}",
+            )
+        except BaseException as exc:  # a thread's error would otherwise be lost
+            errors.append(exc)
 
     threads = [threading.Thread(target=ask, args=(n,)) for n in range(12)]
     for t in threads:
         t.start()
     for t in threads:
         t.join()
+    assert errors == []
     asks = ide_questions.load(tmp_path, RUN)["asks"]
     assert sorted(a["tool_use_id"] for a in asks) == sorted(f"t{n}" for n in range(12))
     assert len({a["ask_id"] for a in asks}) == 12
