@@ -33,6 +33,7 @@ class CheckEnv:
     input_texts: dict[str, str]
     named_inputs: dict[str, str] = field(default_factory=dict)  # step input name -> rel path
     answered: frozenset[str] = frozenset()  # question ids answered in this run (state.json)
+    repos: frozenset[str] = frozenset()  # product repo names; `<repo>:<path>` cites read code
 
 
 Fn = Callable[[CheckEnv, dict[str, Any]], str | None]  # returns failure detail or None
@@ -105,6 +106,13 @@ def _cite_path(c: Any) -> str:
     return left.split(":", 1)[1] if ":" in left and not left.startswith("context/") else left
 
 
+def _product_cite(c: Any, repos: frozenset[str]) -> bool:
+    """`<repo>:<path>#...` in a configured product repo: code at the pinned SHA, which H5
+    resolves (citations.py). An unknown repo is not one."""
+    left = (c["ref"] if isinstance(c, dict) else str(c)).split("#", 1)[0]
+    return ":" in left and left.split(":", 1)[0] in repos
+
+
 def _ide_answers_rel(env: CheckEnv) -> str | None:
     from tsl.core.paths import ide_answers_path
 
@@ -130,6 +138,8 @@ def c_cites_present(env: CheckEnv, w: dict[str, Any]) -> str | None:
         if not cites:
             return f"{it.get('id')} has no citation"
         for c in cites:
+            if _product_cite(c, env.repos):
+                continue
             p = _cite_path(c)
             if not (p in allowed or p.startswith("context/")):
                 return f"{it.get('id')} cites {p}, not a declared input"
@@ -199,7 +209,23 @@ def c_questions_linked(env: CheckEnv, w: dict[str, Any]) -> str | None:
             return f"{q['id']} lacks ask, why or evidence"
         if q.get("blocking") and q.get("default") is not None:
             return f"{q['id']} is blocking but has a default"
+        sourced = any(_default_source(c, env) for c in q.get("evidence") or [])
+        if w.get("default_sourced") and q.get("default") is not None and not sourced:
+            return (
+                f"{q['id']} has a proposed default but no evidence in the product code, "
+                "PRD, context pack or an answer to back it"
+            )
     return None
+
+
+def _default_source(c: Any, env: CheckEnv) -> bool:
+    """Evidence a default can rest on: product code or the PRD (`<repo>:<path>`), a context
+    section, or an answer already given in this run. The ticket alone is not a source, and
+    H5 still checks that each cite resolves."""
+    if _product_cite(c, env.repos):
+        return True
+    p = _cite_path(c)
+    return p.startswith("context/") or p.endswith("/ide-answers.md")
 
 
 def c_answers_logged(env: CheckEnv, w: dict[str, Any]) -> str | None:
