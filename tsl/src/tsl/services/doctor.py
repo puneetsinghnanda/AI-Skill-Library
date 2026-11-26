@@ -270,6 +270,19 @@ def doctor(
             "tsl events flush",
         )
     )
+    from tsl.approvals import ide_questions
+
+    missed = ide_questions.recent_failures(rt.home.root)
+    if missed:  # shown only when a hook could not record an IDE question (B2)
+        checks.append(
+            _chk(
+                "ide-questions",
+                "warn",
+                f"{len(missed)} IDE question records missed in 7 days, last "
+                f"{missed[-1].get('ts')} ({missed[-1].get('error')}); their wait may be wrong",
+                "Ask the question again; report it if this repeats",
+            )
+        )
     root = find_root(cwd)
     if root is not None:
         from tsl.core.repo import Companion

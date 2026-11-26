@@ -30,7 +30,14 @@ if TYPE_CHECKING:
 # import time of this module: the closest point to process start we can see
 _T0 = time.perf_counter()
 
-BUDGET_S = {"session-start": 12, "session-end": 12, "pre-tool": 8, "pre-mcp": 8, "post-write": 85}
+BUDGET_S = {
+    "session-start": 12,
+    "session-end": 12,
+    "subagent-stop": 12,
+    "pre-tool": 8,
+    "pre-mcp": 8,
+    "post-write": 85,
+}
 INSTALL_HINT = (
     "update tsl and the plugin from your AI-Skill-Library clone: git pull; "
     "uv tool install --python 3.12 --reinstall --no-cache ./tsl (TSL_ORG_FILE set, see "

@@ -117,11 +117,13 @@ def _unlock(fh: IO[bytes]) -> None:
 @contextlib.contextmanager
 def _locked(root: Path, run_id: str) -> Iterator[None]:
     """Hold the run's record for one load, change and save. The lock file is in the temp
-    folder, never in the companion repo, so it is never committed. TimeoutError after
+    folder, never in the companion repo, so it is never committed; one folder per user, since
+    /tmp is shared on Linux and another user's folder is not writable. TimeoutError after
     LOCK_WAIT_S: the callers are best effort."""
     key = hashlib.sha256(os.path.normcase(str(_path(root, run_id).resolve())).encode())
-    folder = Path(tempfile.gettempdir()) / "tsl-locks"
-    folder.mkdir(parents=True, exist_ok=True)
+    uid = getattr(os, "getuid", lambda: None)()  # Windows: the temp folder is per user already
+    folder = Path(tempfile.gettempdir()) / ("tsl-locks" if uid is None else f"tsl-locks-{uid}")
+    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
     with open(folder / f"{key.hexdigest()[:32]}.lock", "a+b") as fh:
         deadline = time.monotonic() + LOCK_WAIT_S
         while True:
@@ -147,6 +149,40 @@ def _one_writer[**P, R](fn: Callable[P, R]) -> Callable[P, R]:
             return fn(*args, **kwargs)
 
     return run
+
+
+FAILURES = "ide-questions.log"
+
+
+def note_failure(home: Path, run_id: str, hook: str, exc: BaseException) -> None:
+    """A record the hooks could not write (busy lock, disk): one line in the local log, so
+    `tsl doctor` can say the wait may be wrong. Only the error type, never a path or text."""
+    line = {"ts": _now(), "run_id": run_id, "hook": hook, "error": type(exc).__name__}
+    with contextlib.suppress(OSError):
+        logs = Path(home) / "logs"
+        logs.mkdir(parents=True, exist_ok=True)
+        with (logs / FAILURES).open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(line, sort_keys=True) + "\n")
+
+
+def recent_failures(home: Path, days: int = 7, now: str | None = None) -> list[dict[str, Any]]:
+    """note_failure() lines of the last `days` days, oldest first."""
+    p = Path(home) / "logs" / FAILURES
+    t_now = _ts(now or _now())
+    out: list[dict[str, Any]] = []
+    try:
+        lines = p.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return out
+    for ln in lines:
+        try:
+            obj = json.loads(ln)
+        except ValueError:
+            continue
+        t = _ts(obj.get("ts")) if isinstance(obj, dict) else None
+        if t is not None and t_now is not None and (t_now - t).days < days:
+            out.append(obj)
+    return out
 
 
 def ask_step(state: dict[str, Any]) -> tuple[str, int]:
@@ -380,9 +416,11 @@ def close_open(
     agent_id: str | None = None,
     older_than_s: float = 0,
     at: str | None = None,
+    every_agent: bool = False,
 ) -> int:
     """Close the open asks of this agent (None: the main session) asked at least older_than_s
-    ago: the agent went on to another tool, so the dialog is gone. Returns how many closed."""
+    ago: the agent went on to another tool or ended, so the dialog is gone. every_agent: all
+    open asks (the run ended). Returns how many closed."""
     if not _path(root, run_id).is_file():
         return 0
     obj = load(root, run_id)
@@ -390,7 +428,9 @@ def close_open(
     t_now = _ts(now)
     n = 0
     for a in obj["asks"]:
-        if a.get("status") != "open" or (a.get("agent_id") or None) != (agent_id or None):
+        if a.get("status") != "open":
+            continue
+        if not every_agent and (a.get("agent_id") or None) != (agent_id or None):
             continue
         t = _ts(a.get("asked_at"))
         if t is not None and t_now is not None and (t_now - t).total_seconds() < older_than_s:

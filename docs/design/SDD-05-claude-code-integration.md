@@ -294,6 +294,9 @@ Review package from tsl (artifact, rubric, cited context sections):
     ],
     "SessionEnd": [
       { "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/tsl-hook\" session-end", "timeout": 15 } ] }
+    ],
+    "SubagentStop": [
+      { "hooks": [ { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/tsl-hook\" subagent-stop", "timeout": 15 } ] }
     ]
   }
 }
@@ -315,16 +318,17 @@ The version check (E-VER-01), the time budget and the crash / timeout rules of �
 | **pre-mcp** | Any MCP tool | `tool_name`, `tool_input` | Classifies the tool as read or write using `policy.yaml` (§6.3). Writes, such as creating a Jira issue or editing a Confluence page, are denied unless `approvals.md` of the active run has a signed approval for that action | `deny` + E-POL-03, or allow | ≤ 500 ms |
 | **post-write** | Write, Edit, NotebookEdit | `tool_input.file_path` | If the path is an artifact (`artifacts/**/<name>.md`), runs `tsl verify <path>`. Any other file exits 0 at once | On check failure: `decision: "block"` + `reason` (E-CHK-01 with the failed gate), so Claude fixes and rewrites. On pass: exit 0 | ≤ 5 s p95 excluding verifier containers (NFR-01); hard timeout 90 s |
 | **session-end** | Session close | `session_id` | Writes a heartbeat to `state.json` of an active run, sends `session.ended`, flushes the outbox | None, never blocks | ≤ 2 s |
+| **subagent-stop** | A subagent ends | `session_id`, `agent_id` | Closes the IDE questions that agent left open in `runs/<run>/ide-questions.json` (a dismissed dialog), so their wait stops (roadmap B2). Writes `hook.log` only, no `hook.decision` event | None, never blocks | ≤ 500 ms |
 
 ### 5.4 Failure rules
 
-| Situation | pre-tool / pre-mcp | post-write | session-start / end |
+| Situation | pre-tool / pre-mcp | post-write | session-start / end, subagent-stop |
 | --- | --- | --- | --- |
 | `tsl` not installed or wrong version | Inside a run: deny (E-HOOK-01, "install tsl X.Y.Z"). Outside a run: allow | Allow, warn with `systemMessage` | Warn with `systemMessage` |
 | `tsl` crashes or times out | Inside a run: deny (fail closed) | Allow, warn (fail open; never lose the engineer's work) | Ignore, log locally |
 | Telemetry service unreachable | Not affected | Not affected | Events stay in the outbox (Doc 5 R-04) |
 
-Every hook appends one line to `~/.truminds/hook.log` and one `hook.decision` event to the outbox (metadata only).
+Every hook appends one line to `~/.truminds/hook.log` and, except subagent-stop, one `hook.decision` event to the outbox (metadata only).
 
 ### 5.5 Why the session id goes through `CLAUDE_ENV_FILE`
 

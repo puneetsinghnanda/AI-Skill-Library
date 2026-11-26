@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +43,20 @@ def dumps(obj: Any) -> str:
     return json.dumps(obj, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 
 
+def _replace(tmp: str, path: Path) -> None:
+    """os.replace; on Windows it fails while another process has the target open (a reader
+    such as the panel's tsl state show), so retry for up to about a second."""
+    for wait in (0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.4):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if sys.platform != "win32":
+                raise
+            time.sleep(wait)
+    os.replace(tmp, path)
+
+
 def atomic_write(path: Path, text: str) -> None:
     """Temp file, fsync, rename (SDD-02 §11.2)."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -50,7 +66,7 @@ def atomic_write(path: Path, text: str) -> None:
             fh.write(text)
             fh.flush()
             os.fsync(fh.fileno())
-        os.replace(tmp, path)
+        _replace(tmp, path)
     except BaseException:
         if os.path.exists(tmp):
             os.unlink(tmp)

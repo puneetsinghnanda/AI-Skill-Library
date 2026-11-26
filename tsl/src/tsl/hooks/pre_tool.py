@@ -130,8 +130,10 @@ def _record_ask(ctx: Ctx, idx: dict[str, Any], ti: dict[str, Any]) -> None:
             tool_use_id=str(ctx.data.get("tool_use_id") or ""),
             agent_id=agent,
         )
-    except Exception:  # noqa: S110 - a missed record only loses the wait time
-        pass
+    except Exception as exc:  # a missed record only loses the wait time: noted for tsl doctor
+        from tsl.approvals import ide_questions
+
+        ide_questions.note_failure(ctx.home, str(idx.get("run_id")), "pre-tool", exc)
 
 
 def _rel_parts(root: str, path: str) -> list[str] | None:

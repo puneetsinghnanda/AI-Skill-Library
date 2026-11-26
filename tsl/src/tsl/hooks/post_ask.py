@@ -12,6 +12,7 @@ not in the log.
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +53,7 @@ def _items(data: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def handle(ctx: Ctx) -> tuple[str, int]:
+    idx: dict[str, Any] | None = None
     try:
         idx = active_run(ctx)
         if idx is None:
@@ -94,10 +96,16 @@ def handle(ctx: Ctx) -> tuple[str, int]:
             f"{aid}: {it['question'][:120]} -> {it['answer'][:120]}"
             for aid, it in zip(ids, items, strict=True)
         ]
+        if step == "run":  # no step open: the next step gets them in data.prior_answers
+            how = (
+                "These were asked between steps, so they are earlier answers: cite each where "
+                "it decides something, and do not list them under answers in the artifact"
+            )
+        else:
+            how = "list it under answers in the artifact"
         msg = (
             f"tsl recorded the user's answers in {rel}. Cite each as {rel}#<a-nn> "
-            "(lower-case heading anchor) and list it under answers in the artifact:\n"
-            + "\n".join(lines)
+            f"(lower-case heading anchor); {how}:\n" + "\n".join(lines)
         )
         return _finish(
             ctx,
@@ -111,6 +119,11 @@ def handle(ctx: Ctx) -> tuple[str, int]:
     except Exception as exc:  # fail open: the answers.logged check catches a missing record
         code = getattr(exc, "code", "E-INT-01")
         ctx.decision, ctx.code = "allow", code if str(code).startswith("E-") else "E-INT-01"
+        if idx is not None:
+            with contextlib.suppress(Exception):
+                from tsl.approvals import ide_questions
+
+                ide_questions.note_failure(ctx.home, str(idx["run_id"]), "post-ask", exc)
         return _finish(
             ctx,
             {

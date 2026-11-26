@@ -188,6 +188,7 @@ let running: Promise<void> | undefined
 let again = false
 let poll: { cancel: () => void } | undefined
 let openedFor: string | undefined // the run the pane was opened for unasked, once per run
+let afterAnswer: { cancel: () => void } | undefined // the refresh shortly after a dialog returned
 
 async function fetchOnce($: any): Promise<void> {
   let session = ''
@@ -368,15 +369,20 @@ export const register: Register = (on) => {
   // tool call's next() runs the PreToolUse hooks and then the dialog, so refresh after a short
   // wait (the hook has recorded it by then), when the dialog returns, and once more a short
   // wait later: the post-tool hook that marks it answered may not have run yet.
+  const later = ($: any) => $.clock.after(ASK_REFRESH_MS, () => {
+    if (!idle) void refresh($).catch(() => undefined)
+  })
   on('tool.call', { tool: 'AskUserQuestion' } as any, async ($: any, e: any, next: any) => {
-    const timer = idle ? undefined : $.clock.after(ASK_REFRESH_MS, () => void refresh($).catch(() => undefined))
+    afterAnswer?.cancel() // a new ask: the last one's late refresh is not needed
+    afterAnswer = undefined
+    const timer = idle ? undefined : later($)
     try {
       return await next(e)
     } finally {
       timer?.cancel()
       if (!idle) {
         void refresh($).catch(() => undefined)
-        $.clock.after(ASK_REFRESH_MS, () => void refresh($).catch(() => undefined))
+        afterAnswer = later($)
       }
     }
   })

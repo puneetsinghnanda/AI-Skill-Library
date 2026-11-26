@@ -6,6 +6,7 @@ open ones and the engineer's wait per step."""
 from __future__ import annotations
 
 import json
+import os
 import threading
 from pathlib import Path
 from typing import Any
@@ -498,6 +499,150 @@ def test_an_ended_run_stops_counting_an_ask_left_open(world: World) -> None:
     code, _, _, err = world.cli(["state", "cancel", run_id, "--reason", "test", "--json"])
     assert code == 0, err
     world.clock.advance(hours=1)
+    code, env, _, err = world.cli(["state", "show", run_id, "--progress", "--json"])
+    assert code == 0 and env is not None, err
+    assert env["data"]["progress"]["wait"]["total_s"] == 60
+
+
+# ----------------------------------------------------------------- review of #74 (Ekjot, 26 Nov)
+
+
+def test_answers_between_steps_are_cited_not_listed(world: World) -> None:
+    # Listed under answers they fail the first step's answers.logged check (logged for "run",
+    # not that step); the step gets them in data.prior_answers, so the model cites them.
+    start_run(world)
+    qs = ["Q-01: Which window?"]
+    hook(world, "pre-tool", _pre_ask(qs))
+    out, _ = hook(world, "post-write", _post_ask(qs, {qs[0]: "Yes"}))
+    msg = json.loads(out)["hookSpecificOutput"]["additionalContext"]
+    assert "do not list them under answers" in msg and "list it under answers" not in msg
+
+
+def test_answers_in_a_step_are_still_listed(world: World) -> None:
+    run_id = start_run(world)
+    next_action(world, run_id)
+    qs = ["Q-01: Which window?"]
+    hook(world, "pre-tool", _pre_ask(qs))
+    out, _ = hook(world, "post-write", _post_ask(qs, {qs[0]: "Yes"}))
+    assert "list it under answers in the artifact" in out
+
+
+def test_the_lock_folder_is_the_users_own(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import tempfile
+
+    monkeypatch.setattr(tempfile, "gettempdir", lambda: str(tmp_path / "tmp"))
+    with ide_questions._locked(tmp_path, RUN):
+        pass
+    [folder] = (tmp_path / "tmp").iterdir()
+    uid = getattr(os, "getuid", lambda: None)()
+    assert folder.name == ("tsl-locks" if uid is None else f"tsl-locks-{uid}")
+
+
+def test_a_missed_record_is_noted_for_doctor(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    def busy(*_a: Any, **_k: Any) -> str:
+        raise TimeoutError("busy")
+
+    monkeypatch.setattr(ide_questions, "raised", busy)
+    run_id = start_run(world)
+    next_action(world, run_id)
+    assert hook(world, "pre-tool", _pre_ask(["Q-01: Which window?"])) == ("", 0)
+    [line] = ide_questions.recent_failures(world.rt().home.root)
+    assert (line["run_id"], line["hook"], line["error"]) == (run_id, "pre-tool", "TimeoutError")
+    _, env, _, err = world.cli(["doctor", "--json"])
+    assert env is not None, err
+    [chk] = [c for c in env["data"]["checks"] if c["id"] == "ide-questions"]
+    assert chk["status"] == "warn" and "1 IDE question records missed" in chk["detail"]
+
+
+def test_a_doctor_without_missed_records_shows_no_check(world: World) -> None:
+    _, env, _, err = world.cli(["doctor", "--json"])
+    assert env is not None, err
+    assert not [c for c in env["data"]["checks"] if c["id"] == "ide-questions"]
+
+
+def test_windows_retries_a_save_while_a_reader_has_the_file_open(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # On Windows os.replace fails while another process (the panel's tsl state show) has the
+    # record open; the save waits a moment and tries again instead of losing the change.
+    from tsl.core import jsonio
+
+    real, tries = os.replace, []
+
+    def flaky(src: str, dst: Any) -> None:
+        tries.append(dst)
+        if len(tries) < 3:
+            raise PermissionError(13, "in use")
+        real(src, dst)
+
+    monkeypatch.setattr(jsonio.sys, "platform", "win32")
+    monkeypatch.setattr(jsonio.os, "replace", flaky)
+    monkeypatch.setattr(jsonio.time, "sleep", lambda _s: None)
+    ide_questions._save(tmp_path, RUN, {"schema": "ide-questions.v1", "run_id": RUN, "asks": []})
+    assert len(tries) == 3 and ide_questions.load(tmp_path, RUN)["run_id"] == RUN
+    monkeypatch.setattr(jsonio.sys, "platform", "linux")  # elsewhere it is a real error
+    tries.clear()
+    with pytest.raises(PermissionError):
+        jsonio.write_json(tmp_path / "x.json", {})
+
+
+# ------------------------------------------------- notes 4 and 8 of the #74 review (Ekjot, 26 Nov)
+
+
+def _stop(agent: str | None) -> dict[str, Any]:
+    d: dict[str, Any] = {"hook_event_name": "SubagentStop", "stop_hook_active": False}
+    if agent:
+        d["agent_id"] = agent
+    return d
+
+
+def test_a_subagent_that_ends_closes_the_ask_it_left_open(world: World) -> None:
+    # Dismissed, then the subagent ended: no later tool call of that agent would close it.
+    run_id = start_run(world)
+    next_action(world, run_id)
+    hook(world, "pre-tool", _pre_ask(["Q-01: Which window?"], "toolu_a", agent_id="ag1"))
+    hook(world, "pre-tool", _pre_ask(["Q-02: Page size?"], "toolu_m"))  # the main session's
+    assert hook(world, "subagent-stop", _stop(None)) == ("", 0)  # no agent id: nothing to do
+    assert len(ide_questions.open_asks(world.companion, run_id)) == 2
+    assert hook(world, "subagent-stop", _stop("ag1")) == ("", 0)
+    a, m = _asks(world, run_id)
+    assert (a["status"], a["close_reason"]) == ("closed", "dismissed")
+    assert m["status"] == "open"  # another agent's dialog stays
+
+
+def test_subagent_stop_sends_no_hook_decision_event(world: World) -> None:
+    # hook.decision's hook enum has no subagent-stop: the service would reject the event.
+    start_run(world)
+    hook(world, "subagent-stop", _stop("ag1"))
+    events = [e for e in world.rt().outbox().events() if e["type"] == "hook.decision"]
+    assert all(e["body"]["hook"] != "subagent-stop" for e in events)
+
+
+def test_the_run_ending_closes_every_open_ask_so_repair_cannot_move_its_wait(
+    world: World,
+) -> None:
+    from tsl.core.clock import iso
+
+    run_id = start_run(world)
+    next_action(world, run_id)
+    ide_questions.raised(
+        world.companion,
+        run_id,
+        "req",
+        1,
+        QS[:1],
+        source="hook",
+        at=iso(world.clock()),
+        tool_use_id="t1",
+        agent_id="ag1",
+    )
+    world.clock.advance(seconds=60)
+    code, _, _, err = world.cli(["state", "cancel", run_id, "--reason", "test", "--json"])
+    assert code == 0, err
+    [ask] = _asks(world, run_id)
+    assert (ask["status"], ask["close_reason"]) == ("closed", "run-ended")
+    world.clock.advance(hours=1)
+    world.cli(["state", "repair", run_id, "--json"])  # moves updated_at; the wait stays
     code, env, _, err = world.cli(["state", "show", run_id, "--progress", "--json"])
     assert code == 0 and env is not None, err
     assert env["data"]["progress"]["wait"]["total_s"] == 60

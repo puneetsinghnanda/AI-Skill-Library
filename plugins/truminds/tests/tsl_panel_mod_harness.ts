@@ -248,6 +248,11 @@ assert.equal(afters.length, 2, 'and once more after the post-tool hook')
 afters[1].fn()
 await settle()
 assert.equal(calls.length, 3)
+// A new ask cancels the last one's late refresh (review of #74).
+const again2 = askHook($, { tool: 'AskUserQuestion' }, async () => ({ answers: 2 }))
+assert.equal(afters[1].cancelled, true)
+await again2
+await settle()
 
 // /tsl-panel during a running refresh waits for its answer instead of reading the old state.
 store.set('panel', { progress: null, at: null, stale: false })
