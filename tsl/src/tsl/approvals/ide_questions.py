@@ -86,6 +86,28 @@ def load(root: Path, run_id: str) -> dict[str, Any]:
     return obj
 
 
+def _load_for_write(root: Path, run_id: str) -> dict[str, Any]:
+    """The record a writer changes: empty only when the file is missing. A record that cannot
+    be read is an error, never an empty one: saving over it would drop every ask in it. On
+    Windows a read can fail for a moment while another process (a virus scanner, a reader)
+    has the file open, so it is retried for about a second."""
+    p = _path(root, run_id)
+    if not p.is_file():
+        return {"schema": SCHEMA, "run_id": run_id, "asks": []}
+    for wait in (0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.4, 0):
+        try:
+            text = p.read_text(encoding="utf-8")
+            break
+        except PermissionError:
+            if sys.platform != "win32" or not wait:
+                raise
+            time.sleep(wait)
+    obj = json.loads(text)  # ValueError: a broken record is kept as it is, not replaced
+    if not isinstance(obj, dict) or not isinstance(obj.get("asks"), list):
+        raise ValueError(f"{p.name} is not an {SCHEMA} record")
+    return obj
+
+
 def _save(root: Path, run_id: str, obj: dict[str, Any]) -> None:
     write_json(_path(root, run_id), obj)
 
@@ -252,7 +274,7 @@ def raised(
     raises them in A2, then the dialog shows them). A new dialog of an agent closes the dialog it
     left open: that one was dismissed (HMS-27: Esc stops the turn, then the model asks the
     same questions again), so its wait ends here and the new one starts its own."""
-    obj = load(root, run_id)
+    obj = _load_for_write(root, run_id)
     ids = [str(q.get("id")) for q in questions]
     at = at or _now()
     for a in obj["asks"]:
@@ -321,7 +343,7 @@ def answered(
 ) -> list[str]:
     """Record the engineer's answers ({question, options, answer}) in ide-answers.md, with the
     ask's real asked_at, and mark the ask answered; returns the new A-nn ids."""
-    obj = load(root, run_id)
+    obj = _load_for_write(root, run_id)
     a = _find(obj, ask_id)
     if a is None:
         raise KeyError(ask_id)
@@ -399,7 +421,7 @@ def answered_from_file(
 @_one_writer
 def closed(root: Path, run_id: str, ask_id: str, *, reason: str, at: str | None = None) -> None:
     """An open ask nobody answered (dismissed or skipped): its wait ends now."""
-    obj = load(root, run_id)
+    obj = _load_for_write(root, run_id)
     a = _find(obj, ask_id)
     if a is None or a.get("status") != "open":
         return
@@ -423,7 +445,7 @@ def close_open(
     open asks (the run ended). Returns how many closed."""
     if not _path(root, run_id).is_file():
         return 0
-    obj = load(root, run_id)
+    obj = _load_for_write(root, run_id)
     now = at or _now()
     t_now = _ts(now)
     n = 0

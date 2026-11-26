@@ -437,6 +437,21 @@ def test_parallel_writers_keep_every_ask(tmp_path: Path, monkeypatch: pytest.Mon
     # longer than that on a slow disk (the Windows runner), and giving up is tested below.
     monkeypatch.setattr(ide_questions, "LOCK_WAIT_S", 60.0)
     errors: list[BaseException] = []
+    # How many writers are between their load and their save at once: 1 when the lock holds.
+    inside, most = [0], [0]
+    load, save = ide_questions._load_for_write, ide_questions._save
+
+    def counted_load(root: Path, run_id: str) -> dict[str, Any]:
+        inside[0] += 1
+        most[0] = max(most[0], inside[0])
+        return load(root, run_id)
+
+    def counted_save(root: Path, run_id: str, obj: dict[str, Any]) -> None:
+        save(root, run_id, obj)
+        inside[0] -= 1
+
+    monkeypatch.setattr(ide_questions, "_load_for_write", counted_load)
+    monkeypatch.setattr(ide_questions, "_save", counted_save)
 
     def ask(n: int) -> None:
         try:
@@ -459,6 +474,7 @@ def test_parallel_writers_keep_every_ask(tmp_path: Path, monkeypatch: pytest.Mon
     for t in threads:
         t.join()
     assert errors == []
+    assert most[0] == 1, f"{most[0]} writers held the record at once: the lock did not exclude"
     asks = ide_questions.load(tmp_path, RUN)["asks"]
     assert sorted(a["tool_use_id"] for a in asks) == sorted(f"t{n}" for n in range(12))
     assert len({a["ask_id"] for a in asks}) == 12
@@ -663,3 +679,15 @@ def test_the_run_ending_closes_every_open_ask_so_repair_cannot_move_its_wait(
     code, env, _, err = world.cli(["state", "show", run_id, "--progress", "--json"])
     assert code == 0 and env is not None, err
     assert env["data"]["progress"]["wait"]["total_s"] == 60
+
+
+def test_a_writer_never_saves_over_a_record_it_cannot_read(tmp_path: Path) -> None:
+    # load() reads a broken record as empty (a view); a writer saving that would drop every
+    # ask in it. It stops instead, and the hook notes the failure for tsl doctor.
+    ide_questions.raised(tmp_path, RUN, "req", 1, QS[:1], source="hook", tool_use_id="t1")
+    p = tmp_path / f"runs/{RUN}/ide-questions.json"
+    p.write_text(p.read_text(encoding="utf-8")[:-5], encoding="utf-8")  # cut short
+    broken = p.read_text(encoding="utf-8")
+    with pytest.raises(ValueError):
+        ide_questions.raised(tmp_path, RUN, "req", 1, QS[1:], source="hook", tool_use_id="t2")
+    assert p.read_text(encoding="utf-8") == broken
