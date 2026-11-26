@@ -52,6 +52,11 @@ class Home:
     def session_policy(self, session_id: str) -> Path:
         return self.sessions / f"{_safe_name(session_id)}.policy.json"
 
+    def session_transcript(self, session_id: str) -> Path:
+        """Where Claude Code writes this session's transcript (run metrics, D1). Local only: the
+        path holds the home folder, so it never goes to the companion repo."""
+        return self.sessions / f"{_safe_name(session_id)}.transcript"
+
     @property
     def logs(self) -> Path:
         return self.root / "logs"

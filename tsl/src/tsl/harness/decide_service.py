@@ -383,6 +383,12 @@ def _apply(
     if outcome in ("PASS", "PASS-WITH-FINDINGS") and ctx.skill_for(step).is_code:
         head_shas = _checkpoint(ctx, step, attempt)
     prev_status = ctx.state["status"]
+    # Run metrics (D1): tokens from the session transcripts, the engineer's wait, the AI time.
+    from tsl.state import metrics as run_metrics
+
+    mx = run_metrics.safe_for_attempt(
+        rt.home, ctx.comp, ctx.run_id, ctx.state, step, attempt, record["decided_at"], env=rt.env
+    )
 
     def apply(st: dict[str, Any]) -> None:
         s = next(x for x in st["steps"] if x["id"] == step)
@@ -397,6 +403,8 @@ def _apply(
                 "record": vrel,
             }
         )
+        if mx is not None:
+            a["metrics"] = mx
         if record.get("accepted_default"):
             a["accepted_default"] = True
         bu = s.setdefault("budget_used", {"checks": 0, "review": 0, "verifier": 0, "rework": 0})
@@ -466,7 +474,7 @@ def _apply(
         "caps": d.caps,
         "gate_failures": d.gate_failures,
         "findings_count": fc,
-        "duration_ms": 0,
+        "duration_ms": int(mx["active_ms"]) if mx else 0,
         "verification_sha256": vsha,
         "seq": seq,
         "reasons": d.reasons,
@@ -478,6 +486,8 @@ def _apply(
     }
     if rt.session_id():
         body["session_id"] = rt.session_id()
+    if mx is not None:
+        body["metrics"] = mx
     ctx.emit("step.decided", body)
     for q in new_questions:
         ev: dict[str, Any] = {
