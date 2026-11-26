@@ -196,6 +196,13 @@ def _open_attempt(ctx: RunCtx, sid: str, cause: str) -> None:
     if rt.session_id():
         body["session_id"] = rt.session_id()
     ctx.emit("step.started", body)
+    _phase(ctx, sid, int(a["n"]), "run_step", outcome=cause)
+
+
+def _phase(ctx: RunCtx, step: str | None, n: int | None, name: str, **kw: Any) -> None:
+    from tsl.orchestrator.extensions import phase
+
+    phase(ctx.rt, ctx.comp, ctx.state, step, n, name, **kw)
 
 
 def _ensure_branches(ctx: RunCtx) -> dict[str, Any]:
@@ -306,6 +313,7 @@ def _gate_entry(ctx: RunCtx, sdef: dict[str, Any]) -> None:
 
     ctx.state = ctx.store.update(apply)
     unbind_run(ctx.rt, ctx.run_id)
+    _phase(ctx, gid, None, "pause_approval")
     ctx.emit(
         "run.status_changed",
         {"from": prev, "to": "PAUSED_APPROVAL", "reason_code": "paused_approval", "gate": gid},
@@ -425,6 +433,7 @@ def next_action(rt: Runtime, comp: Companion, run_id: str) -> tuple[dict[str, An
 
         ctx.state = ctx.store.update(done)
         ctx.emit("run.status_changed", {"from": prev, "to": "COMPLETED", "reason_code": reason})
+        _phase(ctx, None, None, "done", outcome=reason)
         lockmod.release(rt, comp, ctx.state, "complete")
         unbind_run(rt, run_id)
         return {"schema": "next-action.v1", "action": "done", "run_id": run_id}, "done"

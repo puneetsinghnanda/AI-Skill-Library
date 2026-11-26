@@ -80,10 +80,11 @@ def root(
     OPTS.color = not no_color and not os.environ.get("NO_COLOR") and sys.stderr.isatty()
 
 
-def _print(env_json: str, text: str) -> None:
+def _print(env_json: str, text: str, human_text: bool = True) -> None:
     if OPTS.json:
         sys.stdout.write(env_json + "\n")
-        sys.stderr.write(text + "\n")
+        if human_text:
+            sys.stderr.write(text + "\n")
     else:
         sys.stdout.write(text + "\n")
 
@@ -102,10 +103,11 @@ def emit_ok(
     data: dict[str, Any],
     warnings: list[dict[str, str]] | None = None,
     next_: str | None = None,
+    human_text: bool = True,
 ) -> int:
     env = make("OK", 0, message, next_, data, warnings)
     _flush_stderr()
-    _print(env.to_json(), human(env, OPTS.color))
+    _print(env.to_json(), human(env, OPTS.color), human_text)
     return 0
 
 
@@ -522,11 +524,14 @@ def state_start(
         str | None,
         typer.Option("--ticket-file", help="Ticket text (Markdown) to snapshot as ticket.md"),
     ] = None,
+    loop: Annotated[
+        str | None, typer.Option("--loop", help="code|model: who runs the loop for this run")
+    ] = None,
 ) -> int:
     """Start a run: take the lock, write state.json, the workflow snapshot and ticket.md."""
     from tsl.state.service import start
 
-    data, warnings = start(rt(), comp(), workflow, ticket, system, pod, ticket_file or None)
+    data, warnings = start(rt(), comp(), workflow, ticket, system, pod, ticket_file or None, loop)
     return emit_ok(f"Run {data['run_id']} started", data, warnings, f"tsl next {data['run_id']}")
 
 
@@ -612,11 +617,27 @@ def state_repin(run_id: str) -> int:
 
 @app.command("next")
 @command
-def next_(run_id: str) -> int:
-    """Name the single next action of a run."""
-    from tsl.orchestrator.next import next_action
+def next_(
+    run_id: str,
+    take_over: Annotated[
+        bool, typer.Option("--take-over", help="code mode: take the run over from another session")
+    ] = False,
+) -> int:
+    """Name the single next action of a run.
 
-    data, instruction = next_action(rt(), comp(), run_id)
+    In code mode (the run's loop setting) it also runs the checks, records the review and
+    decides, and returns one next-action.v2 instruction."""
+    from tsl.orchestrator.next import next_action
+    from tsl.state.store import RunStore
+
+    c = comp()
+    if RunStore(rt(), c, run_id).load().get("run_loop") == "code":
+        from tsl.orchestrator.loop import code_next
+
+        v2, warns = code_next(rt(), c, run_id, take_over=take_over)
+        # JSON only: the caller shows "say"; the same text again on stderr doubles the output.
+        return emit_ok(v2["say"], v2, [*c.warnings, *warns], human_text=False)
+    data, instruction = next_action(rt(), c, run_id)
     msg = {
         "run_skill": f"Step {data.get('step')} ({data.get('progress', {}).get('index')}/"
         f"{data.get('progress', {}).get('total')})",

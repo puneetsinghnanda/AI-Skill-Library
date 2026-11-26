@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import re
 import shutil
+from pathlib import Path
 from typing import Any
 
 from tsl.approvals import approvals_md, questions_md
@@ -49,6 +50,18 @@ def _major(v: str) -> str:
     return v.split(".", 1)[0]
 
 
+def mod_marker(rt: Runtime, session_id: str) -> Path:
+    """The mod writes this file when it loads in a session; tsl state start reads it (A1 §8a)."""
+    return rt.home.root / "sessions" / f"{session_id}.mod"
+
+
+def _driver(rt: Runtime, run_loop: str) -> str:
+    sid = rt.session_id()
+    if run_loop == "code" and sid and mod_marker(rt, sid).is_file():
+        return "mod"
+    return "skill"
+
+
 def start(
     rt: Runtime,
     comp: Companion,
@@ -57,8 +70,14 @@ def start(
     system: str | None = None,
     pod: str | None = None,
     ticket_file: str | None = None,
+    loop: str | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, str]]]:
     _require_git()
+    run_loop = loop or str((rt.user_config().get("run") or {}).get("loop") or "code")
+    if run_loop not in ("code", "model"):
+        raise TslError(
+            "E-USE-01", detail=f"--loop {run_loop}: use code or model", cmd="state start"
+        )
     cfg = comp.config
     warnings = list(comp.warnings)
     if system and system != cfg.system.code:
@@ -138,6 +157,8 @@ def start(
         "owner_pseudonym": me["pseudonym"],
         "status": "RUNNING",
         "end_reason": None,
+        "run_loop": run_loop,
+        "driver": _driver(rt, run_loop),
         "pinned": {
             "plugin": plugin_version,
             "tsl": rt.tsl_version,
@@ -217,6 +238,8 @@ def start(
         "pack": {"fresh": pk["state"] == "fresh", "signed_at": pk["state_block"].get("signed_at")},
         "first_step": first,
         "ticket_snapshot": ticket_rel,
+        "loop": state["run_loop"],
+        "driver": state["driver"],
     }, warnings
 
 

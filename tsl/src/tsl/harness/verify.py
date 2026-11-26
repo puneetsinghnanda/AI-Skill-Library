@@ -264,6 +264,9 @@ def build_input(
     art = artmod.load(comp.root, rel)
     step = str(art.step)
     skill = ctx.skill_for(step)
+    if art.doc is not None and _open_attempt_artifact(rel, attempt):
+        # Checks see the envelope tsl owns, whether or not it is on disk yet (A1 §6 #4).
+        art.doc.front.update(envelope_for(ctx, step, attempt, changes))
     cfg = comp.config
     repos = {r.name for r in cfg.product_repos} | {str(r["name"]) for r in cfg.read_only_repos}
     prior: list[str] = []
@@ -339,6 +342,9 @@ def compute(
             else:
                 h3 = GateResult("H3", "pending", details=["verifier not run yet"])
         else:
+            from tsl.orchestrator.extensions import phase
+
+            phase(rt, ctx.comp, ctx.state, step, int(attempt["n"]), "verifier")
             try:
                 h3, verifier = run_h3(rt, ctx, extra, changes)
             except VerifierUnavailable as exc:
@@ -448,6 +454,11 @@ def verify_artifact(
         existing = read_json(comp.path(checks_rel)) if comp.path(checks_rel).is_file() else None
         sk = ctx.skill_for(m.group("step"))
         changes = product_changes(ctx) if sk.is_code else None
+        if not fast:
+            stamp(ctx, rel, attempt, changes)
+            from tsl.orchestrator.extensions import phase
+
+            phase(rt, comp, ctx.state, m.group("step"), int(attempt["n"]), "checks")
         run, verifier = compute(
             rt, ctx, rel, attempt, fast=fast, only=only, existing=existing, changes=changes
         )
@@ -660,6 +671,74 @@ def detach_h3(rt: Runtime, comp: Companion, artifact: str) -> dict[str, Any]:
 
 
 # ------------------------------------------------------------------------- verify --inputs
+def envelope_for(
+    ctx: RunCtx, step: str, attempt: dict[str, Any], changes: list[dict[str, Any]] | None
+) -> dict[str, Any]:
+    """The front matter keys tsl owns (design A1 §6 #4): the skill writes content only, and
+    tsl fills these in for every check and on disk before the full checks."""
+    sk = ctx.skill_for(step)
+    pack = ctx.state.get("pack") or {}
+    envelope: dict[str, Any] = {
+        "schema": sk.artifact_output["schema"],
+        "run_id": ctx.run_id,
+        "step": step,
+        "attempt": attempt["n"],
+        "skill": attempt["skill"],
+        "inputs": [
+            {"path": i["path"], "sha256": i["sha256"]}
+            for i in ctx.resolve_inputs(step)
+            if i["sha256"]
+        ],
+        "pack_sha": dict(pack.get("source_sha") or {}),
+    }
+    if sk.is_code and changes:
+        envelope["code"] = [
+            {
+                "repo": c["repo"],
+                "base_sha": c["base_sha"],
+                "head_sha": c["tree_sha"],
+                "diff_sha256": c["diff_sha256"],
+                "files": c["files"],
+            }
+            for c in changes
+        ]
+    return envelope
+
+
+def _open_attempt_artifact(rel: str, attempt: dict[str, Any]) -> bool:
+    return attempt.get("artifact") == rel and attempt.get("outcome") is None
+
+
+def stamp(
+    ctx: RunCtx, rel: str, attempt: dict[str, Any], changes: list[dict[str, Any]] | None
+) -> bool:
+    """Write the envelope into the artifact's front matter on disk. True if the file changed.
+
+    Only the open attempt's artifact, and only when its front matter parses (H1 reports the
+    rest). Run once before the full checks, when the skill has finished writing, so the file
+    never changes under an editor that is still working on it."""
+    from tsl.core.frontmatter import FrontMatterError, split
+    from tsl.core.jsonio import atomic_write, dump_yaml
+
+    if not _open_attempt_artifact(rel, attempt):
+        return False
+    p = ctx.comp.path(rel)
+    text = p.read_text(encoding="utf-8")
+    try:
+        doc = split(text)
+    except FrontMatterError:
+        return False
+    m = ARTIFACT_RE.match(rel)
+    if m is None:
+        return False
+    env = envelope_for(ctx, m.group("step"), attempt, changes)
+    if all(doc.front.get(k) == v for k, v in env.items()):
+        return False
+    front = {**doc.front, **env}
+    atomic_write(p, "---\n" + dump_yaml(front) + "---\n" + doc.body)
+    return True
+
+
 def verify_inputs(
     rt: Runtime, comp: Companion, run_id: str | None, step: str | None, artifact: str | None
 ) -> dict[str, Any]:
@@ -737,29 +816,7 @@ def verify_inputs(
         fb_path = comp.path(str(attempt["feedback"]))
         if fb_path.is_file():
             retry = _retry_from_feedback(read_json(fb_path))
-    envelope = {
-        "schema": sk.artifact_output["schema"],
-        "run_id": run_id,
-        "step": step,
-        "attempt": attempt["n"],
-        "skill": attempt["skill"],
-        "inputs": [{"path": i["path"], "sha256": i["sha256"]} for i in out_inputs if i["sha256"]],
-        "pack_sha": dict(pack.get("source_sha") or {}),
-    }
-    if sk.is_code:
-        # The skill re-runs `tsl verify --inputs` after its edits and copies code[] from here.
-        changes = product_changes(ctx)
-        if changes:
-            envelope["code"] = [
-                {
-                    "repo": c["repo"],
-                    "base_sha": c["base_sha"],
-                    "head_sha": c["tree_sha"],
-                    "diff_sha256": c["diff_sha256"],
-                    "files": c["files"],
-                }
-                for c in changes
-            ]
+    envelope = envelope_for(ctx, step, attempt, product_changes(ctx) if sk.is_code else None)
     data = {
         "run_id": run_id,
         "step": step,
