@@ -14,7 +14,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
@@ -613,3 +613,118 @@ def log_tail(path: Path, max_chars: int) -> str:
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     tail = " | ".join(lines[-8:])
     return tail[-max_chars:]
+
+
+# Lines that say what broke, in the output of tsc, vite, vitest, jest, eslint, pytest and ruff.
+# npm's own trailer ("npm error code 2", "npm error path ...") never says what broke, and in the
+# HMS-24 impl build log it was all the old last-8-lines tail showed; the TS2741 line above it
+# was the error.
+_ERROR_LINE = re.compile(
+    r"error TS\d+|^\s*FAIL\b|^\s*[×✗✕]\s|^\s*❯\s+\S+:\d+|"
+    r"\b(?:Assertion|Type|Reference|Syntax|Range|Import|Module|Name|Attribute|Key|Value)?Error\b:|"
+    r"^\s*(?:Test Files|Tests)\s.*\bfailed\b|^FAILED\s|^E\s{2,}\S|^\s*[-+] (?:Expected|Received)\b|"
+    r"^\s*\d+:\d+\s+error\s|^\S+:\d+:\d+: [A-Z]+\d+|\berror during build\b|"
+    r"\*\*\* Error compiling"
+)
+_NOISE = re.compile(r"^\s*npm (?:error|ERR!|warn|notice)\b", re.I)
+
+
+def error_lines(path: Path, max_chars: int = 1500, max_lines: int = 15) -> str:
+    """The lines of a step log that say what failed, in the order the log has them, one per
+    line. Falls back to the log tail when no line looks like an error. Never raises."""
+    try:
+        text = path.read_bytes().decode("utf-8", "replace")
+    except OSError:
+        return ""
+    return error_lines_of(text, max_chars, max_lines) or log_tail(path, max_chars)
+
+
+def error_lines_of(text: str, max_chars: int = 1500, max_lines: int = 15) -> str:
+    """error_lines over output text (a local tool's stdout and stderr); "" when nothing looks
+    like an error."""
+    lines = [ln.rstrip() for ln in text.splitlines() if ln.strip() and not _NOISE.search(ln)]
+    hits = [ln.strip() for ln in lines if _ERROR_LINE.search(ln)]
+    if not hits:
+        hits = [ln.strip() for ln in lines if re.search(r"\berror\b", ln, re.I)]
+    if not hits:
+        return ""
+    out: list[str] = []
+    size = 0
+    for ln in dict.fromkeys(hits):
+        ln = ln[:300]
+        if len(out) >= max_lines or size + len(ln) > max_chars:
+            out.append(f"... {len(dict.fromkeys(hits)) - len(out)} more line(s) in the log")
+            break
+        out.append(ln)
+        size += len(ln) + 1
+    return "\n".join(out)
+
+
+def _sarif_path(loc: dict[str, Any], bases: dict[str, Any], root: str = "") -> str:
+    """Repo-relative path of a SARIF location: the verifier works on a copy in /cache/w (or
+    /src); a local tool reports absolute paths under `root`."""
+    from urllib.parse import unquote
+
+    art = (loc.get("physicalLocation") or {}).get("artifactLocation") or {}
+    uri = str(art.get("uri") or "")
+    base = (bases.get(str(art.get("uriBaseId") or "")) or {}).get("uri") or ""
+    if base and "://" not in uri and not uri.startswith("/"):
+        uri = str(base).rstrip("/") + "/" + uri
+    path = unquote(re.sub(r"^file://", "", uri)).replace("\\", "/")
+    if re.match(r"^/[A-Za-z]:/", path):  # file:///C:/x on Windows
+        path = path[1:]
+    local = root.replace("\\", "/").rstrip("/") + "/" if root else ""
+    if local and path.lower().startswith(local.lower()):
+        return path[len(local) :]
+    for base_dir in ("/cache/w/", "/src/"):
+        if base_dir in path:
+            return path.split(base_dir, 1)[1]
+    while path.startswith("./"):
+        path = path[2:]
+    return path
+
+
+def sarif_errors(
+    path: Path, files: Collection[str] | None = None, limit: int = 20
+) -> tuple[list[str], int, int]:
+    """Results of a lint SARIF report that fail the step: level error and not suppressed in
+    the source (eslint-disable). Each as "path:line:col rule: message".
+
+    Returns (lines, errors in `files`, all errors). When `files` is given only results in those
+    files are listed, unless none is, then the first of all results. Never raises."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return [], 0, 0
+    return sarif_errors_of(text, files, limit)
+
+
+def sarif_errors_of(
+    text: str, files: Collection[str] | None = None, limit: int = 20, root: str = ""
+) -> tuple[list[str], int, int]:
+    """sarif_errors over SARIF text (a local `ruff check --output-format sarif`), paths made
+    relative to `root`."""
+    import json
+
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return [], 0, 0
+    if not isinstance(data, dict):
+        return [], 0, 0
+    found: list[tuple[str, str]] = []
+    for run in data.get("runs") or []:
+        bases = run.get("originalUriBaseIds") or {}
+        for r in run.get("results") or []:
+            if r.get("suppressions") or str(r.get("level") or "warning") != "error":
+                continue
+            locs = r.get("locations") or [{}]
+            where = _sarif_path(locs[0], bases, root)
+            reg = (locs[0].get("physicalLocation") or {}).get("region") or {}
+            pos = f"{where}:{reg.get('startLine', '?')}:{reg.get('startColumn', '?')}"
+            msg = re.sub(r"\s+", " ", str((r.get("message") or {}).get("text") or "")).strip()
+            found.append((where, f"{pos} {r.get('ruleId') or 'lint'}: {msg[:200]}"))
+    every = [line for _, line in found]
+    mine = [line for where, line in found if files is not None and where in files]
+    shown = every if files is None else (mine or every)
+    return shown[:limit], len(mine), len(found)

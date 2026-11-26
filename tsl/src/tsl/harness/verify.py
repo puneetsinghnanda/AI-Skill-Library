@@ -345,6 +345,16 @@ def soft_failures(run: CheckRun) -> list[dict[str, str]]:
     ]
 
 
+def hint_failures(run: CheckRun) -> list[dict[str, str]]:
+    """Failing hint checks (gate `hint`): skill checks that match text and can be wrong. The
+    self-check shows them; they are in no gate, not in S2 and cost no retry (SDD-03 §3.3)."""
+    return [
+        {"id": o.id, "detail": o.detail or "failed"}
+        for o in run.skill_checks
+        if o.gate == "hint" and o.status == "fail"
+    ]
+
+
 def verify_artifact(
     rt: Runtime,
     comp: Companion,
@@ -403,6 +413,7 @@ def verify_artifact(
         ],
         "soft": rec["soft"],
         "soft_failed": soft_failures(run),
+        "hints_failed": hint_failures(run),
         "injection": [h.record() for h in run.injection_hits],
         "hard_failed": hard_failed,
         "duration_ms": 0,
@@ -438,12 +449,22 @@ def verify_artifact(
     return data
 
 
-def self_check(rt: Runtime, comp: Companion, artifact: str) -> dict[str, Any]:
+def self_check(
+    rt: Runtime, comp: Companion, artifact: str, *, local: bool = False
+) -> dict[str, Any]:
     """tsl verify <artifact> --self-check: what the skill can still fix before the review.
 
     The same fast checks the post-write hook runs (no verifier, no review, no decision), as one
     list: failing hard gates, failing soft checks (they lower S2) and claims that will not verify
-    (they lower S1). Hosts without hooks (Copilot, Cursor) get the same feedback this way.
+    (they lower S1). Failing hint checks (text matches that can be wrong) come back apart, in
+    `hints`: they count nowhere, so they never make `ok` false. Hosts without hooks (Copilot,
+    Cursor) get the same feedback this way. The skill's own checks.yaml checks come back here like
+    any gate or soft check (story-split and unit-test content checks, roadmap A3).
+
+    local=True also type-checks and lints the files a code step changed, on this machine
+    (harness/local.py), so a type or lint slip is fixed inside the attempt instead of costing a
+    verifier retry (HMS-24 impl, HMS-33 ut). It works before the artifact exists: then only the
+    local checks run. It counts as no attempt and changes no run state.
 
     A preliminary check only: it never raises. Any failure, including an abort code (secret,
     policy) or an internal error, comes back as an item in fix; the harness decides at decide."""
@@ -451,9 +472,30 @@ def self_check(rt: Runtime, comp: Companion, artifact: str) -> dict[str, Any]:
 
     rel = str(artifact)
     fix: list[dict[str, str]] = []
-    data: dict[str, Any] = {}
+    hints: list[dict[str, str]] = []
+    out: dict[str, Any] = {}
     try:
         rel = to_rel(comp, artifact)
+    except TslError as exc:
+        fix.append({"kind": "error", "id": exc.code, "detail": exc.message})
+    if local and not fix:
+        out["local"] = _self_check_local(rt, comp, rel, fix)
+    if not (local and not comp.path(rel).is_file()):  # before the write: local checks only
+        _self_check_artifact(rt, comp, rel, fix, hints, unverified_claims)
+    fix = [dict(t) for t in dict.fromkeys(tuple(f.items()) for f in fix)]
+    return {"artifact": rel, "ok": not fix, "fix": fix, "hints": hints, **out}
+
+
+def _self_check_artifact(
+    rt: Runtime,
+    comp: Companion,
+    rel: str,
+    fix: list[dict[str, str]],
+    hints: list[dict[str, str]],
+    unverified_claims: Any,
+) -> None:
+    data: dict[str, Any] = {}
+    try:
         data = verify_artifact(rt, comp, rel, fast=True)
     except TslError as exc:
         data = exc.data or {}
@@ -468,6 +510,8 @@ def self_check(rt: Runtime, comp: Companion, artifact: str) -> dict[str, Any]:
                 fix.append({"kind": "gate", "id": str(g["id"]), "detail": str(d)[:300]})
     for s in data.get("soft_failed", []):
         fix.append({"kind": "soft", "id": s["id"], "detail": s["detail"][:300]})
+    for h in data.get("hints_failed", []):
+        hints.append({"kind": "hint", "id": h["id"], "detail": h["detail"][:300]})
     no_front = any("E-H1-01" in g.get("codes", []) for g in data.get("gates", []))
     if data and not no_front:
         try:
@@ -475,7 +519,45 @@ def self_check(rt: Runtime, comp: Companion, artifact: str) -> dict[str, Any]:
                 fix.append({"kind": "claim", "id": c["id"], "detail": c["reason"]})
         except Exception:  # noqa: S110 - claims are a hint; decide reports them anyway
             pass
-    return {"artifact": rel, "ok": not fix, "fix": fix}
+
+
+def _self_check_local(
+    rt: Runtime, comp: Companion, rel: str, fix: list[dict[str, str]]
+) -> dict[str, Any]:
+    """Local type check and lint of the files this code step changed (harness/local.py).
+    Failing checks go to fix as kind `local`; anything that goes wrong is an `error` item."""
+    from tsl.harness import local
+
+    try:
+        m = ARTIFACT_RE.match(rel)
+        if not m:
+            raise TslError("E-USE-01", detail=f"{rel} is not an artifact path", cmd="verify")
+        step = m.group("step")
+        ctx = RunCtx(rt, comp, m.group("run_id"))
+        ctx.assert_lock_held()
+        _attempt_for(ctx, step, ci=False)
+        if not ctx.skill_for(step).is_code:
+            return {"status": "skip", "detail": f"step {step} changes no product code"}
+        repos = []
+        for c in product_changes(ctx) or []:
+            cfg = comp.config.repo(c["repo"])
+            repos.append(
+                (
+                    str(c["repo"]),
+                    cfg.verifier_profile if cfg else None,
+                    comp.product_clone(c["repo"]),
+                    [str(f) for f in c["files"]],
+                )
+            )
+        info, items = local.check_repos(repos, comp.path(tool_log_path(ctx.run_id)))
+        fix.extend(items)
+        return info
+    except TslError as exc:
+        fix.append({"kind": "error", "id": exc.code, "detail": exc.message})
+    except Exception as exc:  # never stop the skill: an error item instead (a git or file error)
+        detail = f"local checks: {(str(exc) or type(exc).__name__)[:280]}"
+        fix.append({"kind": "error", "id": "E-INT-01", "detail": detail})
+    return {"status": "error"}
 
 
 def h3_status(rt: Runtime, comp: Companion, artifact: str) -> dict[str, Any]:

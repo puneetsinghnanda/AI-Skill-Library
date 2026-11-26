@@ -350,6 +350,44 @@ def validate(paths: list[Path], lock: Annotated[bool, typer.Option("--lock")] = 
 
 
 # ------------------------------------------------------------------------------- harness
+def _self_check_message(data: dict[str, Any]) -> str:
+    n = len(data["fix"])
+    loc = data.get("local") or {}
+    head = f"Self-check: {n} item(s) to fix" if n else "Self-check clean"
+    if data.get("hints"):
+        head += f", {len(data['hints'])} hint(s)"
+    st = loc.get("status")
+    if st in ("pass", "fail"):
+        head += f"; local checks {st}ed"
+    elif st == "skip":
+        why = loc.get("detail") or "; ".join(x["detail"] for x in loc.get("not_run", [])[:1])
+        head += f"; local checks not run{': ' + why if why else ''}"
+    return head
+
+
+def _self_check_next(data: dict[str, Any]) -> str:
+    local_items = any(f["kind"] == "local" for f in data["fix"])
+    other = [f for f in data["fix"] if f["kind"] != "local"]
+    steps: list[str] = []
+    if local_items:
+        steps.append(
+            "fix the code each local item names, then run the self-check with --local again"
+        )
+    if other:
+        steps.append(
+            f"edit only what {'each other' if local_items else 'each'} item in data.fix names "
+            "(no full rewrite)"
+        )
+    if data.get("hints"):
+        steps.append(
+            "data.hints match text and can be wrong: act on one only if it is a real gap, "
+            "otherwise say why under Unknown"
+        )
+    if not steps:
+        return "hand over"
+    return "; ".join(steps) + ("" if local_items else "; then hand over without checking again")
+
+
 @app.command()
 @command
 def verify(
@@ -363,27 +401,23 @@ def verify(
     status: Annotated[bool, typer.Option("--status")] = False,
     ci: Annotated[bool, typer.Option("--ci")] = False,
     self_check: Annotated[bool, typer.Option("--self-check")] = False,
+    local: Annotated[bool, typer.Option("--local")] = False,
 ) -> int:
     """Run the code checks H1-H7 on an artifact, or check a step's inputs with --inputs.
 
-    --self-check lists what the skill can still fix before the review, in data.fix."""
+    --self-check lists what the skill can still fix before the review, in data.fix. With
+    --local it also type-checks and lints the files a code step changed, on this machine; that
+    works before the artifact is written."""
     from tsl.harness import verify as svc
 
     c = comp()
+    if local and not self_check:
+        raise TslError("E-USE-01", detail="--local needs --self-check", cmd="verify")
     if self_check:
         if artifact is None:
             raise TslError("E-USE-01", detail="artifact path required", cmd="verify")
-        data = svc.self_check(rt(), c, artifact)
-        n = len(data["fix"])
-        if not n:
-            return emit_ok("Self-check clean", data, c.warnings, "hand over")
-        return emit_ok(
-            f"Self-check: {n} item(s) to fix",
-            data,
-            c.warnings,
-            "edit only what each item in data.fix names (no full rewrite), then hand over "
-            "without checking again",
-        )
+        data = svc.self_check(rt(), c, artifact, local=local)
+        return emit_ok(_self_check_message(data), data, c.warnings, _self_check_next(data))
     if inputs:
         data = svc.verify_inputs(rt(), c, run, step, artifact)
         return emit_ok(

@@ -120,6 +120,60 @@ The post-write hook has a 90 s hard timeout (SDD-05 §5.2). Build and test conta
 
 `tsl decide` refuses to run (E-DEC-01) while any applicable gate in `checks.json` has status `pending`.
 
+### 3.3 Self-check before hand-over (roadmap A3)
+
+The skill checks its own work before the run loop verifies it: `tsl verify <artifact>
+--self-check` (SDD-04 §6.6, PR #38). It writes nothing a decision reads, uses no attempt and no
+retry budget, and never fails the command: every problem, including an internal error, is an item
+in `data.fix`. In the eight brownfield lite runs on 0.1.7, `split` and `ut` each retried in 6 of 7
+team runs, almost always on a reviewer finding the step could have found itself, and HMS-24 impl
+and HMS-33 ut lost verifier retries to a type error and a lint slip in code they had just written.
+A3 adds two things.
+
+**Content checks** are ordinary skill checks in the skill's `checks.yaml` (§5.4), tied to a rubric
+criterion and built from shared kinds (§5.2: `named-in`, `values-named`, `values-in-code`, and
+`coverage` with `or_named_in`). Exact checks are hard gates (H5): an AC of the stories that no
+`unit-test` Tests line names, a REQ of the stories missing from the ut trace. Their failures come
+back in `data.fix` like every other check, and the post-write hook reports them too. Checks that
+match text are hints (`gate: hint`), since they can be wrong: a data-model status missing from the
+ACs of stories about statuses, an AC value missing from the step's added test lines. The
+self-check lists a failing hint in `data.hints`, apart from `data.fix`; it fails no gate, is not a
+soft check (no S2), costs no retry and leaves `data.ok` true. Questions that need judgement (two candidates for an order rule, the options a user did not
+choose, defaults, exclusions) stay with the reviewer: `story-split` Rule 10 and SS-R3.
+
+Back-test on the team's attempt-1 artifacts (HMS-23 to 33). `unit-test`: the two hard gates
+reproduce 4 of the 8 review findings (HMS-24 F-1, HMS-28 F-1, HMS-31 F-2, HMS-33 F-1) and find two
+REQs the reviewer missed (HMS-26 REQ-17, HMS-28 REQ-13). `story-split`: the status check fails on
+HMS-23 (the reviewer's F-1, gone at attempt 2) and HMS-31 (S-2 has no Scheduled AC; arguable),
+and passes the other six; a doctor's "status filter" (HMS-28) is not an appointment status.
+
+Why hints and not soft checks: a failing soft check is not free. S2 is the share of soft checks
+that pass, and band High needs S2 = 1.00 and Medium 0.90 (§10.2). With three or four soft checks
+on a `split` or `ut` artifact, one false alarm would give band Low, which ESCALATEs (§11.1 row 8).
+A hint gives the skill the same prompt in its self-check: it fixes a real gap, and says why under
+Unknown when the hint is wrong.
+
+**Local checks** (`--self-check --local`, code skills, `tsl/harness/local.py`): a type check and
+lint of the files the step changed, on the engineer's machine, as a developer does before pushing.
+The verifier (H3, Docker) stays the independent check, like CI; tests stay with `unit-test` and the
+verifier. Per product repo, by the family of its verifier profile:
+
+| Family | Packages (only when needed) | Type check | Lint |
+| --- | --- | --- | --- |
+| node | `npm ci --ignore-scripts` when node_modules is missing or its packages differ from package-lock.json | `tsc --noEmit -p` the nearest tsconfig.json of each changed TypeScript file | `eslint -f json` on the changed files |
+| python | `uv sync --frozen` when .venv is missing or uv.lock changed since tsl last synced | `py_compile` each changed .py file | `ruff check --output-format sarif` on the changed files |
+
+Each failing check is a `data.fix` item of kind `local` with its errors, those in the step's own
+files first (`error_lines`, `sarif_errors`, the ESLint JSON report). Tools run from the repo's own
+install through `node` and `uv`, never through a project script. They do not run, and
+`data.local` says why, when what runs could be the model's code: the step changed a file that
+decides which packages install or how the linter loads (package.json, a lock file, `.npmrc`, an
+ESLint config, pyproject.toml, uv.lock ...), or the run's tool log shows a write into node_modules
+or .venv. The verifier still checks those changes in Docker. A missing tool, a failed install or a
+linter crash is reported in `data.local`, not as an item to fix. On the sample app: a planted
+TS2322 and an unused variable reported exactly, 9 s with the install and 3 s without, against 65 s
+for the same build, test and lint in Docker.
+
 ## 4. Hard gates H1–H7
 
 ### 4.1 Common rules
@@ -305,7 +359,10 @@ A skill cannot ship its own Python. It declares checks by **kind**, and each kin
 | --- | --- | --- |
 | `lookup` | `select` (JSONPath into the artifact), `in` (file + JSONPath into a generated index), `key` | Every selected value exists in the index |
 | `no-clash` | `select`, `against`, `unless` (field and value that marks an intended change) | No selected value already exists in `against`, unless marked |
-| `coverage` | `each` (JSONPath), `covered_by` (JSONPath), `link` (field), `min`, optional `each_input`/`covered_by_input` (a step input; `each_input` may list several, of which the first the step has is used), `each_key`/`covered_by_key` (keyed pairs), `defer_on_blocking`, `nonempty` | Every item in `each` is referenced by at least `min` items; with `nonempty`, `each` selecting nothing fails |
+| `coverage` | `each` (JSONPath), `covered_by` (JSONPath), `link` (field), `min`, optional `each_input`/`covered_by_input` (a step input; `each_input` may list several, of which the first the step has is used), `each_key`/`covered_by_key` (keyed pairs), `defer_on_blocking`, `nonempty`, `optional_input`, `or_named_in` (body sections) | Every item in `each` is referenced by at least `min` items, or (with `or_named_in`) named as a word in one of those sections; with `nonempty`, `each` selecting nothing fails; with `optional_input`, a step without the input skips |
+| `named-in` | `each`, `each_key`, `sections` (level-2 body sections), optional `each_input`, `optional_input` | Every item is named in one of the sections. A keyed item `S-1/AC2` is named when AC2 follows S-1 in the same bullet: `S-1 AC2`, `S-1/AC2`, `S-1 AC1-AC3`, `S-1 AC1 to AC3`, `S-1: ... (AC2)` |
+| `values-named` | `values` (`file` + the word `after` which a value list follows), `each`, `text` (JSONPath inside each object), optional `when` (`input`, `each`, `link`, `text`) | Every value of each list ("Status is A, B, C or D", three or more) appears in the `text` of at least one `each` object; with `when`, only objects linked to an input item about the list count: its text names a value, or the word with the list's owner (the heading the list sits under: "appointment status"). No file or no list: skip |
+| `values-in-code` | `each`, `items` (JSONPath inside each object: items with `id` and `text`), `named_in` (sections), `files` (regex over repo paths), optional `each_input`, `optional_input` | Each item named in `named_in` has at least one of its values (clock times, numbers of two digits or more) in the lines the step added to files matching `files`. No product change to read (eval, CI): skip |
 | `count-match` | `select`, `count_files` (glob), `where` (`field == 'value'` or `!=`) | Count in artifact equals count computed from files |
 | `enum-file` | `select`, `file` (allowlist shipped in `tsl`), optional `value` and `tag` | Every value is in the allowlist; with `tag`, each selected object's tag field equals the last word on its value's line |
 | `regex` | `select`, `must` or `must_not` | Pattern rule holds for every value |
@@ -324,7 +381,7 @@ skill: design
 checks:
   - id: design.modules-exist
     kind: lookup
-    gate: H5                     # H2 | H5 | soft (default soft)
+    gate: H5                     # H2 | H5 | soft | hint (default soft)
     select: "$.components[*].module"
     in: {file: "context/generated/module-map.json", path: "$.modules[*].name"}
   - id: design.endpoints-no-clash
@@ -349,7 +406,7 @@ harness:
   bands: {high: {S1_min: 0.92}}   # optional, may only tighten (§10.2)
 ```
 
-**Rules checked by `tsl validate`:** every `kind` exists; every JSONPath compiles; `gate` is H2, H5 or soft only (other gates are generic and cannot be redefined); ids are unique and prefixed by the skill id.
+**Rules checked by `tsl validate`:** every `kind` exists; every JSONPath compiles; `gate` is H2, H5, soft or hint only (other gates are generic and cannot be redefined; `hint` is self-check only and counts toward no gate and not S2); ids are unique and prefixed by the skill id.
 
 ### 5.4 Skill-specific catalogue (Release-1 skills, Doc 3 §7)
 
@@ -359,11 +416,15 @@ harness:
 | requirement-review | `intent.v1` | `req.glossary-terms`: terms in bold exist in `context/glossary.md` | lookup | soft |
 | story-split | `stories.v1` | `stories.trace-req`: each story traces to a REQ | coverage | H5 |
 | story-split | `stories.v1` | `stories.ac-format`: each AC matches Given/When/Then | regex | H2 |
+| story-split | `stories.v1` | `story-split.status-values`: every status the data model lists appears in an AC of a story whose REQ is about statuses (SS-R3) | values-named | hint |
 | impact-analysis | `impact.v1` | `impact.modules-exist`, `impact.apis-exist`, `impact.tables-exist` | lookup | H5 |
 | design | `design.v1` | `design.modules-exist`, `design.endpoints-no-clash`, `design.claims-cited` | lookup, no-clash, cites-required | H5, H5, soft |
 | implement | code + `change.v1` | `impl.verifier` | container | H3 |
 | implement | code + `change.v1` | `impl.risk` | diff-limit | S6 |
 | unit-test | tests + `ut-result.v1` | `ut.tests-run`, `ut.coverage-not-lower` | container | H3 |
+| unit-test | `ut-result.v1` | `unit-test.acs-named`: every AC of the stories is named on a Tests line, or under Unknown (UT-R1) | named-in | H5 |
+| unit-test | `ut-result.v1` | `unit-test.reqs-traced`: every REQ the stories trace is in trace, or under Unknown (UT-R1) | coverage | H5 |
+| unit-test | tests + `ut-result.v1` | `unit-test.ac-values-in-tests`: an AC named as covered has a value of it in the lines the step added to its tests (UT-R2) | values-in-code | hint |
 | defect-triage | `triage.v1` | `triage.components-exist` | lookup | H5 |
 | test-plan | `test-plan.v1` | `tplan.every-ac-tested`: each AC has ≥ 1 test; a stories input with no AC at all fails (waits while a blocking question is open) | coverage | H2 |
 | test-automation | test code + `test-result.v1` | `tauto.tests-run`; `tauto.results-linked`: every non-manual planned test has a result that ran, with the plan's covers (waits while a blocking question is open); `tauto.results-planned`: no result id or criterion outside the plan | container, coverage | H3, H2 |
@@ -680,7 +741,7 @@ Let `C` be the envelope claims (DEF-07), `F` the findings in `review.json`, and 
 | Signal | Formula | Range | Notes |
 | --- | --- | --- | --- |
 | S1 Evidence coverage | `S1 = (|C_verified| + |F_kept|) / (|C| + |F|)`; if `|C| + |F| = 0`, `S1 = 1.0` | 0–1, 4 decimals | Dropped findings lower S1 (R-13). A skill whose body schema sets `x-claims-required` must have `|C| ≥ 1` (H1) |
-| S2 Soft check pass rate | `S2 = soft_passed / soft_run`; skipped checks excluded; if `soft_run = 0`, `S2 = 1.0` | 0–1 | Generic soft checks (§5.1) plus skill soft checks |
+| S2 Soft check pass rate | `S2 = soft_passed / soft_run`; skipped checks excluded; if `soft_run = 0`, `S2 = 1.0` | 0–1 | Generic soft checks (§5.1) plus skill soft checks (not `hint` checks, §3.3) |
 | S3 Reviewer score | `S3 = Σ wᵢ·scoreᵢ / Σ wᵢ` over `rubric_items`, weights from the rubric file (SDD-01; default 1). Rounded to 2 decimals | 1–5 or null | Code recomputes; if the reviewer's `rubric_score` differs by > 0.05 the code value wins and a note is added. `null` if `status = could_not_review` |
 | S4 Open blockers | `S4 = |kept findings with severity blocker| + |questions with blocking true| + |envelope unknown with blocking true|` | integer ≥ 0 | Questions answered in `open-questions.md` on resume no longer count |
 | S5 Context freshness | `fresh` if DEF-01 holds at `decided_at` (signature verifies, commits behind ≤ `max_commits_behind` (SDD-06 §7.1), drift < `drift_files`, no `critical_paths` change) **and** all declared inputs exist; `stale` if any freshness test fails; `missing` if no pack | enum | Drift uses the last `tsl context-refresh --check` result; if that is older than 24 h and the network is down, `S5_basis: cached` is recorded. Non-brownfield runs with `requires_fresh_pack: false` use `fresh` when the pack is absent |
