@@ -482,12 +482,8 @@ def judgement(sha: str) -> dict[str, str]:
 
 # ------------------------------------------------------------------------------ world
 def id_seed(user: str) -> int:
-    """A stable, per-user seed for the test id factory.
-
-    It was hash(user) % 1000. Python salts str hashes per process, so now and then two users
-    (such as eng and tl, which make_world logs in at the same frozen instant) got the same seed,
-    drew the same key id, and tests in that process failed E-KEY-03 "Key id already registered
-    with another public key" (CI on PRs #61 and #62, macOS and Windows)."""
+    """The test id factory's seed for a user: the same in every process (no str hash salt) and
+    different for each user, so two users never draw the same ids, such as a key id."""
     return zlib.crc32(user.encode("utf-8"))
 
 
@@ -508,6 +504,8 @@ class World:
 
     def rt(self, user: str = "eng", session: str | None = None) -> Runtime:
         if user not in self.runtimes:
+            clash = [u for u in self.runtimes if id_seed(u) == id_seed(user)]
+            assert not clash, f"test users {user} and {clash[0]} share an id seed"
             ident = FakeIdentity(user)
             self.identities[user] = ident
             org = OrgConfig(

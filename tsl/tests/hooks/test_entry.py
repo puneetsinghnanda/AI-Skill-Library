@@ -26,9 +26,9 @@ from tsl.hooks import entry
 @pytest.fixture
 def home(tmp_path: Path) -> Path:
     h = tmp_path / "home" / ".truminds"
-    # exist_ok: once on macOS CI the folder was already there at setup (FileExistsError in
-    # test_plugin_root_argument_drives_the_version_check); the tests only need it to exist.
-    h.mkdir(parents=True, exist_ok=True)
+    # No exist_ok: a FileExistsError here means an earlier test left a thread writing into this
+    # test's home (see test_hang_before_stdin_read_is_denied_within_budget).
+    h.mkdir(parents=True)
     return h
 
 
@@ -271,8 +271,14 @@ def test_hang_before_stdin_read_is_denied_within_budget(
     out: list[str] = []
     exits: list[int] = []
 
+    release = threading.Event()
+
     def slow_stdin() -> str:
-        time.sleep(3)
+        # Blocks like an unread stdin until the test ends (at most 3 s), so the thread never
+        # outlives this test: it used to wake during a later test and run the real hook there,
+        # creating that test's ~/.truminds (FileExistsError on macOS CI) or, on Windows, writing
+        # to the real user profile (Path.home() follows USERPROFILE, which tests do not redirect).
+        release.wait(3)
         return ""
 
     t0 = time.perf_counter()
@@ -288,6 +294,7 @@ def test_hang_before_stdin_read_is_denied_within_budget(
             slow_stdin,
             env={"TSL_HOOK_BUDGET_S": "1", "TSL_PLUGIN_ROOT": str(plugin(tmp_path, __version__))},
             home=home,
+            runner=ok,  # never the real hook, even after the watchdog answered
             emit=out.append,
             hard_exit=stop,
         )
@@ -295,14 +302,18 @@ def test_hang_before_stdin_read_is_denied_within_budget(
     # cwd cannot come from the unread stdin, so run from the companion repo: the cwd walk finds the lock.
     old = os.getcwd()
     os.chdir(companion)
+    th = threading.Thread(target=go, daemon=True)
     try:
-        th = threading.Thread(target=go, daemon=True)
         th.start()
         assert done.wait(2.5), "watchdog must answer while stdin is still blocked"
+        elapsed = time.perf_counter() - t0
     finally:
         os.chdir(old)
-    assert time.perf_counter() - t0 < 2.5 and exits == [0]
-    deny_json("".join(out))
+        release.set()
+        th.join(5)
+    assert elapsed < 2.5 and exits[:1] == [0]
+    assert not th.is_alive()
+    deny_json(out[0])
 
 
 def test_budget_counts_from_process_start(companion: Path, home: Path, tmp_path: Path) -> None:
