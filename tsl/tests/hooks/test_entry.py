@@ -26,7 +26,9 @@ from tsl.hooks import entry
 @pytest.fixture
 def home(tmp_path: Path) -> Path:
     h = tmp_path / "home" / ".truminds"
-    h.mkdir(parents=True)
+    # exist_ok: once on macOS CI the folder was already there at setup (FileExistsError in
+    # test_plugin_root_argument_drives_the_version_check); the tests only need it to exist.
+    h.mkdir(parents=True, exist_ok=True)
     return h
 
 

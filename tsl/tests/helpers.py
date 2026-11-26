@@ -12,6 +12,7 @@ import json
 import shutil
 import subprocess
 import sys
+import zlib
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -480,6 +481,16 @@ def judgement(sha: str) -> dict[str, str]:
 
 
 # ------------------------------------------------------------------------------ world
+def id_seed(user: str) -> int:
+    """A stable, per-user seed for the test id factory.
+
+    It was hash(user) % 1000. Python salts str hashes per process, so now and then two users
+    (such as eng and tl, which make_world logs in at the same frozen instant) got the same seed,
+    drew the same key id, and tests in that process failed E-KEY-03 "Key id already registered
+    with another public key" (CI on PRs #61 and #62, macOS and Windows)."""
+    return zlib.crc32(user.encode("utf-8"))
+
+
 @dataclass
 class World:
     base: Path
@@ -512,7 +523,7 @@ class World:
             self.runtimes[user] = Runtime(
                 home=Home(self.base / "homes" / user / ".truminds"),
                 clock=self.clock,
-                ids=IdFactory(self.clock, seed=hash(user) % 1000),
+                ids=IdFactory(self.clock, seed=id_seed(user)),
                 org=org,
                 keystore=MemoryKeyStore(),
                 insights=self.insights,
