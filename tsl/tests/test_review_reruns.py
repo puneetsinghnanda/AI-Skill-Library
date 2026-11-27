@@ -267,8 +267,9 @@ def test_reviewer_may_write_only_its_review_input(world: World) -> None:
     assert _pre_write(world, review_in, None) == "allow"
 
 
-def test_reviewer_write_is_refused_off_its_file_and_never_logged(world: World) -> None:
-    """Review fixes 2, 4, 9: only this run's current step file; refusals are not logged."""
+def test_reviewer_write_is_refused_off_its_file_and_logged_as_refused(world: World) -> None:
+    """Review fixes 2, 4, 9: only this run's current step file. Refusals are logged as E-POL-06
+    denies (counted per step, B1), which H7 does not hold against the step."""
     from e2e_steps import next_action
 
     review_in = world.companion / "runs" / "run_X" / "review-input" / "req.review.json"
@@ -290,7 +291,13 @@ def test_reviewer_write_is_refused_off_its_file_and_never_logged(world: World) -
     )  # another run
     log = base / run_id / "tool-log.jsonl"
     entries = [json.loads(x) for x in log.read_text().splitlines()] if log.is_file() else []
-    assert not [e for e in entries if e.get("decision") == "deny"], entries
+    denies = [e for e in entries if e.get("decision") == "deny"]
+    assert len(denies) == 2, entries
+    assert {(e["code"], e["agent_type"]) for e in denies} == {("E-POL-06", "truminds:reviewer")}
+    assert {e["target"] for e in denies} == {
+        str(base / run_id / "review-input" / "design.review.json"),
+        str(base / "run_OTHER" / "review-input" / "req.review.json"),
+    }
 
 
 def test_repair_never_moves_a_cite_that_names_one_thing(tmp_path: Path) -> None:
