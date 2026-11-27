@@ -1,0 +1,24 @@
+{
+  "schema": "next-action.v2",
+  "action": "fix",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "say": "design: self-check found 1 item(s) to fix",
+  "step": "design",
+  "attempt": 1,
+  "skill": "design@1.4.0",
+  "instruction_path": "runs/run_01JA0B3C4D5E6F7G8H9JKMNPQR/instructions/design.a1.json",
+  "artifact_path": "artifacts/T-1/run_01JA0B3C4D5E6F7G8H9JKMNPQR/design.md",
+  "allowed_tools": ["Read", "Write", "Edit"],
+  "context": {
+    "inputs": [],
+    "context_sections": ["architecture"],
+    "answers": null,
+    "open_questions": []
+  },
+  "retry": null,
+  "budget": {"checks": "0/2", "review": "0/2", "verifier": "0/1"},
+  "progress": {"index": 2, "total": 5},
+  "fix": [
+    {"kind": "check", "id": "H2-03", "detail": "Add the rollback section named in impact.md."}
+  ]
+}

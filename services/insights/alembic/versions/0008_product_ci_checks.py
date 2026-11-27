@@ -1,4 +1,4 @@
-"""0007_product_ci_checks: the product repo's own CI result per check name (roadmap D5).
+"""0008_product_ci_checks: the product repo's own CI result per check name (roadmap D5).
 
 `ci_checks` holds harness verifications (`tsl-ci-verify` and `ci.verified`) and feeds
 mv_ci_daily's `verified` count. A product repo's own CI job (for example `build` in ci.yml) is
@@ -8,16 +8,16 @@ suite (workflow run), so a run triggered by `push` and one by `pull_request` bot
 check is `pending` until it completes; a skipped or cancelled one is `none` (no result), which
 also stops a late `created` from making it pending again.
 
-Revision ID: 0007_product_ci_checks
-Revises: 0006_pr_daily_merged
+Revision ID: 0008_product_ci_checks
+Revises: 0007_step_metrics
 """
 
 from __future__ import annotations
 
 from alembic import op
 
-revision = "0007_product_ci_checks"
-down_revision = "0006_pr_daily_merged"
+revision = "0008_product_ci_checks"
+down_revision = "0007_step_metrics"
 branch_labels = None
 depends_on = None
 

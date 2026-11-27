@@ -95,6 +95,20 @@
           "default": "auto"
         }
       }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "loop": {
+          "enum": [
+            "code",
+            "model"
+          ],
+          "default": "code",
+          "description": "Default run loop for new runs; tsl state start --loop wins."
+        }
+      }
     }
   },
   "$defs": {

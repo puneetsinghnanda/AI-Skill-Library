@@ -427,6 +427,26 @@ def step_started(conn: Connection, ev: Ev) -> None:
     recompute_run(conn, run_id)
 
 
+def _step_metrics(m: dict[str, Any] | None) -> dict[str, Any]:
+    """`step.decided` metrics (D1) as steps columns; all None when tsl sent none.
+
+    tokens_in is the uncached input; cache reads and writes are kept apart, so a total of the
+    tokens read is tokens_in + cache_read + cache_write.
+    """
+    t = (m or {}).get("tokens") or {}
+    return {
+        "ti": t.get("input"),
+        "to": t.get("output"),
+        "cr": t.get("cache_read"),
+        "cw": t.get("cache_write"),
+        "calls": t.get("calls"),
+        "sub": t.get("subagent_calls"),
+        "wait": (m or {}).get("wait_s"),
+        "models": list(m.get("models") or []) if m else None,
+        "msrc": (m or {}).get("source"),
+    }
+
+
 def step_decided(conn: Connection, ev: Ev) -> None:
     run_id = _need_run(ev)
     b = ev.body
@@ -441,10 +461,11 @@ def step_decided(conn: Connection, ev: Ev) -> None:
             "INSERT INTO steps (run_id, step_id, attempt, seq, skill_id, skill_version, "
             "attempt_cause, decided_at, outcome, "
             "band, signals, reasons, caps, gate_failures, findings_blocker, findings_major, "
-            "findings_minor, duration_ms) "
+            "findings_minor, duration_ms, tokens_in, tokens_out, cache_read, cache_write, calls, "
+            "subagent_calls, wait_s, models, metrics_source) "
             "VALUES (:r, :s, :a, :q, :k, :v, :c, :t, :o, :band, CAST(:sig AS jsonb), :rs, :caps, "
             ""
-            ":gf, :fb, :fm, :fn, :d) "
+            ":gf, :fb, :fm, :fn, :d, :ti, :to, :cr, :cw, :calls, :sub, :wait, :models, :msrc) "
             "ON CONFLICT (run_id, step_id, attempt) DO UPDATE SET seq = EXCLUDED.seq, skill_id = "
             ""
             "EXCLUDED.skill_id, "
@@ -457,7 +478,11 @@ def step_decided(conn: Connection, ev: Ev) -> None:
             "EXCLUDED.findings_blocker, "
             "findings_major = EXCLUDED.findings_major, findings_minor = EXCLUDED.findings_minor, "
             ""
-            "duration_ms = EXCLUDED.duration_ms"
+            "duration_ms = EXCLUDED.duration_ms, tokens_in = EXCLUDED.tokens_in, "
+            "tokens_out = EXCLUDED.tokens_out, cache_read = EXCLUDED.cache_read, "
+            "cache_write = EXCLUDED.cache_write, calls = EXCLUDED.calls, "
+            "subagent_calls = EXCLUDED.subagent_calls, wait_s = EXCLUDED.wait_s, "
+            "models = EXCLUDED.models, metrics_source = EXCLUDED.metrics_source"
         ),
         {
             "r": run_id,
@@ -478,6 +503,7 @@ def step_decided(conn: Connection, ev: Ev) -> None:
             "fm": fc["major"],
             "fn": fc["minor"],
             "d": b["duration_ms"],
+            **_step_metrics(b.get("metrics")),
         },
     )
     conn.execute(

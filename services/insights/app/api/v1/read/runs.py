@@ -248,6 +248,71 @@ def list_runs(
     return envelope({"items": items}, meta={"scope": scope_meta(sc)}, page=pg)
 
 
+def attempt_metrics(a: Any) -> dict[str, Any] | None:
+    """One attempt's run metrics from `step.decided` (D1); None when tsl sent none."""
+    if a.metrics_source is None:
+        return None
+    tokens = None
+    if a.calls is not None:  # counts were stored (a transcript was read)
+        tokens = {
+            "input": a.tokens_in,
+            "output": a.tokens_out,
+            "cache_read": a.cache_read,
+            "cache_write": a.cache_write,
+            "calls": a.calls,
+            "subagent_calls": a.subagent_calls,
+        }
+    return {
+        "source": a.metrics_source,
+        "wait_s": a.wait_s,
+        "models": list(a.models or []),
+        "tokens": tokens,
+    }
+
+
+def step_metrics(attempts: Sequence[Any]) -> dict[str, Any] | None:
+    """Totals over the run's decided attempts (D1): attempts, retries, AI time, wait, tokens.
+
+    Steps only: model calls the run loop makes between attempts are not in any step.decided.
+    None when no attempt carries metrics (a run on an older tsl).
+    """
+    decided = [a for a in attempts if a.decided_at is not None]
+    measured = [a for a in decided if a.metrics_source is not None]
+    if not measured:
+        return None
+
+    def retry(a: Any) -> bool:
+        """A retry after failed checks, review or verifier, as insights counts retries; re-runs
+        after an answer, a gate decision or a stale input are not. Older events have no cause."""
+        cause = str(a.attempt_cause or "")
+        return cause.startswith("retry_") if cause else int(a.attempt) > 1
+
+    counted = [a for a in measured if a.calls is not None]  # token counts stored
+
+    def total(field: str, rows: Sequence[Any]) -> int:
+        return sum(int(getattr(a, field) or 0) for a in rows)
+
+    return {
+        "attempts": len(decided),
+        "retries": sum(1 for a in decided if retry(a)),
+        "measured_attempts": len(measured),
+        "token_attempts": len(counted),
+        "ai_ms": total("duration_ms", measured),
+        "wait_s": total("wait_s", measured),
+        # No transcript means unknown, not zero: null when no attempt has token counts.
+        "calls": total("calls", counted) if counted else None,
+        "subagent_calls": total("subagent_calls", counted) if counted else None,
+        "tokens": {
+            "input": total("tokens_in", counted),
+            "output": total("tokens_out", counted),
+            "cache_read": total("cache_read", counted),
+            "cache_write": total("cache_write", counted),
+        }
+        if counted
+        else None,
+    }
+
+
 @router.get("/v1/runs", summary="E21 runs in scope (class B)")
 def runs(
     request: Request,
@@ -397,6 +462,7 @@ def run_detail(
             "started_at": iso(a.started_at),
             "decided_at": iso(a.decided_at),
             "duration_ms": a.duration_ms,
+            "metrics": attempt_metrics(a),
             "record": rec,
         }
 
@@ -489,6 +555,7 @@ def run_detail(
             }
             for x in prs
         ],
+        "step_metrics": step_metrics(attempts),
         "usage": None
         if usage is None
         else {

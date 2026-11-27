@@ -220,7 +220,7 @@ All bodies are closed objects. **New** marks a field or type that Doc 5 §5.3 do
 | `run.started` | `workflow` R · `workflow_version` R · `ticket_ref` R · `system` (code) R · `plugin_version` R · `pinned_skills` object `{skill: version}` R · `session_id` **new** · `pod` (pod id) **new** · `pack_fresh` bool **new** | `tsl state start` |
 | `run.status_changed` | `from` R · `to` R (run states, Doc 3 §4.1) · `reason_code` R (`answered`, `approved`, `completed`, `aborted`, or an error code such as `E-SEC-01`) · `gate` **new** · `step` **new** · `session_id` **new** | `tsl state` |
 | `step.started` **new** | `step` R · `skill` R · `skill_version` R · `attempt` int R · `seq` int R · `session_id` | `tsl next` |
-| `step.decided` | Doc 5 fields: `step`, `skill`, `skill_version`, `attempt`, `outcome`, `band`, `signals`, `caps[]`, `gate_failures[]`, `findings_count{blocker,major,minor}`, `duration_ms`, `verification_sha256` (all R) · plus **new**: `seq` int R · `reasons[]` enum codes R (§6.3 cause codes) · `findings_dropped[]` finding ids only · `key_id` R · `decided_by` (`tsl@x.y.z`) R · `session_id` | `tsl decide` |
+| `step.decided` | Doc 5 fields: `step`, `skill`, `skill_version`, `attempt`, `outcome`, `band`, `signals`, `caps[]`, `gate_failures[]`, `findings_count{blocker,major,minor}`, `duration_ms`, `verification_sha256` (all R) · plus **new**: `seq` int R · `reasons[]` enum codes R (§6.3 cause codes) · `findings_dropped[]` finding ids only · `key_id` R · `decided_by` (`tsl@x.y.z`) R · `session_id` · `metrics` (D1, optional): `tokens{input,output,cache_read,cache_write,calls,subagent_calls}` or null, `models[]`, `wait_s`, `active_ms` (= `duration_ms`), `source` (`transcript`/`none`) | `tsl decide` |
 | `question.created` | `step` R · `question_id` R · `blocking` bool R · `ask_role` enum `product_owner\|tech_lead\|sme\|client` R · `evidence_ref` **new** | `tsl decide` |
 | `question.answered` | `step` R · `question_id` R · `age_s` int R · `accepted_default` bool | `tsl state resume` |
 | `approval.recorded` | `gate` R · `decision` enum `approve\|reject\|changes` R · `approver_role` R · `step` **new** · `signature_block_sha256` **new** R · `key_id` **new** R (SDD-07 §7.2) | `tsl gate` |
@@ -763,6 +763,10 @@ CREATE TABLE steps (
   gate_failures text[] NOT NULL DEFAULT '{}',
   findings_blocker int, findings_major int, findings_minor int,
   duration_ms int, tokens_in bigint, tokens_out bigint, cost_usd numeric(10,4),
+  -- D1, from step.decided `metrics` (NULL for an older tsl): duration_ms is the AI time,
+  -- tokens_in the uncached input; the cache, call, wait and model counts sit beside it
+  cache_read bigint, cache_write bigint, calls int, subagent_calls int, wait_s int, models text[],
+  metrics_source text CHECK (metrics_source IN ('transcript','none')),
   PRIMARY KEY (run_id, step_id, attempt),
   FOREIGN KEY (skill_id, skill_version) REFERENCES skill_versions);
 CREATE INDEX ON steps (skill_id, skill_version, decided_at);

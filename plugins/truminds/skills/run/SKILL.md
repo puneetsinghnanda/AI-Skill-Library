@@ -11,8 +11,23 @@ Run state from tsl (do not edit):
 If "ok" is false, show "message" and "next" to the user and stop.
 If "data.ticket_snapshot" is null, tell the user the run has no ticket text (they can pass a
 Markdown file as the third argument next time), then carry on.
+If "data.driver" is "mod", the Truminds mod runs this run: tell the user it started and stop.
 
-Loop:
+## Code loop (when "data.loop" is "code")
+Run `tsl next <run_id> --json` and show "data.say" to the user unchanged. Then by
+"data.action":
+- run_step or fix: invoke the skill named in "data.skill" with "data.artifact_path" as its
+  argument, and tell it to read "data.instruction_path" first. It writes "data.artifact_path"
+  only (for fix: only what each "data.fix" item names, no full rewrite).
+- run_reviewer: invoke the `review` skill on "data.artifact_path".
+- ask: ask "data.ask.questions" with AskUserQuestion (the hook records the answers).
+- pause_approval, done, stopped: stop.
+After run_step, fix, run_reviewer or ask, run `tsl next <run_id> --json` again.
+If "ok" is false, show "message" and "next" and stop.
+Never run verify, review record, decide or pr yourself: tsl next does them.
+Never decide pass or fail yourself. Never edit state.json, records or approvals.
+
+## Model loop (when "data.loop" is "model")
 1. Run `tsl next <run_id> --json` and read "data.action".
 2. run_skill: invoke the skill named in "data.skill" with "data.artifact_path" as its argument
    (its preamble runs `tsl verify <path> --inputs` from it). Give it "data.inputs",
