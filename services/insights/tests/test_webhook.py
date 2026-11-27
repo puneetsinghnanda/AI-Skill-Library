@@ -1110,6 +1110,39 @@ def test_a_late_harness_result_never_replaces_a_newer_one(
     assert _ci(owner_db, n) == "fail"
 
 
+def test_a_second_close_from_tsl_moves_closed_at_like_the_webhook(
+    client: TestClient,
+    hook: int,
+    token: TokenFactory,
+    people: dict[str, Person],
+    world: Any,
+    migrated: Any,
+    owner_db: Engine,
+) -> None:
+    run_id, n, head = new_run(), next(_NUMS), _sha()
+    marker = f"<!-- tsl:run_id={run_id} -->"
+    tok = token(people["eng"].oid, people["eng"].roles)
+    post(client, tok, [event("run.started", run_started(world.system), run_id)], strict=True)
+    project(migrated)
+    send(client, "pull_request", _pr("opened", n, head, now_iso(-400), marker))
+    first = _pr("closed", n, head, now_iso(-300), marker)
+    first["pull_request"]["closed_at"] = now_iso(-300)
+    send(client, "pull_request", first)
+    send(client, "pull_request", _pr("reopened", n, head, now_iso(-200), marker))
+    second = now_iso(-100)
+    _tsl_close(client, tok, world, run_id, n, second)
+    project(migrated)
+    with owner_db.connect() as c:
+        row = c.execute(
+            text(
+                "SELECT state, closed_at = CAST(:t AS timestamptz) AS latest "
+                "FROM pull_requests WHERE number = :n"
+            ),
+            {"n": n, "t": second},
+        ).one()
+    assert (row.state, row.latest) == ("closed", True)
+
+
 def test_a_newer_push_reopens_a_closed_pr_in_any_order(
     client: TestClient, hook: int, owner_db: Engine
 ) -> None:

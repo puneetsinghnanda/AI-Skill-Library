@@ -736,8 +736,11 @@ def pr_closed(conn: Connection, ev: Ev) -> None:
             "ELSE 'closed' END, "
             f"pr_tie_pushes = CASE WHEN {superseded} THEN pull_requests.pr_tie_pushes "
             "ELSE '{}' END, "
-            # recorded even when superseded (the PR did close then), as on the webhook path
-            "closed_at = coalesce(pull_requests.closed_at, EXCLUDED.closed_at)"
+            # As on the webhook path: an applied close sets the newest close time, a superseded
+            # one is still recorded if none is (the PR did close then).
+            f"closed_at = CASE WHEN {superseded} "
+            "THEN coalesce(pull_requests.closed_at, EXCLUDED.closed_at) "
+            "ELSE greatest(pull_requests.closed_at, EXCLUDED.closed_at) END"
         ),
         {"p": repo, "n": b["number"], "r": run_id, "t": b["closed_at"]},
     )
