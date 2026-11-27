@@ -9,7 +9,7 @@ import { EmptyState, ErrorState, Skeleton } from '../components/States';
 import { Badge, StatusBadge } from '../components/StatusBadge';
 import { TableRegion } from '../components/TableRegion';
 import { askRoleLabel, SIGNAL_LABELS, signalLabel } from '../content/labels';
-import { compactTokens, duration, localTime, usd } from '../lib/format';
+import { compactTokens, duration, localTime, minutes, usd } from '../lib/format';
 import {
   bandStatus,
   ciStatus,
@@ -29,6 +29,32 @@ function signalText(code: string, v: SignalValue | undefined): string {
   }
   if (typeof v === 'number' && code === 'S1') return v.toFixed(2);
   return String(v);
+}
+
+/** One step's metrics over its attempts (D1); null when no attempt carries any. */
+function stepTotals(step: RunStep) {
+  // `!= null`: an attempt from a service older than the portal has no `metrics` key at all.
+  const measured = step.attempts.filter((a) => a.metrics !== null && a.metrics !== undefined);
+  if (!measured.length) return null;
+  const sum = (f: (a: RunStep['attempts'][number]) => number | null | undefined) =>
+    measured.reduce((n, a) => n + (f(a) ?? 0), 0);
+  const counted = measured.filter((a) => a.metrics?.tokens).length;
+  const tok = counted > 0;
+  return {
+    measured: measured.length,
+    counted,
+    aiMs: sum((a) => a.duration_ms),
+    waitMs: sum((a) => a.metrics?.wait_s) * 1000,
+    tokens: tok
+      ? {
+          calls: sum((a) => a.metrics?.tokens?.calls),
+          subagent: sum((a) => a.metrics?.tokens?.subagent_calls),
+          input: sum((a) => a.metrics?.tokens?.input),
+          output: sum((a) => a.metrics?.tokens?.output),
+          cacheRead: sum((a) => a.metrics?.tokens?.cache_read),
+        }
+      : null,
+  };
 }
 
 function lastRecord(step: RunStep): CheckRecord | null {
@@ -89,11 +115,55 @@ function RecordPanel({ step }: { step: RunStep | undefined }) {
                 ? ' · CI re-check passed'
                 : ' · CI re-check failed'}
           </p>
+          <StepMetricsPanel step={step} />
         </>
       ) : (
         <p className="body text-2 m-0">This step has no check record yet.</p>
       )}
     </div>
+  );
+}
+
+/** The selected step's run metrics over all its attempts (D1). */
+function StepMetricsPanel({ step }: { step: RunStep }) {
+  const m = stepTotals(step);
+  if (!m) return null;
+  const all = step.attempts.length;
+  return (
+    <>
+      <h3 className="h3 sm m-0">
+        Metrics · {m.measured === all ? '' : `${m.measured} of `}
+        {all} {all === 1 ? 'attempt' : 'attempts'}
+      </h3>
+      <dl className="kv m-0">
+        <dt>AI time</dt>
+        <dd>{minutes(m.aiMs)}</dd>
+        <dt>Engineer wait</dt>
+        <dd>{minutes(m.waitMs)}</dd>
+        {m.tokens ? (
+          <>
+            <dt>Model calls</dt>
+            <dd>
+              {m.tokens.calls} ({m.tokens.subagent} by subagents)
+            </dd>
+            <dt>Uncached input · out</dt>
+            <dd>
+              {compactTokens(m.tokens.input)} · {compactTokens(m.tokens.output)}
+            </dd>
+            <dt>Cache read</dt>
+            <dd>{compactTokens(m.tokens.cacheRead)}</dd>
+          </>
+        ) : null}
+      </dl>
+      {m.tokens ? null : (
+        <p className="m-0 xsmall text-2">No token counts: no Claude Code transcript was found.</p>
+      )}
+      {m.tokens && m.counted < m.measured ? (
+        <p className="m-0 xsmall text-2">
+          Tokens counted on {m.counted} of {m.measured} attempts (no transcript on the others).
+        </p>
+      ) : null}
+    </>
   );
 }
 
@@ -182,6 +252,7 @@ function RunBody({ d }: { d: Run }) {
                 <th scope="col">Outcome</th>
                 <th scope="col">Confidence</th>
                 <th scope="col">Attempts</th>
+                <th scope="col">AI time</th>
                 <th scope="col">Record</th>
               </tr>
             </thead>
@@ -189,6 +260,7 @@ function RunBody({ d }: { d: Run }) {
               {d.steps.map((s, i) => {
                 const band = bandStatus(s.band);
                 const has = lastRecord(s) !== null;
+                const m = stepTotals(s);
                 return (
                   <tr key={s.step_id} className={s.step_id === selected ? 'selected' : undefined}>
                     <td>{s.seq ?? i + 1}</td>
@@ -202,6 +274,14 @@ function RunBody({ d }: { d: Run }) {
                     </td>
                     <td>{band ? <StatusBadge status={band} /> : '—'}</td>
                     <td>{s.attempt_count || '—'}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      {m ? minutes(m.aiMs) : '—'}
+                      {m && m.waitMs > 0 ? (
+                        <span className="xsmall text-2" style={{ display: 'block' }}>
+                          +{minutes(m.waitMs)} wait
+                        </span>
+                      ) : null}
+                    </td>
                     <td>
                       {has ? (
                         <button
@@ -272,6 +352,60 @@ function RunBody({ d }: { d: Run }) {
                     </li>
                   ))}
                 </ul>
+              )}
+            </div>
+            <div className="tm-card stack gap-10">
+              <h2 className="h3 sm">Run metrics</h2>
+              {d.step_metrics ? (
+                <>
+                  <dl className="kv m-0">
+                    <dt>Attempts</dt>
+                    <dd>
+                      {d.step_metrics.attempts} ({d.step_metrics.retries}{' '}
+                      {d.step_metrics.retries === 1 ? 'retry' : 'retries'})
+                    </dd>
+                    <dt>AI time</dt>
+                    <dd>{minutes(d.step_metrics.ai_ms)}</dd>
+                    <dt>Engineer wait</dt>
+                    <dd>{minutes(d.step_metrics.wait_s * 1000)}</dd>
+                    <dt>Model calls</dt>
+                    <dd>
+                      {d.step_metrics.calls === null
+                        ? 'Unknown'
+                        : `${d.step_metrics.calls} (${d.step_metrics.subagent_calls ?? 0} by subagents)`}
+                    </dd>
+                    {d.step_metrics.tokens ? (
+                      <>
+                        <dt>Uncached input</dt>
+                        <dd>{compactTokens(d.step_metrics.tokens.input)}</dd>
+                        <dt>Tokens out</dt>
+                        <dd>{compactTokens(d.step_metrics.tokens.output)}</dd>
+                        <dt>Cache read</dt>
+                        <dd>{compactTokens(d.step_metrics.tokens.cache_read)}</dd>
+                        <dt>Cache write</dt>
+                        <dd>{compactTokens(d.step_metrics.tokens.cache_write)}</dd>
+                      </>
+                    ) : (
+                      <>
+                        <dt>Tokens</dt>
+                        <dd>Unknown</dd>
+                      </>
+                    )}
+                  </dl>
+                  <p className="small text-2 m-0">
+                    Steps only; the run loop between attempts is not counted.
+                    {d.step_metrics.measured_attempts < d.step_metrics.attempts
+                      ? ` Times measured on ${d.step_metrics.measured_attempts} of ${d.step_metrics.attempts} attempts.`
+                      : ''}
+                    {d.step_metrics.token_attempts < d.step_metrics.measured_attempts
+                      ? ` Tokens counted on ${d.step_metrics.token_attempts} of ${d.step_metrics.measured_attempts} attempts (no Claude Code transcript on the others).`
+                      : ''}
+                  </p>
+                </>
+              ) : (
+                <p className="body text-2 m-0">
+                  No metrics. Runs on tsl 0.1.8 or later record them per step.
+                </p>
               )}
             </div>
             <div className="tm-card stack gap-10">

@@ -39,6 +39,17 @@ export function compactTokens(v: number | null | undefined): string | null {
   return String(v);
 }
 
+/** AI time or a wait in minutes, e.g. "3.6 min", "43 min", "1 h 12 min"; "0.0 min" for none. */
+export function minutes(ms: number | null | undefined): string | null {
+  if (ms === null || ms === undefined || ms < 0) return null;
+  const m = ms / 60_000;
+  if (m < 9.95) return `${m.toFixed(1)} min`;
+  const whole = Math.round(m); // round once, then split, so it never prints "60 min" in an hour
+  if (whole < 60) return `${whole} min`;
+  const h = Math.floor(whole / 60);
+  return `${h} h ${whole - h * 60} min`;
+}
+
 /** Local date and time, e.g. "13 Oct 2026, 09:30". */
 export function localTime(iso: string | null | undefined): string | null {
   if (!iso) return null;

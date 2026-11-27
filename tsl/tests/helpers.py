@@ -518,8 +518,16 @@ class World:
                 github_api_url="https://api.github.example",
                 link_hosts=("github.example",),
             )
+            home = Home(self.base / "homes" / user / ".truminds")
+            if not home.config.exists():
+                # Existing tests drive the model loop (next-action.v1); code-mode tests pass
+                # --loop code to tsl state start.
+                home.config.parent.mkdir(parents=True, exist_ok=True)
+                home.config.write_text(
+                    'schema = "user-config.v1"\n\n[run]\nloop = "model"\n', encoding="utf-8"
+                )
             self.runtimes[user] = Runtime(
-                home=Home(self.base / "homes" / user / ".truminds"),
+                home=home,
                 clock=self.clock,
                 ids=IdFactory(self.clock, seed=id_seed(user)),
                 org=org,

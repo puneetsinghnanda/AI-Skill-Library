@@ -353,6 +353,7 @@ Every file schema is `schemas/<name>.v<N>.json` in the skill-library repo (Doc 5
 | `run-state.v1` | `schemas/run-state.v1.json` | SDD-02 §5.3 |
 | `run-lock.v1` | `schemas/run-lock.v1.json` | SDD-02 §11.1 |
 | `next-action.v1` | `schemas/next-action.v1.json` | SDD-02 §6 |
+| `next-action.v2` | `schemas/next-action.v2.json` | Design A1 §5 |
 | `feedback.v1` | `schemas/feedback.v1.json` | SDD-02 §8.2 |
 | `open-questions.v1`, `approvals.v1` | `schemas/open-questions.v1.json`, `schemas/approvals.v1.json` | Doc 4 §3–§4, SDD-02 §9 |
 | `approval-signature.v1` | `schemas/approval-signature.v1.json` | SDD-07 §6.4 |

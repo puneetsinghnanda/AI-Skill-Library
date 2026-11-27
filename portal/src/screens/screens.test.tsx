@@ -139,6 +139,21 @@ describe('Run detail (board RunDetail)', () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText('Not started').length).toBeGreaterThan(0);
   });
+
+  it('shows run metrics per step and for the run (D1)', async () => {
+    renderApp('/runs/run_01J9ZK2M4Q8X7T3B5N6R0VWYCD', { user: 'engineer' });
+    await findH1(/run_01J9ZK2M/);
+    expect(await screen.findByRole('heading', { name: 'Run metrics' })).toBeInTheDocument();
+    const steps = screen.getByRole('table', { name: 'Steps of this run' });
+    expect(within(steps).getByRole('columnheader', { name: 'AI time' })).toBeInTheDocument();
+    expect(within(steps).getAllByText('3.6 min').length).toBeGreaterThan(0);
+    expect(within(steps).getByText('+6.3 min wait')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Metrics · 1 attempt' })).toBeInTheDocument();
+    expect(
+      screen.getByText(/Steps only; the run loop between attempts is not counted/),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText('Engineer wait')).toHaveLength(2); // step panel and run card
+  });
 });
 
 describe('Home: Engineer (board HomeEngineer)', () => {

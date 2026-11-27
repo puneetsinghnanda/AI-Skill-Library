@@ -206,6 +206,9 @@ def open_prs(
             needed="RUNNING",
             hint=f"tsl state show {run_id}",
         )
+    from tsl.orchestrator.extensions import phase
+
+    phase(rt, comp, ctx.state, None, None, "pr")
     try:
         data, _ = next_action(rt, comp, run_id)
     except TslError as exc:
@@ -299,6 +302,9 @@ def open_prs(
         )
     ctx.emit("run.status_changed", {"from": prev, "to": "COMPLETED", "reason_code": reason})
     pushed = lockmod.release(rt, comp, ctx.state, "pr opened")
+    from tsl.orchestrator.extensions import phase
+
+    phase(rt, comp, ctx.state, None, None, "done", outcome="pr_opened")
     unbind_run(rt, run_id)
     if not pushed:
         raise TslError("E-GIT-01", op="push", detail="run completion not pushed", data={"prs": prs})

@@ -693,6 +693,80 @@
     },
     "heartbeat_at": {
       "$ref": "#/$defs/timestamp"
+    },
+    "run_loop": {
+      "enum": [
+        "code",
+        "model"
+      ],
+      "description": "Who runs the loop (design A1 §4): code (tsl next does checks, review record and decide) or model (next-action.v1). Fixed at run start; absent means model."
+    },
+    "driver": {
+      "enum": [
+        "mod",
+        "skill"
+      ],
+      "description": "What calls tsl next in code mode: the mod when it is loaded, else the run skill."
+    },
+    "current_action": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "step",
+            "attempt",
+            "started_at",
+            "driver",
+            "session_id",
+            "agent_id"
+          ],
+          "properties": {
+            "action": {
+              "enum": [
+                "run_step",
+                "fix",
+                "run_reviewer"
+              ]
+            },
+            "step": {
+              "$ref": "#/$defs/step_id"
+            },
+            "attempt": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "started_at": {
+              "$ref": "#/$defs/timestamp"
+            },
+            "driver": {
+              "enum": [
+                "mod",
+                "skill"
+              ]
+            },
+            "session_id": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 128
+            },
+            "agent_id": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 128
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Code mode: the step action last handed out, for stuck-run detection (D2)."
     }
   },
   "allOf": [
