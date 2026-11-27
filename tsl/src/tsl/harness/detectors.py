@@ -45,10 +45,71 @@ def _line_of(text: str, pos: int) -> int:
 
 
 RUN_ID_IN_PATH = re.compile(r"run_[0-9A-HJKMNP-TV-Z]{26}")
-# A token followed by a short file extension is a file name, e.g. the migration in a cite
-# `repo:db/migrations/20261016T090000__create_reference_lists.sql#L16`. The extension must end
-# the word, so a JWT (`header.payload.sig`, long segments) is not mistaken for one.
-FILE_EXT_AFTER = re.compile(r"\.[A-Za-z][A-Za-z0-9]{0,4}(?![A-Za-z0-9+/=_-])")
+# A path-like token (it has `/` or `_`) followed by a known file extension is a file name, e.g.
+# the migration in a cite `repo:db/migrations/20261016T090000__create_reference_lists.sql#L16`.
+# The extension must come from this list and be followed by `#`, `:`, a quote, a bracket, a
+# comma, whitespace or the end of the text, so `<token>.trim()`, `<token>.ngrok.io` and
+# `<token>.Use it` are still checked.
+FILE_EXTS = [
+    "sql",
+    "md",
+    "mdx",
+    "txt",
+    "json",
+    "jsonl",
+    "yaml",
+    "yml",
+    "toml",
+    "ini",
+    "cfg",
+    "conf",
+    "env",
+    "properties",
+    "lock",
+    "xml",
+    "html",
+    "htm",
+    "css",
+    "scss",
+    "js",
+    "jsx",
+    "mjs",
+    "cjs",
+    "ts",
+    "tsx",
+    "py",
+    "pyi",
+    "rb",
+    "go",
+    "rs",
+    "java",
+    "kt",
+    "kts",
+    "scala",
+    "cs",
+    "php",
+    "sh",
+    "bash",
+    "ps1",
+    "bat",
+    "dockerfile",
+    "tf",
+    "hcl",
+    "proto",
+    "graphql",
+    "gql",
+    "csv",
+    "tsv",
+    "sqlite",
+    "sqlite3",
+    "db",
+    "log",
+    "out",
+    "snap",
+]
+FILE_EXT_AFTER = re.compile(
+    r"\.(?:" + "|".join(FILE_EXTS) + r")(?=[#:\s\"'`)\],]|$)", re.IGNORECASE
+)
 
 
 def _entropy(s: str) -> float:
@@ -183,11 +244,11 @@ def scan(
         minlen = int(ent.get("min_length", 20))
         for m in re.finditer(r"[A-Za-z0-9+/=_-]{" + str(minlen) + ",}", text):
             tok = m.group(0)
-            if SAFE_TOKEN.match(tok) or allowed(tok) or ("/" in tok and "." in tok):
+            if SAFE_TOKEN.match(tok) or allowed(tok):
                 continue
             if RUN_ID_IN_PATH.search(tok):
                 continue  # citation paths carry ULID run ids; they are ids, not secrets
-            if FILE_EXT_AFTER.match(text, m.end()):
+            if ("/" in tok or "_" in tok) and FILE_EXT_AFTER.match(text, m.end()):
                 continue  # a file name or path (cited code, migrations), not a secret
             if not (re.search(r"[A-Za-z]", tok) and re.search(r"[0-9]", tok)):
                 continue

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -240,7 +241,14 @@ def _check_content(
         for h in detectors.scan(text, allow, deny_term_hashes=deny):
             if h.kind in ("secret", "pii", "term"):
                 # file and line only: the matched value is never echoed (SDD-11 §7.3)
-                out.append(Finding("E-COMP-04", rel, h.line, f"{h.kind} rule {h.rule_id}"))
+                detail = f"{h.kind} rule {h.rule_id}"
+                if h.rule_id == "SEC-ENT-01":
+                    # The SHA-256 a tech lead puts in tsl.yaml h4_allow for a reviewed false
+                    # positive. Only for entropy hits: a random token of 20+ characters can't
+                    # be recovered from its hash; a pattern match (a password) might be.
+                    digest = hashlib.sha256(text[h.start : h.end].encode()).hexdigest()
+                    detail += f", h4_allow sha256 {digest}"
+                out.append(Finding("E-COMP-04", rel, h.line, detail))
     return total
 
 

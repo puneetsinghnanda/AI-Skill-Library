@@ -149,8 +149,8 @@ CATALOGUE: dict[str, ErrorDef] = {
             "Companion check failed: forbidden content in {path} line {line}.",
             "Remove the content in a normal commit and push; the check scans current files only. "
             "Rewriting history with the admin is optional, only to remove it from old commits. "
-            "A false positive: a tech lead adds the SHA-256 of the matched text to "
-            "tsl.yaml h4_allow",
+            "If an entropy finding (SEC-ENT-01) is a reviewed false positive, a tech lead "
+            "adds the sha256 the finding shows to tsl.yaml h4_allow",
         ),
         _d(
             "E-COMP-05",

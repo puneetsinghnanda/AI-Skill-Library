@@ -38,3 +38,30 @@ def test_jwt_like_token_near_key_is_still_flagged() -> None:
         ["ey" + "JhbGciOiJIUzI1NiJ9x7Q", "ey" + "JzdWIiOiIxMjM0NTY3ODkwIn0Zq9", "Kp8Rt2Vb6"]
     )
     assert _ent(f"signing key {jwt}\n")
+
+
+# --- review of #63 (Gaurav): only real file names are skipped ------------------------------
+
+TOK = "Zx9Qw7Lm3Kp8Rt2Vb6Nc4Hd1Fg5Js0Ty"
+
+
+def test_token_followed_by_a_method_call_is_still_flagged() -> None:
+    assert _ent(f"api key: {TOK}.trim()\n")
+
+
+def test_token_as_a_host_name_is_still_flagged() -> None:
+    assert _ent(f"secret at https://{TOK}.ngrok.io/x\n")
+
+
+def test_token_before_a_new_sentence_is_still_flagged() -> None:
+    assert _ent(f"the token is {TOK}.Use it once.\n")
+
+
+def test_token_with_an_extension_but_no_path_shape_is_still_flagged() -> None:
+    assert _ent(f"api key {TOK}.json\n")  # no `/` or `_`: not a file name
+
+
+def test_long_extensions_in_cited_paths_are_not_secrets() -> None:
+    for ext in ("properties", "sqlite3"):
+        cite = f"sample-system:config/app_20261016T090000x9Kq.{ext}#L3"
+        assert not _ent(f'"quote": "primary key", "ref": "{cite}"\n'), ext
