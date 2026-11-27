@@ -18,10 +18,12 @@ import type {
   ReleaseItem,
   RunDetail,
   RunItem,
+  RunStep,
   SkillCard,
   SkillDetail,
   SkillStatus,
   StatusData,
+  StepMetricsTotals,
 } from '../api/types';
 
 export const ILLUSTRATIVE = 'Illustrative data';
@@ -1283,7 +1285,20 @@ export function runDetail(r: RunRow, me: string, revealNames: boolean): RunDetai
       attempt: a,
       started_at: ago(r.updatedMin + 300 - seq * 10 - a),
       decided_at: ago(r.updatedMin + 290 - seq * 10 - a),
-      duration_ms: 41000,
+      duration_ms: 216000,
+      metrics: {
+        source: 'transcript' as const,
+        wait_s: seq === 2 && a === 1 ? 378 : 0,
+        models: ['claude-opus-5-5'],
+        tokens: {
+          input: 48,
+          output: 18890,
+          cache_read: 1693514,
+          cache_write: 72951,
+          calls: 23,
+          subagent_calls: 5,
+        },
+      },
       record: record(retried && a === 1 ? 'RETRY' : outcome, retried && a === 1 ? 0.71 : 0.91),
     }));
     return {
@@ -1355,7 +1370,32 @@ export function runDetail(r: RunRow, me: string, revealNames: boolean): RunDetai
           },
         ]
       : [],
+    step_metrics: stepMetrics(steps),
     usage: { tokens_in: 812000, tokens_out: 96000, cost_usd: 4.21 },
+  };
+}
+
+/** The run's D1 totals, summed from the mock attempts as the service does. */
+function stepMetrics(steps: RunStep[]): StepMetricsTotals | null {
+  const atts = steps.flatMap((s) => s.attempts.filter((a) => a.decided_at !== null));
+  const measured = atts.filter((a) => a.metrics);
+  if (!measured.length) return null;
+  const sum = (f: (a: RunStep['attempts'][number]) => number | null | undefined) =>
+    measured.reduce((n, a) => n + (f(a) ?? 0), 0);
+  return {
+    attempts: atts.length,
+    retries: steps.reduce((n, s) => n + Math.max(0, s.attempts.length - 1), 0),
+    measured_attempts: measured.length,
+    ai_ms: sum((a) => a.duration_ms),
+    wait_s: sum((a) => a.metrics?.wait_s),
+    calls: sum((a) => a.metrics?.tokens?.calls),
+    subagent_calls: sum((a) => a.metrics?.tokens?.subagent_calls),
+    tokens: {
+      input: sum((a) => a.metrics?.tokens?.input),
+      output: sum((a) => a.metrics?.tokens?.output),
+      cache_read: sum((a) => a.metrics?.tokens?.cache_read),
+      cache_write: sum((a) => a.metrics?.tokens?.cache_write),
+    },
   };
 }
 

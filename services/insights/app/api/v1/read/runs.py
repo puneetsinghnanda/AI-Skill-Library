@@ -234,6 +234,62 @@ def list_runs(
     return envelope({"items": items}, meta={"scope": scope_meta(sc)}, page=pg)
 
 
+def attempt_metrics(a: Any) -> dict[str, Any] | None:
+    """One attempt's run metrics from `step.decided` (D1); None when tsl sent none."""
+    if a.metrics_source is None:
+        return None
+    tokens = None
+    if a.metrics_source == "transcript":
+        tokens = {
+            "input": a.tokens_in,
+            "output": a.tokens_out,
+            "cache_read": a.cache_read,
+            "cache_write": a.cache_write,
+            "calls": a.calls,
+            "subagent_calls": a.subagent_calls,
+        }
+    return {
+        "source": a.metrics_source,
+        "wait_s": a.wait_s,
+        "models": list(a.models or []),
+        "tokens": tokens,
+    }
+
+
+def step_metrics(attempts: Sequence[Any]) -> dict[str, Any] | None:
+    """Totals over the run's decided attempts (D1): attempts, retries, AI time, wait, tokens.
+
+    Steps only: model calls the run loop makes between attempts are not in any step.decided.
+    None when no attempt carries metrics (a run on an older tsl).
+    """
+    decided = [a for a in attempts if a.decided_at is not None]
+    measured = [a for a in decided if a.metrics_source is not None]
+    if not measured:
+        return None
+    per_step: dict[str, int] = {}
+    for a in decided:
+        per_step[a.step_id] = per_step.get(a.step_id, 0) + 1
+
+    def total(field: str) -> int:
+        return sum(int(getattr(a, field) or 0) for a in measured)
+
+    return {
+        "attempts": len(decided),
+        "retries": sum(n - 1 for n in per_step.values()),
+        "measured_attempts": len(measured),
+        "ai_ms": total("duration_ms"),
+        "wait_s": total("wait_s"),
+        "calls": total("calls"),
+        "subagent_calls": total("subagent_calls"),
+        "tokens": {
+            "input": total("tokens_in"),
+            "output": total("tokens_out"),
+            "cache_read": total("cache_read"),
+            "cache_write": total("cache_write"),
+        },
+    }
+
+
 @router.get("/v1/runs", summary="E21 runs in scope (class B)")
 def runs(
     request: Request,
@@ -387,6 +443,7 @@ def run_detail(
             "started_at": iso(a.started_at),
             "decided_at": iso(a.decided_at),
             "duration_ms": a.duration_ms,
+            "metrics": attempt_metrics(a),
             "record": rec,
         }
 
@@ -479,6 +536,7 @@ def run_detail(
             }
             for x in prs
         ],
+        "step_metrics": step_metrics(attempts),
         "usage": None
         if usage is None
         else {

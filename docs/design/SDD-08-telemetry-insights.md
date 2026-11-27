@@ -762,6 +762,10 @@ CREATE TABLE steps (
   gate_failures text[] NOT NULL DEFAULT '{}',
   findings_blocker int, findings_major int, findings_minor int,
   duration_ms int, tokens_in bigint, tokens_out bigint, cost_usd numeric(10,4),
+  -- D1, from step.decided `metrics` (NULL for an older tsl): duration_ms is the AI time,
+  -- tokens_in the uncached input; the cache, call, wait and model counts sit beside it
+  cache_read bigint, cache_write bigint, calls int, subagent_calls int, wait_s int, models text[],
+  metrics_source text CHECK (metrics_source IN ('transcript','none')),
   PRIMARY KEY (run_id, step_id, attempt),
   FOREIGN KEY (skill_id, skill_version) REFERENCES skill_versions);
 CREATE INDEX ON steps (skill_id, skill_version, decided_at);

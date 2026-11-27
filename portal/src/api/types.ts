@@ -516,8 +516,37 @@ export interface RunStep {
     started_at: Iso | null;
     decided_at: Iso | null;
     duration_ms: number | null;
+    metrics: AttemptMetrics | null;
     record: CheckRecord | null;
   }[];
+}
+
+/** Model token counts of one attempt or a run (D1); counts only, never text. */
+export interface TokenCounts {
+  input: number;
+  output: number;
+  cache_read: number;
+  cache_write: number;
+}
+
+/** Run metrics of one step attempt from `step.decided` (D1). null for an older tsl. */
+export interface AttemptMetrics {
+  source: 'transcript' | 'none';
+  wait_s: number | null;
+  models: string[];
+  tokens: (TokenCounts & { calls: number; subagent_calls: number }) | null;
+}
+
+/** Totals over the run's decided attempts (D1). Steps only, not the run loop between them. */
+export interface StepMetricsTotals {
+  attempts: number;
+  retries: number;
+  measured_attempts: number;
+  ai_ms: number;
+  wait_s: number;
+  calls: number;
+  subagent_calls: number;
+  tokens: TokenCounts;
 }
 
 export interface RunDetail {
@@ -552,6 +581,7 @@ export interface RunDetail {
     url: string;
     ci_result: string | null;
   }[];
+  step_metrics: StepMetricsTotals | null;
   usage: { tokens_in: number; tokens_out: number; cost_usd: number } | null;
 }
 
