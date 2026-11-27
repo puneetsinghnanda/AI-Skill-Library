@@ -244,11 +244,22 @@ def _pull_request(
                     ),
                     {**key, "t": t},
                 )
-    if applies or state == "open":
-        # A superseded close is not recorded; opened_at (coalesce, from created_at) always is.
+    if applies:
         conn.execute(
             text(
                 f"UPDATE pull_requests SET {cols} WHERE repo_id = CAST(:p AS uuid) AND number = :n"
+            ),
+            {**key, "t": t},
+        )
+    elif state != "merged":
+        # Recorded whatever the delivery order, so PR counts don't depend on it: opened_at,
+        # and the time of a close a later reopen superseded (the PR did close then). A merge
+        # that doesn't apply already filled merged_at above.
+        col = "opened_at" if state == "open" else "closed_at"
+        conn.execute(
+            text(
+                f"UPDATE pull_requests SET {col} = coalesce({col}, :t) "
+                "WHERE repo_id = CAST(:p AS uuid) AND number = :n"
             ),
             {**key, "t": t},
         )
@@ -415,7 +426,11 @@ def _check_run(
             "SELECT r, :h, :n, :res, '{}', 'webhook', :t FROM unnest(CAST(:ids AS uuid[])) AS r "
             "ON CONFLICT (repo_id, head_sha, source) DO UPDATE "
             "SET result = EXCLUDED.result, number = coalesce(EXCLUDED.number, ci_checks.number), "
-            "checked_at = EXCLUDED.checked_at"
+            "checked_at = EXCLUDED.checked_at "
+            # Only a newer result replaces one (deliveries are unordered); in the same second a
+            # failure wins.
+            "WHERE EXCLUDED.checked_at > ci_checks.checked_at "
+            "OR (EXCLUDED.checked_at = ci_checks.checked_at AND EXCLUDED.result = 'fail')"
         ),
         {
             "ids": [pr] if pr else ids,

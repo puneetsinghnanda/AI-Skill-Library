@@ -470,7 +470,7 @@ def test_the_same_job_name_in_two_workflows_is_two_checks(
     _in_every_order(client, owner_db, events, "fail")
     rerun = [  # the failed workflow run re-run: its newest run passes
         *events,
-        lambda h, i: _run("completed", i[1] + 1, h, "success", suite=100),
+        lambda h, i: _run("completed", next(_RUN_IDS), h, "success", suite=100),  # newest
     ]
     _in_every_order(client, owner_db, rerun, "pass")
 
@@ -973,8 +973,8 @@ def test_a_tsl_close_older_than_a_push_keeps_the_pr_open(
     assert _pr_row(owner_db, n) == ("open", h1)
     with owner_db.connect() as c:
         assert c.execute(
-            text("SELECT closed_at IS NULL FROM pull_requests WHERE number = :n"), {"n": n}
-        ).scalar_one()  # a superseded close is not recorded
+            text("SELECT closed_at IS NOT NULL FROM pull_requests WHERE number = :n"), {"n": n}
+        ).scalar_one()  # the close is recorded, as it would be in delivery order
 
 
 def test_waiting_pushes_are_dropped_when_the_pr_closes(
@@ -1066,6 +1066,48 @@ def test_a_tsl_close_in_the_second_of_a_reopen_keeps_the_pr_open(
     _tsl_close(client, tok, world, run_id, n, at.replace("Z", ".400Z"))  # same second
     project(migrated)
     assert _pr_row(owner_db, n)[0] == "open"
+
+
+def test_a_close_is_recorded_in_any_delivery_order(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    """closed_at, like opened_at, doesn't depend on the delivery order (PR counts read it)."""
+    make = [
+        lambda n, h, m: _pr("opened", n, h[0], now_iso(-400), m),
+        lambda n, h, m: _pr("closed", n, h[0], now_iso(-300), m),
+        lambda n, h, m: _pr("reopened", n, h[0], now_iso(-200), m),
+    ]
+    for order in itertools.permutations(range(len(make))):
+        n, marker, heads = next(_NUMS), _marker(), [_sha()]
+        for i in order:
+            assert send(client, "pull_request", make[i](n, heads, marker)).status_code == 200
+        with owner_db.connect() as c:
+            row = c.execute(
+                text(
+                    "SELECT state, opened_at IS NOT NULL AS o, closed_at IS NOT NULL AS cl "
+                    "FROM pull_requests WHERE number = :n"
+                ),
+                {"n": n},
+            ).one()
+        assert (row.state, row.o, row.cl) == ("open", True, True), order
+
+
+def test_a_late_harness_result_never_replaces_a_newer_one(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    head = _sha()
+    n = _open_pr(client, head)
+    new = _harness(head, "success")
+    new["check_run"]["completed_at"] = now_iso(-60)
+    old = _harness(head, "failure")
+    old["check_run"]["completed_at"] = now_iso(-600)
+    send(client, "check_run", new)
+    send(client, "check_run", old)  # a re-run's failure delivered late
+    assert _ci(owner_db, n) == "pass"
+    tie = _harness(head, "failure")
+    tie["check_run"]["completed_at"] = now_iso(-60)
+    send(client, "check_run", tie)  # same second: a failure wins
+    assert _ci(owner_db, n) == "fail"
 
 
 def test_a_newer_push_reopens_a_closed_pr_in_any_order(
