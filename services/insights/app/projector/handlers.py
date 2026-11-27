@@ -695,21 +695,52 @@ def pr_closed(conn: Connection, ev: Ev) -> None:
     ).scalar()
     if repo is None:
         raise Parked("unknown_repo", 300)
-    state, col = ("merged", "merged_at") if b["merged"] else ("closed", "closed_at")
+    if b["merged"]:
+        conn.execute(
+            text(
+                "INSERT INTO pull_requests (repo_id, number, run_id, state, merged_at) "
+                "VALUES (CAST(:p AS uuid), :n, :r, 'merged', CAST(:t AS timestamptz)) "
+                "ON CONFLICT (repo_id, number) DO UPDATE SET "
+                "run_id = coalesce(pull_requests.run_id, EXCLUDED.run_id), state = 'merged', "
+                "pr_tie_pushes = '{}', "
+                "merged_at = coalesce(pull_requests.merged_at, EXCLUDED.merged_at)"
+            ),
+            {"p": repo, "n": b["number"], "r": run_id, "t": b["closed_at"]},
+        )
+        return
+    # A close takes part in the webhook's ordering (pr_updated_at, pr_last_action), so a
+    # delayed push from before it can't reopen the PR. An open PR whose newest webhook event is
+    # newer than this close was reopened after it (a reopen, or a push, which GitHub sends only
+    # for open PRs) and stays open.
+    # Compared at whole seconds, as GitHub stamps them; in the same second a recorded reopen
+    # wins, since GitHub only reopens a closed PR.
+    upd, cls = (
+        "date_trunc('second', pull_requests.pr_updated_at)",
+        "date_trunc('second', EXCLUDED.closed_at)",
+    )
+    superseded = (
+        "(pull_requests.state = 'merged' OR (pull_requests.state = 'open' "
+        f"AND ({upd} > {cls} OR ({upd} = {cls} AND pull_requests.pr_last_action = 'reopened'))))"
+    )
     conn.execute(
         text(
-            f"INSERT INTO pull_requests (repo_id, number, run_id, state, {col}) "
-            "VALUES (CAST(:p AS uuid), :n, :r, :st, CAST(:t AS timestamptz)) "
+            "INSERT INTO pull_requests (repo_id, number, run_id, state, closed_at, "
+            "pr_updated_at, pr_last_action) VALUES (CAST(:p AS uuid), :n, :r, 'closed', "
+            "CAST(:t AS timestamptz), CAST(:t AS timestamptz), 'closed') "
             "ON CONFLICT (repo_id, number) DO UPDATE SET "
             "run_id = coalesce(pull_requests.run_id, EXCLUDED.run_id), "
-            "state = CASE WHEN pull_requests.state = 'merged' THEN 'merged' "
-            # A close the webhook already saw reopened afterwards keeps the PR open.
-            "WHEN EXCLUDED.state = 'closed' AND pull_requests.pr_last_action = 'reopened' "
-            "AND pull_requests.pr_updated_at > EXCLUDED.closed_at THEN pull_requests.state "
-            "ELSE EXCLUDED.state END, "
-            f"{col} = coalesce(pull_requests.{col}, EXCLUDED.{col})"
+            f"state = CASE WHEN {superseded} THEN pull_requests.state ELSE 'closed' END, "
+            f"pr_updated_at = CASE WHEN {superseded} THEN pull_requests.pr_updated_at "
+            "ELSE greatest(pull_requests.pr_updated_at, EXCLUDED.closed_at) END, "
+            f"pr_last_action = CASE WHEN {superseded} THEN pull_requests.pr_last_action "
+            "ELSE 'closed' END, "
+            f"pr_tie_pushes = CASE WHEN {superseded} THEN pull_requests.pr_tie_pushes "
+            "ELSE '{}' END, "
+            # a superseded close is not recorded, as on the webhook path
+            f"closed_at = CASE WHEN {superseded} THEN pull_requests.closed_at "
+            "ELSE coalesce(pull_requests.closed_at, EXCLUDED.closed_at) END"
         ),
-        {"p": repo, "n": b["number"], "r": run_id, "st": state, "t": b["closed_at"]},
+        {"p": repo, "n": b["number"], "r": run_id, "t": b["closed_at"]},
     )
 
 

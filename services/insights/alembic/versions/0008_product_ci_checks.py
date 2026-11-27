@@ -96,6 +96,7 @@ def upgrade() -> None:
     )
     _exec("CREATE INDEX ON product_ci_runs (repo_id, head_sha)")
     _exec("CREATE INDEX ON product_ci_runs (seen_at)")  # retention
+    _exec("CREATE INDEX ON ci_checks (checked_at)")  # retention (rolled up first)
     _exec("ALTER TABLE pull_requests ADD COLUMN pr_updated_at timestamptz")
     _exec("ALTER TABLE pull_requests ADD COLUMN pr_last_action text")
     # Same-second pushes that arrived before their predecessor: {before_sha: after_sha}.

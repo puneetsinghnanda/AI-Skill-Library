@@ -210,3 +210,47 @@ def test_rd6_workflow_name_choice() -> None:
     assert not non_canonical_workflow("brownfield-feature", "doc1")
     assert non_canonical_workflow("defect-fix", "doc1")
     assert not non_canonical_workflow("pipeline-check", "doc3")  # in neither set: accepted
+
+
+def test_retention_rolls_up_and_purges_old_ci_checks(
+    world: Any, migrated: Any, owner_db: Engine
+) -> None:
+    """ci_checks go after RETENTION_RUNS_MONTHS, their verified count kept in agg_monthly."""
+    import random
+
+    from app.jobs import retention
+
+    head = f"{random.getrandbits(160):040x}"
+    with owner_db.begin() as c:
+        repo = c.execute(
+            text("SELECT id FROM system_repos WHERE system_id = CAST(:s AS uuid) LIMIT 1"),
+            {"s": world.system_id},
+        ).scalar_one()
+        before = c.execute(
+            text(
+                "SELECT coalesce(sum(value), 0) FROM agg_monthly WHERE metric = 'ci_verified' "
+                "AND system_id = CAST(:s AS uuid)"
+            ),
+            {"s": world.system_id},
+        ).scalar_one()
+        c.execute(
+            text(
+                "INSERT INTO ci_checks (repo_id, head_sha, result, codes, source, checked_at) "
+                "VALUES (:r, :h, 'pass', '{}', 'webhook', now() - interval '15 months')"
+            ),
+            {"r": repo, "h": head},
+        )
+    out = retention.run(migrated)
+    assert out["ci_checks"] >= 1
+    with owner_db.connect() as c:
+        assert not c.execute(
+            text("SELECT count(*) FROM ci_checks WHERE head_sha = :h"), {"h": head}
+        ).scalar_one()
+        after = c.execute(
+            text(
+                "SELECT coalesce(sum(value), 0) FROM agg_monthly WHERE metric = 'ci_verified' "
+                "AND system_id = CAST(:s AS uuid)"
+            ),
+            {"s": world.system_id},
+        ).scalar_one()
+    assert after == before + 1

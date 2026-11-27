@@ -176,6 +176,8 @@ def _pull_request(
             reopens = action == "reopened" or implied_reopen
             if state == "open" and cur.state == "closed" and not reopens:
                 new_state = "closed"  # only a (real or implied) reopen opens a closed PR
+            if new_state != "open":
+                pushes = {}  # a closed or merged PR gets no more pushes
             conn.execute(
                 text(
                     "UPDATE pull_requests SET run_id = coalesce(run_id, :r), state = :st, "
@@ -199,9 +201,11 @@ def _pull_request(
                 },
             )
         else:
-            if tie and action == "synchronize" and before and head and cur.state != "merged":
+            if tie and action == "synchronize" and before and head and cur.state == "open":
                 # Not the successor of the stored head yet: keep it until its predecessor comes.
                 pushes[str(before)] = str(head)
+            elif cur.state != "open":
+                pushes = {}
             # The event changes nothing, but a merge tsl pr-sync recorded first (the projector
             # carries no head) still gets a head: the webhook merge's own head is the PR's last
             # and is final; until it arrives, the newest other event's head stands in.
@@ -247,6 +251,21 @@ def _pull_request(
                 f"UPDATE pull_requests SET {cols} WHERE repo_id = CAST(:p AS uuid) AND number = :n"
             ),
             {**key, "t": t},
+        )
+    # A harness result that came before the PR row was stored under every system repo with this
+    # GitHub name; now that this PR has the head, the copies where no PR has it go, so other
+    # systems sharing the repo don't count it as verified.
+    others = [r.id for r in repos if r.id != repo_id]
+    if others:
+        conn.execute(
+            text(
+                "DELETE FROM ci_checks c USING pull_requests p "
+                "WHERE p.repo_id = CAST(:p AS uuid) AND p.number = :n AND p.head_sha IS NOT NULL "
+                "AND c.source = 'webhook' AND c.head_sha = p.head_sha "
+                "AND c.repo_id = ANY(CAST(:o AS uuid[])) AND NOT EXISTS (SELECT 1 FROM "
+                "pull_requests q WHERE q.repo_id = c.repo_id AND q.head_sha = c.head_sha)"
+            ),
+            {**key, "o": others},
         )
     return "stored"
 
@@ -387,18 +406,19 @@ def _check_run(
         ),
         {"ids": ids, "h": head},
     ).scalar()
+    # Under the PR's repo; before the PR row exists, under every system repo with that GitHub
+    # name (as product checks are), so no system's PR misses it.
     conn.execute(
         text(
             "INSERT INTO ci_checks (repo_id, head_sha, number, result, codes, source, "
             "checked_at) "
-            "VALUES (CAST(:p AS uuid), :h, :n, :res, '{}', 'webhook', :t) ON CONFLICT (repo_id, "
-            "head_sha, source) DO UPDATE "
+            "SELECT r, :h, :n, :res, '{}', 'webhook', :t FROM unnest(CAST(:ids AS uuid[])) AS r "
+            "ON CONFLICT (repo_id, head_sha, source) DO UPDATE "
             "SET result = EXCLUDED.result, number = coalesce(EXCLUDED.number, ci_checks.number), "
-            ""
             "checked_at = EXCLUDED.checked_at"
         ),
         {
-            "p": pr or ids[0],
+            "ids": [pr] if pr else ids,
             "h": head,
             "n": number,
             "res": "pass" if cr.get("conclusion") == "success" else "fail",

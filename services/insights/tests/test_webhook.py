@@ -912,6 +912,162 @@ def test_a_tsl_close_does_not_undo_a_later_webhook_reopen(
     assert _pr_row(owner_db, n)[0] == "open"
 
 
+def _tsl_close(client: TestClient, tok: str, world: Any, run_id: str, n: int, at: str) -> None:
+    post(
+        client,
+        tok,
+        [
+            event(
+                "pr.closed",
+                {"repo": world.repo, "number": n, "merged": False, "closed_at": at},
+                run_id,
+            )
+        ],
+        strict=True,
+    )
+
+
+def test_a_delayed_push_does_not_reopen_a_pr_tsl_closed(
+    client: TestClient,
+    hook: int,
+    token: TokenFactory,
+    people: dict[str, Person],
+    world: Any,
+    migrated: Any,
+    owner_db: Engine,
+) -> None:
+    """tsl pr-sync's close takes part in the order: a push from before it changes nothing."""
+    run_id, n, (h0, h1) = new_run(), next(_NUMS), (_sha(), _sha())
+    marker = f"<!-- tsl:run_id={run_id} -->"
+    tok = token(people["eng"].oid, people["eng"].roles)
+    post(client, tok, [event("run.started", run_started(world.system), run_id)], strict=True)
+    project(migrated)
+    send(client, "pull_request", _pr("opened", n, h0, now_iso(-400), marker))
+    _tsl_close(client, tok, world, run_id, n, now_iso(-100))
+    project(migrated)
+    send(client, "pull_request", _pr("synchronize", n, h1, now_iso(-200), marker, before=h0))
+    assert _pr_row(owner_db, n)[0] == "closed"
+    send(client, "pull_request", _pr("closed", n, h1, now_iso(-100), marker))  # its webhook
+    assert _pr_row(owner_db, n)[0] == "closed"
+
+
+def test_a_tsl_close_older_than_a_push_keeps_the_pr_open(
+    client: TestClient,
+    hook: int,
+    token: TokenFactory,
+    people: dict[str, Person],
+    world: Any,
+    migrated: Any,
+    owner_db: Engine,
+) -> None:
+    """A push newer than the close means the PR was reopened after it (implied reopen)."""
+    run_id, n, (h0, h1) = new_run(), next(_NUMS), (_sha(), _sha())
+    marker = f"<!-- tsl:run_id={run_id} -->"
+    tok = token(people["eng"].oid, people["eng"].roles)
+    post(client, tok, [event("run.started", run_started(world.system), run_id)], strict=True)
+    project(migrated)
+    send(client, "pull_request", _pr("opened", n, h0, now_iso(-400), marker))
+    send(client, "pull_request", _pr("synchronize", n, h1, now_iso(-100), marker, before=h0))
+    _tsl_close(client, tok, world, run_id, n, now_iso(-300))
+    project(migrated)
+    assert _pr_row(owner_db, n) == ("open", h1)
+    with owner_db.connect() as c:
+        assert c.execute(
+            text("SELECT closed_at IS NULL FROM pull_requests WHERE number = :n"), {"n": n}
+        ).scalar_one()  # a superseded close is not recorded
+
+
+def test_waiting_pushes_are_dropped_when_the_pr_closes(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    n, marker, (h0, h1, h2) = next(_NUMS), _marker(), (_sha(), _sha(), _sha())
+    at = now_iso(-60)
+    send(client, "pull_request", _pr("opened", n, h0, at, marker))
+    send(client, "pull_request", _pr("synchronize", n, h2, at, marker, before=h1))  # waits
+    send(client, "pull_request", _pr("closed", n, h0, now_iso(-30), marker, merged=True))
+    with owner_db.connect() as c:
+        assert (
+            c.execute(
+                text("SELECT pr_tie_pushes FROM pull_requests WHERE number = :n"), {"n": n}
+            ).scalar_one()
+            == {}
+        )
+
+
+def test_a_harness_check_before_the_pr_row_is_stored_for_every_repo(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    head = _sha()
+    send(client, "check_run", _harness(head, "success"))
+    with owner_db.connect() as c:
+        stored, repos = c.execute(
+            text(
+                "SELECT (SELECT count(*) FROM ci_checks WHERE head_sha = :h), "
+                "(SELECT count(*) FROM system_repos WHERE github_full_name = :g)"
+            ),
+            {"h": head, "g": "example-org/orders-api"},
+        ).one()
+    assert stored == repos >= 1
+
+
+def test_a_harness_copy_goes_once_a_pr_takes_the_head(
+    client: TestClient, hook: int, world: Any, owner_db: Engine
+) -> None:
+    """Two systems share a GitHub repo: the copy without the PR is not counted as verified."""
+    full = f"example-org/shared-{random.getrandbits(32):08x}"
+    with owner_db.begin() as c:
+        for sid in (world.system_id, world.other_system_id):
+            c.execute(
+                text(
+                    "INSERT INTO system_repos (system_id, name, github_full_name, kind) "
+                    "VALUES (CAST(:s AS uuid), :nm, :g, 'product')"
+                ),
+                {"s": sid, "nm": full.split("/")[1], "g": full},
+            )
+    head, n = _sha(), next(_NUMS)
+    check = _harness(head, "success")
+    check["repository"] = {"full_name": full}
+    send(client, "check_run", check)
+    pr = _pr("opened", n, head, now_iso(-60), _marker())
+    pr["repository"] = {"full_name": full}
+    assert send(client, "pull_request", pr).status_code == 200
+    with owner_db.connect() as c:
+        rows = (
+            c.execute(
+                text(
+                    "SELECT c.repo_id = p.repo_id FROM ci_checks c JOIN pull_requests p "
+                    "ON p.number = :n WHERE c.head_sha = :h"
+                ),
+                {"n": n, "h": head},
+            )
+            .scalars()
+            .all()
+        )
+    assert rows == [True]
+
+
+def test_a_tsl_close_in_the_second_of_a_reopen_keeps_the_pr_open(
+    client: TestClient,
+    hook: int,
+    token: TokenFactory,
+    people: dict[str, Person],
+    world: Any,
+    migrated: Any,
+    owner_db: Engine,
+) -> None:
+    run_id, n, head = new_run(), next(_NUMS), _sha()
+    marker = f"<!-- tsl:run_id={run_id} -->"
+    tok = token(people["eng"].oid, people["eng"].roles)
+    post(client, tok, [event("run.started", run_started(world.system), run_id)], strict=True)
+    project(migrated)
+    at = now_iso(-100)
+    send(client, "pull_request", _pr("opened", n, head, now_iso(-400), marker))
+    send(client, "pull_request", _pr("reopened", n, head, at, marker))
+    _tsl_close(client, tok, world, run_id, n, at.replace("Z", ".400Z"))  # same second
+    project(migrated)
+    assert _pr_row(owner_db, n)[0] == "open"
+
+
 def test_a_newer_push_reopens_a_closed_pr_in_any_order(
     client: TestClient, hook: int, owner_db: Engine
 ) -> None:

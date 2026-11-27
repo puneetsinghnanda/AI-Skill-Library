@@ -48,6 +48,22 @@ ON CONFLICT (month, project_id, system_id, skill_id, skill_version, workflow_id,
 DO UPDATE SET value = agg_monthly.value + EXCLUDED.value
 """
 
+# Harness verifications counted as mv_ci_daily counts them (an `event` row, else the webhook
+# row), kept per month and system before old ci_checks rows go (SDD-08 §8.2).
+CI_ROLLUP = """
+INSERT INTO agg_monthly (month, project_id, system_id, skill_id, skill_version, workflow_id,
+  pod_id, metric, value)
+SELECT date_trunc('month', c.checked_at)::date, CAST(:nil AS uuid), sr.system_id, '', '', '',
+  '', 'ci_verified', count(*)
+FROM ci_checks c JOIN system_repos sr ON sr.id = c.repo_id
+WHERE c.checked_at < :cut AND c.result = 'pass'
+  AND (c.source = 'event' OR NOT EXISTS (SELECT 1 FROM ci_checks e WHERE e.repo_id = c.repo_id
+                                         AND e.head_sha = c.head_sha AND e.source = 'event'))
+GROUP BY 1, 3
+ON CONFLICT (month, project_id, system_id, skill_id, skill_version, workflow_id, pod_id, metric)
+DO UPDATE SET value = agg_monthly.value + EXCLUDED.value
+"""
+
 USER_ROLLUP = """
 INSERT INTO agg_user_month (month, user_id)
 SELECT DISTINCT date_trunc('month', r.started_at)::date, r.user_id FROM runs r
@@ -101,7 +117,13 @@ def run(s: Settings) -> dict[str, Any]:
             {"d": s.retention_webhook_days},
         ).rowcount
         out["runs"] = rollup_and_delete_runs(conn, s.retention_runs_months)
-        # Product CI runs are keyed by check run, not run: drop them after the same period.
+        # CI results are keyed by commit, not run: after the same period, harness results are
+        # rolled up (agg_monthly `ci_verified`) and deleted, and product CI runs deleted.
+        ci_cut = utcnow() - timedelta(days=round(s.retention_runs_months * 30.44))
+        conn.execute(text(CI_ROLLUP), {"cut": ci_cut, "nil": NIL})
+        out["ci_checks"] = conn.execute(
+            text("DELETE FROM ci_checks WHERE checked_at < :cut"), {"cut": ci_cut}
+        ).rowcount
         out["product_ci_runs"] = conn.execute(
             text("DELETE FROM product_ci_runs WHERE seen_at < now() - make_interval(months => :m)"),
             {"m": s.retention_runs_months},
