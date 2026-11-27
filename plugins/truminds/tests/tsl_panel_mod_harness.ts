@@ -40,9 +40,14 @@ for (const c of [
   'cd /c/x/AI-Skill-Library && uv tool install --reinstall ./tsl',
   'claude plugin update truminds@truminds-skill-library',
   'claude plugin marketplace update truminds-skill-library',
+  'uv tool upgrade truminds-tsl',
 ])
   assert.equal(isUpdateCommand(c), true, c)
-for (const c of ['uv tool install ruff', 'uv tool list', 'claude plugin list', 'echo uv tool install ./tsl-x', undefined])
+for (const c of [
+  'uv tool install ruff', 'uv tool list', 'claude plugin list', 'echo uv tool install ./tsl-x',
+  'claude plugin update other@x', 'claude plugin marketplace update other-market',
+  'uv tool install ruff; ls ./tsl', undefined,
+])
   assert.equal(isUpdateCommand(c), false, String(c))
 
 // panelRows: no run.

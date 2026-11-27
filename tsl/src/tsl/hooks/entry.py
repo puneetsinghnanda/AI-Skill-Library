@@ -57,7 +57,7 @@ def plugin_version(env: Mapping[str, str], root: str | None = None) -> str | Non
     The launcher passes the root as `--plugin-root`; TSL_PLUGIN_ROOT / CLAUDE_PLUGIN_ROOT are only
     a fallback (used by tests and manual calls).
     """
-    root = root or env.get("TSL_PLUGIN_ROOT") or env.get("CLAUDE_PLUGIN_ROOT")
+    root = resolve_plugin_root(env, root)
     if not root:
         return None
     try:
@@ -105,7 +105,15 @@ def run_active(data: Mapping[str, object], home: str) -> bool:
 # denies every tool in a run, which used to include the commands that end the mismatch, so the
 # update needed a terminal outside Claude Code. These Bash commands, and only these, still run:
 # each must be the whole command (optionally after `cd <dir> &&`), with nothing chained.
-_PATH = r"""(?:"[^"$`\\]+"|[^\s;&|`$()<>'"\\]+)"""
+# A path is plain characters only, so no shell expansion can turn it into more arguments: no
+# braces ({a,--index-url=...} would add one), globs, quotes inside, $ or `. In double quotes it may
+# also hold spaces and a backslash before a plain character (a Windows path), never a backslash
+# before the closing quote (bash reads that as an escaped quote). ~ at the start means home;
+# elsewhere only as in a Windows short name (JAPMAN~1, RUNNER~1), after a letter or digit, where
+# bash leaves it alone. Inside double quotes bash never expands ~.
+_PLAIN = r"(?:[A-Za-z0-9._/:+@%=-]|(?<=[A-Za-z0-9])~[0-9])+"
+_QUOTED = r'"(?:[A-Za-z0-9._/:+@%=~ -]|\\(?=[A-Za-z0-9._~ -]))+"'
+_PATH = rf"(?:{_QUOTED}|~?{_PLAIN})"
 _CD = re.compile(rf"cd (?P<dir>{_PATH}) && (?P<rest>.+)")
 _UPDATE_ANYWHERE = (
     re.compile(r"claude plugin marketplace update truminds-skill-library"),
@@ -113,24 +121,33 @@ _UPDATE_ANYWHERE = (
     re.compile(r"tsl(?:\.exe)? (?:--version|doctor(?: --json)?)"),
 )
 # These act on the folder they run in: `uv tool install ./tsl` installs whatever ./tsl is there,
-# so they run only in the AI-Skill-Library clone the plugin itself is loaded from.
+# so they run only in the AI-Skill-Library clone the plugin itself is loaded from. The install
+# takes no other option, and TSL_ORG_FILE (sign-in and service settings built into tsl) only the
+# clone's own settings file: the agent picks neither the build inputs nor the service.
 _UPDATE_IN_CLONE = (
-    re.compile(
-        rf"(?:TSL_ORG_FILE={_PATH} )?uv tool install --python 3\.12 --reinstall --no-cache"
-        rf"(?: --constraints {_PATH})? \./tsl"
-    ),
     re.compile(r"git pull(?: --ff-only)?"),
     re.compile(r"git checkout main"),
 )
+_INSTALL = re.compile(
+    rf"(?:TSL_ORG_FILE=(?P<org>{_PATH}) )?"
+    r"uv tool install --python 3\.12 --reinstall --no-cache \./tsl"
+)
+ORG_FILE = ("deploy", "render", "tsl-org.github.toml")
 
 
 def _local_path(p: str, base: str) -> str:
-    """A cd target as this OS names it: Git Bash /c/Users/... is C:/Users/... on Windows."""
-    p = p.strip('"')
+    """A path as this OS names it: unquoted, ~ expanded, Git Bash /c/Users/... as C:/Users/...
+    on Windows, relative to `base`."""
+    p = p[1:-1] if len(p) > 1 and p[0] == p[-1] == '"' else os.path.expanduser(p)
     m = re.fullmatch(r"/([A-Za-z])(/.*)?", p)
     if os.name == "nt" and m:
         p = f"{m.group(1)}:{m.group(2) or '/'}"
     return os.path.realpath(os.path.join(base, p))
+
+
+def resolve_plugin_root(env: Mapping[str, str], root: str | None = None) -> str | None:
+    """The plugin root: the launcher's --plugin-root, else TSL_PLUGIN_ROOT / CLAUDE_PLUGIN_ROOT."""
+    return root or env.get("TSL_PLUGIN_ROOT") or env.get("CLAUDE_PLUGIN_ROOT") or None
 
 
 def plugin_clone(root: str | None) -> str | None:
@@ -145,15 +162,27 @@ def plugin_clone(root: str | None) -> str | None:
 
 
 def update_hint(clone: str | None) -> str:
-    """What to run, from Claude Code, to end the mismatch: exactly the commands allowed above."""
-    where = f"in {clone.replace(os.sep, '/')}" if clone else "in your AI-Skill-Library clone"
-    return (
-        "Update from here with the Bash tool (only these commands run until the versions match): "
-        f"{where}: git pull; then TSL_ORG_FILE=<your tsl-org file, no $> uv tool install "
-        "--python 3.12 --reinstall --no-cache ./tsl (each as its own command, optionally after "
-        "cd <clone> &&); then claude plugin marketplace update truminds-skill-library and "
-        "claude plugin update truminds@truminds-skill-library; then /reload-plugins or restart "
-        "Claude Code. See docs/testing/team-setup-guide.md section 7a."
+    """How to end the mismatch: the commands update_command_allowed lets through in a run."""
+    head = (
+        "While a run is open, only the update commands run until the versions match, each as its "
+        "own command with the Bash tool. "
+    )
+    anywhere = (
+        "claude plugin marketplace update truminds-skill-library; claude plugin update "
+        "truminds@truminds-skill-library; then /reload-plugins or restart Claude Code. "
+        "See docs/testing/team-setup-guide.md section 7a."
+    )
+    if clone is None:
+        return head + (
+            "Your plugin is not loaded from an AI-Skill-Library clone, so update tsl from a "
+            "terminal outside Claude Code (in your clone: git pull, then the uv tool install line "
+            f"of section 5); from here: {anywhere}"
+        )
+    c = clone.replace(os.sep, "/")
+    return head + (
+        f"In {c} (optionally after cd {c} &&): git checkout main; git pull; "
+        "TSL_ORG_FILE=deploy/render/tsl-org.github.toml uv tool install --python 3.12 --reinstall "
+        f"--no-cache ./tsl. Then: {anywhere}"
     )
 
 
@@ -165,7 +194,7 @@ def update_command_allowed(data: Mapping[str, object], clone: str | None) -> boo
     command = ti.get("command") if isinstance(ti, dict) else None
     if not isinstance(command, str) or "\n" in command or "\r" in command:
         return False
-    command = " ".join(command.split())
+    command = command.strip()  # not collapsed: a quoted path keeps its own spaces
     cwd = data.get("cwd")
     where = os.path.realpath(cwd) if isinstance(cwd, str) and cwd else os.getcwd()
     m = _CD.fullmatch(command)
@@ -173,8 +202,16 @@ def update_command_allowed(data: Mapping[str, object], clone: str | None) -> boo
         where, command = _local_path(m.group("dir"), where), m.group("rest")
     if any(p.fullmatch(command) for p in _UPDATE_ANYWHERE):
         return True
-    in_clone = clone is not None and os.path.normcase(where) == os.path.normcase(clone)
-    return in_clone and any(p.fullmatch(command) for p in _UPDATE_IN_CLONE)
+    if clone is None or os.path.normcase(where) != os.path.normcase(clone):
+        return False
+    if any(p.fullmatch(command) for p in _UPDATE_IN_CLONE):
+        return True
+    install = _INSTALL.fullmatch(command)
+    if install is None:
+        return False
+    org = install.group("org")
+    own = os.path.realpath(os.path.join(clone, *ORG_FILE))
+    return org is None or os.path.normcase(_local_path(org, where)) == os.path.normcase(own)
 
 
 def _log(home: str, event: str, decision: str, code: str, detail: str) -> None:
@@ -313,9 +350,7 @@ def guarded(
                     return 0
                 state["done"] = True
                 data = parse()
-                clone = plugin_clone(
-                    plugin_root or env.get("TSL_PLUGIN_ROOT") or env.get("CLAUDE_PLUGIN_ROOT")
-                )
+                clone = plugin_clone(resolve_plugin_root(env, plugin_root))
                 if event == "pre-tool" and update_command_allowed(data, clone):
                     _log(
                         home,
