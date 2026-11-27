@@ -21,6 +21,9 @@ Run `tsl next <run_id> --json` and show "data.say" to the user unchanged. Then b
 - run_step or fix: invoke the skill named in "data.skill" with "data.artifact_path" as its
   argument, and tell it to read "data.instruction_path" first. It writes "data.artifact_path"
   only (for fix: only what each "data.fix" item names, no full rewrite).
+  If run_step has "data.runner", do not invoke "data.skill". Invoke the `step` skill instead,
+  with `<data.artifact_path> --context <data.runner.context>`: it runs the step in a forked
+  subagent and answers with the path.
 - run_reviewer: invoke the `review` skill on "data.artifact_path".
 - ask: ask "data.ask.questions" with AskUserQuestion (the hook records the answers).
 - pause_approval, done, stopped: stop.
