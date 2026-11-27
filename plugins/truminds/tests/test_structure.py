@@ -701,3 +701,19 @@ def test_spike_plugin_is_separate_and_wired() -> None:
                 assert script.is_file() and is_executable(script), script
     for skill in ("run", "demo-step", "review", "env-probe"):
         assert front_matter(plugin_dir / "skills" / skill / "SKILL.md"), skill
+
+
+def test_mod_passes_dollar_only_to_top_level_functions() -> None:
+    """Claude Code's mod loader passes $ only to functions declared at the top of the file and
+    refuses the whole module otherwise ("$ is passed to "later", which is not a function
+    declared at the top of this file"): the progress pane then never loads. The Node harness
+    cannot see that rule, so check it here."""
+    for name in ("register.tsx",):
+        src = (PLUGIN / "hooks" / name).read_text(encoding="utf-8")
+        top = set(re.findall(r"^(?:export\s+)?(?:async\s+)?function\s+(\w+)", src, re.M))
+        top |= set(re.findall(r"^(?:export\s+)?const\s+(\w+)\s*=", src, re.M))
+        for names in re.findall(r"^import\s*\{([^}]*)\}\s*from", src, re.M):  # imported
+            top |= {x.split(" as ")[-1].strip() for x in names.split(",") if x.strip()}
+        called = set(re.findall(r"(?<![\w.$])(\w+)\(\s*\$\s*[,)]", src))
+        assert called, "no function is given $: the check would prove nothing"
+        assert called <= top, f"{name}: $ passed to {sorted(called - top)}, not top-level"
