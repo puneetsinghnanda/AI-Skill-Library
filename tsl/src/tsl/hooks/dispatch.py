@@ -63,6 +63,11 @@ class Ctx:
     def tool(self) -> str:
         return str(self.data.get("tool_name") or "")
 
+    @property
+    def agent_type(self) -> str:
+        """The subagent that made the call (hook input agent_type); empty in the main session."""
+        return str(self.data.get("agent_type") or "")[:64]
+
     def session_file(self) -> Path:
         import re
 
@@ -88,6 +93,8 @@ def _finish(ctx: Ctx, out: dict[str, Any] | None) -> tuple[str, int]:
         "code": ctx.code,
         "duration_ms": ms,
     }
+    if ctx.agent_type:
+        line["agent_type"] = ctx.agent_type
     try:
         logs = ctx.home / "logs"
         logs.mkdir(parents=True, exist_ok=True)
@@ -233,6 +240,11 @@ def log_tool(
     code: str | None,
     read_only: bool | None = None,
 ) -> None:
+    """Append one line to the run's tool log.
+
+    decision "deny" with code E-POL-06 means "refused before it ran": H7 skips those lines.
+    Only pre_tool._refuse writes that pair; a call that ran must never be logged with it.
+    """
     st = idx["_state"]
     cur = st.get("cursor") or {}
     line = {
@@ -247,6 +259,8 @@ def log_tool(
     }
     if read_only is not None:
         line["read_only"] = read_only
+    if ctx.agent_type:
+        line["agent_type"] = ctx.agent_type
     p = Path(idx["companion"]) / "runs" / idx["run_id"] / "tool-log.jsonl"
     p.parent.mkdir(parents=True, exist_ok=True)
     with p.open("a", encoding="utf-8") as fh:

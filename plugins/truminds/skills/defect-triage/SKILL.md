@@ -11,6 +11,8 @@ Step context from tsl (do not edit):
 
 If the JSON above has "ok": false, show its "message" and "next" to the user and stop. Write nothing.
 
+Use only the tools in data.allowed_tools.
+
 ## Job
 Restate what the defect ticket observes and rank the components that most likely cause it, each
 with evidence. Write one file: the triage.v1 artifact at data.artifact_path. You do not fix the

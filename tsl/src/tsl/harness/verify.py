@@ -19,6 +19,7 @@ from tsl.core.runtime import Runtime
 from tsl.gitops.git import Git, GitError, worktree_tree
 from tsl.harness import artifact as artmod
 from tsl.harness import injection
+from tsl.harness.commands import STEP_BASH
 from tsl.harness.gates import ABORT_CODES, CheckInput, CheckRun, GateResult, run_all
 from tsl.harness.verifier import (
     StepResult,
@@ -774,13 +775,19 @@ def verify_inputs(
     if attempt is None:
         raise TslError("E-RUN-09", step=step, run_id=run_id)
     # The skill calls this first, so it marks the launch. H5 and H7 read the tool log from here,
-    # which leaves out calls a session made at this step before the skill ran.
+    # which leaves out calls a session made at this step before the skill ran. A relaunch in the
+    # main session moves it. A forked attempt (attempt.runner, set by the first tsl step brief)
+    # keeps its first mark: a later tsl verify --inputs or brief from the step runner must not
+    # move the window past calls the subagent already made (B1).
     launched, n = iso(rt.clock()), attempt["n"]
 
     def mark(st: dict[str, Any]) -> None:
         a = latest(find_step(st, step))
-        if a is not None and a["n"] == n:
-            a["skill_started_at"] = launched
+        if a is None or a["n"] != n:
+            return
+        if a.get("runner") and a.get("skill_started_at"):
+            return
+        a["skill_started_at"] = launched
 
     with ctx.store.local_lock():
         ctx.state = ctx.store.update(mark)
@@ -836,6 +843,9 @@ def verify_inputs(
         },
         "envelope": envelope,
         "size_budget_tokens": sk.meta.get("size_budget_tokens"),
+        # The step's tools, as its SKILL.md declares them (SKL-V09). Told up front so the step
+        # does not learn them from pre-tool refusals (E-POL-06); the hook still enforces them.
+        "allowed_tools": [*sk.allowed_tools, STEP_BASH],
         "retry": retry,
         "feedback": attempt.get("feedback")
         or (feedback_path(run_id, step, attempt["n"] - 1) if attempt["n"] > 1 else None),

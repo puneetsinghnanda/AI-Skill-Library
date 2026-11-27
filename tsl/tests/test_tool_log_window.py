@@ -9,6 +9,7 @@ from e2e_steps import SESSION, do_req_step, hook, next_action, start_run
 from helpers import World
 from tsl.core.clock import iso
 from tsl.core.repo import Companion
+from tsl.schemas.registry import errors
 from tsl.state.store import RunStore, find_step, latest
 
 
@@ -98,3 +99,91 @@ def test_session_that_lost_the_run_is_not_logged(world: World) -> None:
     out, code = hook(world, "pre-tool", bash)
     assert (out, code) == ("", 0)
     assert len(_log(world, run_id)) == before
+
+
+def test_verify_inputs_tells_the_step_its_tools(world: World) -> None:
+    run_id = start_run(world)
+    res = do_req_step(world, run_id, until="written")
+    code, env, _, err = world.cli(
+        ["verify", res["artifact"], "--inputs", "--json"], session=SESSION
+    )
+    assert code == 0 and env is not None, err
+    import yaml
+
+    from tsl.harness.commands import STEP_BASH
+
+    name = str(env["data"]["skill"]).split("@")[0]
+    meta = yaml.safe_load((world.plugin / "skills" / name / "skill.yaml").read_text())
+    assert env["data"]["allowed_tools"] == [*meta["allowed_tools"], STEP_BASH]
+
+
+def test_subagent_calls_are_logged_with_their_agent_type(world: World) -> None:
+    run_id = start_run(world)
+    next_action(world, run_id)
+    bash = {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": {"command": "tsl verify artifacts/x.md --json"},
+    }
+    hook(world, "pre-tool", bash)
+    hook(world, "pre-tool", {**bash, "agent_type": "truminds:step-runner", "agent_id": "a1"})
+    main, sub = _log(world, run_id)[-2:]
+    assert "agent_type" not in main
+    assert sub["agent_type"] == "truminds:step-runner"
+    assert sub["session_id"] == main["session_id"]
+    assert errors("tool-log.v1", sub) == []
+
+
+def test_step_runner_may_not_run_the_run_loop(world: World) -> None:
+    # B1 review: the hook, not only the prompt, keeps a forked step off tsl next/decide/pr,
+    # whether its step is open or not. The main session still runs them.
+    run_id = start_run(world)
+    next_action(world, run_id)
+    runner = {"agent_type": "truminds:step-runner", "agent_id": "a1"}
+
+    def bash(cmd: str, **extra: str) -> tuple[str, int]:
+        payload = {"hook_event_name": "PreToolUse", "tool_name": "Bash"}
+        return hook(world, "pre-tool", {**payload, "tool_input": {"command": cmd}, **extra})
+
+    for cmd in ("tsl decide artifacts/x.md --json", "tsl next r1 --json", "tsl pr r1"):
+        out, _code = bash(cmd, **runner)
+        assert "E-POL-06" in out and "step runner" in out, out
+        assert _log(world, run_id)[-1]["decision"] == "deny"
+        assert bash(cmd) == ("", 0)  # main session
+    assert bash("tsl verify artifacts/x.md --json", **runner) == ("", 0)
+    assert bash("tsl step brief artifacts/x.md --context full", **runner) == ("", 0)
+
+
+def test_step_runner_is_held_with_no_bound_run_too(world: World) -> None:
+    # A paused run or a lapsed session leaves no bound run; the runner still may not decide.
+    payload = {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": {"command": "tsl decide artifacts/x.md --json"},
+    }
+    out, _code = hook(world, "pre-tool", {**payload, "agent_type": "truminds:step-runner"})
+    assert "E-POL-06" in out, out
+    assert hook(world, "pre-tool", payload) == ("", 0)
+
+
+def test_refused_paths_outside_the_companion_log_the_file_name_only(world: World) -> None:
+    run_id = start_run(world)
+    next_action(world, run_id)
+    outside = str(world.base / "elsewhere" / "secret-notes.md")
+    other = str(world.companion / "runs" / "run_other" / "state.json")
+    for path in (outside, other):
+        hook(
+            world,
+            "pre-tool",
+            {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Read",
+                "tool_input": {"file_path": path},
+            },
+        )
+    denies = [e for e in _log(world, run_id) if e["decision"] == "deny"]
+    targets = {e["target"] for e in denies}
+    assert "runs/run_other/state.json" in targets
+    assert all(str(world.base) not in t for t in targets)
+    for e in denies:
+        assert errors("tool-log.v1", e) == []
