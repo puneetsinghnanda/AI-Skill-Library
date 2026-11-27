@@ -116,11 +116,57 @@ def _lock_file(root: Path, run_id: str) -> Path:
     return folder / f"{key.hexdigest()[:32]}.lock"
 
 
+def _is_stale(p: Path) -> bool:
+    try:
+        return time.time() - p.stat().st_mtime > LOCK_STALE_S
+    except OSError:
+        return False
+
+
+def _unlink_retrying(p: Path, only_if: bytes | None = None) -> None:
+    """Remove p; with only_if, only while it still holds those bytes (our token). On Windows a
+    read or delete fails while another process, such as a virus scanner, has the file open, so
+    it is retried for about a second. A lock file left behind is broken after LOCK_STALE_S."""
+    for wait in (0.01, 0.02, 0.05, 0.1, 0.2, 0.3, 0.4, 0.0):
+        try:
+            if only_if is not None and p.read_bytes() != only_if:
+                return  # not ours: ours was broken as stale and another writer took a new one
+            p.unlink()
+            return
+        except FileNotFoundError:
+            return
+        except PermissionError:
+            if sys.platform != "win32" or not wait:
+                return
+            time.sleep(wait)
+        except OSError:
+            return
+
+
 def _break_stale(lock: Path) -> None:
-    """A lock file older than LOCK_STALE_S was left by a writer that died: remove it."""
-    with contextlib.suppress(OSError):
-        if time.time() - lock.stat().st_mtime > LOCK_STALE_S:
-            lock.unlink()
+    """A lock file older than LOCK_STALE_S was left by a writer that died: remove it.
+
+    One waiter at a time breaks it, holding <lock>.break, and checks again under that guard.
+    Two waiters that both saw the dead lock would otherwise each remove one: the first the dead
+    lock, the second the new lock the first then took. The second now gets the guard after the
+    first, finds the new lock fresh and waits. A guard left by a waiter that died while breaking
+    (a few microseconds) is removed once it is stale itself."""
+    if not _is_stale(lock):
+        return
+    guard = lock.with_name(lock.name + ".break")
+    try:
+        os.close(os.open(guard, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
+    except FileExistsError:
+        if _is_stale(guard):
+            _unlink_retrying(guard)
+        return
+    except OSError:
+        return
+    try:
+        if _is_stale(lock):  # still the dead one: a new lock can only follow its removal
+            _unlink_retrying(lock)
+    finally:
+        _unlink_retrying(guard)
 
 
 @contextlib.contextmanager
@@ -154,9 +200,7 @@ def _locked(root: Path, run_id: str) -> Iterator[None]:
     try:
         yield
     finally:
-        with contextlib.suppress(OSError):  # only our own: never a lock taken after ours broke
-            if lock.read_bytes() == token:
-                lock.unlink()
+        _unlink_retrying(lock, only_if=token)  # only our own: never a lock taken after ours
 
 
 def _one_writer[**P, R](fn: Callable[P, R]) -> Callable[P, R]:

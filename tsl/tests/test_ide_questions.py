@@ -752,3 +752,111 @@ def test_windows_waits_while_the_last_lock_file_is_being_deleted(
     monkeypatch.setattr(sys, "platform", "linux")
     with pytest.raises(PermissionError), ide_questions._locked(tmp_path, RUN):
         pass
+
+
+# ------------------------------------------------- the lock file: review of ba95ece (Ekjot, 27 Nov)
+
+
+def test_a_second_breaker_leaves_the_new_lock_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Two waiters saw the same dead lock. The first removed it and took a new one before the
+    # second got to remove anything: the second checks again under the guard and keeps it.
+    lock = ide_questions._lock_file(tmp_path, RUN)
+    lock.write_bytes(b"dead")
+    old = time.time() - ide_questions.LOCK_STALE_S - 5
+    os.utime(lock, (old, old))
+    real, seen = ide_questions._is_stale, list[Path]()
+
+    def first_waiter_wins(p: Path) -> bool:
+        if not seen:  # the second waiter's first look: still the dead lock
+            seen.append(p)
+            got = real(p)
+            p.unlink()  # the first waiter breaks it...
+            p.write_bytes(b"first waiter")  # ...and takes a new lock
+            return got
+        return real(p)
+
+    monkeypatch.setattr(ide_questions, "_is_stale", first_waiter_wins)
+    ide_questions._break_stale(lock)
+    assert lock.read_bytes() == b"first waiter"
+    assert not lock.with_name(lock.name + ".break").exists()
+
+
+def test_many_waiters_on_a_dead_lock_still_exclude_each_other(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(ide_questions, "LOCK_WAIT_S", 60.0)
+    lock = ide_questions._lock_file(tmp_path, RUN)
+    lock.write_bytes(b"dead")
+    old = time.time() - ide_questions.LOCK_STALE_S - 5
+    os.utime(lock, (old, old))
+    inside, most, errors = [0], [0], list[BaseException]()
+    load, save = ide_questions._load_for_write, ide_questions._save
+
+    def counted_load(root: Path, run_id: str) -> dict[str, Any]:
+        inside[0] += 1
+        most[0] = max(most[0], inside[0])
+        return load(root, run_id)
+
+    def counted_save(root: Path, run_id: str, obj: dict[str, Any]) -> None:
+        save(root, run_id, obj)
+        inside[0] -= 1
+
+    monkeypatch.setattr(ide_questions, "_load_for_write", counted_load)
+    monkeypatch.setattr(ide_questions, "_save", counted_save)
+
+    def ask(n: int) -> None:
+        try:
+            ide_questions.raised(
+                tmp_path, RUN, "ut", 1, QS[:1], source="hook", tool_use_id=f"t{n}", agent_id=f"a{n}"
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=ask, args=(n,)) for n in range(12)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert errors == [] and most[0] == 1
+    assert len(ide_questions.load(tmp_path, RUN)["asks"]) == 12 and not lock.exists()
+
+
+def test_a_guard_left_by_a_breaker_that_died_is_removed(tmp_path: Path) -> None:
+    lock = ide_questions._lock_file(tmp_path, RUN)
+    guard = lock.with_name(lock.name + ".break")
+    old = time.time() - ide_questions.LOCK_STALE_S - 5
+    for p in (lock, guard):
+        p.write_bytes(b"dead")
+        os.utime(p, (old, old))
+    ide_questions._break_stale(lock)  # the guard is dead: removed, the lock waits for next time
+    assert not guard.exists() and lock.exists()
+    ide_questions._break_stale(lock)
+    assert not lock.exists() and not guard.exists()
+
+
+def test_windows_retries_removing_a_lock_a_scanner_holds_open(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Left behind, the lock would make every hook time out and drop its ask for LOCK_STALE_S.
+    real, refused = os.unlink, list[Any]()
+
+    def scanned(path: Any, *a: Any, **k: Any) -> None:
+        if str(path).endswith(".lock") and len(refused) < 2:
+            refused.append(path)
+            raise PermissionError(13, "in use")
+        real(path, *a, **k)
+
+    monkeypatch.setattr(os, "unlink", scanned)
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    monkeypatch.setattr(sys, "platform", "win32")
+    lock = ide_questions._lock_file(tmp_path, RUN)
+    with ide_questions._locked(tmp_path, RUN):
+        pass
+    assert len(refused) == 2 and not lock.exists()
+    refused.clear()
+    monkeypatch.setattr(sys, "platform", "linux")  # elsewhere: once, then left to the stale rule
+    with ide_questions._locked(tmp_path, RUN):
+        pass
+    assert len(refused) == 1 and lock.exists()
