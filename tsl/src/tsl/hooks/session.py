@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from tsl import __version__
+from tsl.core.clock import iso
 from tsl.core.errors import UPDATE_HINT
 from tsl.hooks.dispatch import Ctx, _finish
 
@@ -107,10 +108,24 @@ def _reminders(ctx: Ctx) -> list[str]:
         if st.get("status") != "COMPLETED" and st.get("owner_pseudonym") == me.get("pseudonym"):
             out.append(
                 f"Unfinished run {st['run_id']} ({st['ticket']} / {st['workflow']}, "
-                f"{st['status']}): "
+                f"{st['status']}{_stuck_note(ctx, root, st)}): "
                 f"/truminds:resume {st['run_id']}"
             )
     return out
+
+
+def _stuck_note(ctx: Ctx, root: Path, st: dict[str, Any]) -> str:
+    """', no progress since <time>' for a stuck run (D2); '' otherwise or on any error."""
+    try:
+        from tsl.core.repo import Companion
+        from tsl.state.stuck import stuck
+
+        got = stuck(
+            root, st["run_id"], st, ctx.rt.clock(), Companion(root).config.gates.stuck_after_min
+        )
+    except Exception:  # a reminder: never fail the session start
+        return ""
+    return f", no progress since {got['since']} ({got['minutes']} min)" if got else ""
 
 
 def _prefetch_approval_keys(ctx: Ctx) -> None:
@@ -146,7 +161,17 @@ def end(ctx: Ctx) -> tuple[str, int]:
             comp = Companion(Path(idx["companion"]))
             store = RunStore(rt, comp, idx["run_id"])
             if store.exists():
-                store.update(lambda st: None)  # rev+1 and heartbeat_at
+                sid = ctx.session_id[:128]
+
+                def ended(st: dict[str, Any]) -> None:
+                    # D2: say this session closed, so the next one resumes without
+                    # --take-over. A plain heartbeat here made a closed session look alive
+                    # for another 15 minutes (E-RUN-11).
+                    act = st.get("active_session")
+                    if act and act.get("session_id") == sid:
+                        act["ended_at"] = iso(rt.clock())
+
+                store.update(ended)  # rev+1, heartbeat_at
                 active = True
                 ctx.run_id = idx["run_id"]
                 try:

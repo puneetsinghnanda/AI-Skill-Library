@@ -113,6 +113,18 @@ function fits(n: number, room: number): number {
   return n <= room - 1 ? n : Math.max(0, room - 2)
 }
 
+// Nothing has happened for longer than the open phase allows (D2): say since when, and how
+// to get going again if the session that ran it is gone.
+function stuckRows(p: Progress): Row[] {
+  const s = p.stuck
+  if (!s) return []
+  const since = localTime(s.since)
+  return [
+    { text: `No progress${since ? ` since ${since}` : ''} (${s.minutes} min)`, color: 'warning', bold: true },
+    { text: `  If its session is gone: ${s.command}` },
+  ]
+}
+
 // Asked in the chat right now (an AskUserQuestion dialog is open): answered there, not in a file.
 function ideRows(p: Progress, room: number): Row[] {
   const items = p.questions.items.filter((it) => it.ask === 'ide')
@@ -156,7 +168,7 @@ function panelRows(d: Panel, rows: number): Row[] {
   const out: Row[] = [{ text: `${p.ticket} · ${wf} · ${status}${pos}`, bold: true }]
   if (d.stale) out.push({ text: `as of ${d.at ?? '?'}: tsl did not answer the last refresh`, dim: true })
   const width = Math.max(10, ...p.steps.map((s) => s.id.length))
-  const wait = waitingRows(p)
+  const wait = [...stuckRows(p), ...waitingRows(p)]
   // An open chat ask comes first: when the step list leaves no room for its questions, the
   // steps fold to one line (the current step and how many are done).
   const ideCount = p.questions.items.filter((it) => it.ask === 'ide').length

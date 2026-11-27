@@ -67,6 +67,10 @@ def take_lock(
     branch = comp.config.companion_branch
     remote = f"origin/{branch}"
     try:
+        git.repair(branch)  # what a killed sync left (D2)
+    except GitError as exc:
+        raise exc.tsl() from None
+    try:
         git.fetch()
     except GitError:
         raise TslError("E-LOCK-03") from None

@@ -41,6 +41,8 @@ export type Progress = {
   questions: { open_blocking: number; open_non_blocking: number; open_ide?: number; items: Question[] }
   // The engineer's wait on IDE questions, in seconds (tsl 0.1.8+).
   wait?: { total_s: number; steps: Record<string, number> }
+  // No activity for longer than the open phase allows (D2), else null. Older tsl sends none.
+  stuck?: { since: string; minutes: number; phase: string; limit_min: number; command: string; cancel: string } | null
 }
 
 // progress: null is "no run in this session". at: local time of the last good answer.

@@ -52,8 +52,8 @@ PREAMBLE = (
     'If the JSON above has "ok": false, show its "message" and "next" to the user and stop. Write nothing.\n'
 )
 COMMAND_PREAMBLES = {
-    "run": '!`tsl state start $0 $1 --ticket-file "$2" --json`',
-    "resume": "!`tsl state resume $0 --json`",
+    "run": '!`tsl state start $0 $1 --ticket-file "$2" --json --exit-zero`',
+    "resume": "!`tsl state resume $0 --json --exit-zero`",
     "status": "!`tsl state show $0 --json`",
     "eval": "!`tsl eval plan $0 --json`",
     "improve": "!`tsl improve plan $0 --json`",
@@ -701,3 +701,15 @@ def test_spike_plugin_is_separate_and_wired() -> None:
                 assert script.is_file() and is_executable(script), script
     for skill in ("run", "demo-step", "review", "env-probe"):
         assert front_matter(plugin_dir / "skills" / skill / "SKILL.md"), skill
+
+
+@pytest.mark.parametrize("command", ["run", "resume"])
+def test_run_control_preambles_cannot_fail_the_skill(command: str) -> None:
+    """Claude Code refuses a skill whose !`...` preamble exits non-zero, and the model then never
+    sees tsl's error (D2, #78: the "Is that session closed?" question was never asked).
+    --exit-zero keeps it one tsl command, so Bash(tsl *) still covers it."""
+    import re
+
+    [cmd] = re.findall(r"!`([^`]+)`", body(SKILLS / command / "SKILL.md"))
+    assert cmd.startswith("tsl ") and "--json" in cmd and cmd.endswith("--exit-zero")
+    assert not any(op in cmd for op in ("||", "&&", ";", "|")), "one command, not a pipeline"

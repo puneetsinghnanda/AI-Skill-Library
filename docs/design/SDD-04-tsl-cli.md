@@ -145,6 +145,7 @@ tsl/
 | `--repo PATH` | walk up from cwd to the first folder with `tsl.yaml` | Companion repo root |
 | `-v`, `-vv` | warning | Log level info / debug on stderr and in the log file |
 | `--no-color` | auto | Also honoured: `NO_COLOR` env var |
+| `--exit-zero` | off | Exit 0 whatever the result; read `ok` and `code` from the `--json` envelope. For skill `!` preambles: Claude Code refuses a skill whose preamble exits non-zero, so the model would never see the error (D2) |
 | `--version` | — | Prints `tsl <version>` and exits 0 |
 
 Environment variables read: `TSL_SESSION_ID` (written by the session-start hook, SDD-05 §5.5), `NO_COLOR`, `GITHUB_*` (only in `ci-verify`). No other variable changes behaviour.

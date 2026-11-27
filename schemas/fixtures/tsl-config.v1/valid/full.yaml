@@ -55,6 +55,7 @@ policy: policy.yaml
 gates:
   self_approval: false
   lock_timeout_hours: 24
+  stuck_after_min: 45
 pr:
   branch_prefix: tsl/
   labels:

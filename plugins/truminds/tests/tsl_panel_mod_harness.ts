@@ -254,6 +254,14 @@ assert.equal(afters[1].cancelled, true)
 await again2
 await settle()
 
+// D2: a stuck run says since when and the command, above the step's questions.
+const stuckRun = run({ stuck: { since: '2026-11-27T08:02:00Z', minutes: 34, phase: 'run_step', limit_min: 30, command: '/truminds:resume run_01', cancel: 'tsl state cancel run_01 --reason "stuck"' } })
+t = texts({ progress: stuckRun, at: null, stale: false })
+assert.ok(t.some((x: string) => /^No progress since \d\d:\d\d \(34 min\)$/.test(x)), t.join('\n'))
+assert.ok(t.includes('  If its session is gone: /truminds:resume run_01'))
+assert.ok(!texts({ progress: run({ stuck: null }), at: null, stale: false }).some((x: string) => x.startsWith('No progress')))
+assert.ok(!texts({ progress: run(), at: null, stale: false }).some((x: string) => x.startsWith('No progress'))) // older tsl
+
 // /tsl-panel during a running refresh waits for its answer instead of reading the old state.
 store.set('panel', { progress: null, at: null, stale: false })
 let done: () => void = () => undefined
