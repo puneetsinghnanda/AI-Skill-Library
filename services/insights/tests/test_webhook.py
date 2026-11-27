@@ -272,6 +272,7 @@ def _run(
     started: str | None = "now",
     completed: str | None = "now",
     status: str | None = None,
+    suite: int = 1,
 ) -> dict[str, Any]:
     return {
         "action": action,
@@ -286,7 +287,8 @@ def _run(
             "completed_at": None
             if action == "created"
             else (now_iso() if completed == "now" else completed),
-            "check_suite": {"id": 1},
+            "check_suite": {"id": suite},
+            "app": {"id": 15368},
             "pull_requests": [],
         },
     }
@@ -298,7 +300,8 @@ def _ci(owner_db: Engine, n: int) -> str | None:
 
     with owner_db.connect() as c:
         return c.execute(  # type: ignore[no-any-return]
-            text(f"SELECT {CI_RESULT_SQL} FROM pull_requests pr WHERE number = :n"), {"n": n}
+            text(f"SELECT {CI_RESULT_SQL} FROM pull_requests pr WHERE number = :n"),
+            {"n": n, "ci_pending_hours": 30},
         ).scalar_one()
 
 
@@ -306,15 +309,15 @@ def _in_every_order(
     client: TestClient, owner_db: Engine, events: list[Any], want: str | None, harness: str = ""
 ) -> None:
     """Deliver `events(head)` in every order (and once more, duplicated) to a fresh PR each time."""
-    orders = list(itertools.permutations(range(len(events))))
-    for order in [*orders, orders[-1]]:
+    orders = [(o, False) for o in itertools.permutations(range(len(events)))]
+    for order, twice in [*orders, (orders[-1][0], True)]:
         head = _sha()
         n = _open_pr(client, head)
         if harness:
             send(client, "check_run", _harness(head, harness))
         ids = [next(_RUN_IDS) for _ in range(2)]  # GitHub check run ids are unique, rising
         evs = [events[k](head, ids) for k in order]
-        for ev in evs + (evs if order is orders[-1] else []):  # last one: every event twice
+        for ev in evs + (evs if twice else []):  # one extra round: every event twice
             send(client, "check_run", ev)
         assert _ci(owner_db, n) == want, (order, want)
 
@@ -408,7 +411,7 @@ def test_no_result_conclusions_give_no_result_in_any_order(
 
 
 def test_newest_run_per_check_name_decides(client: TestClient, hook: int, owner_db: Engine) -> None:
-    """A re-triggered workflow (new suite) that passes replaces an older suite's failure."""
+    """Re-running a failed job (same workflow run, same suite) that passes clears the failure."""
     events = [
         lambda h, i: _run("completed", i[0], h, "failure", completed=now_iso(-100)),
         lambda h, i: _run(
@@ -437,13 +440,74 @@ def test_any_failure_wins_between_harness_and_product(
     )
 
 
-def test_a_pending_run_older_than_six_hours_is_ignored(
+def test_a_pending_run_older_than_the_limit_is_ignored(
     client: TestClient, hook: int, owner_db: Engine
 ) -> None:
-    """A lost `completed` delivery doesn't leave CI pending for good."""
-    old = [lambda h, i: _run("created", i[0], h, started=now_iso(-7 * 3600))]
+    """A lost `completed` delivery doesn't leave CI pending for good (CI_PENDING_MAX_HOURS)."""
+    old = [lambda h, i: _run("created", i[0], h, started=now_iso(-31 * 3600))]
     _in_every_order(client, owner_db, old, "pass", harness="success")
     _in_every_order(client, owner_db, old, None)
+
+
+def test_a_job_queued_for_hours_is_still_pending(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    """started_at is the queue time: a job waiting 7 h for a runner is not a pass yet."""
+    queued = [lambda h, i: _run("created", i[0], h, started=now_iso(-7 * 3600))]
+    _in_every_order(client, owner_db, queued, None, harness="success")
+
+
+def test_the_same_job_name_in_two_workflows_is_two_checks(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    """ci.yml's failing `build` is not hidden by release.yml's passing `build` (another suite),
+    and a newer workflow run on the same commit doesn't clear an older run's failure: any
+    failure wins until the failed run is re-run or a new commit is pushed."""
+    events = [
+        lambda h, i: _run("completed", i[0], h, "failure", suite=100),
+        lambda h, i: _run("completed", i[1], h, "success", suite=101),
+    ]
+    _in_every_order(client, owner_db, events, "fail")
+    rerun = [  # the failed workflow run re-run: its newest run passes
+        *events,
+        lambda h, i: _run("completed", i[1] + 1, h, "success", suite=100),
+    ]
+    _in_every_order(client, owner_db, rerun, "pass")
+
+
+def test_a_completed_run_without_a_conclusion_is_no_result(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    events = [lambda h, i: _run("completed", i[0], h, None)]
+    _in_every_order(client, owner_db, events, None)
+    _in_every_order(client, owner_db, events, "pass", harness="success")
+    with owner_db.connect() as c:
+        assert not c.execute(
+            text("SELECT count(*) FROM product_ci_runs WHERE conclusion = ''")
+        ).scalar_one()
+
+
+def test_harness_checks_without_a_result_are_filtered(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    """A running, skipped or cancelled tsl-ci-verify: 204 before any lookup, nothing stored,
+    so it never fails a PR whose product CI passed."""
+    head = _sha()
+    n = _open_pr(client, head)
+    send(client, "check_run", _run("completed", next(_RUN_IDS), head, "success"))
+    running = {**_harness(head, "success"), "action": "created"}
+    running["check_run"] = {**running["check_run"], "status": "in_progress", "conclusion": None}
+    assert send(client, "check_run", running).status_code == 204
+    for conclusion in ("skipped", "cancelled", "neutral", "stale", "action_required"):
+        assert send(client, "check_run", _harness(head, conclusion)).status_code == 204
+    no_conclusion = _harness(head, "success")
+    no_conclusion["check_run"] = {**no_conclusion["check_run"], "conclusion": None}
+    assert send(client, "check_run", no_conclusion).status_code == 204
+    assert _ci(owner_db, n) == "pass"
+    with owner_db.connect() as c:
+        assert not c.execute(
+            text("SELECT count(*) FROM ci_checks WHERE head_sha = :h"), {"h": head}
+        ).scalar_one()
 
 
 def test_created_without_a_start_time_is_ignored(
@@ -510,9 +574,19 @@ def test_product_runs_never_become_harness_verifications(
 # --- pull request state and head: every delivery order ----------------------------------------
 
 
-def _pr(action: str, n: int, head: str, at: str, marker: str, merged: bool = False) -> Any:
+def _pr(
+    action: str,
+    n: int,
+    head: str,
+    at: str,
+    marker: str,
+    merged: bool = False,
+    before: str | None = None,
+) -> Any:
     p = pr_payload(action, n, marker, merged=merged, head=head)
     p["pull_request"]["updated_at"] = at
+    if action == "synchronize":  # GitHub sends the old and new head of a push
+        p["before"], p["after"] = before, head
     return p
 
 
@@ -594,14 +668,46 @@ def test_concurrent_pushes_keep_the_newest_head(
         assert _pr_row(owner_db, n) == ("open", heads[5])
 
 
-def test_two_pushes_in_one_second_keep_the_first_head(
+def test_pushes_in_one_second_end_on_the_last_in_any_order(
     client: TestClient, hook: int, owner_db: Engine
 ) -> None:
-    n, marker, a, b, at = next(_NUMS), _marker(), _sha(), _sha(), now_iso(-60)
-    send(client, "pull_request", _pr("opened", n, _sha(), now_iso(-120), marker))
-    send(client, "pull_request", _pr("synchronize", n, a, at, marker))
-    send(client, "pull_request", _pr("synchronize", n, b, at, marker))
-    assert _pr_row(owner_db, n) == ("open", a)
+    """Same updated_at: a push applies only when its `before` is the stored head."""
+    at = now_iso(-60)
+    make = [
+        lambda n, h, m: _pr("opened", n, h[0], at, m),
+        lambda n, h, m: _pr("synchronize", n, h[1], at, m, before=h[0]),
+        lambda n, h, m: _pr("synchronize", n, h[2], at, m, before=h[1]),
+    ]
+    _pr_in_every_order(client, owner_db, make, ("open", 2))
+    make.append(lambda n, h, m: _pr("closed", n, h[2], at, m, merged=True))
+    _pr_in_every_order(client, owner_db, make, ("merged", 2))
+
+
+def test_close_and_reopen_in_one_second_in_any_order(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    """GitHub only reopens a closed PR, so a close and a reopen in one second end open."""
+    at = now_iso(-60)
+    make = [
+        lambda n, h, m: _pr("opened", n, h[0], now_iso(-400), m),
+        lambda n, h, m: _pr("closed", n, h[0], at, m),
+        lambda n, h, m: _pr("reopened", n, h[0], at, m),
+    ]
+    _pr_in_every_order(client, owner_db, make, ("open", 0))
+    make.append(lambda n, h, m: _pr("closed", n, h[0], now_iso(-30), m))  # a later close
+    _pr_in_every_order(client, owner_db, make, ("closed", 0))
+
+
+def test_a_close_and_a_push_in_one_second_keep_the_pr_closed(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    at = now_iso(-60)
+    make = [
+        lambda n, h, m: _pr("opened", n, h[0], now_iso(-400), m),
+        lambda n, h, m: _pr("synchronize", n, h[1], at, m, before=h[0]),
+        lambda n, h, m: _pr("closed", n, h[1], at, m),
+    ]
+    _pr_in_every_order(client, owner_db, make, ("closed", 1))
 
 
 def test_ignored_and_unknown_repo(client: TestClient, hook: int) -> None:

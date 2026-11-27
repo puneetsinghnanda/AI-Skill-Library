@@ -113,6 +113,10 @@ class Settings(BaseSettings):
     # "ci / build*" for a reusable or matrix job. Empty: none. Never counted as harness
     # verifications (product_ci_runs).
     ci_check_names: str = ""
+    # A product check still running after this many hours since it was queued counts as no
+    # result (a lost `completed` delivery). GitHub-hosted jobs queue up to 24 h and run up to
+    # 6 h; raise it for self-hosted runners, whose jobs can run longer.
+    ci_pending_max_hours: int = 30
 
     # --- Retention (SDD-08 §8.2; OQ-08, RD-4) ---
     retention_events_months: int = 13
