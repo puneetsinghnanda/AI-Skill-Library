@@ -20,7 +20,17 @@ from tsl.state import lock as lockmod
 from tsl.state.store import RunStore, final_ok_attempt, find_step
 from tsl.telemetry.emit import emit
 
+
+def _why(exc: Any) -> str:
+    """': <why>. <what to do>' from the GitError that stopped a sync, or '' (D2)."""
+    if exc is None:
+        return ""
+    return f": {exc.detail}" + (f". {exc.next}" if exc.next else "")
+
+
 SESSION_WINDOW_S = 15 * 60
+# The session-end hook's own save lands a moment after ended_at; later activity is a live holder.
+ENDED_SLACK_S = 5
 
 
 class RunCtx:
@@ -126,7 +136,7 @@ class RunCtx:
         with when it was last active, so the engineer can say whether it is gone (D2)."""
         sid = self.rt.session_id()
         act = self.state.get("active_session")
-        if not sid or not act or act.get("session_id") == sid or act.get("ended_at"):
+        if not sid or not act or act.get("session_id") == sid:
             return
         from tsl.core.clock import iso
         from tsl.state.stuck import last_activity
@@ -136,6 +146,12 @@ class RunCtx:
         if (seen := last_activity(self.comp.root, self.run_id, self.state)) is not None:
             known.append(seen)
         last = max(known) if known else None
+        if act.get("ended_at"):
+            # Closed, unless it did something after: a session resumed with the same id
+            # (claude --resume) is the holder again, and the question below applies.
+            ended = parse_iso(str(act["ended_at"]))
+            if last is None or (last - ended).total_seconds() <= ENDED_SLACK_S:
+                return
         if last and (self.rt.clock() - last).total_seconds() < SESSION_WINDOW_S:
             raise TslError(
                 "E-RUN-11",
@@ -281,6 +297,7 @@ class RunCtx:
             warnings.append(
                 {
                     "code": "E-GIT-01",
-                    "message": "push failed; commits kept locally, next push retries",
+                    "message": "push failed; commits kept locally, next push retries"
+                    + _why(self.comp.git.last_error),
                 }
             )

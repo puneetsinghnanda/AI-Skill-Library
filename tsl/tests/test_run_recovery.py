@@ -279,3 +279,128 @@ def test_the_reminder_and_doctor_say_the_run_is_stuck(world: World, tmp_path: Pa
     assert f"/truminds:resume {run_id}" in checks["companion-sync"]["fix"]
     prog = checks[f"run-progress-{run_id}"]
     assert prog["status"] == "warn" and "no progress since" in prog["detail"]
+
+
+# ------------------------------------------------------------------ review of #78 (Yash, 27 Nov)
+
+
+def _conflicting(work: Path, other: Path) -> None:
+    """A commit of ours and one on GitHub change the same line of the same file."""
+    (other / "runs" / "state.json").write_text('{"rev": "theirs"}\n', encoding="utf-8")
+    git(other, "commit", "-q", "-am", "theirs")
+    git(other, "push", "-q", "origin", "main")
+    (work / "runs" / "state.json").write_text('{"rev": "mine"}\n', encoding="utf-8")
+    git(work, "commit", "-q", "-am", "mine")
+    git(work, "fetch", "-q", "origin")
+
+
+def test_tsl_never_leaves_a_conflicted_sync_behind(tmp_path: Path) -> None:
+    # rebase() named the conflict but left the rebase in progress for repair() to trip on.
+    work, other = _two_clones(tmp_path)
+    _conflicting(work, other)
+    tip = git(work, "rev-parse", "HEAD")
+    with pytest.raises(GitError) as e:
+        Git(work).rebase("origin/main")
+    assert "runs/state.json" in e.value.detail and "nothing was lost" in e.value.detail
+    assert Git(work).leftovers()["rebase"] is None and git(work, "rev-parse", "HEAD") == tip
+
+
+def test_a_sync_stopped_on_a_conflict_keeps_the_files_written_since(tmp_path: Path) -> None:
+    # As an older tsl left it: the rebase stopped on a conflict; tsl wrote a file after.
+    work, other = _two_clones(tmp_path)
+    (work / "notes.json").write_text("v1\n", encoding="utf-8")
+    git(work, "add", ".")
+    git(work, "commit", "-q", "-m", "notes")
+    _conflicting(work, other)
+    Git(work).run("rebase", "-q", "origin/main", check=False)
+    assert Git(work).unmerged() == ["runs/state.json"]
+    (work / "notes.json").write_text("v2 written after the conflict\n", encoding="utf-8")
+    done = Git(work).repair("main")
+    assert [d["what"] for d in done] == ["rebase", "conflict"]
+    assert "runs/state.json" in done[1]["detail"]
+    assert (work / "notes.json").read_text(encoding="utf-8") == "v2 written after the conflict\n"
+    assert Git(work).leftovers()["rebase"] is None and not Git(work).unmerged()
+
+
+def test_the_newest_file_wins_over_an_autostashed_copy(tmp_path: Path) -> None:
+    # state.json was dirty when the sync started (autostashed), and written again after the
+    # kill: the abort put back the older copy, and the newer one was left in git stash.
+    work, other = _two_clones(tmp_path)
+    (other / "theirs.txt").write_text("x\n", encoding="utf-8")
+    git(other, "add", ".")
+    git(other, "commit", "-q", "-m", "theirs")
+    git(other, "push", "-q", "origin", "main")
+    (work / "mine.txt").write_text("x\n", encoding="utf-8")
+    git(work, "add", ".")
+    git(work, "commit", "-q", "-m", "mine")
+    git(work, "fetch", "-q", "origin")
+    (work / "runs" / "state.json").write_text('{"rev": 2}\n', encoding="utf-8")
+    Git(work).run("rebase", "--autostash", "--exec", "false", "origin/main", check=False)
+    assert Git(work).leftovers()["rebase"]
+    (work / "runs" / "state.json").write_text('{"rev": 3}\n', encoding="utf-8")
+    assert [d["what"] for d in Git(work).repair("main")] == ["rebase"]
+    assert (work / "runs" / "state.json").read_text(encoding="utf-8") == '{"rev": 3}\n'
+    assert not git(work, "stash", "list")
+
+
+def test_a_file_the_abort_would_refuse_to_overwrite_is_kept(tmp_path: Path) -> None:
+    # The sync stopped before our second commit was replayed; its file was then written
+    # again. git rebase --abort refuses to overwrite it unless it is moved aside first.
+    work, other = _two_clones(tmp_path)
+    _half_sync(work, other)  # mine1 replayed, mine2 not yet
+    assert not (work / "mine2.txt").exists()
+    (work / "mine2.txt").write_text("newest\n", encoding="utf-8")
+    assert [d["what"] for d in Git(work).repair("main")] == ["rebase"]
+    assert (work / "mine2.txt").read_text(encoding="utf-8") == "newest\n"
+
+
+def test_a_repair_killed_after_its_abort_is_finished_by_the_next(tmp_path: Path) -> None:
+    work, other = _two_clones(tmp_path)
+    _half_sync(work, other)
+    (work / "runs" / "state.json").write_text('{"rev": 9}\n', encoding="utf-8")
+    g = Git(work)
+    g._set_aside()
+    g.run("rebase", "--abort")  # killed here: the files are only in .git/tsl-repair
+    assert (work / "runs" / "state.json").read_text(encoding="utf-8") != '{"rev": 9}\n'
+    assert [d["what"] for d in g.repair("main")] == ["files"]
+    assert (work / "runs" / "state.json").read_text(encoding="utf-8") == '{"rev": 9}\n'
+    assert not (g.git_dir() / "tsl-repair").exists()
+
+
+def test_a_failed_sync_says_why(tmp_path: Path) -> None:
+    work, other = _two_clones(tmp_path)
+    git(work, "switch", "-q", "-c", "mine")
+    _half_sync(work, other, "mine")
+    g = Git(work)
+    assert g.sync_push("main") is False  # stopped by the repair
+    assert g.last_error is not None and "refs/heads/mine" in g.last_error.detail
+    (tmp_path / "second").mkdir()
+    work2, other2 = _two_clones(tmp_path / "second")
+    _conflicting(work2, other2)
+    g2 = Git(work2)
+    assert g2.sync_push("main") is False  # stopped by a conflict during the rebase
+    assert g2.last_error is not None and "runs/state.json" in g2.last_error.detail
+
+
+def test_a_closed_session_that_comes_back_is_the_holder_again(world: World) -> None:
+    # The same session id active again after the session-end hook (claude --resume): its new
+    # activity makes it a live holder, so another session gets the question, not the run.
+    run_id = start_run(world)
+    next_action(world, run_id)
+    hook(world, "session-end", {"hook_event_name": "SessionEnd"})
+    world.clock.advance(minutes=2)
+    log = world.companion / f"runs/{run_id}/tool-log.jsonl"
+    with log.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"ts": iso(world.clock())}) + "\n")
+    assert _resume(world, run_id)[1]["code"] == "E-RUN-11"
+
+
+def test_a_run_whose_verifier_is_running_is_not_stuck(world: World) -> None:
+    run_id = start_run(world)
+    next_action(world, run_id)
+    world.clock.advance(minutes=45)
+    lock = world.companion / f"runs/{run_id}/.local.lock"
+    lock.write_text(str(os.getpid()), encoding="utf-8")  # tsl verify holds it while it runs
+    assert _progress(world)["stuck"] is None
+    lock.write_text("999999", encoding="utf-8")  # a dead process: no longer busy
+    assert _progress(world)["stuck"] is not None

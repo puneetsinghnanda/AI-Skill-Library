@@ -4,7 +4,8 @@ phase allows. Read only: detection never changes a run, it says so and names the
 Last activity is the newest of: a state.json save (`updated_at`), the run's last tool-log line
 (every Write, Edit and Bash of the run), the action `tsl next` handed out (A2
 `current_action.started_at`) and an IDE question asked or answered (B2). While an IDE question
-is open the run waits on the engineer, which is not stuck.
+is open the run waits on the engineer, which is not stuck; nor is a run a tsl command (a long
+verifier) is working on.
 
 Limits, from `gates.stuck_after_min` in tsl.yaml (default 30):
 - a step (`run_step`, `fix`): the limit;
@@ -57,6 +58,18 @@ def _last_tool(root: Path, run_id: str) -> dt.datetime | None:
     return None
 
 
+def _tsl_busy(root: Path, run_id: str) -> bool:
+    """A live tsl process holds the run's .local.lock: tsl verify holds it for the whole
+    verifier run, which writes no tool-log line until it ends."""
+    from tsl.state.store import _pid_alive
+
+    try:
+        pid = int((Path(root) / "runs" / run_id / ".local.lock").read_text().strip() or "0")
+    except (OSError, ValueError):
+        return False
+    return _pid_alive(pid)
+
+
 def last_activity(root: Path, run_id: str, state: dict[str, Any]) -> dt.datetime | None:
     """The newest sign of life of the run, from the sources above."""
     from tsl.approvals import ide_questions
@@ -100,6 +113,8 @@ def stuck(
     from tsl.approvals import ide_questions
 
     if state.get("status") not in OPEN or ide_questions.open_asks(root, run_id):
+        return None
+    if _tsl_busy(root, run_id):  # a tsl command (a long verifier) is running on the run
         return None
     last = last_activity(root, run_id, state)
     if last is None:

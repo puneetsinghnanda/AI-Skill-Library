@@ -693,7 +693,13 @@ def cancel(rt: Runtime, comp: Companion, run_id: str, reason: str) -> dict[str, 
     pushed = lockmod.release(rt, comp, ctx.state, f"cancel ({reason[:60]})")
     unbind_run(rt, run_id)
     if not pushed:
-        raise TslError("E-GIT-01", op="push", detail="cancel recorded locally, not pushed")
+        why = comp.git.last_error
+        raise TslError(
+            "E-GIT-01",
+            op="push",
+            detail="cancel recorded locally, not pushed" + (f": {why.detail}" if why else ""),
+            next=why.next if why and why.next else None,
+        )
     return {
         "run_id": run_id,
         "status": "COMPLETED",
