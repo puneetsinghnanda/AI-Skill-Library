@@ -1006,13 +1006,20 @@ def companion_check(
     base: Annotated[str | None, typer.Option("--base", help="Check commits after this")] = None,
     event: Annotated[str | None, typer.Option("--event", help="push | pull_request")] = None,
     deny_hashes: Annotated[Path | None, typer.Option("--deny-hashes")] = None,
+    show_allow_hashes: Annotated[
+        bool,
+        typer.Option(
+            "--show-allow-hashes",
+            help="Local only: print the tsl.yaml h4_allow sha256 of each entropy finding",
+        ),
+    ] = False,
 ) -> int:
     """Companion CI: schemas, path ownership, append-only records, content, size."""
     from tsl.services.companion import check, first_error
 
     if event not in (None, "push", "pull_request"):
         raise TslError("E-USE-01", detail="--event is push or pull_request", cmd="companion check")
-    data = check(rt(), comp(), base, event, deny_hashes)
+    data = check(rt(), comp(), base, event, deny_hashes, show_allow_hashes)
     if data["codes"]:
         raise first_error(data)
     return emit_ok(f"Companion check passed ({data['files_checked']} files)", data)

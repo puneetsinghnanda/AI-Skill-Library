@@ -45,71 +45,43 @@ def _line_of(text: str, pos: int) -> int:
 
 
 RUN_ID_IN_PATH = re.compile(r"run_[0-9A-HJKMNP-TV-Z]{26}")
-# A path-like token (it has `/` or `_`) followed by a known file extension is a file name, e.g.
-# the migration in a cite `repo:db/migrations/20261016T090000__create_reference_lists.sql#L16`.
-# The extension must come from this list and be followed by `#`, `:`, a quote, a bracket, a
-# comma, whitespace or the end of the text, so `<token>.trim()`, `<token>.ngrok.io` and
-# `<token>.Use it` are still checked.
+# A token followed by a file extension is a path to a file, e.g. the migration in a cite
+# `repo:db/migrations/20261016T090000__create_reference_lists.sql#L16`. Such a token is not
+# checked as a whole: it is split at `/`, `_` and `-` and each piece is checked on its own, so
+# a file name of short words and dates passes while a secret segment of a URL or path
+# (`/services/<token>/payload.json`, `<token>_dump.sql`) is still found. Extensions are lower or
+# upper case only (`.Go to` is prose), may be chained (`.spec.ts`, `.d.ts`, `.env.local`,
+# `.sql.gz`) and must end the word: then `#`, `:`, a quote, a bracket, a brace, `,`, `;`, `>`,
+# `?`, `|`, whitespace, a full stop before whitespace, or the end of the text. So
+# `<token>.trim()`, `<token>.ngrok.io` and `<token>.Use it` are still checked whole.
 FILE_EXTS = [
-    "sql",
-    "md",
-    "mdx",
-    "txt",
-    "json",
-    "jsonl",
-    "yaml",
-    "yml",
-    "toml",
-    "ini",
-    "cfg",
-    "conf",
-    "env",
-    "properties",
-    "lock",
-    "xml",
-    "html",
-    "htm",
-    "css",
-    "scss",
-    "js",
-    "jsx",
-    "mjs",
-    "cjs",
-    "ts",
-    "tsx",
-    "py",
-    "pyi",
-    "rb",
-    "go",
-    "rs",
-    "java",
-    "kt",
-    "kts",
-    "scala",
-    "cs",
-    "php",
-    "sh",
-    "bash",
-    "ps1",
-    "bat",
-    "dockerfile",
-    "tf",
-    "hcl",
-    "proto",
-    "graphql",
-    "gql",
-    "csv",
-    "tsv",
-    "sqlite",
-    "sqlite3",
-    "db",
-    "log",
-    "out",
-    "snap",
-]
+    "sql", "md", "mdx", "txt", "json", "jsonl", "yaml", "yml", "toml", "ini", "cfg", "conf",
+    "env", "properties", "xml", "html", "htm", "css", "scss", "js", "jsx", "mjs", "cjs", "ts",
+    "tsx", "py", "pyi", "rb", "go", "rs", "java", "kt", "kts", "scala", "cs", "php", "sh",
+    "bash", "ps1", "bat", "dockerfile", "tf", "hcl", "proto", "graphql", "gql", "csv", "tsv",
+    "sqlite", "sqlite3", "gz", "zip",
+]  # fmt: skip
+_EXT = "(?:" + "|".join(FILE_EXTS + [e.upper() for e in FILE_EXTS]) + ")"
 FILE_EXT_AFTER = re.compile(
-    r"\.(?:" + "|".join(FILE_EXTS) + r")(?=[#:\s\"'`)\],]|$)", re.IGNORECASE
-)
+    r"(?:\.[a-z0-9]{1,12})*\." + _EXT + r"(?:\.[a-z0-9]{1,12})*"
+    + r"(?=[#:\s\"'`)\]},;>?|]|\.(?:\s|$)|$)"
+)  # fmt: skip
+PATH_SEGMENT = re.compile(r"[^/]+")
+PATH_PIECE = re.compile(r"[^_\-]+")
+
+
+def _path_pieces(tok: str, offset: int, minlen: int) -> list[tuple[str, int, int]]:
+    """A path's parts to check: `/` segments, kept whole when they are known ids (`run_<ULID>`),
+    else split at `_` and `-`; only parts long enough to be a secret."""
+    out: list[tuple[str, int, int]] = []
+    for seg in PATH_SEGMENT.finditer(tok):
+        if SAFE_TOKEN.match(seg.group(0)):
+            continue  # a run, event or key id inside the path
+        for p in PATH_PIECE.finditer(seg.group(0)):
+            if len(p.group(0)) >= minlen:
+                start = offset + seg.start() + p.start()
+                out.append((p.group(0), start, start + len(p.group(0))))
+    return out
 
 
 def _entropy(s: str) -> float:
@@ -243,24 +215,25 @@ def scan(
         window = int(ent.get("keyword_window", 40))
         minlen = int(ent.get("min_length", 20))
         for m in re.finditer(r"[A-Za-z0-9+/=_-]{" + str(minlen) + ",}", text):
-            tok = m.group(0)
-            if SAFE_TOKEN.match(tok) or allowed(tok):
-                continue
-            if RUN_ID_IN_PATH.search(tok):
-                continue  # citation paths carry ULID run ids; they are ids, not secrets
-            if ("/" in tok or "_" in tok) and FILE_EXT_AFTER.match(text, m.end()):
-                continue  # a file name or path (cited code, migrations), not a secret
-            if not (re.search(r"[A-Za-z]", tok) and re.search(r"[0-9]", tok)):
-                continue
-            if any(p in tok.lower() for p in placeholders) or re.fullmatch(r"[a-z0-9-]+", tok):
-                continue
-            if _entropy(tok) < float(ent.get("min_bits_per_char", 4.0)):
-                continue
-            around = text[max(0, m.start() - window) : m.end() + window]
-            if kw.search(around.replace(tok, "")):
-                hits.append(
-                    Hit("SEC-ENT-01", "secret", _line_of(text, m.start()), m.start(), m.end())
-                )
+            # A path to a file is checked piece by piece; anything else as one token.
+            if FILE_EXT_AFTER.match(text, m.end()):
+                pieces = _path_pieces(m.group(0), m.start(), minlen)
+            else:
+                pieces = [(m.group(0), m.start(), m.end())]
+            for tok, start, end in pieces:
+                if SAFE_TOKEN.match(tok) or allowed(tok):
+                    continue
+                if RUN_ID_IN_PATH.search(tok):
+                    continue  # citation paths carry ULID run ids; they are ids, not secrets
+                if not (re.search(r"[A-Za-z]", tok) and re.search(r"[0-9]", tok)):
+                    continue
+                if any(p in tok.lower() for p in placeholders) or re.fullmatch(r"[a-z0-9-]+", tok):
+                    continue
+                if _entropy(tok) < float(ent.get("min_bits_per_char", 4.0)):
+                    continue
+                around = text[max(0, start - window) : end + window]
+                if kw.search(around.replace(tok, "")):
+                    hits.append(Hit("SEC-ENT-01", "secret", _line_of(text, start), start, end))
     for r in pii["rules"]:
         validator = VALIDATORS[r.get("validator", "none")]
         for m in re.finditer(r["pattern"], text):

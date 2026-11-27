@@ -6,7 +6,7 @@ import copy
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from tsl.core.errors import TslError
 from tsl.core.jsonio import read_yaml
@@ -91,6 +91,12 @@ class TslConfig(BaseModel):
     harness: dict[str, Any] = {}
     h4_allow: list[str] = []
     ci: dict[str, Any] = {}
+
+    @field_validator("h4_allow")
+    @classmethod
+    def _h4_allow_lower(cls, v: list[str]) -> list[str]:
+        """One form for H4 and the companion check: SHA-256 hex, lower case (SEC-01 §7.2)."""
+        return [h.strip().lower() for h in v]
 
     def repo(self, name: str) -> ProductRepo | None:
         return next((r for r in self.product_repos if r.name == name), None)

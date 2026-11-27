@@ -65,3 +65,43 @@ def test_long_extensions_in_cited_paths_are_not_secrets() -> None:
     for ext in ("properties", "sqlite3"):
         cite = f"sample-system:config/app_20261016T090000x9Kq.{ext}#L3"
         assert not _ent(f'"quote": "primary key", "ref": "{cite}"\n'), ext
+
+
+# --- third review of #63 (Gaurav): pieces of a path are checked; prose is not an extension ----
+
+MIG = "db/migrations/20261016T090000__create_reference_lists"
+
+
+def test_secret_segment_of_a_url_ending_in_a_file_is_flagged() -> None:
+    assert _ent(f"webhook key: https://hooks.example.com/services/{TOK}/payload.json\n")
+
+
+def test_secret_before_a_file_name_suffix_is_flagged() -> None:
+    assert _ent(f"api key in s3://bucket/{TOK}_dump.sql\n")
+
+
+def test_prose_after_a_token_is_not_an_extension() -> None:
+    assert _ent(f"the api key is ab_{TOK}.Go to settings\n")
+    assert _ent(f"the api key is ab_{TOK}.Log in first\n")
+
+
+def test_base64_secret_with_slashes_is_still_checked_whole() -> None:
+    assert _ent("secret: Zx9Qw7Lm3/Kp8Rt2Vb6Nc4/Hd1Fg5Js0Ty9q\n")
+
+
+def test_cited_file_names_in_more_shapes_are_not_secrets() -> None:
+    for tail in (".sql.", ".sql;", ".sql>", ".sql}", ".sql?", ".sql|", ".sql.gz "):
+        assert not _ent(f"primary key, created in {MIG}{tail}\n"), tail
+    for name in ("x9Kq/20261016T090000__orders_api.spec.ts", "src/types/20261016T090000__api.d.ts"):
+        assert not _ent(f'primary key "ref": "sample-system:{name}#L4"\n'), name
+    assert not _ent("key in config/20261016T090000__settings.env.local\n")
+
+
+def test_run_ids_inside_cited_paths_are_not_secrets() -> None:
+    """Real companion lines (HMS-14, HMS-7): a run id stays whole when a path is split."""
+    lines = (
+        '      cites: ["runs/run_01M7HH0DM88V7JHMVZPSYX5BWE/ide-answers.md#a-07"]\n',
+        '    cites: ["artifacts/HMS-7/run_01M6FXTGC048AXKA8X69ASS5QB/design.md#overview"]\n',
+    )
+    for line in lines:
+        assert not _ent("signing key\n" + line), line

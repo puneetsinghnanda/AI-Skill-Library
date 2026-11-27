@@ -210,14 +210,18 @@ def _deny_hashes(path: Path | None) -> frozenset[str]:
 
 
 def _check_content(
-    comp: Companion, files: list[str], deny: frozenset[str], out: list[Finding]
+    comp: Companion,
+    files: list[str],
+    deny: frozenset[str],
+    out: list[Finding],
+    show_hashes: bool = False,
 ) -> int:
     from tsl.context.repoview import excluded
     from tsl.harness import detectors
 
     # Known false positives: SHA-256 of the matched text in tsl.yaml h4_allow (SEC-01 §7.2),
     # the same list H4 honours during a run.
-    allow = frozenset(h.lower() for h in comp.config.h4_allow)
+    allow = frozenset(comp.config.h4_allow)  # normalised in TslConfig
     total = 0
     for rel in files:
         p = comp.path(rel)
@@ -242,10 +246,11 @@ def _check_content(
             if h.kind in ("secret", "pii", "term"):
                 # file and line only: the matched value is never echoed (SDD-11 §7.3)
                 detail = f"{h.kind} rule {h.rule_id}"
-                if h.rule_id == "SEC-ENT-01":
+                if show_hashes and h.rule_id == "SEC-ENT-01":
                     # The SHA-256 a tech lead puts in tsl.yaml h4_allow for a reviewed false
-                    # positive. Only for entropy hits: a random token of 20+ characters can't
-                    # be recovered from its hash; a pattern match (a password) might be.
+                    # positive. Only when asked for locally (--show-allow-hashes), never in CI
+                    # logs, and only for entropy hits: a hit can be a `NAME=value` pair that a
+                    # dictionary could recover from a published hash.
                     digest = hashlib.sha256(text[h.start : h.end].encode()).hexdigest()
                     detail += f", h4_allow sha256 {digest}"
                 out.append(Finding("E-COMP-04", rel, h.line, detail))
@@ -258,14 +263,18 @@ def check(
     base: str | None = None,
     event: str | None = None,
     deny_hashes: Path | None = None,
+    show_hashes: bool = False,
 ) -> dict[str, Any]:
-    """Run every companion check; returns data with `codes` (empty when it passes)."""
+    """Run every companion check; returns data with `codes` (empty when it passes).
+
+    `show_hashes` (local `--show-allow-hashes` only) adds the h4_allow sha256 to entropy findings.
+    """
     findings: list[Finding] = []
     files = _tracked(comp)
     _check_schemas(comp, files, findings)
     commits = _commits(comp, base)
     _check_history(comp, commits, base, event, findings)
-    total = _check_content(comp, files, _deny_hashes(deny_hashes), findings)
+    total = _check_content(comp, files, _deny_hashes(deny_hashes), findings, show_hashes)
     if total > MAX_REPO_BYTES:
         findings.append(Finding("E-COMP-05", ".", 0, f"repository {total} bytes"))
     codes = sorted({f.code for f in findings}, key=CODE_ORDER.index)

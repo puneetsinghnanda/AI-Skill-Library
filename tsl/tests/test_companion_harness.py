@@ -121,7 +121,7 @@ def test_known_false_positive_is_allowed_by_h4_allow(world: World) -> None:
 
 
 def test_entropy_finding_shows_the_hash_that_clears_it(world: World) -> None:
-    """E-COMP-04 for SEC-ENT-01 names the sha256 to put in h4_allow; adding it clears it."""
+    """Locally, E-COMP-04 for SEC-ENT-01 names the sha256 for h4_allow; adding it clears it."""
     import re as _re
 
     tok = "Zx9Qw7Lm3Kp8Rt2Vb6Nc4Hd1Fg5Js0Ty"
@@ -129,6 +129,9 @@ def test_entropy_finding_shows_the_hash_that_clears_it(world: World) -> None:
     _commit(world, "notes")
     code, env = _check(world)
     assert (code, env["code"]) == (2, "E-COMP-04")
+    assert "h4_allow sha256" not in json.dumps(env)  # CI never prints a hash
+    assert "--show-allow-hashes" in env["next"]
+    code, env = _check(world, "--show-allow-hashes")  # a tech lead, locally
     detail = next(f["detail"] for f in env["data"]["findings"] if f["path"] == "notes.md")
     assert tok not in json.dumps(env)  # the value itself is never echoed
     digest = _re.search(r"h4_allow sha256 ([0-9a-f]{64})", detail)
