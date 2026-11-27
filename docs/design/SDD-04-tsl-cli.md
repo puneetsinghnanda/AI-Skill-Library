@@ -464,7 +464,7 @@ GitHub authentication uses the engineer's existing git credential (`git credenti
 
 ### 6.14 `tsl hook <event>`
 
-`<event>` ∈ `session-start`, `pre-tool`, `pre-mcp`, `post-write`, `session-end`. Called only by `bin/tsl-hook` (SDD-05 §5.2).
+`<event>` ∈ `session-start`, `pre-tool`, `pre-mcp`, `post-write`, `session-end`, `subagent-stop`. Called only by `bin/tsl-hook` (SDD-05 §5.2).
 
 **I/O differs from every other command:** it reads Claude Code hook JSON on stdin and writes Claude Code hook JSON on stdout (SDD-05 §5.3, Doc 5 §4.2). It never prints the tsl envelope, and it ignores `--json`.
 
@@ -475,6 +475,7 @@ GitHub authentication uses the engineer's existing git credential (`git credenti
 | `pre-mcp` | Tool name in `read_tools` and no run → exit 0 | `deny` + E-POL-03 unless a signed approval exists for the action | 0 |
 | `post-write` | Path not under `artifacts/**/*.md` → exit 0 | `{"decision": "block", "reason": "E-CHK-01 ..."}` on failure | 0 |
 | `session-end` | — | none | 0 always |
+| `subagent-stop` | No `agent_id`, or no run for `session_id` → exit 0 | none | 0 always |
 
 **Session index** (`~/.truminds/sessions/<session_id>.json`):
 

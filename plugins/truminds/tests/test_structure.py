@@ -154,6 +154,7 @@ def test_hooks_json_lists_exactly_the_sdd05_hooks_with_timeouts() -> None:
             ("PreToolUse", "mcp__.*", "pre-mcp", 10),
             ("PostToolUse", "Write|Edit|NotebookEdit|AskUserQuestion", "post-write", 90),
             ("SessionEnd", None, "session-end", 15),
+            ("SubagentStop", None, "subagent-stop", 15),
         ],
         key=str,
     )

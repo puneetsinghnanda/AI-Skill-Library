@@ -16,13 +16,13 @@ exit /b %ERRORLEVEL%
 #PS-BEGIN
 $ErrorActionPreference = 'Stop'
 $HookEvent = $env:TSL_HOOK_EVENT
-$Valid = @('session-start', 'pre-tool', 'pre-mcp', 'post-write', 'session-end')
+$Valid = @('session-start', 'pre-tool', 'pre-mcp', 'post-write', 'session-end', 'subagent-stop')
 if ($Valid -notcontains $HookEvent) { [Console]::Error.WriteLine("tsl-hook: unknown event '$HookEvent'"); exit 1 }
 
 $PluginRoot = $env:CLAUDE_PLUGIN_ROOT
 $TrumindsDir = Join-Path $env:USERPROFILE '.truminds'
 $HookLog = Join-Path $TrumindsDir 'logs\hook.log'
-$Budget = @{ 'session-start' = 12; 'session-end' = 12; 'pre-tool' = 8; 'pre-mcp' = 8; 'post-write' = 85 }[$HookEvent]
+$Budget = @{ 'session-start' = 12; 'session-end' = 12; 'subagent-stop' = 12; 'pre-tool' = 8; 'pre-mcp' = 8; 'post-write' = 85 }[$HookEvent]
 $Override = 0
 if ([int]::TryParse("$env:TSL_HOOK_BUDGET_S", [ref]$Override) -and $Override -ge 1 -and $Override -lt $Budget) { $Budget = $Override }
 

@@ -28,7 +28,7 @@ set -u
 
 EVENT=${1:-}
 case "$EVENT" in
-  session-start|pre-tool|pre-mcp|post-write|session-end) ;;
+  session-start|pre-tool|pre-mcp|post-write|session-end|subagent-stop) ;;
   *) printf 'tsl-hook: unknown event "%s"\n' "$EVENT" >&2; exit 1 ;;
 esac
 
@@ -150,7 +150,7 @@ case "$EVENT" in
     log_line allow E-HOOK-01 "$kind (fail open): $detail"
     printf '{"systemMessage":"%s"}\n' "$(json_escape "Truminds: artifact checks did not run ($detail). Your file was kept. Fix tsl, then re-run the step's checks.")"
     ;;
-  session-start|session-end)
+  session-start|session-end|subagent-stop)
     log_line warn E-HOOK-01 "$kind: $detail"
     printf '{"systemMessage":"%s"}\n' "$(json_escape "Truminds: $detail")"
     ;;

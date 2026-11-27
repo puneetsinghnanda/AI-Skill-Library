@@ -108,13 +108,19 @@ function localTime(iso: string | null | undefined): string | null {
   return `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`
 }
 
+// How many of n items fit under a header in room rows, keeping one row for "…and N more".
+function fits(n: number, room: number): number {
+  return n <= room - 1 ? n : Math.max(0, room - 2)
+}
+
 // Asked in the chat right now (an AskUserQuestion dialog is open): answered there, not in a file.
 function ideRows(p: Progress, room: number): Row[] {
   const items = p.questions.items.filter((it) => it.ask === 'ide')
-  if (items.length === 0) return []
+  if (items.length === 0 || room < 1) return []
   const since = localTime(items[0]!.since)
   const out: Row[] = [{ text: `Waiting on you${since ? ` since ${since}` : ''}: answer in the chat`, color: 'warning', bold: true }]
-  const shown = items.slice(0, Math.max(0, room - 1))
+  if (room < 2) return out
+  const shown = items.slice(0, fits(items.length, room))
   for (const it of shown) out.push({ text: ` ${it.id} ${it.text}`, color: 'warning' })
   if (shown.length < items.length) out.push({ text: ` …and ${items.length - shown.length} more in the chat`, dim: true })
   return out
@@ -123,9 +129,10 @@ function ideRows(p: Progress, room: number): Row[] {
 function questionRows(p: Progress, room: number): Row[] {
   const q = p.questions
   const total = q.open_blocking + q.open_non_blocking
-  if (total === 0) return []
+  if (total === 0 || room < 1) return []
   const out: Row[] = [{ text: `Open questions: ${q.open_blocking} blocking, ${q.open_non_blocking} other`, bold: true }]
-  const items = q.items.filter((it) => it.ask !== 'ide').slice(0, Math.max(0, room - 1))
+  if (room < 2) return out
+  const items = q.items.filter((it) => it.ask !== 'ide').slice(0, fits(total, room))
   for (const it of items) {
     const who = it.ask ? ` (${it.ask})` : ''
     out.push({ text: ` ${it.id}${who} ${it.text}`, color: it.blocking ? 'warning' : undefined })
@@ -181,6 +188,7 @@ let running: Promise<void> | undefined
 let again = false
 let poll: { cancel: () => void } | undefined
 let openedFor: string | undefined // the run the pane was opened for unasked, once per run
+let afterAnswer: { cancel: () => void } | undefined // the refresh shortly after a dialog returned
 
 async function fetchOnce($: any): Promise<void> {
   let session = ''
@@ -359,14 +367,23 @@ export const register: Register = (on) => {
 
   // A question asked in the chat: shown while its dialog is open, gone once it is answered. The
   // tool call's next() runs the PreToolUse hooks and then the dialog, so refresh after a short
-  // wait (the hook has recorded it by then) and again when the dialog returns.
+  // wait (the hook has recorded it by then), when the dialog returns, and once more a short
+  // wait later: the post-tool hook that marks it answered may not have run yet.
+  const later = ($: any) => $.clock.after(ASK_REFRESH_MS, () => {
+    if (!idle) void refresh($).catch(() => undefined)
+  })
   on('tool.call', { tool: 'AskUserQuestion' } as any, async ($: any, e: any, next: any) => {
-    const timer = idle ? undefined : $.clock.after(ASK_REFRESH_MS, () => void refresh($).catch(() => undefined))
+    afterAnswer?.cancel() // a new ask: the last one's late refresh is not needed
+    afterAnswer = undefined
+    const timer = idle ? undefined : later($)
     try {
       return await next(e)
     } finally {
       timer?.cancel()
-      if (!idle) void refresh($).catch(() => undefined)
+      if (!idle) {
+        void refresh($).catch(() => undefined)
+        afterAnswer = later($)
+      }
     }
   })
 

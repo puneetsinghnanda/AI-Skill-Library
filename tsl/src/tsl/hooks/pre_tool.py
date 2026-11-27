@@ -119,19 +119,21 @@ def _record_ask(ctx: Ctx, idx: dict[str, Any], ti: dict[str, Any]) -> None:
                 older_than_s=ASK_CLOSE_AFTER_S,
             )
             return
-        cur = idx["_state"].get("cursor") or {}
+        step, attempt = ide_questions.ask_step(idx["_state"])
         ide_questions.raised(
             root,
             idx["run_id"],
-            str(cur.get("step") or "run"),
-            int(cur.get("attempt") or 1),
+            step,
+            attempt,
             ide_questions.questions_of(ti),
             source="hook",
             tool_use_id=str(ctx.data.get("tool_use_id") or ""),
             agent_id=agent,
         )
-    except Exception:  # noqa: S110 - a missed record only loses the wait time
-        pass
+    except Exception as exc:  # a missed record only loses the wait time: noted for tsl doctor
+        from tsl.approvals import ide_questions
+
+        ide_questions.note_failure(ctx.home, str(idx.get("run_id")), "pre-tool", exc)
 
 
 def _rel_parts(root: str, path: str) -> list[str] | None:
