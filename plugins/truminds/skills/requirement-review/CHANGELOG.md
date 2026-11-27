@@ -1,5 +1,22 @@
 # Changelog: requirement-review
 
+## 1.5.0
+- C2 (roadmap 25-27 Nov): RR-C05 rejected product-code cites (`<repo>:<path>#L<n>`) although
+  this skill tells the model to read and cite the code at the pinned SHA. Runs HMS-28 and
+  HMS-33 each lost a req retry to it, and the model learned to ask instead of looking. RR-C05
+  now accepts cites into a configured product repo; H5 still resolves each one at the pinned
+  SHA, and an unknown repo is still rejected.
+- Run HMS-31: a proposed default said the doctor page shows an Inactive department with no
+  marker; DoctorDetailPage.tsx (and PRD REF-3) show "(Inactive)". Rule 6: a default rests on
+  the product code or PRD, a context section or an earlier answer, cited in the question's
+  evidence. RR-C08 (`default_sourced`) fails a default whose evidence is only the ticket. The
+  IDE option for a proposed default names its source so the user can check it.
+- Checked against the 43 accepted req artifacts in the SYS-SMP2 companion: 0 of the 0.1.7
+  brownfield lite runs (HMS-23 to HMS-33) would fail the new rule; 10 defaults in older runs
+  (HMS-1 to HMS-6) rested on the ticket alone.
+- MINOR: stricter checks, same inputs and output schema. Needs a signed eval result for this
+  version before any status change (SKL-V13).
+
 ## 1.4.0
 - Run HMS-21: the hook refused 24 Edit calls (requirement-review 15, design 6,
   secure-code-review 3), because the skill had no Edit tool although its hand-over says to

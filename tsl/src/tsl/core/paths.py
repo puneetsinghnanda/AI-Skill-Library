@@ -52,6 +52,11 @@ class Home:
     def session_policy(self, session_id: str) -> Path:
         return self.sessions / f"{_safe_name(session_id)}.policy.json"
 
+    def session_transcript(self, session_id: str) -> Path:
+        """Where Claude Code writes this session's transcript (run metrics, D1). Local only: the
+        path holds the home folder, so it never goes to the companion repo."""
+        return self.sessions / f"{_safe_name(session_id)}.transcript"
+
     @property
     def logs(self) -> Path:
         return self.root / "logs"
@@ -115,6 +120,11 @@ def approvals_path(run_id: str) -> str:
 def ide_answers_path(run_id: str) -> str:
     """Answers the user gave in the IDE (AskUserQuestion), written only by the post-tool hook."""
     return f"runs/{run_id}/ide-answers.md"
+
+
+def ide_questions_path(run_id: str) -> str:
+    """When each IDE question was asked and answered (AskUserQuestion), written only by tsl."""
+    return f"runs/{run_id}/ide-questions.json"
 
 
 def tool_log_path(run_id: str) -> str:

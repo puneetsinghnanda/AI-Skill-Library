@@ -398,3 +398,15 @@ def test_log_cite_is_not_a_declared_input_when_no_log_exists(tmp_path: Path) -> 
     (tmp_path / TICKET).write_text("# T-1\nShow order history.\n", encoding="utf-8")
     out = _run(tmp_path, _front())
     assert out["RR-C05"][0] == "fail" and out["RR-C13"][0] == "fail"
+
+
+def test_an_answer_given_between_steps_is_cited_not_listed(tmp_path: Path) -> None:
+    # Review of #74: asked after state start, before the first step, the answer is logged under
+    # "run". The req artifact cites it as an earlier decision and passes; listing it fails.
+    (tmp_path / TICKET).parent.mkdir(parents=True)
+    (tmp_path / TICKET).write_text("# T-1\nShow order history.\n", encoding="utf-8")
+    item = {"question": "Q-01: Which window?", "options": ["30 days"], "answer": "30 days"}
+    ide_answers.append(tmp_path / LOG, RUN, "run", 1, "t", "eng-4f2a", "toolu_1", [item])
+    assert _run(tmp_path, _front(answers=[]))["RR-C13"][0] == "pass"
+    status, detail = _run(tmp_path, _front())["RR-C13"]
+    assert status == "fail" and "not an answer the user gave for step req" in detail

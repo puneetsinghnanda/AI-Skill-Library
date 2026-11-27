@@ -16,6 +16,8 @@ const PANE = 'truminds-run'
 const TITLE = 'Truminds run'
 const TSL_TIMEOUT_MS = 8000
 const POLL_MS = 30000 // only while a run waits for someone else's approval
+// The pre-tool hook records an IDE question as its dialog opens: refresh once it has.
+const ASK_REFRESH_MS = 1500
 const EMPTY: Panel = { progress: null, at: null, stale: false }
 // Change the shape tag when Panel changes: it drops what an older version stored.
 const panel = atom({ plugin: 'truminds', key: 'panel' } as const, EMPTY, { shape: 'panel-1' })
@@ -99,12 +101,38 @@ function waitingRows(p: Progress): Row[] {
   ]
 }
 
+// Local HH:MM of a UTC timestamp from tsl, or null when it cannot be read.
+function localTime(iso: string | null | undefined): string | null {
+  const t = iso ? new Date(iso) : null
+  if (!t || Number.isNaN(t.getTime())) return null
+  return `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`
+}
+
+// How many of n items fit under a header in room rows, keeping one row for "…and N more".
+function fits(n: number, room: number): number {
+  return n <= room - 1 ? n : Math.max(0, room - 2)
+}
+
+// Asked in the chat right now (an AskUserQuestion dialog is open): answered there, not in a file.
+function ideRows(p: Progress, room: number): Row[] {
+  const items = p.questions.items.filter((it) => it.ask === 'ide')
+  if (items.length === 0 || room < 1) return []
+  const since = localTime(items[0]!.since)
+  const out: Row[] = [{ text: `Waiting on you${since ? ` since ${since}` : ''}: answer in the chat`, color: 'warning', bold: true }]
+  if (room < 2) return out
+  const shown = items.slice(0, fits(items.length, room))
+  for (const it of shown) out.push({ text: ` ${it.id} ${it.text}`, color: 'warning' })
+  if (shown.length < items.length) out.push({ text: ` …and ${items.length - shown.length} more in the chat`, dim: true })
+  return out
+}
+
 function questionRows(p: Progress, room: number): Row[] {
   const q = p.questions
   const total = q.open_blocking + q.open_non_blocking
-  if (total === 0) return []
+  if (total === 0 || room < 1) return []
   const out: Row[] = [{ text: `Open questions: ${q.open_blocking} blocking, ${q.open_non_blocking} other`, bold: true }]
-  const items = q.items.slice(0, Math.max(0, room - 1))
+  if (room < 2) return out
+  const items = q.items.filter((it) => it.ask !== 'ide').slice(0, fits(total, room))
   for (const it of items) {
     const who = it.ask ? ` (${it.ask})` : ''
     out.push({ text: ` ${it.id}${who} ${it.text}`, color: it.blocking ? 'warning' : undefined })
@@ -128,11 +156,23 @@ function panelRows(d: Panel, rows: number): Row[] {
   const out: Row[] = [{ text: `${p.ticket} · ${wf} · ${status}${pos}`, bold: true }]
   if (d.stale) out.push({ text: `as of ${d.at ?? '?'}: tsl did not answer the last refresh`, dim: true })
   const width = Math.max(10, ...p.steps.map((s) => s.id.length))
-  for (const s of p.steps) out.push(stepRow(s, p.current, width))
   const wait = waitingRows(p)
+  // An open chat ask comes first: when the step list leaves no room for its questions, the
+  // steps fold to one line (the current step and how many are done).
+  const ideCount = p.questions.items.filter((it) => it.ask === 'ide').length
+  const after = out.length + p.steps.length + (wait.length ? wait.length + 1 : 0)
+  if (ideCount && rows - after - 2 < ideCount + 1 && p.steps.length > 1) {
+    const done = p.steps.filter((s) => DONE.includes(s.status)).length
+    const cur = p.steps.find((s) => s.id === p.current) ?? p.steps.find((s) => s.status === 'IN_PROGRESS')
+    const tally = `${done} of ${p.steps.length} steps done`
+    out.push(cur ? { ...stepRow(cur, p.current, width), text: `${stepRow(cur, p.current, width).text} · ${tally}` } : { text: tally, dim: true })
+  } else {
+    for (const s of p.steps) out.push(stepRow(s, p.current, width))
+  }
   if (wait.length) out.push({ text: '' }, ...wait)
-  const room = rows - out.length - 2
-  const qs = questionRows(p, room)
+  const ide = ideRows(p, rows - out.length - 2)
+  if (ide.length) out.push({ text: '' }, ...ide)
+  const qs = questionRows(p, rows - out.length - 2)
   if (qs.length) out.push({ text: '' }, ...qs)
   return out
 }
@@ -148,6 +188,7 @@ let running: Promise<void> | undefined
 let again = false
 let poll: { cancel: () => void } | undefined
 let openedFor: string | undefined // the run the pane was opened for unasked, once per run
+let afterAnswer: { cancel: () => void } | undefined // the refresh shortly after a dialog returned
 
 async function fetchOnce($: any): Promise<void> {
   let session = ''
@@ -323,6 +364,28 @@ export const register: Register = (on) => {
       return r
     })
   }
+
+  // A question asked in the chat: shown while its dialog is open, gone once it is answered. The
+  // tool call's next() runs the PreToolUse hooks and then the dialog, so refresh after a short
+  // wait (the hook has recorded it by then), when the dialog returns, and once more a short
+  // wait later: the post-tool hook that marks it answered may not have run yet.
+  const later = ($: any) => $.clock.after(ASK_REFRESH_MS, () => {
+    if (!idle) void refresh($).catch(() => undefined)
+  })
+  on('tool.call', { tool: 'AskUserQuestion' } as any, async ($: any, e: any, next: any) => {
+    afterAnswer?.cancel() // a new ask: the last one's late refresh is not needed
+    afterAnswer = undefined
+    const timer = idle ? undefined : later($)
+    try {
+      return await next(e)
+    } finally {
+      timer?.cancel()
+      if (!idle) {
+        void refresh($).catch(() => undefined)
+        afterAnswer = later($)
+      }
+    }
+  })
 
   on('command.run', { command: 'tsl-panel' }, async ($) => {
     await $.ui.open({ id: PANE, title: TITLE }) // asked: placed at any width

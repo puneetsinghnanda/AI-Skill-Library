@@ -14,6 +14,22 @@ from tsl.hooks.dispatch import Ctx, _finish
 OS = {"Darwin": "macos", "Windows": "windows", "Linux": "linux"}
 
 
+def _note_transcript(ctx: Ctx) -> None:
+    """Keep where Claude Code writes this session's transcript: tsl decide reads the token
+    counts of a step attempt from it (run metrics, D1). Best effort."""
+    t = str(ctx.data.get("transcript_path") or "")
+    if not (t and ctx.session_id):
+        return
+    try:
+        from tsl.core.paths import Home
+
+        p = Home(ctx.home).session_transcript(ctx.session_id)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(t, encoding="utf-8")
+    except OSError:
+        pass
+
+
 def start(ctx: Ctx) -> tuple[str, int]:
     msgs: list[str] = []
     extra: list[str] = []
@@ -22,6 +38,7 @@ def start(ctx: Ctx) -> tuple[str, int]:
         if env_file and ctx.session_id:
             with open(env_file, "a", encoding="utf-8") as fh:
                 fh.write(f"export TSL_SESSION_ID={ctx.session_id}\n")
+        _note_transcript(ctx)
         root = ctx.env.get("CLAUDE_PLUGIN_ROOT")
         plugin_version = None
         if root and (Path(root) / ".claude-plugin" / "plugin.json").is_file():

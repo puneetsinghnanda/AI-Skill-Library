@@ -13,6 +13,8 @@ import yaml
 
 from e2e_steps import SESSION, do_req_step, next_action, start_run
 from helpers import World, git, review_json
+from tsl.core.errors import TslError
+from tsl.insights.client import HttpResult
 from tsl.schemas.registry import errors
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -42,6 +44,86 @@ def test_doctor(world: World) -> None:
         assert env["code"] == "E-ENV-01"
     code, env, _, _ = world.cli(["doctor", "--plugin-version", "9.9.9", "--json"])
     assert code == 3 and env is not None and env["code"] == "E-ENV-01"
+
+
+def _doctor_login(world: World) -> tuple[int, dict[str, Any], dict[str, str]]:
+    code, env, _, err = world.cli(["doctor", "--json"])
+    assert env is not None, err
+    return code, env, {c["id"]: c for c in env["data"]["checks"]}["login"]
+
+
+def _spy_refresh(
+    world: World, monkeypatch: pytest.MonkeyPatch, fail: TslError | None
+) -> list[bool]:
+    """Record silent_token(force_refresh=True) calls; raise ``fail`` on them when given."""
+    ident = world.rt().identity()
+    real = ident.silent_token
+    calls: list[bool] = []
+
+    def silent_token(force_refresh: bool = False) -> str:
+        if force_refresh:
+            calls.append(True)
+            if fail is not None:
+                raise fail
+        return real(force_refresh=force_refresh)
+
+    monkeypatch.setattr(ident, "silent_token", silent_token)
+    return calls
+
+
+def test_doctor_fails_on_expired_login(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Roadmap item 12: a saved token the service refuses must fail doctor, not pass it."""
+    monkeypatch.setattr(world.insights, "get_me", lambda token: HttpResult(401, None))
+    calls = _spy_refresh(world, monkeypatch, None)
+    code, env, login = _doctor_login(world)
+    assert login["status"] == "fail" and login["fix"] == "tsl login"
+    assert "expired" in login["detail"]
+    assert calls == [True]  # refreshed once before giving up
+    assert code == 3 and env["code"] == "E-ENV-01"
+
+
+def test_doctor_fails_when_provider_rejects_refresh(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """GitHub: the refresh checks the token with GitHub, which rejects it (E-AUTH-01)."""
+    monkeypatch.setattr(world.insights, "get_me", lambda token: HttpResult(401, None))
+    _spy_refresh(world, monkeypatch, TslError("E-AUTH-01", "GitHub rejected the stored token."))
+    code, _, login = _doctor_login(world)
+    assert login["status"] == "fail" and login["fix"] == "tsl login"
+    assert "expired" in login["detail"] and code == 3
+
+
+def test_doctor_passes_when_refresh_renews_login(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real = world.insights.get_me
+    answers = [HttpResult(401, None)]
+    monkeypatch.setattr(
+        world.insights, "get_me", lambda token: answers.pop() if answers else real(token)
+    )
+    calls = _spy_refresh(world, monkeypatch, None)
+    _, _, login = _doctor_login(world)
+    assert login["status"] == "pass" and calls == [True]
+
+
+def test_doctor_names_missing_role(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(world.insights, "get_me", lambda token: HttpResult(403, None))
+    code, _, login = _doctor_login(world)
+    assert login["status"] == "fail" and "role" in login["detail"] and code == 3
+
+
+def test_doctor_only_warns_when_login_cannot_be_confirmed(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Offline, or the provider is unreachable during the refresh: not an expired login."""
+    world.insights.offline = True
+    _, _, login = _doctor_login(world)
+    assert login["status"] == "warn"
+    world.insights.offline = False
+    monkeypatch.setattr(world.insights, "get_me", lambda token: HttpResult(401, None))
+    _spy_refresh(world, monkeypatch, TslError("E-NET-02"))
+    _, _, login = _doctor_login(world)
+    assert login["status"] == "warn"
 
 
 # ------------------------------------------------------------------------------- init

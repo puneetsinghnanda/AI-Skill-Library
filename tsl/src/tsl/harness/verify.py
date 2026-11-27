@@ -20,7 +20,14 @@ from tsl.gitops.git import Git, GitError, worktree_tree
 from tsl.harness import artifact as artmod
 from tsl.harness import injection
 from tsl.harness.gates import ABORT_CODES, CheckInput, CheckRun, GateResult, run_all
-from tsl.harness.verifier import StepResult, VerifierUnavailable, export_source, log_tail
+from tsl.harness.verifier import (
+    StepResult,
+    VerifierUnavailable,
+    error_lines,
+    export_source,
+    log_tail,
+    sarif_errors,
+)
 from tsl.identity.keys import public_key
 from tsl.orchestrator.run import RunCtx
 from tsl.state.session import compile_policy
@@ -101,8 +108,13 @@ def find_profile(rt: Runtime, profile: str) -> dict[str, Any] | None:
 
 
 def run_h3(
-    rt: Runtime, ctx: RunCtx, out: dict[str, Any]
+    rt: Runtime,
+    ctx: RunCtx,
+    out: dict[str, Any],
+    changes: list[dict[str, Any]] | None = None,
 ) -> tuple[GateResult, dict[str, Any] | None]:
+    """Run the verifier on each product repo. `changes` (product_changes) names the files the
+    step touched, so a lint failure lists the errors in those files first (roadmap C4)."""
     g = GateResult("H3")
     verifier: dict[str, Any] | None = None
     for repo in sorted(ctx.state.get("branch") or {}):
@@ -144,7 +156,9 @@ def run_h3(
                 if s.code == "E-SEC-01":
                     out.setdefault("_h4_extra", []).append(s.detail)
                 else:
-                    g.fail(s.code, _with_log(s, outdir, rel_dir))
+                    report = (prof["steps"].get(s.name) or {}).get("report")
+                    touched = next((c["files"] for c in changes or [] if c["repo"] == repo), None)
+                    g.fail(s.code, _with_log(s, outdir, rel_dir, report, touched))
     return g, verifier
 
 
@@ -163,13 +177,71 @@ def _retry_from_feedback(fb: dict[str, Any]) -> dict[str, Any]:
     return retry
 
 
-def _with_log(s: StepResult, outdir: Path, rel_dir: str) -> str:
-    """Failure detail plus the step log path and its last lines, so the retry can fix it."""
+def _with_log(
+    s: StepResult,
+    outdir: Path,
+    rel_dir: str,
+    report: str | None = None,
+    files: list[str] | None = None,
+) -> str:
+    """Failure detail plus the step log path and its last lines, so the retry can fix it.
+    A failed lint step gives its errors instead (_lint_detail)."""
+    if s.name == "lint" and s.code == "E-H3-03" and report:
+        detail = _lint_detail(s, outdir, rel_dir, report, files)
+        if detail:
+            return detail
     if not s.log:
         return s.detail
     head = f"{s.detail}; log {rel_dir}/{s.log}"
     tail = log_tail(outdir / s.log, max(0, 480 - len(head)))
     return f"{head}: {tail}" if tail else head
+
+
+LINT_DETAIL_MAX = 700  # of the 1000 a gate detail keeps, so a build or test failure still fits
+LINT_ERRORS_MAX = 10
+
+
+def _lint_detail(
+    s: StepResult, outdir: Path, rel_dir: str, report: str, files: list[str] | None
+) -> str:
+    """The errors of a failed lint step (roadmap C4). ESLint and ruff write them only to the
+    SARIF report; lint.log is empty. Errors in the files the step changed come first; when none
+    is in them, the others are shown and marked as outside the change, since they still fail H3.
+    A report with no errors (the linter crashed, or its config is broken) gives the lines of the
+    log that say what went wrong. "" when there is nothing better than the log tail."""
+    lines, mine, total = sarif_errors(outdir / report, files, limit=LINT_ERRORS_MAX)
+    if total:
+        head = f"{s.detail}; report {rel_dir}/{report}"
+        if files is None:
+            head += f": {total} error(s)"
+        elif mine:
+            head += f": {mine} error(s) in the files this step changed"
+            if total > mine:
+                head += f" ({total - mine} more in other files)"
+        else:
+            head += f": none in the files this step changed, {total} in other files"
+        return _fit(head, lines, mine or total)
+    if not s.log:
+        return ""
+    found = error_lines(outdir / s.log, max_chars=LINT_DETAIL_MAX)
+    if not found:
+        return ""
+    return _fit(f"{s.detail}; log {rel_dir}/{s.log}", found.splitlines(), None)
+
+
+def _fit(head: str, lines: list[str], total: int | None) -> str:
+    """'head: line | line | ... N more' within LINT_DETAIL_MAX; total counts the lines that
+    exist (None: just `lines`)."""
+    total = len(lines) if total is None else total
+    out: list[str] = []
+    for ln in lines:
+        # room stays for " | ... NNN more"
+        if len(head) + len(" | ".join([*out, ln])) + 18 > LINT_DETAIL_MAX:
+            break
+        out.append(ln)
+    if total > len(out):
+        out.append(f"... {total - len(out)} more")
+    return f"{head}: {' | '.join(out)}"[:LINT_DETAIL_MAX]
 
 
 def _markers(rt: Runtime) -> injection.Markers | None:
@@ -268,7 +340,7 @@ def compute(
                 h3 = GateResult("H3", "pending", details=["verifier not run yet"])
         else:
             try:
-                h3, verifier = run_h3(rt, ctx, extra)
+                h3, verifier = run_h3(rt, ctx, extra, changes)
             except VerifierUnavailable as exc:
                 lead = "docker unavailable" if exc.code == "E-H3-07" else "verifier stopped"
                 h3 = GateResult("H3", "pending", details=[f"{lead}: {exc}"])
@@ -345,6 +417,16 @@ def soft_failures(run: CheckRun) -> list[dict[str, str]]:
     ]
 
 
+def hint_failures(run: CheckRun) -> list[dict[str, str]]:
+    """Failing hint checks (gate `hint`): skill checks that match text and can be wrong. The
+    self-check shows them; they are in no gate, not in S2 and cost no retry (SDD-03 §3.3)."""
+    return [
+        {"id": o.id, "detail": o.detail or "failed"}
+        for o in run.skill_checks
+        if o.gate == "hint" and o.status == "fail"
+    ]
+
+
 def verify_artifact(
     rt: Runtime,
     comp: Companion,
@@ -403,6 +485,7 @@ def verify_artifact(
         ],
         "soft": rec["soft"],
         "soft_failed": soft_failures(run),
+        "hints_failed": hint_failures(run),
         "injection": [h.record() for h in run.injection_hits],
         "hard_failed": hard_failed,
         "duration_ms": 0,
@@ -438,12 +521,22 @@ def verify_artifact(
     return data
 
 
-def self_check(rt: Runtime, comp: Companion, artifact: str) -> dict[str, Any]:
+def self_check(
+    rt: Runtime, comp: Companion, artifact: str, *, local: bool = False
+) -> dict[str, Any]:
     """tsl verify <artifact> --self-check: what the skill can still fix before the review.
 
     The same fast checks the post-write hook runs (no verifier, no review, no decision), as one
     list: failing hard gates, failing soft checks (they lower S2) and claims that will not verify
-    (they lower S1). Hosts without hooks (Copilot, Cursor) get the same feedback this way.
+    (they lower S1). Failing hint checks (text matches that can be wrong) come back apart, in
+    `hints`: they count nowhere, so they never make `ok` false. Hosts without hooks (Copilot,
+    Cursor) get the same feedback this way. The skill's own checks.yaml checks come back here like
+    any gate or soft check (story-split and unit-test content checks, roadmap A3).
+
+    local=True also type-checks and lints the files a code step changed, on this machine
+    (harness/local.py), so a type or lint slip is fixed inside the attempt instead of costing a
+    verifier retry (HMS-24 impl, HMS-33 ut). It works before the artifact exists: then only the
+    local checks run. It counts as no attempt and changes no run state.
 
     A preliminary check only: it never raises. Any failure, including an abort code (secret,
     policy) or an internal error, comes back as an item in fix; the harness decides at decide."""
@@ -451,9 +544,30 @@ def self_check(rt: Runtime, comp: Companion, artifact: str) -> dict[str, Any]:
 
     rel = str(artifact)
     fix: list[dict[str, str]] = []
-    data: dict[str, Any] = {}
+    hints: list[dict[str, str]] = []
+    out: dict[str, Any] = {}
     try:
         rel = to_rel(comp, artifact)
+    except TslError as exc:
+        fix.append({"kind": "error", "id": exc.code, "detail": exc.message})
+    if local and not fix:
+        out["local"] = _self_check_local(rt, comp, rel, fix)
+    if not (local and not comp.path(rel).is_file()):  # before the write: local checks only
+        _self_check_artifact(rt, comp, rel, fix, hints, unverified_claims)
+    fix = [dict(t) for t in dict.fromkeys(tuple(f.items()) for f in fix)]
+    return {"artifact": rel, "ok": not fix, "fix": fix, "hints": hints, **out}
+
+
+def _self_check_artifact(
+    rt: Runtime,
+    comp: Companion,
+    rel: str,
+    fix: list[dict[str, str]],
+    hints: list[dict[str, str]],
+    unverified_claims: Any,
+) -> None:
+    data: dict[str, Any] = {}
+    try:
         data = verify_artifact(rt, comp, rel, fast=True)
     except TslError as exc:
         data = exc.data or {}
@@ -468,6 +582,8 @@ def self_check(rt: Runtime, comp: Companion, artifact: str) -> dict[str, Any]:
                 fix.append({"kind": "gate", "id": str(g["id"]), "detail": str(d)[:300]})
     for s in data.get("soft_failed", []):
         fix.append({"kind": "soft", "id": s["id"], "detail": s["detail"][:300]})
+    for h in data.get("hints_failed", []):
+        hints.append({"kind": "hint", "id": h["id"], "detail": h["detail"][:300]})
     no_front = any("E-H1-01" in g.get("codes", []) for g in data.get("gates", []))
     if data and not no_front:
         try:
@@ -475,7 +591,45 @@ def self_check(rt: Runtime, comp: Companion, artifact: str) -> dict[str, Any]:
                 fix.append({"kind": "claim", "id": c["id"], "detail": c["reason"]})
         except Exception:  # noqa: S110 - claims are a hint; decide reports them anyway
             pass
-    return {"artifact": rel, "ok": not fix, "fix": fix}
+
+
+def _self_check_local(
+    rt: Runtime, comp: Companion, rel: str, fix: list[dict[str, str]]
+) -> dict[str, Any]:
+    """Local type check and lint of the files this code step changed (harness/local.py).
+    Failing checks go to fix as kind `local`; anything that goes wrong is an `error` item."""
+    from tsl.harness import local
+
+    try:
+        m = ARTIFACT_RE.match(rel)
+        if not m:
+            raise TslError("E-USE-01", detail=f"{rel} is not an artifact path", cmd="verify")
+        step = m.group("step")
+        ctx = RunCtx(rt, comp, m.group("run_id"))
+        ctx.assert_lock_held()
+        _attempt_for(ctx, step, ci=False)
+        if not ctx.skill_for(step).is_code:
+            return {"status": "skip", "detail": f"step {step} changes no product code"}
+        repos = []
+        for c in product_changes(ctx) or []:
+            cfg = comp.config.repo(c["repo"])
+            repos.append(
+                (
+                    str(c["repo"]),
+                    cfg.verifier_profile if cfg else None,
+                    comp.product_clone(c["repo"]),
+                    [str(f) for f in c["files"]],
+                )
+            )
+        info, items = local.check_repos(repos, comp.path(tool_log_path(ctx.run_id)))
+        fix.extend(items)
+        return info
+    except TslError as exc:
+        fix.append({"kind": "error", "id": exc.code, "detail": exc.message})
+    except Exception as exc:  # never stop the skill: an error item instead (a git or file error)
+        detail = f"local checks: {(str(exc) or type(exc).__name__)[:280]}"
+        fix.append({"kind": "error", "id": "E-INT-01", "detail": detail})
+    return {"status": "error"}
 
 
 def h3_status(rt: Runtime, comp: Companion, artifact: str) -> dict[str, Any]:

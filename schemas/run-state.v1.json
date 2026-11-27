@@ -451,6 +451,85 @@
                   "type": "integer",
                   "minimum": 0,
                   "description": "Review records of this attempt rejected for citations that do not verify (E-REV-05); counted against retry.record, not retry.review. Optional (additive)."
+                },
+                "metrics": {
+                  "description": "Run metrics of one step attempt (roadmap D1): the model tokens read from the Claude Code session transcript (counts only, never text), the engineer's wait on IDE questions (ide-questions.json) and the AI time (decided_at - started_at - wait).",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "tokens",
+                    "wait_s",
+                    "active_ms",
+                    "source"
+                  ],
+                  "properties": {
+                    "tokens": {
+                      "description": "null when no transcript was found (another host, or Claude Code wrote none).",
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "additionalProperties": false,
+                      "required": [
+                        "input",
+                        "output",
+                        "cache_read",
+                        "cache_write",
+                        "calls",
+                        "subagent_calls"
+                      ],
+                      "properties": {
+                        "input": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "output": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "cache_read": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "cache_write": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "calls": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "subagent_calls": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      }
+                    },
+                    "models": {
+                      "type": "array",
+                      "maxItems": 8,
+                      "uniqueItems": true,
+                      "items": {
+                        "type": "string",
+                        "maxLength": 64,
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@-]*$"
+                      }
+                    },
+                    "wait_s": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "active_ms": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "source": {
+                      "enum": [
+                        "transcript",
+                        "none"
+                      ]
+                    }
+                  }
                 }
               }
             }

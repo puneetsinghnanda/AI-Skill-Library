@@ -6,6 +6,8 @@ Tests use a fake runner, and Docker-dependent tests skip when Docker is absent.
 
 from __future__ import annotations
 
+import contextlib
+import json
 import os
 import re
 import shutil
@@ -13,10 +15,12 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
+
+from tsl.core.jsonio import atomic_write, loads_strict
 
 STEP_ORDER = ("build", "test", "lint", "sast", "secrets", "coverage")
 SKIP_EXIT = 78  # EX_CONFIG: a profile step exits 78 when the project has nothing to run for it
@@ -397,6 +401,12 @@ class DockerVerifier:
                 continue
             spec = steps[name]
             cmd = docker_command(profile, name, worktree, out_dir)
+            report = spec.get("report")
+            if report:
+                # H3 reruns reuse the a<n> folder: a report left by an earlier run would be
+                # hashed and read as this run's when the tool writes none (an ESLint crash).
+                with contextlib.suppress(OSError):
+                    (out_dir / report).unlink(missing_ok=True)
             t0 = time.monotonic()
             try:
                 p = subprocess.run(
@@ -410,7 +420,8 @@ class DockerVerifier:
                 outs = (exc.stdout, exc.stderr)
             ms = int((time.monotonic() - t0) * 1000)
             log = _write_log(out_dir, name, *outs, attempt=_attempt_of(out_dir))
-            report = spec.get("report")
+            if report and spec.get("parse") == "sarif" and (out_dir / report).exists():
+                compact_sarif(out_dir / report)  # before the hash: the stored file is the one cited
             rsha = sha256_file(out_dir / report) if report and (out_dir / report).exists() else None
             if name == "prepare":
                 if timed_out or code != 0:
@@ -465,6 +476,118 @@ def _oom(step: str) -> VerifierUnavailable:
     )
 
 
+def compact_sarif(path: Path) -> bool:
+    """Keep only the rules a SARIF report's results use; True when the file was rewritten.
+
+    Semgrep lists every rule of its ruleset in tool.driver.rules: in run HMS-28 that was 2.0 of
+    the 2.4 MB of sast.sarif, for 4 results, and a reviewer's cite into it failed E-REV-05 "file
+    too large" (citations.MAX_BYTES). Results are kept whole; ruleIndex and rule.index are
+    renumbered to the kept list, and run.properties.truminds_rules_dropped says how many went.
+    A rule stays when a result names it, or names a sub-rule of it ("js/xss" for
+    "js/xss/reflected"). A run that points at rules any other way (rule.toolComponent into
+    tool.extensions, rule.guid, notifications' associatedRule, ruleConfigurationOverrides, rule
+    relationships or deprecated ids) is left whole, and so is a file that is not
+    SARIF JSON or cannot be rewritten: the report is then hashed as the tool wrote it."""
+    try:
+        text = path.read_text(encoding="utf-8")
+        # Strict: duplicate keys or NaN would come back changed, so such a file stays as written.
+        doc = loads_strict(text)
+    except (OSError, UnicodeDecodeError, ValueError):
+        return False
+    runs = doc.get("runs") if isinstance(doc, dict) else None
+    changed = False
+    for run in runs if isinstance(runs, list) else []:
+        if _compact_run(run):
+            changed = True
+    if not changed:
+        return False
+    # Keep the tool's layout: an indented report stays citeable by line, a minified one stays
+    # small. Written only when it is smaller than what the tool wrote.
+    indented = text.count("\n") > 1
+    try:
+        if indented:
+            out = json.dumps(doc, indent=2, ensure_ascii=False) + "\n"
+        else:
+            out = json.dumps(doc, separators=(",", ":"), ensure_ascii=False) + "\n"
+        if len(out.encode("utf-8")) >= len(text.encode("utf-8")):
+            return False
+        atomic_write(path, out)
+    except (OSError, ValueError):
+        # A report the container's user owns, or one that cannot be written back as it was read
+        # (a lone surrogate escape cannot be encoded): keep it as the tool wrote it.
+        return False
+    return True
+
+
+def _compact_run(run: Any) -> bool:
+    if not isinstance(run, dict):
+        return False
+    tool = run.get("tool")
+    driver = tool.get("driver") if isinstance(tool, dict) else None
+    if not isinstance(driver, dict) or not isinstance(driver.get("rules"), list):
+        return False
+    rules: list[Any] = driver["rules"]
+    raw = run.get("results")
+    if raw is not None and not isinstance(raw, list):
+        return False
+    if "properties" in run and not isinstance(run["properties"], dict):
+        return False  # nowhere to record how many rules were dropped
+    results: list[dict[str, Any]] = [r for r in raw or [] if isinstance(r, dict)]
+    # A result may also name its rule by reportingDescriptorReference (rule.id, rule.index).
+    refs: list[dict[str, Any]] = []
+    for r in results:
+        ref = r.get("rule")
+        refs.append(ref if isinstance(ref, dict) else {})
+    # Other ways to point at a rule (SARIF 2.1.0): a result's rule.toolComponent (into
+    # tool.extensions) or rule.guid, notifications' associatedRule, ruleConfigurationOverrides
+    # in invocations, rules' relationships and deprecatedIds/deprecatedGuids. Dropping or
+    # renumbering could break them. A notification's own "descriptor" names the notification
+    # (Semgrep: "Syntax error"), not a rule, so it does not count.
+    invocations = json.dumps(run.get("invocations", []))
+    if (
+        any("toolComponent" in f or "guid" in f for f in refs)
+        or '"associatedRule"' in invocations
+        or '"ruleConfigurationOverrides"' in invocations
+        or any(
+            isinstance(rule, dict)
+            and ({"relationships", "deprecatedIds", "deprecatedGuids"} & rule.keys())
+            for rule in rules
+        )
+    ):
+        return False
+    # Only string ids and integer indexes count: anything else names no rule (and a list or an
+    # object in a set would raise).
+    named = [r.get("ruleId") for r in results] + [f.get("id") for f in refs]
+    ids = {x for x in named if isinstance(x, str) and x}
+    pos = [r.get("ruleIndex") for r in results] + [f.get("index") for f in refs]
+    idx = {x for x in pos if isinstance(x, int) and not isinstance(x, bool)}
+
+    def used(i: int, rule: Any) -> bool:
+        rid = rule.get("id") if isinstance(rule, dict) else None
+        if i in idx:
+            return True
+        if not isinstance(rid, str):
+            return False
+        return rid in ids or any(x.startswith(rid + "/") for x in ids)
+
+    keep = [i for i, rule in enumerate(rules) if used(i, rule)]
+    if len(keep) == len(rules):
+        return False
+    new = {old: n for n, old in enumerate(keep)}
+
+    def renumber(holder: dict[str, Any], key: str) -> None:
+        v = holder.get(key)
+        if isinstance(v, int) and not isinstance(v, bool) and v in new:
+            holder[key] = new[v]
+
+    for r, f in zip(results, refs, strict=True):
+        renumber(r, "ruleIndex")
+        renumber(f, "index")
+    driver["rules"] = [rules[i] for i in keep]
+    run.setdefault("properties", {})["truminds_rules_dropped"] = len(rules) - len(keep)
+    return True
+
+
 def _attempt_of(out_dir: Path) -> str | None:
     """'a2' from .../verifier/<step>/a2, so a retry keeps its own prepare log."""
     return out_dir.name if re.fullmatch(r"a\d+", out_dir.name) else None
@@ -496,3 +619,119 @@ def log_tail(path: Path, max_chars: int) -> str:
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     tail = " | ".join(lines[-8:])
     return tail[-max_chars:]
+
+
+# Lines that say what broke, in the output of tsc, vite, vitest, jest, eslint, pytest and ruff.
+# npm's own trailer ("npm error code 2", "npm error path ...") never says what broke, and in the
+# HMS-24 impl build log it was all the old last-8-lines tail showed; the TS2741 line above it
+# was the error.
+_ERROR_LINE = re.compile(
+    r"error TS\d+|^\s*FAIL\b|^\s*[×✗✕]\s|^\s*❯\s+\S+:\d+|"
+    r"\b(?:Assertion|Type|Reference|Syntax|Range|Import|Module|Name|Attribute|Key|Value)?Error\b:|"
+    r"^\s*(?:Test Files|Tests)\s.*\bfailed\b|^FAILED\s|^E\s{2,}\S|^\s*[-+] (?:Expected|Received)\b|"
+    r"^\s*\d+:\d+\s+error\s|^\S+:\d+:\d+: [A-Z]+\d+|\berror during build\b|"
+    r"\*\*\* Error compiling"
+)
+_NOISE = re.compile(r"^\s*npm (?:error|ERR!|warn|notice)\b", re.I)
+
+
+def error_lines(path: Path, max_chars: int = 1500, max_lines: int = 15) -> str:
+    """The lines of a step log that say what failed, in the order the log has them, one per
+    line. Falls back to the log tail when no line looks like an error. Never raises."""
+    try:
+        text = path.read_bytes().decode("utf-8", "replace")
+    except OSError:
+        return ""
+    return error_lines_of(text, max_chars, max_lines) or log_tail(path, max_chars)
+
+
+def error_lines_of(text: str, max_chars: int = 1500, max_lines: int = 15) -> str:
+    """error_lines over output text (a local tool's stdout and stderr); "" when nothing looks
+    like an error."""
+    lines = [ln.rstrip() for ln in text.splitlines() if ln.strip() and not _NOISE.search(ln)]
+    hits = [ln.strip() for ln in lines if _ERROR_LINE.search(ln)]
+    if not hits:
+        hits = [ln.strip() for ln in lines if re.search(r"\berror\b", ln, re.I)]
+    if not hits:
+        return ""
+    out: list[str] = []
+    size = 0
+    for ln in dict.fromkeys(hits):
+        ln = ln[:300]
+        if len(out) >= max_lines or size + len(ln) > max_chars:
+            out.append(f"... {len(dict.fromkeys(hits)) - len(out)} more line(s) in the log")
+            break
+        out.append(ln)
+        size += len(ln) + 1
+    return "\n".join(out)
+
+
+def _sarif_path(loc: dict[str, Any], bases: dict[str, Any], root: str = "") -> str:
+    """Repo-relative path of a SARIF location: the verifier works on a copy in /cache/w (or
+    /src); a local tool reports absolute paths under `root`."""
+    from urllib.parse import unquote
+
+    art = (loc.get("physicalLocation") or {}).get("artifactLocation") or {}
+    uri = str(art.get("uri") or "")
+    base = (bases.get(str(art.get("uriBaseId") or "")) or {}).get("uri") or ""
+    if base and "://" not in uri and not uri.startswith("/"):
+        uri = str(base).rstrip("/") + "/" + uri
+    path = unquote(re.sub(r"^file://", "", uri)).replace("\\", "/")
+    if re.match(r"^/[A-Za-z]:/", path):  # file:///C:/x on Windows
+        path = path[1:]
+    local = root.replace("\\", "/").rstrip("/") + "/" if root else ""
+    if local and path.lower().startswith(local.lower()):
+        return path[len(local) :]
+    for base_dir in ("/cache/w/", "/src/"):
+        # Only at the start: a relative "api/src/x.ts" is already repo-relative.
+        if path.startswith(base_dir):
+            return path[len(base_dir) :]
+    while path.startswith("./"):
+        path = path[2:]
+    return path
+
+
+def sarif_errors(
+    path: Path, files: Collection[str] | None = None, limit: int = 20
+) -> tuple[list[str], int, int]:
+    """Results of a lint SARIF report that fail the step: level error and not suppressed in
+    the source (eslint-disable). Each as "path:line:col rule: message".
+
+    Returns (lines, errors in `files`, all errors). When `files` is given only results in those
+    files are listed, unless none is, then the first of all results. Never raises."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return [], 0, 0
+    return sarif_errors_of(text, files, limit)
+
+
+def sarif_errors_of(
+    text: str, files: Collection[str] | None = None, limit: int = 20, root: str = ""
+) -> tuple[list[str], int, int]:
+    """sarif_errors over SARIF text (a local `ruff check --output-format sarif`), paths made
+    relative to `root`."""
+    import json
+
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return [], 0, 0
+    if not isinstance(data, dict):
+        return [], 0, 0
+    found: list[tuple[str, str]] = []
+    for run in data.get("runs") or []:
+        bases = run.get("originalUriBaseIds") or {}
+        for r in run.get("results") or []:
+            if r.get("suppressions") or str(r.get("level") or "warning") != "error":
+                continue
+            locs = r.get("locations") or [{}]
+            where = _sarif_path(locs[0], bases, root)
+            reg = (locs[0].get("physicalLocation") or {}).get("region") or {}
+            pos = f"{where}:{reg.get('startLine', '?')}:{reg.get('startColumn', '?')}"
+            msg = re.sub(r"\s+", " ", str((r.get("message") or {}).get("text") or "")).strip()
+            found.append((where, f"{pos} {r.get('ruleId') or 'lint'}: {msg[:200]}"))
+    every = [line for _, line in found]
+    mine = [line for where, line in found if files is not None and where in files]
+    shown = every if files is None else (mine or every)
+    return shown[:limit], len(mine), len(found)
