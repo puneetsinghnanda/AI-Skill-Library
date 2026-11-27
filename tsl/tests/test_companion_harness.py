@@ -122,9 +122,11 @@ def test_known_false_positive_is_allowed_by_h4_allow(world: World) -> None:
 
 @pytest.fixture
 def local(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Not in CI: --show-allow-hashes is refused when CI or GITHUB_ACTIONS is set."""
-    monkeypatch.delenv("CI", raising=False)
-    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    """Not in CI: --show-allow-hashes is refused when a CI runner's variable is set."""
+    from tsl.cli.commands import CI_ENV_VARS
+
+    for v in CI_ENV_VARS:
+        monkeypatch.delenv(v, raising=False)
 
 
 @pytest.mark.parametrize(
@@ -165,12 +167,12 @@ def test_no_hash_for_a_name_value_match(world: World, local: None) -> None:
     assert "h4_allow sha256" not in json.dumps(env)
 
 
-@pytest.mark.parametrize("var", ["CI", "GITHUB_ACTIONS"])
+@pytest.mark.parametrize(
+    "var", ["CI", "GITHUB_ACTIONS", "JENKINS_URL", "TF_BUILD", "BUILDKITE", "TEAMCITY_VERSION"]
+)
 def test_show_allow_hashes_is_refused_in_ci(
-    world: World, monkeypatch: pytest.MonkeyPatch, var: str
+    world: World, monkeypatch: pytest.MonkeyPatch, local: None, var: str
 ) -> None:
-    monkeypatch.delenv("CI", raising=False)
-    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     monkeypatch.setenv(var, "true")
     code, env = _check(world, "--show-allow-hashes")
     assert (code, env["code"]) == (1, "E-USE-01")

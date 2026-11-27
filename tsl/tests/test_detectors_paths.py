@@ -138,3 +138,32 @@ def test_more_source_extensions_and_extensionless_files() -> None:
 
 def test_an_extensionless_name_must_be_a_known_one() -> None:
     assert _ent(f"secret key sample-system:infra/{TOK}#L4\n")
+
+
+# --- code review of f858abe --------------------------------------------------------------------
+
+
+def test_a_secret_split_into_letter_and_digit_parts_is_flagged() -> None:
+    for cite in (
+        "sample-system:ZxQwLmKp/93847561/RtVbNcHd/x.json#L1",
+        "sample-system:a/ZXQWLMKP_93847561_RTVBNCHD.ts#L1",
+    ):
+        assert _ent(f"secret key {cite}\n"), cite
+
+
+def test_ids_in_cite_directories_are_masked() -> None:
+    cite = "sample-system:artifacts/HMS-7_evt_01M6FXTGC048AXKA8X69ASS5QB/notes.md#L1"
+    assert not _ent(f"primary key {cite}\n")
+
+
+def test_one_allow_hash_clears_a_cite_with_several_random_pieces() -> None:
+    import hashlib
+
+    text = f"secret key sample-system:{TOK}/x/{TOK[::-1]}.json#L1\n"
+    hits = _ent(text)
+    assert len(hits) == 1
+    h = hits[0]
+    allow = frozenset({hashlib.sha256(text[h.start : h.end].encode()).hexdigest()})
+    assert not [
+        x for x in detectors.scan(text, allow, cite_repos=REPOS) if x.rule_id == "SEC-ENT-01"
+    ]

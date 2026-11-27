@@ -51,9 +51,10 @@ RUN_ID_IN_PATH = re.compile(r"run_[0-9A-HJKMNP-TV-Z]{26}")
 # random. Instead these are checked: each directory, the file name, each piece of the file name
 # (split at `_` and `-`), and every piece of the whole path that is not a plain word, number or
 # date, joined (so a secret split across `/` is still found). Known ids (`run_`, `evt_`, ...)
-# are kept out. The shape is exact: a repo name the caller passes (never `https`), right before
-# `:`, a path with `/`, no leading `/` and no `+` or `=`, then a lower-case source extension or
-# a known extension-less file name (`Dockerfile`), then `#` and an anchor.
+# are kept out. A finding covers the whole token, so one h4_allow hash clears a cite. The shape
+# is exact: a repo name the caller passes (never `https`), right before `:`, a path with `/`,
+# no leading `/` and no `+` or `=`, then a lower-case source extension or a known
+# extension-less file name (`Dockerfile`), then `#` and an anchor.
 CITE_EXTS = (
     "sql|md|mdx|rst|adoc|txt|json|jsonc|jsonl|yaml|yml|toml|ini|cfg|conf|env|properties|xml|"
     "html|htm|css|scss|sass|less|vue|svelte|astro|js|jsx|mjs|cjs|ts|tsx|mts|cts|py|pyi|ipynb|"
@@ -85,9 +86,10 @@ NOEXT_NAMES = frozenset(
 )
 CITE_DELIMS = " \t\n\"'`([,{*|<>"
 ID_IN_NAME = re.compile(r"(?:run|evt|key|dev|imp|flg)_[0-9A-HJKMNP-TV-Z]{26}")
-# Path pieces that are words, numbers or dates, never secrets: `migrations`, `Doctor`,
-# `DoctorDetailPage`, `API`, `0008`, `v2`, `20261016T090000`.
-PLAIN_PIECE = re.compile(r"[a-z]+|[A-Z]+|(?:[A-Z][a-z]+)+|[0-9]+|v[0-9]+|[0-9]{8}T[0-9]{4,6}")
+# Path pieces left out of the joined check: lower-case words, versions and dates
+# (`migrations`, `v2`, `20261016T090000`). Upper-case, mixed-case and digit pieces stay in, so
+# a secret split into letter-only and digit-only parts is still joined up.
+PLAIN_PIECE = re.compile(r"[a-z]+|v[0-9]+|[0-9]{8}T[0-9]{4,6}")
 
 
 def _cite_pieces(
@@ -117,8 +119,8 @@ def _cite_pieces(
     )
     pieces: list[tuple[str, int, int]] = [(odd, start, end)]
     pos = start
-    for d in dirs:  # a directory is checked whole
-        pieces.append((d, pos, pos + len(d)))
+    for d in dirs:  # a directory is checked whole (ids masked, as in the file name)
+        pieces.append((masked_tok[pos - start : pos - start + len(d)], pos, pos + len(d)))
         pos += len(d) + 1
     masked = masked_tok[pos - start :]
     pieces.append((masked, pos, pos + len(name)))  # the whole file name, and each piece of it
@@ -270,10 +272,10 @@ def scan(
             if parts is None:
                 parts = [(whole, m.start(), m.end())]  # anything else: one token, as always
             around = text[max(0, m.start() - window) : m.end() + window].replace(whole, "")
-            for tok, start, end in parts:
+            for tok, _s, _e in parts:  # every piece is reported on the whole token
                 if len(tok) < minlen or SAFE_TOKEN.match(tok):
                     continue
-                if allowed(tok) or allowed(text[start:end]):  # the span the finding reports
+                if allowed(tok):
                     continue
                 if not (re.search(r"[A-Za-z]", tok) and re.search(r"[0-9]", tok)):
                     continue
@@ -283,7 +285,10 @@ def scan(
                 if _entropy(tok) < float(ent.get("min_bits_per_char", 4.0)):
                     continue
                 if kw.search(around):
-                    hits.append(Hit("SEC-ENT-01", "secret", _line_of(text, start), start, end))
+                    # Reported on the whole token: one h4_allow hash (of text[start:end]) then
+                    # clears it, since allowed(whole) skips every piece.
+                    s0, e0 = m.start(), m.end()
+                    hits.append(Hit("SEC-ENT-01", "secret", _line_of(text, s0), s0, e0))
                     break  # one finding per token
     for r in pii["rules"]:
         validator = VALIDATORS[r.get("validator", "none")]
