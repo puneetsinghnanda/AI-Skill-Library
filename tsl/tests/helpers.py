@@ -12,6 +12,7 @@ import json
 import shutil
 import subprocess
 import sys
+import zlib
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -480,6 +481,12 @@ def judgement(sha: str) -> dict[str, str]:
 
 
 # ------------------------------------------------------------------------------ world
+def id_seed(user: str) -> int:
+    """The test id factory's seed for a user: the same in every process (no str hash salt) and
+    different for each user, so two users never draw the same ids, such as a key id."""
+    return zlib.crc32(user.encode("utf-8"))
+
+
 @dataclass
 class World:
     base: Path
@@ -497,6 +504,8 @@ class World:
 
     def rt(self, user: str = "eng", session: str | None = None) -> Runtime:
         if user not in self.runtimes:
+            clash = [u for u in self.runtimes if id_seed(u) == id_seed(user)]
+            assert not clash, f"test users {user} and {clash[0]} share an id seed"
             ident = FakeIdentity(user)
             self.identities[user] = ident
             org = OrgConfig(
@@ -512,7 +521,7 @@ class World:
             self.runtimes[user] = Runtime(
                 home=Home(self.base / "homes" / user / ".truminds"),
                 clock=self.clock,
-                ids=IdFactory(self.clock, seed=hash(user) % 1000),
+                ids=IdFactory(self.clock, seed=id_seed(user)),
                 org=org,
                 keystore=MemoryKeyStore(),
                 insights=self.insights,
