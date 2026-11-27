@@ -22,6 +22,14 @@ BIND_WINDOW_S = 600
 RUN_LOOP_TOOLS = frozenset({"Skill", "Agent", "Task", "ToolSearch", "AskUserQuestion", "TodoWrite"})
 LOGGED = ("Write", "Edit", "NotebookEdit", "Bash")
 WRITE_TOOLS = ("Write", "Edit", "NotebookEdit")
+# Written by tsl only: artifacts cite the answers, and the wait time is the engineer's.
+TSL_ONLY = {
+    "*/runs/*/ide-answers.md": "ide-answers.md is written by tsl from AskUserQuestion only",
+    "*/runs/*/ide-questions.json": "ide-questions.json is written by tsl from AskUserQuestion only",
+}
+# A tool call this soon after an ask can be a parallel call of the same message, with the
+# dialog still open: it does not close the ask.
+ASK_CLOSE_AFTER_S = 10
 
 
 def _is_reviewer(ctx: Ctx) -> bool:
@@ -90,6 +98,42 @@ def _off_step(ctx: Ctx, cmd: str, open_step: tuple[str, list[str]]) -> str | Non
 
 READ_TOOLS = ("Read", "Grep", "Glob")
 _WILD = set("*?[{")
+
+
+def _record_ask(ctx: Ctx, idx: dict[str, Any], ti: dict[str, Any]) -> None:
+    """ide-questions.json (roadmap B2): AskUserQuestion opens an ask; any other tool of the same
+    agent closes the asks it left open (the dialog was dismissed: no post-tool hook came).
+
+    Best effort: this hook is fail-closed inside a run, so a failure here must never deny."""
+    try:
+        from tsl.approvals import ide_questions
+
+        root = Path(idx["companion"])
+        agent = ctx.data.get("agent_id") or None
+        if ctx.tool != "AskUserQuestion":
+            ide_questions.close_open(
+                root,
+                idx["run_id"],
+                reason="dismissed",
+                agent_id=agent,
+                older_than_s=ASK_CLOSE_AFTER_S,
+            )
+            return
+        step, attempt = ide_questions.ask_step(idx["_state"])
+        ide_questions.raised(
+            root,
+            idx["run_id"],
+            step,
+            attempt,
+            ide_questions.questions_of(ti),
+            source="hook",
+            tool_use_id=str(ctx.data.get("tool_use_id") or ""),
+            agent_id=agent,
+        )
+    except Exception as exc:  # a missed record only loses the wait time: noted for tsl doctor
+        from tsl.approvals import ide_questions
+
+        ide_questions.note_failure(ctx.home, str(idx.get("run_id")), "pre-tool", exc)
 
 
 def _rel_parts(root: str, path: str) -> list[str] | None:
@@ -296,6 +340,7 @@ def handle(ctx: Ctx) -> tuple[str, int]:
                 # Refused before it runs and not written to the tool log: nothing happened,
                 # so H7 has nothing to fail. hook.log still records the refusal.
                 return deny(ctx, "E-POL-06", f"Refused: {why}. Carry on with the step's tools")
+        _record_ask(ctx, idx, ti)
         if ctx.tool in READ_TOOLS:
             # While this session holds a run, in a step or between steps (HMS-5: the run loop
             # read the earlier run "as a starting point" before each step).
@@ -311,14 +356,11 @@ def handle(ctx: Ctx) -> tuple[str, int]:
         if ctx.tool in ("Write", "Edit", "NotebookEdit"):
             raw = str(ti.get("file_path") or ti.get("notebook_path") or "")
             target = _abs(ctx, raw)
-            if fnmatch.fnmatch(target, "*/runs/*/ide-answers.md"):
-                # Only the post-tool hook records the user's IDE answers; artifacts cite them.
-                log_tool(idx, ctx, target, "deny", "E-POL-01")
-                return deny(
-                    ctx,
-                    "E-POL-01",
-                    "Blocked: ide-answers.md is written by tsl from AskUserQuestion only",
-                )
+            for pat, why in TSL_ONLY.items():
+                if fnmatch.fnmatch(target, pat):
+                    # Only the hooks record the user's IDE questions and answers.
+                    log_tool(idx, ctx, target, "deny", "E-POL-01")
+                    return deny(ctx, "E-POL-01", f"Blocked: {why}")
             if not raw or not _allowed(target, pol):
                 log_tool(idx, ctx, target, "deny", "E-POL-01")
                 return deny(ctx, "E-POL-01", f"Blocked: write outside allowed paths {target}")

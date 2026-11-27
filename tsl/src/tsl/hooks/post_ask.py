@@ -1,5 +1,9 @@
 """post-ask: record the user's AskUserQuestion answers for the open step (ide-answers.md).
 
+The pre-tool hook recorded the ask when the dialog opened (ide-questions.json); this marks it
+answered, so ide-answers.md gets the real asked_at and answered_at, or closes it when every
+question was skipped.
+
 Reached through the PostToolUse `post-write` event (matcher includes AskUserQuestion), so the
 launcher's fail-open rule applies: a failure never blocks the session. A missed record is
 caught later by the `answers.logged` skill check, which fails an artifact whose answers are
@@ -8,6 +12,7 @@ not in the log.
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 from typing import Any
 
@@ -48,41 +53,59 @@ def _items(data: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def handle(ctx: Ctx) -> tuple[str, int]:
+    idx: dict[str, Any] | None = None
     try:
         idx = active_run(ctx)
         if idx is None:
             return _finish(ctx, None)  # outside a run: nothing to record
         st = idx["_state"]
-        cur = st.get("cursor") or {}
-        if not cur.get("step"):
-            return _finish(ctx, None)
-        items = _items(ctx.data)
-        if not items:
-            return _finish(ctx, None)
-        from tsl.approvals import ide_answers
+        from tsl.approvals import ide_questions
         from tsl.core.paths import ide_answers_path
 
         companion = Path(idx["companion"])
-        rel = ide_answers_path(idx["run_id"])
-        ids = ide_answers.append(
-            companion / rel,
-            idx["run_id"],
-            str(cur["step"]),
-            int(cur.get("attempt") or 1),
-            _now(),
-            _answered_by(st.get("owner_pseudonym")),
-            str(ctx.data.get("tool_use_id") or ""),
+        run_id = str(idx["run_id"])
+        tool_use_id = str(ctx.data.get("tool_use_id") or "")
+        now = _now()
+        step, attempt = ide_questions.ask_step(st)  # "run" between steps, as pre-tool
+        ask_id = ide_questions.find(companion, run_id, tool_use_id) or ide_questions.raised(
+            companion,  # the pre-tool record is missing: the wait is unknown, not invented
+            run_id,
+            step,
+            attempt,
+            ide_questions.questions_of(ctx.data.get("tool_input") or {}),
+            source="hook",
+            at=now,
+            tool_use_id=tool_use_id,
+            agent_id=ctx.data.get("agent_id"),
+        )
+        items = _items(ctx.data)
+        if not items:
+            ide_questions.closed(companion, run_id, ask_id, reason="skipped", at=now)
+            return _finish(ctx, None)
+        rel = ide_answers_path(run_id)
+        ids = ide_questions.answered(
+            companion,
+            run_id,
+            ask_id,
             items,
+            answered_by=_answered_by(st.get("owner_pseudonym")),
+            at=now,
         )
         ctx.decision, ctx.code = "allow", None
         lines = [
             f"{aid}: {it['question'][:120]} -> {it['answer'][:120]}"
             for aid, it in zip(ids, items, strict=True)
         ]
+        if step == "run":  # no step open: the next step gets them in data.prior_answers
+            how = (
+                "These were asked between steps, so they are earlier answers: cite each where "
+                "it decides something, and do not list them under answers in the artifact"
+            )
+        else:
+            how = "list it under answers in the artifact"
         msg = (
             f"tsl recorded the user's answers in {rel}. Cite each as {rel}#<a-nn> "
-            "(lower-case heading anchor) and list it under answers in the artifact:\n"
-            + "\n".join(lines)
+            f"(lower-case heading anchor); {how}:\n" + "\n".join(lines)
         )
         return _finish(
             ctx,
@@ -96,6 +119,11 @@ def handle(ctx: Ctx) -> tuple[str, int]:
     except Exception as exc:  # fail open: the answers.logged check catches a missing record
         code = getattr(exc, "code", "E-INT-01")
         ctx.decision, ctx.code = "allow", code if str(code).startswith("E-") else "E-INT-01"
+        if idx is not None:
+            with contextlib.suppress(Exception):
+                from tsl.approvals import ide_questions
+
+                ide_questions.note_failure(ctx.home, str(idx["run_id"]), "post-ask", exc)
         return _finish(
             ctx,
             {

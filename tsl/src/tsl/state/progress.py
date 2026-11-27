@@ -1,6 +1,7 @@
 """tsl state show --progress: one run's progress for the Mods progress panel (SDD-04 §6, SDD-05).
 
-Read only and local: state.json, approvals.md and open-questions.md of the companion repo. No
+Read only and local: state.json, approvals.md, open-questions.md and ide-questions.json of the
+companion repo. No
 network, no git pull, no lock, so the panel can call it after every tsl command. Anything that
 cannot be read is left out rather than failing: the panel is a view, never a gate.
 """
@@ -144,8 +145,51 @@ def _waiting(comp: Companion, rid: str, st: dict[str, Any]) -> dict[str, Any] | 
     }
 
 
+def _ide(comp: Companion, rid: str) -> list[dict[str, Any]]:
+    """The questions asked in the IDE right now (an AskUserQuestion dialog is open)."""
+    from tsl.approvals import ide_questions
+
+    try:
+        asks = ide_questions.open_asks(comp.root, rid)
+    except Exception:  # a view
+        return []
+    return [
+        {
+            "id": str(q["id"]),
+            "blocking": True,
+            "ask": "ide",
+            "since": a.get("asked_at"),
+            # The text starts with its id ("Q-01: ..."); the id is a field of its own.
+            "text": " ".join(ide_questions.QID.sub("", str(q.get("text", ""))).split())[:TEXT],
+        }
+        for a in asks
+        for q in a.get("questions") or []
+    ]
+
+
+def _wait(rt: Runtime, comp: Companion, rid: str, st: dict[str, Any]) -> dict[str, Any]:
+    """The engineer's wait on IDE questions, in seconds, per step and in total. An ask left
+    open (a subagent's dismissed dialog) counts while the run is open, not after it ended."""
+    from tsl.approvals import ide_questions
+    from tsl.core.clock import iso
+
+    now = iso(rt.clock()) if st.get("status") in OPEN else st.get("updated_at")
+    try:
+        return ide_questions.waits(comp.root, rid, now=str(now) if now else None)
+    except Exception:  # a view
+        return {"total_s": 0, "steps": {}}
+
+
 def _questions(comp: Companion, rid: str, st: dict[str, Any]) -> dict[str, Any]:
-    out: dict[str, Any] = {"open_blocking": 0, "open_non_blocking": 0, "items": []}
+    """open-questions.md's open questions (open_blocking, open_non_blocking) and, first in
+    items, the ones asked in the IDE now (open_ide, ask "ide", since = asked_at)."""
+    ide = _ide(comp, rid)
+    out: dict[str, Any] = {
+        "open_blocking": 0,
+        "open_non_blocking": 0,
+        "open_ide": len(ide),
+        "items": ide[:MAX_QUESTIONS],
+    }
     p = comp.path(questions_path(rid))
     if not p.is_file():
         return out
@@ -164,14 +208,14 @@ def _questions(comp: Companion, rid: str, st: dict[str, Any]) -> dict[str, Any]:
     open_.sort(key=lambda q: (not q.get("blocking"), str(q["id"])))
     out["open_blocking"] = sum(1 for q in open_ if q.get("blocking"))
     out["open_non_blocking"] = len(open_) - out["open_blocking"]
-    out["items"] = [
+    out["items"] = ide[:MAX_QUESTIONS] + [
         {
             "id": str(q["id"]),
             "blocking": bool(q.get("blocking")),
             "ask": q.get("ask"),
             "text": " ".join(str(q.get("question", "")).split())[:TEXT],
         }
-        for q in open_[:MAX_QUESTIONS]
+        for q in open_[: max(0, MAX_QUESTIONS - len(ide))]
     ]
     return out
 
@@ -224,5 +268,6 @@ def progress(
         "waiting": _waiting(comp, rid, st),
         "questions": _questions(comp, rid, st)
         if st["status"] != "COMPLETED"
-        else {"open_blocking": 0, "open_non_blocking": 0, "items": []},
+        else {"open_blocking": 0, "open_non_blocking": 0, "open_ide": 0, "items": []},
+        "wait": _wait(rt, comp, rid, st),
     }

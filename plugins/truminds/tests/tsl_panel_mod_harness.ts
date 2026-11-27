@@ -70,6 +70,34 @@ assert.ok(!short.includes(' Q-06 (product owner) Question 6?'))
 const blocking = panelRows({ progress: input, at: null, stale: false }, 40).find((r: any) => r.text.startsWith(' Q-01'))
 assert.equal(blocking!.color, 'warning')
 
+// Asked in the chat now (B2): first, with the local time it was asked and where to answer;
+// the open-questions.md block still counts only that file's questions.
+const at = new Date(2026, 10, 25, 9, 5).toISOString()
+const ide = [
+  { id: 'Q-01', blocking: true, ask: 'ide', since: at, text: 'Which window?' },
+  { id: 'Q-02', blocking: true, ask: 'ide', since: at, text: 'Page size?' },
+]
+t = texts({ progress: run({ questions: { open_blocking: 0, open_non_blocking: 0, open_ide: 2, items: ide } }), at: null, stale: false })
+assert.ok(t.includes('Waiting on you since 09:05: answer in the chat'), t.join('\n'))
+assert.ok(t.includes(' Q-01 Which window?') && t.includes(' Q-02 Page size?'))
+assert.ok(!t.some((x: string) => x.startsWith('Open questions')), 'no open-questions.md block')
+const both = run({ questions: { open_blocking: 1, open_non_blocking: 0, open_ide: 1, items: [ide[0], items[0]] } })
+t = texts({ progress: both, at: null, stale: false })
+assert.ok(t.indexOf(' Q-01 Which window?') < t.indexOf('Open questions: 1 blocking, 0 other'), t.join('\n'))
+assert.ok(t.includes(' Q-01 (product owner) Question 1?') && !t.includes(' Q-01 (ide) Which window?'))
+assert.ok(texts({ progress: run({ questions: { open_blocking: 0, open_non_blocking: 0, items: [{ ...ide[0], since: 'x' }] } }), at: null, stale: false }).includes('Waiting on you: answer in the chat'))
+// A short pane: the steps fold to one line so the chat questions show (validation note, 26 Nov).
+const asking = { progress: run({ questions: { open_blocking: 0, open_non_blocking: 0, open_ide: 2, items: ide } }), at: null, stale: false }
+t = texts(asking, 7)
+assert.ok(t.some((x: string) => x.startsWith('▶ impact') && x.endsWith('· 2 of 4 steps done')), t.join('\n'))
+assert.ok(t.includes(' Q-01 Which window?') && t.includes(' Q-02 Page size?') && !t.some((x: string) => x.startsWith('✓ req')), t.join('\n'))
+assert.ok(texts(asking, 40).some((x: string) => x.startsWith('✓ req'))) // room for both: the full list
+// Never more rows than the pane has: the header, what fits, and "…and N more" (review, 26 Nov).
+const many = { progress: run({ steps: [run().steps[2]], questions: { open_blocking: 0, open_non_blocking: 0, open_ide: 5, items: [...ide, ...ide, ide[0]] } }), at: null, stale: false }
+for (const n of [3, 4, 5, 6]) assert.ok(panelRows(many, n).length <= n, `${n}: ${texts(many, n).join(' | ')}`)
+t = texts(many, 8)
+assert.ok(t.includes(' …and 3 more in the chat') && t.includes(' Q-02 Page size?'), t.join('\n'))
+
 // Signed, not resumed: the decision is said as it is; a reject is never shown as approved.
 const resume = (decision: any) => texts({ progress: run({ status: 'PAUSED_APPROVAL', waiting: { kind: 'resume', gate: 'G-1', role: null, decision, command: '/truminds:resume run_01', file: null } }), at: null, stale: false })
 assert.ok(resume('approve').includes('Approved (G-1): the run owner resumes'))
@@ -94,6 +122,7 @@ const store = new Map<string, any>()
 const calls: string[][] = []
 const opened: string[] = []
 const timers: any[] = []
+const afters: any[] = []
 let answer: () => Promise<any> = async () => ({ stdout: env({ progress: run() }), stderr: '', exitCode: 0 })
 const $: any = {
   session: { id: async () => 'sess-1' },
@@ -103,7 +132,10 @@ const $: any = {
     resolve: () => ({ Box: 'Box', Text: 'Text' }),
   },
   command: { register: async () => undefined },
-  clock: { every: (_ms: number, fn: any) => { const t = { fn, cancelled: false, cancel() { t.cancelled = true } }; timers.push(t); return t } },
+  clock: {
+    every: (_ms: number, fn: any) => { const t = { fn, cancelled: false, cancel() { t.cancelled = true } }; timers.push(t); return t },
+    after: (ms: number, fn: any) => { const t = { ms, fn, cancelled: false, cancel() { t.cancelled = true } }; afters.push(t); return t },
+  },
   __store: store,
 }
 const settle = () => new Promise((r) => setTimeout(r, 20))
@@ -194,6 +226,33 @@ answer = async () => ({ stdout: env({ progress: run() }), stderr: '', exitCode: 
 await turn($, {}, async () => ({}))
 await settle()
 assert.equal(calls.length, 1, '/truminds: wakes the panel')
+
+// AskUserQuestion: a refresh once the pre-tool hook has recorded the question (the dialog is
+// open, next() pending), and one when it returns; an early answer cancels the first.
+const askHook = hooks['tool.call{"tool":"AskUserQuestion"}']
+assert.ok(askHook, 'AskUserQuestion refreshes the panel')
+calls.length = 0
+let answerDialog: () => void = () => undefined
+const asked = askHook($, { tool: 'AskUserQuestion' }, () => new Promise((ok) => { answerDialog = () => ok({ answers: 1 }) }))
+assert.equal(afters.length, 1)
+assert.equal(calls.length, 0, 'not before the hook has recorded it')
+afters[0].fn()
+await settle()
+assert.equal(calls.length, 1, 'refreshed while the dialog is open')
+answerDialog()
+assert.deepEqual(await asked, { answers: 1 })
+await settle()
+assert.equal(calls.length, 2, 'refreshed when the dialog returned')
+assert.equal(afters[0].cancelled, true)
+assert.equal(afters.length, 2, 'and once more after the post-tool hook')
+afters[1].fn()
+await settle()
+assert.equal(calls.length, 3)
+// A new ask cancels the last one's late refresh (review of #74).
+const again2 = askHook($, { tool: 'AskUserQuestion' }, async () => ({ answers: 2 }))
+assert.equal(afters[1].cancelled, true)
+await again2
+await settle()
 
 // /tsl-panel during a running refresh waits for its answer instead of reading the old state.
 store.set('panel', { progress: null, at: null, stale: false })

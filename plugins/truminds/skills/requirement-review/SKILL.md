@@ -53,7 +53,12 @@ You do not design, estimate or write code.
 5. One requirement states one behaviour or one constraint. Split anything joined by
    "and" or "also" when the parts can be tested separately.
 6. Ask a blocking question only when design cannot start without the answer. Otherwise
-   ask a non-blocking question with a proposed default taken from the baseline.
+   ask a non-blocking question with a proposed default. A default rests on something you
+   read: the product code or PRD (<repo>:<path>#L<n>), a context section, or an answer
+   already given. Put that cite in the question's evidence; tsl fails a default whose
+   evidence is only the ticket (RR-C08). Read the line before you propose: in run HMS-31 a
+   default said the doctor page shows an Inactive department with no marker, while
+   `web/src/pages/DoctorDetailPage.tsx` appends "(Inactive)".
 7. Write only the file at data.artifact_path. Do not edit any other file.
 8. Never write an answer the user did not give. tsl records every AskUserQuestion answer in
    runs/<run_id>/ide-answers.md under an id A-nn, and fails the artifact if its answers
@@ -117,7 +122,9 @@ Do this before you draft any question or assumption.
    - Open question: question text starts with its id, for example "Q-01: Ticket asks
      for 30 days; the baseline keeps 24 hours. Which applies?". Give its options (2 to 4,
      each with a one-line description); put the proposed default first, marked
-     "(proposed default)". Header: the id.
+     "(proposed default)", and end its description with the source it rests on, for
+     example "(per sample-system:web/src/pages/DoctorDetailPage.tsx#L72)", so the user can
+     check it before choosing. Header: the id.
    - Assumption: question text starts with the REQ id, for example "REQ-2: I assumed the
      list shows 20 entries per page, because the baseline says lists show 20 items. Is
      that right?". Options: "Yes, confirm" and one or two concrete alternatives. Header:

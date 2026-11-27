@@ -7,8 +7,10 @@ which nothing reported before the review."""
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
+import pytest
 import yaml
 
 from e2e_steps import SESSION, next_action, start_run, write_artifact
@@ -52,7 +54,7 @@ def test_clean_artifact_has_nothing_to_fix(world: World) -> None:
     assert out == "", out
     env = _self_check(world, art)
     assert env["message"] == "Self-check clean"
-    assert env["data"] == {"artifact": art, "ok": True, "fix": []}
+    assert env["data"] == {"artifact": art, "ok": True, "fix": [], "hints": []}
 
 
 def test_soft_check_and_weak_claim_are_listed_and_warned(world: World) -> None:
@@ -68,6 +70,41 @@ def test_soft_check_and_weak_claim_are_listed_and_warned(world: World) -> None:
     assert fix[("soft", "RR-C12")] == "summary longer than 5 sentences"
     assert fix[("claim", "C1")].startswith("element absent: `48 hours`")
     assert "edit only what each item" in env["next"]
+
+
+def test_hint_is_shown_apart_and_counts_nowhere(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A gate `hint` check (text match that can be wrong, story-split.status-values and
+    unit-test.ac-values-in-tests) is in data.hints, not data.fix: ok stays true, and it is not a
+    soft check, so it never lowers S2 (A3 review)."""
+    from tsl.harness.skillchecks import CheckOutcome, run_declared
+
+    real = run_declared
+
+    def with_hint(env: Any, doc: Any) -> list[CheckOutcome]:
+        return [
+            *real(env, doc),
+            CheckOutcome("x.values", "hint", "fail", "COMPLETED named by none"),
+        ]
+
+    monkeypatch.setattr("tsl.harness.gates.run_declared", with_hint)
+    art, out, _ = _write(world, start_run(world))
+    assert "x.values" not in out  # the post-write hook does not nag about hints
+    env = _self_check(world, art)
+    assert env["data"]["ok"] is True and env["data"]["fix"] == []
+    assert env["data"]["hints"] == [
+        {"kind": "hint", "id": "x.values", "detail": "COMPLETED named by none"}
+    ]
+    assert env["message"] == "Self-check clean, 1 hint(s)"
+    assert env["next"] == (
+        "data.hints match text and can be wrong: act on one only if it is a real gap, otherwise "
+        "say why under Unknown; then hand over without checking again"
+    )
+    code, full, _, err = world.cli(["verify", art, "--fast", "--json"], session=SESSION)
+    assert code == 0 and full is not None, err
+    assert "x.values" not in {s["id"] for s in full["data"]["soft"]}  # not in S2
+    assert full["data"]["hints_failed"] == [{"id": "x.values", "detail": "COMPLETED named by none"}]
 
 
 def test_hard_gate_failure_is_listed_not_raised(world: World) -> None:
@@ -123,3 +160,147 @@ def test_any_other_error_is_listed_not_raised(world: World) -> None:
     assert env["data"]["ok"] is False
     assert [f["kind"] for f in env["data"]["fix"]] == ["error"], env["data"]
     assert env["data"]["fix"][0]["id"].startswith("E-"), env["data"]
+
+
+# ------------------------------------------------------- local checks (roadmap A3)
+def _local(world: World, art: str) -> dict[str, Any]:
+    code, env, _, err = world.cli(
+        ["verify", art, "--self-check", "--local", "--json"], session=SESSION
+    )
+    assert code == 0 and env is not None, err  # never a failed command
+    return env
+
+
+def _state(world: World, run_id: str) -> dict[str, Any]:
+    state: dict[str, Any] = json.loads((world.companion / f"runs/{run_id}/state.json").read_text())
+    return state
+
+
+LINT_ITEM = {
+    "kind": "local",
+    "id": "lint",
+    "detail": "sample-orders: 1 lint error(s), 1 in files this step changed:\n"
+    "api/src/routes/orders.js:3:7 no-unused-vars: 'x' is assigned a value but never used.",
+}
+
+
+def test_local_checks_get_the_steps_changed_files_and_report_items(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The self-check hands local.check_repos each product repo of the step with its verifier
+    profile, clone and the files the step changed; failing checks come back in data.fix. Nothing
+    counts as an attempt: run state and the H3 gate are untouched."""
+    from tsl.harness import local
+
+    run_id, info = _code_run(world)
+    art = info["artifact"]
+    seen: list[Any] = []
+
+    def fake(repos: Any, tool_log: Any, run: Any = None) -> Any:
+        seen.append((repos, tool_log))
+        return {"status": "fail", "checks": [{"repo": "sample-orders", "name": "lint",
+                                              "status": "fail", "errors": 1}]}, [dict(LINT_ITEM)]  # fmt: skip
+
+    monkeypatch.setattr(local, "check_repos", fake)
+    before = _state(world, run_id)["steps"]
+    env = _local(world, art)
+    ((repos, tool_log),) = seen
+    ((repo, profile, clone, files),) = repos
+    assert (repo, profile, clone) == ("sample-orders", "node-20@1", world.product)
+    assert "api/src/routes/orders.js" in files  # the files product_changes measures
+    assert Path(tool_log).as_posix().endswith(f"runs/{run_id}/tool-log.jsonl")
+    assert env["data"]["fix"] == [LINT_ITEM] and env["data"]["ok"] is False
+    assert env["data"]["local"]["status"] == "fail"
+    assert env["message"] == "Self-check: 1 item(s) to fix; local checks failed"
+    assert env["next"] == (
+        "fix the code each local item names, then run the self-check with --local again"
+    )
+    assert _state(world, run_id)["steps"] == before
+    checks = json.loads((world.companion / art.replace(".md", ".checks.json")).read_text())
+    assert next(g for g in checks["gates"] if g["id"] == "H3")["status"] == "pending"
+    assert world.verifier.calls == 0  # Docker is never started by the self-check
+
+
+def test_local_checks_run_before_the_artifact_is_written(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A code skill runs them after its edits and before it copies code[] and writes the
+    artifact: no artifact yet is not an error with --local."""
+    from tsl.harness import local
+
+    _run_id, info = _code_run(world)
+    p = world.companion / info["artifact"]
+    p.unlink()
+    monkeypatch.setattr(
+        local, "check_repos", lambda repos, log, run=None: ({"status": "pass", "checks": []}, [])
+    )
+    env = _local(world, info["artifact"])
+    assert env["data"] == {
+        "artifact": info["artifact"],
+        "ok": True,
+        "fix": [],
+        "hints": [],
+        "local": {"status": "pass", "checks": []},
+    }
+    assert env["message"] == "Self-check clean; local checks passed"
+
+
+@pytest.mark.parametrize(
+    "boom",
+    [OSError("git ls-files failed"), RuntimeError(""), ValueError("bad json")],
+)
+def test_local_checks_never_raise(
+    world: World, monkeypatch: pytest.MonkeyPatch, boom: Exception
+) -> None:
+    """A git, file or parse error inside the local checks is an `error` item, never a crash:
+    the step still gets the rest of its self-check."""
+    from tsl.harness import local
+
+    _run_id, info = _code_run(world)
+
+    def explode(*a: Any, **k: Any) -> Any:
+        raise boom
+
+    monkeypatch.setattr(local, "check_repos", explode)
+    env = _local(world, info["artifact"])
+    errs = [f for f in env["data"]["fix"] if f["kind"] == "error"]
+    assert len(errs) == 1 and errs[0]["id"] == "E-INT-01", env["data"]
+    assert errs[0]["detail"].startswith("local checks: ")
+    assert env["data"]["local"] == {"status": "error"}
+
+
+def test_local_checks_skip_a_step_that_changes_no_code(world: World) -> None:
+    art, _, _ = _write(world, start_run(world))
+    env = _local(world, art)
+    assert env["data"]["local"] == {"status": "skip", "detail": "step req changes no product code"}
+    assert env["data"]["ok"] is True
+    assert (
+        env["message"] == "Self-check clean; local checks not run: step req changes no product code"
+    )
+
+
+def test_local_checks_with_the_real_module_and_no_toolchain(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """End to end through harness/local with nothing installed in the product repo: node and
+    eslint are not there, so both checks skip and nothing is installed without a lock file."""
+    from tsl.harness import local
+
+    _run_id, info = _code_run(world)
+    calls: list[Any] = []
+
+    def record(cmd: list[str], cwd: Any, t: int) -> tuple[int, str]:
+        calls.append(cmd)
+        return 0, ""
+
+    monkeypatch.setattr(local, "run_tool", record)
+    env = _local(world, info["artifact"])
+    assert calls == []  # no package.json, no lock: nothing to install, nothing to run
+    data = env["data"]
+    assert data["fix"] == [] and data["local"]["status"] == "skip", data
+
+
+def test_local_flag_needs_self_check(world: World) -> None:
+    art, _, _ = _write(world, start_run(world))
+    code, env, _, _ = world.cli(["verify", art, "--local", "--json"], session=SESSION)
+    assert code != 0 and env is not None and env["code"] == "E-USE-01", env
