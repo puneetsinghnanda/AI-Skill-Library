@@ -57,7 +57,6 @@ function isUpdateCommand(command: unknown): boolean {
   return (
     typeof command === 'string' &&
     (/(^|[\s;&|(])uv\s+tool\s+install\b[^;&|]*[\s/\\]tsl(\s|$)/.test(command) ||
-      /(^|[\s;&|(])uv\s+tool\s+upgrade\s+truminds-tsl(\s|$)/.test(command) ||
       /(^|[\s;&|(])claude\s+plugin\s+(marketplace\s+update\s+truminds-skill-library|update\s+truminds@)/.test(command))
   )
 }

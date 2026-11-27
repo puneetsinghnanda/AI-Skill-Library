@@ -108,9 +108,9 @@ def run_active(data: Mapping[str, object], home: str) -> bool:
 # A path is plain characters only, so no shell expansion can turn it into more arguments: no
 # braces ({a,--index-url=...} would add one), globs, quotes inside, $ or `. In double quotes it may
 # also hold spaces and a backslash before a plain character (a Windows path), never a backslash
-# before the closing quote (bash reads that as an escaped quote). ~ at the start means home;
-# elsewhere only as in a Windows short name (JAPMAN~1, RUNNER~1), after a letter or digit, where
-# bash leaves it alone. Inside double quotes bash never expands ~.
+# before the closing quote (bash reads that as an escaped quote). Unquoted, ~ only as `~` or
+# `~/...` (home), or in a Windows short name (JAPMAN~1, RUNNER~1) after a letter or digit, where
+# bash leaves it alone; see _path_ok. Inside double quotes bash never expands ~.
 _PLAIN = r"(?:[A-Za-z0-9._/:+@%=-]|(?<=[A-Za-z0-9])~[0-9])+"
 _QUOTED = r'"(?:[A-Za-z0-9._/:+@%=~ -]|\\(?=[A-Za-z0-9._~ -]))+"'
 _PATH = rf"(?:{_QUOTED}|~?{_PLAIN})"
@@ -121,18 +121,39 @@ _UPDATE_ANYWHERE = (
     re.compile(r"tsl(?:\.exe)? (?:--version|doctor(?: --json)?)"),
 )
 # These act on the folder they run in: `uv tool install ./tsl` installs whatever ./tsl is there,
-# so they run only in the AI-Skill-Library clone the plugin itself is loaded from. The install
-# takes no other option, and TSL_ORG_FILE (sign-in and service settings built into tsl) only the
-# clone's own settings file: the agent picks neither the build inputs nor the service.
-_UPDATE_IN_CLONE = (
-    re.compile(r"git pull(?: --ff-only)?"),
-    re.compile(r"git checkout main"),
-)
+# so they run only in the AI-Skill-Library clone the plugin comes from. The install takes no other
+# option; --no-config so no uv.toml or pyproject setting in the folder changes it; TSL_ORG_FILE
+# (sign-in and service settings built into tsl) only as the clone's own settings file: the agent
+# picks neither the build inputs nor the service. The clone itself (its .git config and hooks run
+# on git pull) must stay outside what the agent may write.
+_UPDATE_IN_CLONE = (re.compile(r"git pull(?: --ff-only)?"), re.compile(r"git checkout main"))
 _INSTALL = re.compile(
     rf"(?:TSL_ORG_FILE=(?P<org>{_PATH}) )?"
-    r"uv tool install --python 3\.12 --reinstall --no-cache \./tsl"
+    r"uv tool install --python 3\.12 --reinstall --no-cache --no-config \./tsl"
+)
+INSTALL_LINE = (
+    "TSL_ORG_FILE=deploy/render/tsl-org.github.toml uv tool install --python 3.12 --reinstall "
+    "--no-cache --no-config ./tsl"
 )
 ORG_FILE = ("deploy", "render", "tsl-org.github.toml")
+MARKETPLACE = "truminds-skill-library"
+
+
+def _path_ok(p: str) -> bool:
+    """True for a path bash and this hook read the same way. Unquoted, bash gives a meaning to a
+    leading `-` (cd -: $OLDPWD), `~+`, `~-`, `~1` and `~user`, and looks a bare relative name up
+    through CDPATH. So only an absolute path, `.`/`..` or `./`/`../...`, or `~`/`~/...` (home) is
+    accepted, and never a leading `-`."""
+    quoted = p.startswith('"')
+    if quoted:
+        p = p[1:-1]
+    if p.startswith("-"):
+        return False
+    if p.startswith("~"):
+        return not quoted and (p == "~" or p.startswith("~/"))
+    if p.startswith(("/", "./", "../")) or p in (".", ".."):
+        return True
+    return re.match(r"[A-Za-z]:[/\\]", p) is not None  # C:/... or C:\...
 
 
 def _local_path(p: str, base: str) -> str:
@@ -150,15 +171,41 @@ def resolve_plugin_root(env: Mapping[str, str], root: str | None = None) -> str 
     return root or env.get("TSL_PLUGIN_ROOT") or env.get("CLAUDE_PLUGIN_ROOT") or None
 
 
-def plugin_clone(root: str | None) -> str | None:
-    """The AI-Skill-Library clone a plugin is read from (<clone>/plugins/truminds), or None when
-    the plugin is not read from a clone (for example an installed copy)."""
+def _is_clone(d: str) -> bool:
+    return os.path.isfile(os.path.join(d, "tsl", "pyproject.toml")) and os.path.isfile(
+        os.path.join(d, "plugins", "truminds", ".claude-plugin", "plugin.json")
+    )
+
+
+def plugin_clone(root: str | None, env: Mapping[str, str] | None = None) -> str | None:
+    """The AI-Skill-Library clone the plugin comes from, or None.
+
+    Either the plugin is read from the clone itself (<clone>/plugins/truminds), or Claude Code runs
+    an installed copy (~/.claude/plugins/cache/<marketplace>/truminds/<version>) of a marketplace
+    added from a folder; then the clone is that folder, as known_marketplaces.json records it. A
+    marketplace added from GitHub has no clone on this machine."""
     if not root:
         return None
-    clone = os.path.realpath(os.path.join(root, os.pardir, os.pardir))
-    same = os.path.realpath(os.path.join(clone, "plugins", "truminds")) == os.path.realpath(root)
-    ok = same and os.path.isfile(os.path.join(clone, "tsl", "pyproject.toml"))
-    return clone if ok else None
+    up = os.path.realpath(os.path.join(root, os.pardir, os.pardir))
+    if _is_clone(up) and os.path.realpath(
+        os.path.join(up, "plugins", "truminds")
+    ) == os.path.realpath(root):
+        return up
+    parts = os.path.realpath(root).replace("\\", "/").split("/")
+    cached = len(parts) >= 5 and parts[-5:-3] == ["plugins", "cache"]
+    name = parts[-3] if cached else MARKETPLACE
+    env = os.environ if env is None else env
+    conf = env.get("CLAUDE_CONFIG_DIR") or os.path.join(os.path.expanduser("~"), ".claude")
+    try:
+        with open(os.path.join(conf, "plugins", "known_marketplaces.json"), encoding="utf-8") as fh:
+            src = json.load(fh)[name]["source"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    path = src.get("path") if isinstance(src, dict) and src.get("source") == "directory" else None
+    if not isinstance(path, str) or not path:
+        return None
+    folder = os.path.realpath(path)
+    return folder if _is_clone(folder) else None
 
 
 def update_hint(clone: str | None) -> str:
@@ -174,15 +221,14 @@ def update_hint(clone: str | None) -> str:
     )
     if clone is None:
         return head + (
-            "Your plugin is not loaded from an AI-Skill-Library clone, so update tsl from a "
-            "terminal outside Claude Code (in your clone: git pull, then the uv tool install line "
-            f"of section 5); from here: {anywhere}"
+            "Your plugin does not come from an AI-Skill-Library clone on this machine, so update "
+            "tsl from a terminal outside Claude Code (in your clone: git pull, then the uv tool "
+            f"install line of section 5); from here: {anywhere}"
         )
     c = clone.replace(os.sep, "/")
     return head + (
-        f"In {c} (optionally after cd {c} &&): git checkout main; git pull; "
-        "TSL_ORG_FILE=deploy/render/tsl-org.github.toml uv tool install --python 3.12 --reinstall "
-        f"--no-cache ./tsl. Then: {anywhere}"
+        f'In {c} (optionally after cd "{c}" &&): git pull (on the branch you update from, '
+        f"usually main); {INSTALL_LINE}. Then: {anywhere}"
     )
 
 
@@ -196,9 +242,11 @@ def update_command_allowed(data: Mapping[str, object], clone: str | None) -> boo
         return False
     command = command.strip()  # not collapsed: a quoted path keeps its own spaces
     cwd = data.get("cwd")
-    where = os.path.realpath(cwd) if isinstance(cwd, str) and cwd else os.getcwd()
+    where = os.path.realpath(cwd if isinstance(cwd, str) and cwd else os.getcwd())
     m = _CD.fullmatch(command)
     if m:
+        if not _path_ok(m.group("dir")):
+            return False
         where, command = _local_path(m.group("dir"), where), m.group("rest")
     if any(p.fullmatch(command) for p in _UPDATE_ANYWHERE):
         return True
@@ -210,8 +258,15 @@ def update_command_allowed(data: Mapping[str, object], clone: str | None) -> boo
     if install is None:
         return False
     org = install.group("org")
+    if org is None:
+        return True
+    # In an assignment bash still expands a leading ~ (~+ is $PWD); a relative path is fine there.
+    quoted = org.startswith('"')
+    bare = org[1:-1] if quoted else org
+    if bare.startswith("-") or (not quoted and bare.startswith("~") and not bare.startswith("~/")):
+        return False
     own = os.path.realpath(os.path.join(clone, *ORG_FILE))
-    return org is None or os.path.normcase(_local_path(org, where)) == os.path.normcase(own)
+    return os.path.normcase(_local_path(org, where)) == os.path.normcase(own)
 
 
 def _log(home: str, event: str, decision: str, code: str, detail: str) -> None:
@@ -350,7 +405,7 @@ def guarded(
                     return 0
                 state["done"] = True
                 data = parse()
-                clone = plugin_clone(resolve_plugin_root(env, plugin_root))
+                clone = plugin_clone(resolve_plugin_root(env, plugin_root), env)
                 if event == "pre-tool" and update_command_allowed(data, clone):
                     _log(
                         home,
