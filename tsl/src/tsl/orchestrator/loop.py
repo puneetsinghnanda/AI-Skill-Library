@@ -195,9 +195,10 @@ class _Loop:
                     try:  # resume's own rule decides what is answered (answered_by too)
                         _, w = resume(self.rt, self.comp, self.run_id)
                     except TslError as e:
-                        if e.code != "E-RUN-03":
-                            raise
-                        return self._ask(ctx, list((e.data or {}).get("unanswered") or []))
+                        missing = list((e.data or {}).get("unanswered") or [])
+                        if e.code != "E-RUN-03" or not missing:
+                            raise  # e.g. no open-questions.md: nothing to ask, show the error
+                        return self._ask(ctx, missing)
                     self.warnings += w
                     continue
                 if act == "pause_approval":
@@ -372,18 +373,17 @@ class _Loop:
 
     def _ask(self, ctx: RunCtx, missing: list[str]) -> dict[str, Any]:
         """The blocking questions resume still finds without a valid answer (E-RUN-03): no
-        answer, or an answer without a valid answered_by. Every open question when the error
-        does not list them."""
+        answer, or an answer without a valid answered_by."""
         path = ctx.comp.path(ctx.questions_rel())
         open_qs = {q["id"]: q for q in questions_md.unanswered(path, self.run_id)}
         eff: dict[str, Any] = {}
-        if missing and path.is_file():
+        if path.is_file():
             try:
                 eff = questions_md.effective(questions_md.load(path).get("questions", []))
             except TslError:
                 eff = {}
         qs: list[dict[str, Any]] = []
-        for qid in missing or list(open_qs):
+        for qid in missing:
             qs.append(
                 open_qs.get(qid)
                 or {

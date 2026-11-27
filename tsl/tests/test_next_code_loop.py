@@ -342,3 +342,29 @@ def test_verifier_unavailable_stops_instead_of_reviewing(monkeypatch: Any) -> No
     assert exc.value.code == "E-H3-07"
     assert "Paused at impl" in exc.value.message and "Docker" in str(exc.value.next)
     assert loop.notes == []
+
+
+# 13: paused for input but nothing to ask (no open-questions.md): show E-RUN-03, never loop
+def test_pause_input_with_no_questions_returns_the_error(monkeypatch: Any) -> None:
+    import pytest
+
+    from tsl.core.errors import TslError
+    from tsl.orchestrator import loop as loop_mod
+    from tsl.state import service
+
+    class Ctx:
+        def __init__(self, *_a: Any) -> None:
+            self.state = {"status": "PAUSED_INPUT", "cursor": None}
+
+    def paused(*_a: Any, **_k: Any) -> None:
+        raise TslError("E-RUN-01", "paused", data={"action": "pause_input"})
+
+    def no_file(*_a: Any, **_k: Any) -> None:
+        raise TslError("E-RUN-03", n=1)
+
+    monkeypatch.setattr(loop_mod, "RunCtx", Ctx)
+    monkeypatch.setattr(loop_mod, "next_action", paused)
+    monkeypatch.setattr(service, "resume", no_file)
+    with pytest.raises(TslError) as exc:
+        loop_mod._Loop(None, None, "run_x").run()  # type: ignore[arg-type]
+    assert exc.value.code == "E-RUN-03"
