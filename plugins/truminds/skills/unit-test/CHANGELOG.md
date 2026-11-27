@@ -1,5 +1,13 @@
 # Changelog: unit-test
 
+## 1.5.0
+- Roadmap 25-27 Nov, B (each step knows its tools): the step was never told its allowed
+  tools and learned them from pre-tool refusals (E-POL-06), even for a read-only `grep`.
+  tsl verify --inputs now lists them in data.allowed_tools, and the preamble says to use
+  only those.
+- MINOR: changed instruction, same tools, inputs and output schema. Needs a signed eval
+  result for this version before any status change (SKL-V13).
+
 ## 1.4.0
 - Roadmap A3 (content self-check and local checks): on 0.1.7 `ut` retried in 6 of 7 team runs
   on reviewer findings it could have found itself (HMS-24, 26, 28, 30, 31, 33), and HMS-33 used

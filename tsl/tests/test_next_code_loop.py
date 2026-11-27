@@ -10,6 +10,7 @@ from helpers import World, intent_artifact, review_json, ticket_snapshot
 from tsl.core.clock import iso
 from tsl.core.config import ORG_DEFAULTS
 from tsl.orchestrator.loop import FIX_ROUNDS
+from tsl.schemas.registry import errors
 
 LONG_SUMMARY = " ".join(f"Sentence {i} about order history." for i in range(1, 8))
 MAJOR = {
@@ -368,3 +369,66 @@ def test_pause_input_with_no_questions_returns_the_error(monkeypatch: Any) -> No
     with pytest.raises(TslError) as exc:
         loop_mod._Loop(None, None, "run_x").run()  # type: ignore[arg-type]
     assert exc.value.code == "E-RUN-03"
+
+
+# B1 in the code loop: run_step carries v1's runner, pinned at tsl state start from
+# TSL_STEP_RUNNER. The fixture workflow has no ut step, so its first step is renamed ut here.
+def _first_step_is_ut(w: World, asks: bool = False) -> None:
+    wf = w.plugin / "workflows" / "brownfield-change.workflow.yaml"
+    text = wf.read_text(encoding="utf-8")
+    for old, new in [
+        ("id: req\n", "id: ut\n"),
+        ("[req]", "[ut]"),
+        ("on_reject: req", "on_reject: ut"),
+        ("on_changes: req", "on_changes: ut"),
+        ("req.intent", "ut.intent"),
+    ]:
+        assert old in text, old
+        text = text.replace(old, new)
+    wf.write_text(text, encoding="utf-8")
+    if asks:  # the fixture's requirement-review does not ask; the real asking skills do
+        sy = w.plugin / "skills" / "requirement-review" / "skill.yaml"
+        t = sy.read_text(encoding="utf-8")
+        assert "Glob, Write]" in t
+        sy.write_text(t.replace("Glob, Write]", "Glob, Write, AskUserQuestion]"), encoding="utf-8")
+
+
+def _runner_env(w: World, value: str) -> None:
+    rt = w.rt("eng", SESSION)
+    rt.env = {**rt.env, "TSL_STEP_RUNNER": value}
+
+
+def test_run_step_carries_the_runner_when_set(world: World) -> None:
+    _first_step_is_ut(world)
+    _runner_env(world, "ut=artifacts")
+    run_id = _start(world)
+    d = _nxt(world, run_id)
+    assert d["action"] == "run_step" and d["step"] == "ut"
+    assert d["runner"] == {"mode": "fork", "context": "artifacts"}
+    assert _json(world, d["instruction_path"]) == d
+    assert errors("next-action.v2", d) == []
+    _runner_env(world, "")  # pinned at start: the env no longer matters
+    assert _nxt(world, run_id)["runner"] == {"mode": "fork", "context": "artifacts"}
+
+
+def test_run_step_has_no_runner_when_unset(world: World) -> None:
+    _first_step_is_ut(world)
+    _runner_env(world, "")
+    run_id = _start(world)
+    d = _nxt(world, run_id)
+    assert d["action"] == "run_step" and d["step"] == "ut" and "runner" not in d
+    _runner_env(world, "ut=full")  # set after start: moves no step
+    assert "runner" not in _nxt(world, run_id)
+
+
+def test_a_step_that_asks_the_user_is_never_forked(world: World) -> None:
+    _first_step_is_ut(world, asks=True)
+    _runner_env(world, "ut=full")
+    code, out, _t, err = world.cli(
+        ["state", "start", "brownfield-change", "ABC-142", "--loop", "code", "--json"],
+        session=SESSION,
+    )
+    assert code == 0 and out is not None, err
+    assert any("step ut asks the user" in w["message"] for w in out["warnings"]), out
+    d = _nxt(world, str(out["data"]["run_id"]))
+    assert d["action"] == "run_step" and d["step"] == "ut" and "runner" not in d

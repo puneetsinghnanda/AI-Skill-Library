@@ -74,6 +74,26 @@
     "progress": {
       "$ref": "#/$defs/progress"
     },
+    "runner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "context"
+      ],
+      "properties": {
+        "mode": {
+          "const": "fork"
+        },
+        "context": {
+          "enum": [
+            "artifacts",
+            "full"
+          ]
+        }
+      },
+      "description": "Run the step in a forked subagent (roadmap B1): the same runner tsl next v1 gives, pinned at tsl state start from TSL_STEP_RUNNER. Only on run_step. Absent: run the step's skill in the main session."
+    },
     "fix": {
       "description": "The self-check items the step must fix before the full checks run (action fix).",
       "type": "array",
@@ -168,6 +188,20 @@
         "required": [
           "ask"
         ]
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "runner"
+        ]
+      },
+      "then": {
+        "properties": {
+          "action": {
+            "const": "run_step"
+          }
+        }
       }
     }
   ],

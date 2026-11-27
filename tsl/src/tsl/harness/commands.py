@@ -9,6 +9,23 @@ from __future__ import annotations
 import fnmatch
 import re
 
+# The one shell command a step skill runs, on top of its skill.yaml allowed_tools. SKILL.md
+# declares it (SKL-V09) and tsl verify --inputs lists it in data.allowed_tools.
+STEP_BASH = "Bash(tsl verify *)"
+
+# The only tsl commands the forked step runner (truminds:step-runner, B1) may run: the step's
+# own and its brief. The run-loop commands (next, review, decide, pr ...) stay with the main
+# session, so a step in a subagent cannot move its own run on.
+STEP_RUNNER_TSL = ("tsl verify *", "tsl step brief *")
+
+
+def is_step_runner(agent_type: str) -> bool:
+    """The call comes from the step runner subagent (hook input / tool log agent_type)."""
+    return agent_type in ("step-runner", "truminds:step-runner") or agent_type.endswith(
+        ":step-runner"
+    )
+
+
 # Variables that may prefix a command without changing which program runs or what it may touch.
 SAFE_ENV = frozenset(
     {"PYTHONIOENCODING", "PYTHONUTF8", "NO_COLOR", "FORCE_COLOR", "LANG", "LC_ALL", "TERM"}
@@ -79,11 +96,19 @@ def _git_sub(args: list[str]) -> str | None:
     return args[i] if i < len(args) else None
 
 
-def bash_allowed(cmd: str, allowed: list[str]) -> bool:
-    """True when the command, after `cd` and safe env prefixes, matches a Bash(...) tool or tsl."""
+def bash_allowed(cmd: str, allowed: list[str], agent_type: str = "") -> bool:
+    """True when the command, after `cd` and safe env prefixes, matches a Bash(...) tool or tsl.
+
+    Any tsl command is allowed in the main session; the step runner gets only STEP_RUNNER_TSL,
+    as one command: fnmatch's * would also match `&& tsl decide ...` after it.
+    """
     body = strip_cd(cmd)
     body = strip_safe_env(body) or body
-    pats = [a[5:-1] for a in allowed if a.startswith("Bash(") and a.endswith(")")] + ["tsl *"]
+    runner = is_step_runner(agent_type)
+    if runner and (any(u in body for u in _UNSAFE) or "|" in body):
+        return False
+    tsl = list(STEP_RUNNER_TSL) if runner else ["tsl *"]
+    pats = [a[5:-1] for a in allowed if a.startswith("Bash(") and a.endswith(")")] + tsl
     return any(fnmatch.fnmatch(body, p) for p in pats)
 
 

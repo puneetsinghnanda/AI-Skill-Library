@@ -11,6 +11,8 @@ Step context from tsl (do not edit):
 
 If the JSON above has "ok": false, show its "message" and "next" to the user and stop. Write nothing.
 
+Use only the tools in data.allowed_tools.
+
 ## Job
 Write unit tests that prove the run's code change works and fails safely, in the places and style
 the test strategy names. Then write the ut-result.v1 artifact at data.artifact_path. You do not

@@ -11,6 +11,8 @@ Step context from tsl (do not edit):
 
 If the JSON above has "ok": false, show its "message" and "next" to the user and stop. Write nothing.
 
+Use only the tools in data.allowed_tools.
+
 ## Job
 Review the CI pipeline files of the product repos for missing gates, unsafe steps and drift from the
 system's rules. Write one file: the pipeline-review.v1 artifact at data.artifact_path. You never
