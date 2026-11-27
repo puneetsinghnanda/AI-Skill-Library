@@ -230,6 +230,15 @@ async function fetchOnce($: any): Promise<void> {
   }
 }
 
+// A refresh shortly after an ask opens, and again after its dialog returns (the post-tool hook
+// may not have marked it answered yet). Top level on purpose: Claude Code's mod loader passes $
+// only to functions declared at the top of the file, and refuses the whole module otherwise.
+function later($: any): { cancel: () => void } {
+  return $.clock.after(ASK_REFRESH_MS, () => {
+    if (!idle) void refresh($).catch(() => undefined)
+  })
+}
+
 function refresh($: any): Promise<void> {
   if (running) {
     again = true
@@ -369,9 +378,6 @@ export const register: Register = (on) => {
   // tool call's next() runs the PreToolUse hooks and then the dialog, so refresh after a short
   // wait (the hook has recorded it by then), when the dialog returns, and once more a short
   // wait later: the post-tool hook that marks it answered may not have run yet.
-  const later = ($: any) => $.clock.after(ASK_REFRESH_MS, () => {
-    if (!idle) void refresh($).catch(() => undefined)
-  })
   on('tool.call', { tool: 'AskUserQuestion' } as any, async ($: any, e: any, next: any) => {
     afterAnswer?.cancel() // a new ask: the last one's late refresh is not needed
     afterAnswer = undefined
