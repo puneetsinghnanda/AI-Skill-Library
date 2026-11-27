@@ -3,8 +3,7 @@
 | Field | Value |
 | --- | --- |
 | Status | Draft |
-| Owner | Gaurav Saini |
-| Approver | Puneet Singh Nanda |
+| Owner and approver | Gaurav Saini |
 | Roadmap item | B1 (Skill Library Roadmap 25–27 Nov) |
 | Validators | Japman (Windows), Shubham (Ubuntu) |
 | Branch | `feat/ut-subagent` (includes PR #65, `feat/step-allowed-tools`) |
