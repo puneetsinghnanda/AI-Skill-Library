@@ -12,7 +12,20 @@ If "ok" is false, show "message" and "next" to the user and stop.
 (E-RUN-03 means a blocking question still has no valid answer; E-RUN-07 means a frozen answer was edited.
 Show the question ids from "data" and stop. Never fill in answers yourself.)
 
-Loop:
+## Code loop (when "data.loop" is "code")
+Run `tsl next <run_id> --json` and show "data.say" to the user unchanged. Then by
+"data.action":
+- run_step or fix: invoke the skill named in "data.skill" with "data.artifact_path" as its
+  argument, and tell it to read "data.instruction_path" first. It writes "data.artifact_path"
+  only (for fix: only what each "data.fix" item names, no full rewrite).
+- run_reviewer: invoke the `review` skill on "data.artifact_path".
+- ask: ask "data.ask.questions" with AskUserQuestion (the hook records the answers).
+- pause_approval, done, stopped: stop.
+After run_step, fix, run_reviewer or ask, run `tsl next <run_id> --json` again.
+If "ok" is false, show "message" and "next" and stop.
+Never run verify, review record, decide or pr yourself: tsl next does them.
+
+## Model loop (when "data.loop" is "model")
 1. Run `tsl next <run_id> --json` and read "data.action".
 2. run_skill: invoke the skill named in "data.skill" with "data.artifact_path" as its argument
    (its preamble runs `tsl verify <path> --inputs` from it). Give it "data.inputs",

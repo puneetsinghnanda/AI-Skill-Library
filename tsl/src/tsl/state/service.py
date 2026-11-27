@@ -57,8 +57,14 @@ def start(
     system: str | None = None,
     pod: str | None = None,
     ticket_file: str | None = None,
+    loop: str | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, str]]]:
     _require_git()
+    run_loop = loop or str((rt.user_config().get("run") or {}).get("loop") or "code")
+    if run_loop not in ("code", "model"):
+        raise TslError(
+            "E-USE-01", detail=f"--loop {run_loop}: use code or model", cmd="state start"
+        )
     cfg = comp.config
     warnings = list(comp.warnings)
     if system and system != cfg.system.code:
@@ -138,6 +144,10 @@ def start(
         "owner_pseudonym": me["pseudonym"],
         "status": "RUNNING",
         "end_reason": None,
+        "run_loop": run_loop,
+        # The run skill drives every run for now. The mod driver is chosen when the mod
+        # exists (A1 §8a), not from a marker file a crashed session could leave behind.
+        "driver": "skill",
         "pinned": {
             "plugin": plugin_version,
             "tsl": rt.tsl_version,
@@ -217,6 +227,8 @@ def start(
         "pack": {"fresh": pk["state"] == "fresh", "signed_at": pk["state_block"].get("signed_at")},
         "first_step": first,
         "ticket_snapshot": ticket_rel,
+        "loop": state["run_loop"],
+        "driver": state["driver"],
     }, warnings
 
 
@@ -333,6 +345,7 @@ def resume(
         "next_step": nxt,
         "answered": answered,
         "approvals": approvals,
+        "loop": str(ctx.state.get("run_loop") or "model"),
     }, warnings
 
 

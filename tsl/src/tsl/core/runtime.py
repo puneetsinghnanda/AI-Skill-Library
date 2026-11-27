@@ -64,7 +64,7 @@ class Runtime:
 
         require_valid("user-config.v1", data, str(self.home.config))
         lines = [f'schema = "{data["schema"]}"']
-        for section in ("device", "service", "telemetry", "logging", "ui"):
+        for section in ("device", "service", "telemetry", "logging", "ui", "run"):
             values = data.get(section)
             if not values:
                 continue
