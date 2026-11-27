@@ -703,6 +703,9 @@ def pr_closed(conn: Connection, ev: Ev) -> None:
             "ON CONFLICT (repo_id, number) DO UPDATE SET "
             "run_id = coalesce(pull_requests.run_id, EXCLUDED.run_id), "
             "state = CASE WHEN pull_requests.state = 'merged' THEN 'merged' "
+            # A close the webhook already saw reopened afterwards keeps the PR open.
+            "WHEN EXCLUDED.state = 'closed' AND pull_requests.pr_last_action = 'reopened' "
+            "AND pull_requests.pr_updated_at > EXCLUDED.closed_at THEN pull_requests.state "
             "ELSE EXCLUDED.state END, "
             f"{col} = coalesce(pull_requests.{col}, EXCLUDED.{col})"
         ),

@@ -797,6 +797,135 @@ def test_no_result_lists_match() -> None:
     assert tuple(_re.findall(r"'([a-z_]+)'", sql.group(1))) == NO_RESULT
 
 
+def test_a_merge_recorded_by_tsl_first_still_gets_its_head(
+    client: TestClient,
+    hook: int,
+    token: TokenFactory,
+    people: dict[str, Person],
+    world: Any,
+    migrated: Any,
+    owner_db: Engine,
+) -> None:
+    """tsl pr-sync writes the merge with no head; the delayed webhooks still fill it in."""
+    run_id, head = new_run(), _sha()
+    n = next(_NUMS)
+    tok = token(people["eng"].oid, people["eng"].roles)
+    post(
+        client,
+        tok,
+        [
+            event("run.started", run_started(world.system), run_id, occurred=now_iso(-3)),
+            event(
+                "pr.opened",
+                {"repo": world.repo, "number": n, "draft": False, "lowest_band": "Low"},
+                run_id,
+                occurred=now_iso(-2),
+            ),
+            event(
+                "pr.closed",
+                {"repo": world.repo, "number": n, "merged": True, "closed_at": now_iso()},
+                run_id,
+                occurred=now_iso(-1),
+            ),
+        ],
+        strict=True,
+    )
+    project(migrated)
+    marker = f"<!-- tsl:run_id={run_id} -->"
+    old = _sha()  # a delayed push from before the merge arrives first
+    send(client, "pull_request", _pr("synchronize", n, old, now_iso(-20), marker, before=_sha()))
+    send(client, "pull_request", _pr("closed", n, head, now_iso(-10), marker, merged=True))
+    send(client, "pull_request", _pr("synchronize", n, old, now_iso(-20), marker, before=_sha()))
+    send(client, "check_run", _run("completed", next(_RUN_IDS), head, "success"))
+    assert _pr_row(owner_db, n) == ("merged", head)
+    with owner_db.connect() as c:
+        assert c.execute(
+            text("SELECT merged_at IS NOT NULL FROM pull_requests WHERE number = :n"), {"n": n}
+        ).scalar_one()
+    assert _ci(owner_db, n) == "pass"
+
+
+def test_a_tsl_merge_takes_the_newest_webhook_head_until_the_merge_arrives(
+    client: TestClient,
+    hook: int,
+    token: TokenFactory,
+    people: dict[str, Person],
+    world: Any,
+    migrated: Any,
+    owner_db: Engine,
+) -> None:
+    run_id, (h0, h1) = new_run(), (_sha(), _sha())
+    n = next(_NUMS)
+    tok = token(people["eng"].oid, people["eng"].roles)
+    post(
+        client,
+        tok,
+        [
+            event("run.started", run_started(world.system), run_id, occurred=now_iso(-2)),
+            event(
+                "pr.closed",
+                {"repo": world.repo, "number": n, "merged": True, "closed_at": now_iso()},
+                run_id,
+                occurred=now_iso(-1),
+            ),
+        ],
+        strict=True,
+    )
+    project(migrated)
+    marker = f"<!-- tsl:run_id={run_id} -->"
+    send(client, "pull_request", _pr("opened", n, h0, now_iso(-400), marker))
+    send(client, "pull_request", _pr("synchronize", n, h1, now_iso(-100), marker, before=h0))
+    send(client, "pull_request", _pr("opened", n, h0, now_iso(-400), marker))  # duplicate, late
+    assert _pr_row(owner_db, n) == ("merged", h1)  # the merge webhook never came
+
+
+def test_a_tsl_close_does_not_undo_a_later_webhook_reopen(
+    client: TestClient,
+    hook: int,
+    token: TokenFactory,
+    people: dict[str, Person],
+    world: Any,
+    migrated: Any,
+    owner_db: Engine,
+) -> None:
+    run_id, n, head = new_run(), next(_NUMS), _sha()
+    marker = f"<!-- tsl:run_id={run_id} -->"
+    tok = token(people["eng"].oid, people["eng"].roles)
+    post(client, tok, [event("run.started", run_started(world.system), run_id)], strict=True)
+    project(migrated)
+    send(client, "pull_request", _pr("opened", n, head, now_iso(-400), marker))
+    send(client, "pull_request", _pr("closed", n, head, now_iso(-300), marker))
+    send(client, "pull_request", _pr("reopened", n, head, now_iso(-200), marker))
+    post(
+        client,
+        tok,
+        [
+            event(
+                "pr.closed",
+                {"repo": world.repo, "number": n, "merged": False, "closed_at": now_iso(-300)},
+                run_id,
+            )
+        ],
+        strict=True,
+    )
+    project(migrated)
+    assert _pr_row(owner_db, n)[0] == "open"
+
+
+def test_a_newer_push_reopens_a_closed_pr_in_any_order(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    """GitHub only sends pushes to open PRs: a push newer than the close means it was reopened,
+    also when the push arrives before the `reopened` delivery."""
+    make = [
+        lambda n, h, m: _pr("opened", n, h[0], now_iso(-400), m),
+        lambda n, h, m: _pr("closed", n, h[0], now_iso(-300), m),
+        lambda n, h, m: _pr("reopened", n, h[0], now_iso(-200), m),
+        lambda n, h, m: _pr("synchronize", n, h[1], now_iso(-100), m, before=h[0]),
+    ]
+    _pr_in_every_order(client, owner_db, make, ("open", 1))
+
+
 def test_ignored_and_unknown_repo(client: TestClient, hook: int) -> None:
     assert (
         send(

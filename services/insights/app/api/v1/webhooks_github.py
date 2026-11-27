@@ -165,8 +165,17 @@ def _pull_request(
             while new_head in pushes:  # a same-second push that arrived before this one
                 new_head = pushes.pop(new_head)
             new_state = state
-            if state == "open" and cur.state == "closed" and action != "reopened":
-                new_state = "closed"  # only a reopen opens a closed PR again
+            # GitHub sends pushes and ready_for_review only for open PRs, so a newer one means
+            # the PR was reopened (its `reopened` delivery may come later, and is then older).
+            implied_reopen = (
+                action in ("synchronize", "ready_for_review")
+                and u is not None
+                and cur.pr_updated_at is not None
+                and u > cur.pr_updated_at
+            )
+            reopens = action == "reopened" or implied_reopen
+            if state == "open" and cur.state == "closed" and not reopens:
+                new_state = "closed"  # only a (real or implied) reopen opens a closed PR
             conn.execute(
                 text(
                     "UPDATE pull_requests SET run_id = coalesce(run_id, :r), state = :st, "
@@ -193,14 +202,44 @@ def _pull_request(
             if tie and action == "synchronize" and before and head and cur.state != "merged":
                 # Not the successor of the stored head yet: keep it until its predecessor comes.
                 pushes[str(before)] = str(head)
+            # The event changes nothing, but a merge tsl pr-sync recorded first (the projector
+            # carries no head) still gets a head: the webhook merge's own head is the PR's last
+            # and is final; until it arrives, the newest other event's head stands in.
+            new_head, new_u, la = cur.head_sha, None, cur.pr_last_action
+            if cur.state == "merged" and head:
+                if state == "merged":
+                    new_head, new_u, la = head, u, "closed"
+                elif cur.pr_last_action != "closed" and (
+                    cur.head_sha is None
+                    or (u is not None and (cur.pr_updated_at is None or u > cur.pr_updated_at))
+                ):
+                    new_head, new_u = head, u
+            elif cur.head_sha is None:
+                new_head = head
             conn.execute(
                 text(
-                    "UPDATE pull_requests SET run_id = coalesce(run_id, :r), "
-                    "pr_tie_pushes = CAST(:tp AS jsonb) "
+                    "UPDATE pull_requests SET run_id = coalesce(run_id, :r), head_sha = :h, "
+                    "pr_updated_at = greatest(pr_updated_at, CAST(:u AS timestamptz)), "
+                    "pr_last_action = :a, pr_tie_pushes = CAST(:tp AS jsonb) "
                     "WHERE repo_id = CAST(:p AS uuid) AND number = :n"
                 ),
-                {**key, "r": run_id, "tp": json.dumps(pushes)},
+                {
+                    **key,
+                    "r": run_id,
+                    "h": new_head,
+                    "u": new_u,
+                    "a": la,
+                    "tp": json.dumps(pushes),
+                },
             )
+            if state == "merged":
+                conn.execute(
+                    text(
+                        "UPDATE pull_requests SET merged_at = coalesce(merged_at, :t) "
+                        "WHERE repo_id = CAST(:p AS uuid) AND number = :n"
+                    ),
+                    {**key, "t": t},
+                )
     if applies or state == "open":
         # A superseded close is not recorded; opened_at (coalesce, from created_at) always is.
         conn.execute(
