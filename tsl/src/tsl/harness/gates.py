@@ -743,6 +743,7 @@ def run_all(ci: CheckInput, h3_result: GateResult | None) -> CheckRun:
         },
         frozenset(((ci.state or {}).get("questions") or {}).get("answered_sha256", {}) or {}),
         code_added=code_added(ci),
+        repos=frozenset(ci.repos),
     )
     skill_checks = run_declared(env, ci.skill.checks if ci.skill and ci.art.doc else None)
     g: dict[str, GateResult] = {}

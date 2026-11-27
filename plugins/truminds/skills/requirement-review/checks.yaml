@@ -27,7 +27,7 @@ checks:
     - {list: assumed, equals: "requirements[?status=='assumed'].id", section: Assumed}
     - {list: unknown, equals: "unknowns[].id", section: Unknown}
     - {list: trace, equals: "requirements[].id", section: Requirements}
-- id: RR-C05                                             # every requirement and claim has >= 1 cite inside the declared inputs or context/**
+- id: RR-C05                                             # every requirement and claim has >= 1 cite inside the declared inputs, context/** or product code (<repo>:<path>, resolved by H5)
   uses: cites.present
   gate: H5
   with:
@@ -43,10 +43,10 @@ checks:
   with:
     fields: ["requirements[].statement"]
     allow_status: [assumed, unknown]
-- id: RR-C08                                             # every unknown links to a question; questions complete; blocking => default null
+- id: RR-C08                                             # every unknown links to a question; questions complete; blocking => default null; a default cites code, PRD, context or an answer
   uses: questions.linked
   gate: H2
-  with: {require: [ask, why, evidence], blocking_default_null: true}
+  with: {require: [ask, why, evidence], blocking_default_null: true, default_sourced: true}
 - id: RR-C09                                             # every assumed requirement has a basis and a cite
   uses: assumed.basis
   gate: H2

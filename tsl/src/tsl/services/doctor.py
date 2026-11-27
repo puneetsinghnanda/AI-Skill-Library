@@ -88,6 +88,43 @@ def _open_states(comp: Any) -> list[dict[str, Any]]:
     return out
 
 
+EXPIRED = "your sign-in has expired or was revoked"
+
+
+def _live_login(rt: Runtime, cid: str, unreachable: str) -> dict[str, str]:
+    """Ask the service whether it accepts this laptop's sign-in. A saved token is not enough: it
+    may have expired or been revoked. On a 401 the token is refreshed once, as fetch_me does (for
+    GitHub that deletes a token GitHub rejects). ``unreachable`` is the status when the service or
+    the provider cannot be reached: warn for plain doctor, fail for --run."""
+    from tsl.insights.client import InsightsUnavailable
+
+    try:
+        tok = rt.token()
+    except TslError as exc:
+        return _chk(cid, "fail", f"no saved sign-in ({exc.message})", "tsl login")
+    try:
+        res = rt.insights.get_me(tok)
+        if res.status == 401:
+            try:
+                tok = rt.identity().silent_token(force_refresh=True)
+            except TslError as exc:
+                if exc.code == "E-AUTH-01":
+                    return _chk(cid, "fail", EXPIRED, "tsl login")
+                return _chk(cid, unreachable, exc.message, "Repeat in a minute")
+            res = rt.insights.get_me(tok)
+    except InsightsUnavailable as exc:
+        return _chk(cid, unreachable, f"service not reachable ({exc})", "Repeat in a minute")
+    if res.status == 200:
+        return _chk(cid, "pass", f"provider {rt.org.provider}")
+    if res.status == 401:
+        return _chk(cid, "fail", EXPIRED, "tsl login")
+    if res.status == 403:
+        return _chk(
+            cid, "fail", "signed in, but no Truminds role yet", "Ask an admin to grant you a role"
+        )
+    return _chk(cid, unreachable, f"the service answered HTTP {res.status}", "Repeat in a minute")
+
+
 def _run_checks(rt: Runtime, cwd: Path) -> list[dict[str, str]]:
     """Run-readiness checks (tsl doctor --run): everything that has stopped real runs part-way.
     Live: the service must accept this laptop's sign-in and key, clones must match GitHub."""
@@ -106,23 +143,8 @@ def _run_checks(rt: Runtime, cwd: Path) -> list[dict[str, str]]:
         )
     )
     if awake:
-        try:
-            res = rt.insights.get_me(rt.token())
-            ok = res.status == 200
-            checks.append(
-                _chk(
-                    "sign-in-live",
-                    "pass" if ok else "fail",
-                    "the service accepts your sign-in"
-                    if ok
-                    else f"the service refused your sign-in (HTTP {res.status})",
-                    "tsl login",
-                )
-            )
-        except TslError as exc:
-            checks.append(_chk("sign-in-live", "fail", exc.message, "tsl login"))
-        except Exception as exc:  # network trouble after waking
-            checks.append(_chk("sign-in-live", "fail", type(exc).__name__, "Repeat in a minute"))
+        # The service may have been asleep during plain doctor's login check: ask again now.
+        checks.append(_live_login(rt, "sign-in-live", unreachable="fail"))
         info = active_info(rt) or {}
         try:
             # Read the service's copy, not a local cache: approvals are verified against it.
@@ -307,11 +329,23 @@ def doctor(
         checks.append(_chk("keychain", "pass"))
     except TslError:
         checks.append(_chk("keychain", "fail", "no allowed keyring backend", "See SDD-07 §4.3"))
-    try:
-        rt.token()
-        checks.append(_chk("login", "pass", f"provider {rt.org.provider}"))
-    except TslError:
-        checks.append(_chk("login", "fail", "no silent token", "tsl login"))
+    service_up = rt.insights.health()
+    checks.append(_chk("service", "pass" if service_up else "warn", "", "Check the network"))
+    if service_up:
+        checks.append(_live_login(rt, "login", unreachable="warn"))
+    else:
+        try:
+            rt.token()
+            checks.append(
+                _chk(
+                    "login",
+                    "warn",
+                    "sign-in saved, but the service is not reachable to confirm it",
+                    "Open the portal URL to wake the service, then repeat",
+                )
+            )
+        except TslError as exc:
+            checks.append(_chk("login", "fail", f"no saved sign-in ({exc.message})", "tsl login"))
     from tsl.identity.keys import active_info, load_signer
 
     info = active_info(rt)
@@ -324,9 +358,6 @@ def doctor(
             checks.append(_chk("key", "pass", str((info or {}).get("key_id"))))
     except TslError as exc:
         checks.append(_chk("key", "fail", exc.code, "tsl login"))
-    checks.append(
-        _chk("service", "pass" if rt.insights.health() else "warn", "", "Check the network")
-    )
     stats = rt.outbox().stats()
     age = rt.outbox().oldest_pending_age()
     ok = stats["dead"] == 0 and (age is None or age < timedelta(hours=24))
