@@ -298,12 +298,12 @@ OTel carries no `run_id`. The join is `session.id` → `run_sessions` → run (�
 
 | GitHub event | Columns updated |
 | --- | --- |
-| `pull_request` opened / reopened / ready_for_review | `state='open'`, `draft`, `opened_at`, `head_sha`, `run_id` |
+| `pull_request` opened / reopened / ready_for_review / synchronize | `state='open'`, `draft`, `opened_at`, `head_sha` (synchronize moves it to the pushed head), `run_id` |
 | `pull_request` closed | `state='merged'` + `merged_at` if `merged=true`, else `state='closed'` + `closed_at` |
 | `pull_request_review` submitted | `review_count+1`, `first_review_at` if null, `changes_requested=true` when state is `changes_requested` |
 | `pull_request_review_comment` created | `review_comments+1` (no text) |
 | `check_run` completed, name `tsl-ci-verify` | `ci_checks` row for (repo, head_sha): `result` from `conclusion`; join to PR by `head_sha` |
-| `check_run` completed, name matching `CI_CHECK_NAMES` (comma-separated, case-sensitive globs, empty by default; the product repo's own CI, e.g. `build`) | `product_ci_checks` row for (repo, head_sha, check name), only when `head_sha` belongs to a tracked PR; a newer `completed_at` replaces an older one; `skipped`, `neutral`, `cancelled` and `stale` are ignored. Not a harness verification: `mv_ci_daily` does not read it. The run view shows a PR's CI as the harness result if any, else any failing product check fails |
+| `check_run` created / completed, name matching `CI_CHECK_NAMES` (comma-separated, case-sensitive globs, empty by default; the product repo's own CI, e.g. `build`) | `product_ci_checks` row per (repo, head_sha, check name) for every system repo with that GitHub name, whether or not the PR row exists yet: `pending` on `created`, `pass`/`fail` on `completed`; a newer event replaces an older one only; `skipped`, `neutral`, `cancelled`, `stale` and `action_required` record nothing and clear a pending row. Not a harness verification: `mv_ci_daily` does not read it. A PR's CI status, by its current `head_sha` (moved by `synchronize`): any failure (harness or product) fails it, a pending product check keeps it pending, else a harness or product pass passes it. Rows go after `RETENTION_RUNS_MONTHS` |
 
 The webhook is installed on product repos only with client consent (E-CONS-01). GitHub must reach this endpoint from the internet, which conflicts with an intranet-only host; see Open items.
 

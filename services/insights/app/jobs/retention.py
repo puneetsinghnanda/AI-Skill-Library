@@ -101,6 +101,14 @@ def run(s: Settings) -> dict[str, Any]:
             {"d": s.retention_webhook_days},
         ).rowcount
         out["runs"] = rollup_and_delete_runs(conn, s.retention_runs_months)
+        # Product CI results are keyed by head, not run: drop them after the same period.
+        out["product_ci_checks"] = conn.execute(
+            text(
+                "DELETE FROM product_ci_checks WHERE checked_at < now() - make_interval(months "
+                "=> :m)"
+            ),
+            {"m": s.retention_runs_months},
+        ).rowcount
         out["audit_log"] = conn.execute(
             text("SELECT insights_purge_audit_log(now() - make_interval(months => :m))"),
             {"m": max(24, s.audit_retention_months)},
