@@ -6,6 +6,8 @@ A step normally runs in the main session: the run loop invokes its skill, whose 
 
 - the skill's SKILL.md body, with the preamble replaced by the same --inputs data, so the
   subagent follows the same instructions as the main session would;
+- the product clones on this laptop and the run's branch in each (the main session knows them
+  from the earlier steps);
 - the run's open questions (the main session gets them from `tsl next`);
 - with context "full", the step's context sections and this run's answers, preloaded. With
   "artifacts" the subagent reads them itself, as the skill says.
@@ -72,6 +74,7 @@ def build(rt: Runtime, comp: Companion, artifact: str, context: str) -> dict[str
     with run.store.local_lock():
         run.store.update(mark)
 
+    repos = _product_repos(comp, run.state)
     open_q = questions_md.unanswered(comp.path(run.questions_rel()), run.run_id)
     parts = [
         f"{HEADER}: {step} (attempt {n}) of run {run.run_id}",
@@ -86,8 +89,23 @@ def build(rt: Runtime, comp: Companion, artifact: str, context: str) -> dict[str
         "",
         "---",
         "",
-        "## Open questions of this run",
+        "## Product repos",
     ]
+    if repos:
+        parts.append(
+            "The product code is in these clones; <repo> is the name used in citations "
+            "(<repo>:<path>#L<n>). Read and edit them by these paths. Never search the "
+            "companion repo for them."
+        )
+        for r in repos:
+            line = f"- {r['repo']}: {r['path']}"
+            if r.get("branch"):
+                line += f" (branch {r['branch']}, base {r['base_sha']}"
+                line += f", last passed step at {r['head_sha']})" if r.get("head_sha") else ")"
+            parts.append(line)
+    else:
+        parts.append("None on this laptop (.tsl/local.yaml lists no clone).")
+    parts += ["", "## Open questions of this run"]
     if open_q:
         parts.append("Still unanswered. Do not raise them again; to refer to one, cite its cite.")
         parts += [f"- {q['id']} ({q['cite']}): {q['question']}" for q in open_q]
@@ -102,9 +120,27 @@ def build(rt: Runtime, comp: Companion, artifact: str, context: str) -> dict[str
         "attempt": n,
         "artifact_path": data["artifact_path"],
         "runner": runner,
+        "product_repos": repos,
         "preloaded": loaded,
         "brief": "\n".join(parts) + "\n",
     }
+
+
+def _product_repos(comp: Companion, state: dict[str, Any]) -> list[dict[str, Any]]:
+    """Each product clone on this laptop, with the run's branch in it when there is one.
+
+    The main session knows these from the earlier steps; a forked step does not, and searching
+    the companion repo for them is refused (it takes in other runs' files).
+    """
+    branches = state.get("branch") or {}
+    out: list[dict[str, Any]] = []
+    for name, path in sorted(comp.local_paths().items()):
+        r: dict[str, Any] = {"repo": name, "path": path.as_posix()}
+        b = branches.get(name)
+        if b:
+            r.update(branch=b["name"], base_sha=b["base_sha"], head_sha=b.get("head_sha"))
+        out.append(r)
+    return out
 
 
 def _preloaded(comp: Companion, run_id: str, sk: Any, loaded: list[dict[str, Any]]) -> list[str]:

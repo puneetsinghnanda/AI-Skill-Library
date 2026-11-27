@@ -83,6 +83,21 @@ def test_full_context_preloads_sections_within_budget(world: World) -> None:
         assert f"### {p['path']}" in data["brief"]
 
 
+def test_brief_names_the_product_clones_in_both_contexts(world: World) -> None:
+    _run_id, _step, art = _open_first_step(world)
+    for context in ("artifacts", "full"):
+        code, out, _t, err = world.cli(
+            ["step", "brief", art, "--context", context, "--json"], session=SESSION
+        )
+        assert code == 0 and out is not None, err
+        data = out["data"]
+        assert "## Product repos" in data["brief"]
+        assert [r["repo"] for r in data["product_repos"]] == ["sample-orders"]
+        for r in data["product_repos"]:
+            assert f"- {r['repo']}: {r['path']}" in data["brief"]
+        assert "Never search the companion repo" in data["brief"]
+
+
 def test_unknown_context_is_a_usage_error(world: World) -> None:
     run_id = start_run(world)
     _c, env = next_action(world, run_id)
