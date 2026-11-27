@@ -26,6 +26,17 @@ from app.timeutil import iso, utcnow
 
 router = APIRouter(tags=["read"])
 RUN_ID = r"^run_[0-9A-HJKMNP-TV-Z]{26}$"
+# A PR's CI status (`pr` aliases pull_requests): the harness verification when there is one
+# (`ci.verified` event before the tsl-ci-verify webhook); else the product repo's own checks,
+# where any failing check wins. NULL (portal: "CI pending") while nothing has reported.
+CI_RESULT_SQL = (
+    "coalesce("
+    "(SELECT c.result FROM ci_checks c WHERE c.repo_id = pr.repo_id AND c.head_sha = pr.head_sha"
+    " ORDER BY (c.source = 'event') DESC, c.checked_at DESC LIMIT 1), "
+    "(SELECT CASE WHEN bool_or(p.result = 'fail') THEN 'fail' ELSE 'pass' END "
+    "FROM product_ci_checks p WHERE p.repo_id = pr.repo_id AND p.head_sha = pr.head_sha "
+    "HAVING count(*) > 0))"
+)
 STATUS_FILTERS = {
     "open": "r.status <> 'COMPLETED'",
     "RUNNING": "r.status = 'RUNNING'",
@@ -333,11 +344,7 @@ def run_detail(
         prs = conn.execute(
             text(
                 "SELECT pr.number, pr.state, pr.draft, pr.head_sha, sr.name AS repo, "
-                "sr.github_full_name, "
-                "(SELECT c.result FROM ci_checks c WHERE c.repo_id = pr.repo_id AND c.head_sha = "
-                ""
-                "pr.head_sha "
-                " ORDER BY (c.source = 'event') DESC, c.checked_at DESC LIMIT 1) AS ci_result "
+                f"sr.github_full_name, {CI_RESULT_SQL} AS ci_result "
                 "FROM pull_requests pr JOIN system_repos sr ON sr.id = pr.repo_id WHERE "
                 "pr.run_id = "
                 ""

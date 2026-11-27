@@ -7,6 +7,7 @@ never stored); 6. upsert in the same transaction.
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import re
 import time
@@ -149,11 +150,61 @@ def _review(conn: Connection, event: str, payload: dict[str, Any], repos: Sequen
     return "stored" if n else "ignored"
 
 
+# A product check that ended like this says nothing about the change (skipped by `if:` or a
+# path filter, superseded, cancelled): record nothing rather than a failure.
+NO_RESULT = {"skipped", "neutral", "cancelled", "stale"}
+
+
+def ci_check_patterns(s: Settings) -> list[str]:
+    return [n.strip() for n in s.ci_check_names.split(",") if n.strip()]
+
+
+def _product_check(conn: Connection, cr: dict[str, Any], name: str, repos: Sequence[Any]) -> str:
+    """The product repo's own CI job, one row per check name (product_ci_checks).
+
+    Stored only for a head that belongs to a PR we track, under that PR's repo; never as a
+    harness verification. A later completion of the same check replaces an older one only.
+    """
+    if cr.get("conclusion") in NO_RESULT:
+        return "ignored"
+    head = str(cr.get("head_sha") or "")
+    pr = conn.execute(
+        text(
+            "SELECT repo_id::text AS repo_id, number FROM pull_requests "
+            "WHERE repo_id = ANY(CAST(:ids AS uuid[])) AND head_sha = :h LIMIT 1"
+        ),
+        {"ids": [r.id for r in repos], "h": head},
+    ).first()
+    if pr is None:
+        return "ignored"
+    conn.execute(
+        text(
+            "INSERT INTO product_ci_checks (repo_id, head_sha, check_name, number, result, "
+            "checked_at) VALUES (CAST(:p AS uuid), :h, :c, :n, :res, :t) "
+            "ON CONFLICT (repo_id, head_sha, check_name) DO UPDATE SET "
+            "number = EXCLUDED.number, result = EXCLUDED.result, checked_at = EXCLUDED.checked_at "
+            "WHERE product_ci_checks.checked_at <= EXCLUDED.checked_at"
+        ),
+        {
+            "p": pr.repo_id,
+            "h": head,
+            "c": name[:200],
+            "n": pr.number,
+            "res": "pass" if cr.get("conclusion") == "success" else "fail",
+            "t": _ts(cr.get("completed_at")),
+        },
+    )
+    return "stored"
+
+
 def _check_run(
-    conn: Connection, payload: dict[str, Any], repos: Sequence[Any], names: set[str]
+    conn: Connection, payload: dict[str, Any], repos: Sequence[Any], patterns: list[str]
 ) -> str:
     cr = payload.get("check_run") or {}
-    if cr.get("name") not in names:
+    name = str(cr.get("name") or "")
+    if name != "tsl-ci-verify":
+        if any(fnmatch.fnmatchcase(name, p) for p in patterns):
+            return _product_check(conn, cr, name, repos)
         return "ignored"
     head = str(cr.get("head_sha") or "")
     prs = cr.get("pull_requests") or []
@@ -245,8 +296,7 @@ def handle(
             elif event in ("pull_request_review", "pull_request_review_comment"):
                 result, status = _review(conn, event, payload, repos), 200
             else:
-                names = {n.strip() for n in s.ci_check_names.split(",") if n.strip()}
-                result, status = _check_run(conn, payload, repos, names), 200
+                result, status = _check_run(conn, payload, repos, ci_check_patterns(s)), 200
         conn.execute(
             text(
                 "UPDATE webhook_deliveries SET result = :r, repo_full_name = :g WHERE "

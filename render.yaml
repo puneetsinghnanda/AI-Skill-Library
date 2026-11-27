@@ -25,6 +25,8 @@ services:
         value: puneetsinghnanda/AI-Skill-Library
       - key: VITE_MARKETPLACE_REPO_URL
         value: https://github.com/puneetsinghnanda/AI-Skill-Library
+      - key: CI_CHECK_NAMES                   # sample-health-mgmt-app ci.yml: job `build`
+        value: build
       # Entered once in the Render dashboard (never in git)
       - key: DATABASE_URL                     # Neon direct connection string (not -pooler)
         sync: false

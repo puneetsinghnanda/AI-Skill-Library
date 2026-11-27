@@ -107,9 +107,11 @@ class Settings(BaseSettings):
     schemas_dir: Path = DEFAULT_SCHEMAS_DIR
     catalogue_source_dir: Path | None = None  # checked-out release tree for catalogue sync
     marketplace_repo: str = ""  # org/repo of the skill library; release webhooks come from it
-    # check_run names whose result the portal shows as the PR's CI status. Comma-separated.
-    # `build` is the job of the product repos' ci.yml; tsl-ci-verify is the harness action.
-    ci_check_names: str = "tsl-ci-verify,build"
+    # The product repos' own CI check runs, shown as a PR's CI status when it has no harness
+    # (tsl-ci-verify) result. Comma-separated, case-sensitive glob patterns matched against the
+    # whole check_run name, e.g. "build" for the job `build`, "ci / build*" for a reusable or
+    # matrix job. Empty: none. Never counted as harness verifications (product_ci_checks).
+    ci_check_names: str = ""
 
     # --- Retention (SDD-08 §8.2; OQ-08, RD-4) ---
     retention_events_months: int = 13

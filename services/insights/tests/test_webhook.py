@@ -239,34 +239,101 @@ def test_pr_opened_before_webhook(
     assert rows == 1 and ci.result == "pass" and ci.source == "webhook"
 
 
-def test_product_ci_check_run(client: TestClient, hook: int, owner_db: Engine) -> None:
-    """The product repo's own CI job (`build`) sets the PR's CI status; other checks do not."""
+def _sha() -> str:
+    return f"{random.getrandbits(160):040x}"
 
-    def check(name: str, head: str, conclusion: str) -> dict[str, Any]:
-        return {
-            "action": "completed",
-            "repository": {"full_name": "example-org/orders-api"},
-            "check_run": {
-                "name": name,
-                "head_sha": head,
-                "conclusion": conclusion,
-                "completed_at": now_iso(),
-                "pull_requests": [],
-            },
-        }
 
-    build, other = f"{random.getrandbits(160):040x}", f"{random.getrandbits(160):040x}"
-    assert send(client, "check_run", check("build", build, "failure")).status_code == 200
-    assert send(client, "check_run", check("lint", other, "success")).status_code == 200
+def _open_pr(client: TestClient, head: str) -> int:
+    n = random.randint(100_000, 999_999)
+    body = f"<!-- tsl:run_id={new_run()} -->"
+    assert send(client, "pull_request", pr_payload("opened", n, body, head=head)).status_code == 200
+    return n
+
+
+def _check(name: str, head: str, conclusion: str, at: str | None = None) -> dict[str, Any]:
+    return {
+        "action": "completed",
+        "repository": {"full_name": "example-org/orders-api"},
+        "check_run": {
+            "name": name,
+            "head_sha": head,
+            "conclusion": conclusion,
+            "completed_at": at or now_iso(),
+            "pull_requests": [],
+        },
+    }
+
+
+def _ci(owner_db: Engine, n: int) -> tuple[str | None, int, int]:
+    """(the PR's CI status as the run page reads it, product rows, harness rows) for PR n."""
+    from app.api.v1.read.runs import CI_RESULT_SQL
+
     with owner_db.connect() as c:
-        got = {
-            r.head_sha: r.result
-            for r in c.execute(
-                text("SELECT head_sha, result FROM ci_checks WHERE head_sha IN (:a, :b)"),
-                {"a": build, "b": other},
-            )
-        }
-    assert got == {build: "fail"}
+        pr = c.execute(
+            text(
+                f"SELECT pr.head_sha, {CI_RESULT_SQL} AS ci FROM pull_requests pr WHERE number = :n"
+            ),
+            {"n": n},
+        ).one()
+        prod = c.execute(
+            text("SELECT count(*) FROM product_ci_checks WHERE head_sha = :h"), {"h": pr.head_sha}
+        ).scalar_one()
+        harness = c.execute(
+            text("SELECT count(*) FROM ci_checks WHERE head_sha = :h"), {"h": pr.head_sha}
+        ).scalar_one()
+    return pr.ci, prod, harness
+
+
+def test_product_checks_set_ci_status_and_any_failure_wins(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    """Two product checks on one head keep their own rows; a failure is not hidden by a pass."""
+    head = _sha()
+    n = _open_pr(client, head)
+    assert _ci(owner_db, n) == (None, 0, 0)  # nothing reported yet: "CI pending"
+    send(client, "check_run", _check("build", head, "failure", now_iso(-60)))
+    send(client, "check_run", _check("ci / build (3.11)", head, "success"))
+    assert _ci(owner_db, n) == ("fail", 2, 0)  # never stored as a harness verification
+    send(client, "check_run", _check("build", head, "success"))  # the build is re-run and passes
+    assert _ci(owner_db, n) == ("pass", 2, 0)
+
+
+def test_older_product_result_never_replaces_a_newer_one(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    head = _sha()
+    n = _open_pr(client, head)
+    send(client, "check_run", _check("build", head, "failure"))
+    send(client, "check_run", _check("build", head, "success", now_iso(-600)))  # late delivery
+    assert _ci(owner_db, n) == ("fail", 1, 0)
+
+
+def test_skipped_unlisted_and_untracked_checks_record_nothing(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    head = _sha()
+    n = _open_pr(client, head)
+    for conclusion in ("skipped", "neutral", "cancelled", "stale"):
+        assert send(client, "check_run", _check("build", head, conclusion)).status_code == 200
+    send(client, "check_run", _check("lint", head, "failure"))  # not in CI_CHECK_NAMES
+    send(client, "check_run", _check("Build", head, "failure"))  # names are case-sensitive
+    assert _ci(owner_db, n) == (None, 0, 0)
+    other = _sha()  # a head on no tracked PR (a branch without a PR) is not stored anywhere
+    send(client, "check_run", _check("build", other, "failure"))
+    with owner_db.connect() as c:
+        assert not c.execute(
+            text("SELECT count(*) FROM product_ci_checks WHERE head_sha = :h"), {"h": other}
+        ).scalar_one()
+
+
+def test_harness_result_wins_over_product_checks(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    head = _sha()
+    n = _open_pr(client, head)
+    send(client, "check_run", _check("build", head, "success"))
+    send(client, "check_run", _check("tsl-ci-verify", head, "failure"))
+    assert _ci(owner_db, n) == ("fail", 1, 1)
 
 
 def test_ignored_and_unknown_repo(client: TestClient, hook: int) -> None:

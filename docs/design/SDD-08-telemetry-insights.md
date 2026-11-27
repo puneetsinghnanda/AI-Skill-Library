@@ -303,6 +303,7 @@ OTel carries no `run_id`. The join is `session.id` → `run_sessions` → run (�
 | `pull_request_review` submitted | `review_count+1`, `first_review_at` if null, `changes_requested=true` when state is `changes_requested` |
 | `pull_request_review_comment` created | `review_comments+1` (no text) |
 | `check_run` completed, name `tsl-ci-verify` | `ci_checks` row for (repo, head_sha): `result` from `conclusion`; join to PR by `head_sha` |
+| `check_run` completed, name matching `CI_CHECK_NAMES` (comma-separated, case-sensitive globs, empty by default; the product repo's own CI, e.g. `build`) | `product_ci_checks` row for (repo, head_sha, check name), only when `head_sha` belongs to a tracked PR; a newer `completed_at` replaces an older one; `skipped`, `neutral`, `cancelled` and `stale` are ignored. Not a harness verification: `mv_ci_daily` does not read it. The run view shows a PR's CI as the harness result if any, else any failing product check fails |
 
 The webhook is installed on product repos only with client consent (E-CONS-01). GitHub must reach this endpoint from the internet, which conflicts with an intranet-only host; see Open items.
 
@@ -809,6 +810,12 @@ CREATE TABLE ci_checks (
   result text NOT NULL CHECK (result IN ('pass','fail')), codes text[] NOT NULL DEFAULT '{}',
   source text NOT NULL CHECK (source IN ('event','webhook')), checked_at timestamptz NOT NULL,
   PRIMARY KEY (repo_id, head_sha, source));
+
+CREATE TABLE product_ci_checks (                           -- the product repo's own CI (CI_CHECK_NAMES)
+  repo_id uuid NOT NULL REFERENCES system_repos, head_sha text NOT NULL,
+  check_name text NOT NULL, number int,
+  result text NOT NULL CHECK (result IN ('pass','fail')), checked_at timestamptz NOT NULL,
+  PRIMARY KEY (repo_id, head_sha, check_name));
 
 CREATE TABLE run_usage (                                   -- from OTel, attributed per §7.2
   run_id text PRIMARY KEY REFERENCES runs,
