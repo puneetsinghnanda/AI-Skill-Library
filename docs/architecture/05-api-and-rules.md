@@ -386,10 +386,11 @@ Managed settings turn on Claude Code's OTel export to the Truminds collector. Th
 
 | GitHub event | Actions used | Stored as | Join key |
 | --- | --- | --- | --- |
-| `pull_request` | opened, reopened, ready\_for\_review, closed (merged true/false) | `pull_request` row state, opened\_at, merged\_at | `<!-- tsl:run_id=... -->` in PR body |
+| `pull_request` | opened, reopened, ready\_for\_review, synchronize (moves the head SHA), closed (merged true/false) | `pull_request` row state, opened\_at, merged\_at | `<!-- tsl:run_id=... -->` in PR body |
 | `pull_request_review` | submitted (approved, changes\_requested) | review count, first review time | repo + PR number |
 | `pull_request_review_comment` | created | count only (no text) | repo + PR number |
-| `check_run` | completed (name `tsl-ci-verify`) | ci result | repo + head SHA |
+| `check_run` | completed (name `tsl-ci-verify`); runs without a result are dropped | ci result | repo + head SHA |
+| `check_run` | created, completed (name matching `CI_CHECK_NAMES`, the product repo's own CI) | one row per check run (`check_run.id`); a check is one job of one workflow run (app, check suite, name) and its newest run decides; runs with no conclusion or skipped, neutral, cancelled, stale or action_required give no result; any failing check fails the PR's CI, a newer run still running (queued within `CI_PENDING_MAX_HOURS`, default 30) keeps it pending; never a harness verification | repo + head SHA |
 
 Rules: verify `X-Hub-Signature-256` with the shared secret; reject otherwise (401). Idempotency by `X-GitHub-Delivery` id. PRs without a `tsl:run_id` marker are counted only as "PR without run" (feeds E-CI-01 adoption metric), no other data stored. Installed on product repos only with client consent (E-CONS-01).
 

@@ -233,6 +233,7 @@ def settings(pg: PG, signing: Keys) -> Settings:
         schemas_dir=ROOT / "schemas",
         otel_allowlist_file=SERVICE / "tests" / "fixtures" / "otel_allowlist.yaml",
         marketplace_repo="example-org/skill-library",
+        ci_check_names="build, ci / build*",
         view_refresh_interval_s=300,
     )
     return s

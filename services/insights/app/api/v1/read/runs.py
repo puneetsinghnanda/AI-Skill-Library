@@ -26,6 +26,10 @@ from app.timeutil import iso, utcnow
 
 router = APIRouter(tags=["read"])
 RUN_ID = r"^run_[0-9A-HJKMNP-TV-Z]{26}$"
+# A PR's CI status (`pr` aliases pull_requests) at its current head: insights_pr_ci_result()
+# (migration 0008) combines the harness verification with the product repo's own CI runs.
+# Bind :ci_pending_hours to Settings.ci_pending_max_hours.
+CI_RESULT_SQL = "insights_pr_ci_result(pr.repo_id, pr.head_sha, :ci_pending_hours)"
 STATUS_FILTERS = {
     "open": "r.status <> 'COMPLETED'",
     "RUNNING": "r.status = 'RUNNING'",
@@ -398,17 +402,13 @@ def run_detail(
         prs = conn.execute(
             text(
                 "SELECT pr.number, pr.state, pr.draft, pr.head_sha, sr.name AS repo, "
-                "sr.github_full_name, "
-                "(SELECT c.result FROM ci_checks c WHERE c.repo_id = pr.repo_id AND c.head_sha = "
-                ""
-                "pr.head_sha "
-                " ORDER BY (c.source = 'event') DESC, c.checked_at DESC LIMIT 1) AS ci_result "
+                f"sr.github_full_name, {CI_RESULT_SQL} AS ci_result "
                 "FROM pull_requests pr JOIN system_repos sr ON sr.id = pr.repo_id WHERE "
                 "pr.run_id = "
                 ""
                 ":id ORDER BY pr.number"
             ),
-            {"id": run_id},
+            {"id": run_id, "ci_pending_hours": s.ci_pending_max_hours},
         ).all()
         usage = conn.execute(
             text("SELECT * FROM run_usage WHERE run_id = :id"), {"id": run_id}

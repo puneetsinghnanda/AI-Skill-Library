@@ -298,11 +298,12 @@ OTel carries no `run_id`. The join is `session.id` → `run_sessions` → run (�
 
 | GitHub event | Columns updated |
 | --- | --- |
-| `pull_request` opened / reopened / ready_for_review | `state='open'`, `draft`, `opened_at`, `head_sha`, `run_id` |
+| `pull_request` opened / reopened / ready_for_review / synchronize | `state='open'` (only `reopened` reopens a closed PR; a merged PR never changes), `draft`, `opened_at` and `closed_at` (always recorded, whatever the delivery order, also for a close a later reopen superseded), `head_sha`, `run_id`. Ordered by `pull_request.updated_at` (stored in `pr_updated_at`) with the row locked: an older event changes nothing (on a merge tsl pr-sync recorded first, with no head, the newest webhook's head stands in until the webhook merge, whose head and `merged_at` are final; a tsl close records `closed_at` as `pr_updated_at` and `pr_last_action = 'closed'`, so a push from before it can't reopen the PR, and it leaves open a PR whose newest webhook event is newer than the close, compared at whole seconds, or in the same second when that event was a reopen) and a merge always applies. A newer push or ready_for_review opens a closed PR (GitHub sends them only for open PRs). On a tie (GitHub stamps whole seconds) a push applies only when its `before` is the stored head (a push that arrives before its predecessor waits in `pr_tie_pushes` and is followed once that one applies), a reopen applies (on an open PR it only records the reopen), a close applies unless a reopen was recorded in that second, a tied `opened` came late and is skipped, and other events keep the stored head, the reopen marker (`pr_last_action`) and a cleared `draft` |
 | `pull_request` closed | `state='merged'` + `merged_at` if `merged=true`, else `state='closed'` + `closed_at` |
 | `pull_request_review` submitted | `review_count+1`, `first_review_at` if null, `changes_requested=true` when state is `changes_requested` |
 | `pull_request_review_comment` created | `review_comments+1` (no text) |
-| `check_run` completed, name `tsl-ci-verify` | `ci_checks` row for (repo, head_sha): `result` from `conclusion`; join to PR by `head_sha` |
+| `check_run` completed, name `tsl-ci-verify` | `ci_checks` row for (repo, head_sha): `result` from `conclusion`, replaced only by a newer result (a failure in the same second); join to PR by `head_sha`, and before the PR row exists one row for every system repo with that GitHub name; once a PR takes that head, the copies in repos where no PR has it are deleted, so systems sharing a repo don't both count it. Not yet finished, or finished without a result (no conclusion, `skipped`, `neutral`, `cancelled`, `stale`, `action_required`): dropped (204) before any lookup |
+| `check_run` created / completed, name matching `CI_CHECK_NAMES` (comma-separated, case-sensitive globs, empty by default; the product repo's own CI, e.g. `build`); other names are dropped before any lookup | `product_ci_runs` row per GitHub check run (`check_run.id`) for every system repo with that GitHub name, whether or not the PR row exists yet: `created` adds it as `pending` (skipped without `started_at`), `completed` sets the conclusion; a check run only moves forward, so delivery order does not matter. Not a harness verification: `mv_ci_daily` does not read it. A PR's CI status, `insights_pr_ci_result(repo, head_sha, CI_PENDING_MAX_HOURS)` at its current head: a check is one job of one workflow run (app, `check_suite.id`, name), so the same job name in two workflows is two checks; its newest run decides (a newer run still running and queued within `CI_PENDING_MAX_HOURS`, default 30, makes it pending; else the newest run that finished with a result gives pass or fail; no conclusion, `skipped`, `neutral`, `cancelled`, `stale` and `action_required` are no result); any failure (harness or product) fails the PR until the failed run is re-run or a new commit is pushed, else any pending check keeps it pending, else a harness or product pass passes it. Rows go after `RETENTION_RUNS_MONTHS` (by `seen_at`) |
 
 The webhook is installed on product repos only with client consent (E-CONS-01). GitHub must reach this endpoint from the internet, which conflicts with an intranet-only host; see Open items.
 
@@ -467,7 +468,7 @@ Retention for events is OQ-08. The values below are the Doc 3 NFR-11 proposal (1
 | `events_raw`, `event_ids` | 13 months (`RETENTION_EVENTS_MONTHS`) | Monthly partition dropped |
 | `otel_events` | 90 days | Partition dropped; totals already in `run_usage` |
 | `webhook_deliveries` | 30 days | Deleted |
-| `runs`, `steps`, `check_records`, `questions`, `approvals`, `pull_requests`, `ci_checks`, `run_sessions`, `run_usage` | 13 months after `runs.updated_at` | `rollup` job writes `agg_monthly` and `agg_user_month` first, then deletes |
+| `runs`, `steps`, `check_records`, `questions`, `approvals`, `pull_requests`, `ci_checks`, `run_sessions`, `run_usage` | 13 months after `runs.updated_at` (`ci_checks` and `product_ci_runs`: 13 months after `checked_at` / `seen_at`) | `rollup` job writes `agg_monthly` (`ci_verified`, `ci_e_ci_01`..`03` for `ci_checks`, as `mv_ci_daily` counts them) and `agg_user_month` first, then deletes |
 | `agg_monthly`, `agg_user_month`, counter tables | Life of the service | No user identity apart from the pseudonymous `user_id` |
 | `audit_log` | 24 months | Deleted |
 | `users` | While active; erased on request | §8.1 |
@@ -813,6 +814,18 @@ CREATE TABLE ci_checks (
   result text NOT NULL CHECK (result IN ('pass','fail')), codes text[] NOT NULL DEFAULT '{}',
   source text NOT NULL CHECK (source IN ('event','webhook')), checked_at timestamptz NOT NULL,
   PRIMARY KEY (repo_id, head_sha, source));
+
+CREATE TABLE product_ci_runs (                             -- the product repo's own CI runs (CI_CHECK_NAMES)
+  repo_id uuid NOT NULL REFERENCES system_repos, check_run_id bigint NOT NULL,
+  head_sha text NOT NULL, check_name text NOT NULL,
+  suite_id bigint NOT NULL DEFAULT 0, app_id bigint NOT NULL DEFAULT 0,  -- check_suite.id, app.id
+  status text NOT NULL CHECK (status IN ('pending','completed')), conclusion text,  -- NULL: none
+  started_at timestamptz, completed_at timestamptz, seen_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (repo_id, check_run_id));                   -- indexes: (repo_id, head_sha), (seen_at)
+-- pull_requests.pr_updated_at timestamptz: newest pull_request.updated_at applied;
+--   pr_last_action text: the action that applied it; pr_tie_pushes jsonb: {before: after} (§6.1)
+-- insights_pr_ci_result(repo uuid, head text, pending_hours int DEFAULT 30)
+--   -> 'pass' | 'fail' | NULL: a PR's CI status (§6.1)
 
 CREATE TABLE run_usage (                                   -- from OTel, attributed per §7.2
   run_id text PRIMARY KEY REFERENCES runs,

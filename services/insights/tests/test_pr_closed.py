@@ -38,11 +38,14 @@ def test_pr_closed_marks_an_opened_pr_merged(
         client,
         tok,
         [
-            event("run.started", run_started(world.system), run_id),
+            # Distinct times: the projector claims by occurred_at, and a tie can project a PR
+            # event before run.started, which parks it for two minutes.
+            event("run.started", run_started(world.system), run_id, occurred=now_iso(-2)),
             event(
                 "pr.opened",
                 {"repo": world.repo, "number": n, "draft": True, "lowest_band": "High"},
                 run_id,
+                occurred=now_iso(-1),
             ),
             event(
                 "pr.closed",
@@ -73,7 +76,7 @@ def test_pr_closed_without_merge_never_unmerges(
         client,
         tok,
         [
-            event("run.started", run_started(world.system), run_id),
+            event("run.started", run_started(world.system), run_id, occurred=now_iso(-1)),
             event("pr.closed", {**closed, "merged": False}, run_id),
         ],
         strict=True,
