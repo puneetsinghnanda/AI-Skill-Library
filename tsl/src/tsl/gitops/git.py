@@ -296,28 +296,62 @@ class Git:
             dst = bk / "files" / rel
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(self.cwd / rel, dst)
-        manifest = {"files": files, "deleted": deleted, "untracked": untracked, "dropped": dropped}
+        # What the abort can put in a file: the branch's own version, or git's autostash. A
+        # repair that finishes an interrupted one restores only files still like that.
+        state = {}
+        for name in ("rebase-merge", "rebase-apply"):
+            d = self.git_dir() / name
+            for key in ("orig-head", "autostash"):
+                if (d / key).is_file():
+                    state[key] = (d / key).read_text(encoding="utf-8").strip()
+        manifest = {
+            "files": files,
+            "deleted": deleted,
+            "untracked": untracked,
+            "dropped": dropped,
+            "orig_head": state.get("orig-head"),
+            "autostash": state.get("autostash"),
+        }
         bk.mkdir(parents=True, exist_ok=True)
         (bk / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
         return manifest
 
-    def _put_back(self) -> dict[str, Any] | None:
+    def _untouched(self, manifest: dict[str, Any], rel: str) -> bool:
+        """The file is still what the abort left (the branch's version or the autostash's):
+        nothing has written it since, so the set-aside copy is the newer one."""
+        f = self.cwd / rel
+        now = f.read_bytes() if f.is_file() else None
+        for ref in (manifest.get("orig_head"), manifest.get("autostash")):
+            if ref and self.raw("show", f"{ref}:{rel}") == now:
+                return True
+        return now is None and bool(manifest.get("orig_head"))  # not in the branch either
+
+    def _put_back(self, only_untouched: bool = False) -> dict[str, Any] | None:
         """Copy the set-aside files back over what the abort restored (the newest version
         wins, also over an older autostashed copy), then remove the backup. None when there
-        is no backup."""
+        is no backup. only_untouched: finishing an interrupted repair, where tsl may have
+        written a file since the abort; that newer file is kept (listed in "kept")."""
         bk = self._backup_dir()
         mp = bk / "manifest.json"
         if not mp.is_file():
             return None
         manifest: dict[str, Any] = json.loads(mp.read_text(encoding="utf-8"))
+        kept: list[str] = []
         for rel in manifest["files"]:
+            if only_untouched and not self._untouched(manifest, rel):
+                kept.append(rel)
+                continue
             dst = self.cwd / rel
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(bk / "files" / rel, dst)
         for rel in manifest["deleted"]:
+            if only_untouched and not self._untouched(manifest, rel):
+                kept.append(rel)
+                continue
             with contextlib.suppress(OSError):
                 (self.cwd / rel).unlink()
         shutil.rmtree(bk, ignore_errors=True)
+        manifest["kept"] = kept
         return manifest
 
     def repair(self, branch: str) -> list[dict[str, str]]:
@@ -342,10 +376,13 @@ class Git:
                 )
         head = left["rebase"]
         if not head:
-            if self._put_back() is not None:  # an earlier repair died after its abort
-                done.append(
-                    {"what": "files", "detail": "put back files an interrupted repair kept"}
-                )
+            # An earlier repair died after its abort: finish it, but never over a file
+            # written since (Yash, #78).
+            if (back := self._put_back(only_untouched=True)) is not None:
+                detail = "put back files an interrupted repair kept"
+                if back["kept"]:
+                    detail += "; kept the newer " + ", ".join(back["kept"][:3])
+                done.append({"what": "files", "detail": detail})
             return done
         if head != f"refs/heads/{branch}":
             raise GitError(

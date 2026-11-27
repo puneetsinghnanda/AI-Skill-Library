@@ -6,7 +6,7 @@ disable-model-invocation: true
 allowed-tools: Bash(tsl *), Read, Grep, Glob, Write, Edit
 ---
 Run state from tsl (do not edit):
-!`tsl state start $0 $1 --ticket-file "$2" --json`
+!`tsl state start $0 $1 --ticket-file "$2" --json --exit-zero`
 
 If "ok" is false, show "message" and "next" to the user and stop.
 If "data.ticket_snapshot" is null, tell the user the run has no ticket text (they can pass a

@@ -6,7 +6,7 @@ disable-model-invocation: true
 allowed-tools: Bash(tsl *), Read, Grep, Glob, Write, Edit, AskUserQuestion
 ---
 Run state from tsl (do not edit):
-!`tsl state resume $0 --json`
+!`tsl state resume $0 --json --exit-zero`
 
 If "data.repaired" lists anything, tell the user in one line each what tsl repaired (a companion
 sync that did not finish, a stale git lock) before going on.

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import sys
+from typing import Any
 
 
 def _utf8_streams() -> None:
@@ -37,8 +38,6 @@ def main(argv: list[str] | None = None) -> None:
 
 
 def run_cli(args: list[str]) -> int:
-    import typer
-
     from tsl.cli import commands
     from tsl.cli.commands import app, render_error
 
@@ -46,7 +45,18 @@ def run_cli(args: list[str]) -> int:
     commands.FORCED["json"] = "--json" in args
     commands.FORCED["no_color"] = "--no-color" in args
     commands.FORCED["verbose"] = sum(a.count("v") for a in args if a in ("-v", "-vv"))
-    args = [a for a in args if a not in ("--json", "--no-color", "-v", "-vv")]
+    # --exit-zero: a skill's !`tsl ...` preamble. Claude Code refuses a skill whose preamble
+    # exits non-zero, so the model would never see the error; it reads "ok" and "code" from
+    # the envelope instead (D2, Yash on #78). One command, so Bash(tsl *) covers it.
+    exit_zero = "--exit-zero" in args
+    args = [a for a in args if a not in ("--json", "--no-color", "-v", "-vv", "--exit-zero")]
+    code = _run(app, args, commands, render_error)
+    return 0 if exit_zero else code
+
+
+def _run(app: Any, args: list[str], commands: Any, render_error: Any) -> int:
+    import typer
+
     try:
         rv = app(args=args, standalone_mode=False, prog_name="tsl")
         return int(rv or 0)
@@ -59,7 +69,7 @@ def run_cli(args: list[str]) -> int:
             sys.stdout.write(e.ctx.get_help() + "\n")  # type: ignore[attr-defined]
             return 0
         msg = e.format_message() if hasattr(e, "format_message") else str(e)
-        return render_error("E-USE-01", msg, bool(commands.FORCED["json"]), args)
+        return int(render_error("E-USE-01", msg, bool(commands.FORCED["json"]), args))
 
 
 Fn = "Callable[..., Any]"

@@ -404,3 +404,34 @@ def test_a_run_whose_verifier_is_running_is_not_stuck(world: World) -> None:
     assert _progress(world)["stuck"] is None
     lock.write_text("999999", encoding="utf-8")  # a dead process: no longer busy
     assert _progress(world)["stuck"] is not None
+
+
+# ---------------------------------------------------------- live review of #78 (Yash, 27 Nov)
+
+
+def test_a_preamble_call_exits_zero_and_still_says_what_failed(world: World) -> None:
+    # Claude Code refuses a skill whose !`...` preamble exits non-zero, so /truminds:resume never
+    # showed E-RUN-11 and never asked "Is that session closed?". --exit-zero keeps the envelope.
+    run_id = start_run(world)
+    next_action(world, run_id)
+    code, env, _, _ = world.cli(["state", "resume", run_id, "--json"], session=OTHER)
+    assert code != 0 and env is not None and env["code"] == "E-RUN-11"
+    code, env, _, _ = world.cli(["state", "resume", run_id, "--json", "--exit-zero"], session=OTHER)
+    assert code == 0 and env is not None and env["ok"] is False and env["code"] == "E-RUN-11"
+    assert env["data"]["holder"]["last_activity_at"]
+
+
+def test_finishing_an_interrupted_repair_never_overwrites_a_newer_file(tmp_path: Path) -> None:
+    # The repair died after its abort; tsl then wrote state.json again before the next sync.
+    work, other = _two_clones(tmp_path)
+    _half_sync(work, other)
+    (work / "runs" / "state.json").write_text('{"rev": 9}\n', encoding="utf-8")
+    (work / "runs" / "other.json").write_text("{}\n", encoding="utf-8")
+    g = Git(work)
+    g._set_aside()
+    g.run("rebase", "--abort")  # killed here
+    (work / "runs" / "state.json").write_text('{"rev": 10}\n', encoding="utf-8")  # newer
+    done = g.repair("main")
+    assert [d["what"] for d in done] == ["files"] and "runs/state.json" in done[0]["detail"]
+    assert (work / "runs" / "state.json").read_text(encoding="utf-8") == '{"rev": 10}\n'
+    assert (work / "runs" / "other.json").read_text(encoding="utf-8") == "{}\n"  # restored
