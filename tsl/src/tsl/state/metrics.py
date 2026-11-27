@@ -109,14 +109,18 @@ def files(main: Path) -> list[tuple[Path, bool]]:
 
 
 def read_calls(paths: Iterable[tuple[Path, bool]]) -> list[Call]:
-    """One Call per model message with usage; unreadable lines and files are skipped."""
-    calls: dict[tuple[str, str], Call] = {}
+    """One Call per model message with usage; unreadable lines and files are skipped.
+
+    Keyed on the message id alone: a message is written as several lines, and a resumed or
+    forked session copies earlier messages into its own file, so the same message can be in
+    two transcripts. API message ids are unique, so the id is one call wherever it appears."""
+    calls: dict[str, Call] = {}
     for path, sub in paths:
         try:
             lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
         except OSError:
             continue
-        for line in lines:
+        for n, line in enumerate(lines):
             if '"usage"' not in line:
                 continue
             try:
@@ -129,12 +133,13 @@ def read_calls(paths: Iterable[tuple[Path, bool]]) -> list[Call]:
             u, at = m.get("usage"), _ts(d.get("timestamp"))
             if not isinstance(u, dict) or at is None:
                 continue
-            mid = str(m.get("id") or d.get("requestId") or d.get("uuid") or len(calls))
+            mid = str(m.get("id") or d.get("requestId") or d.get("uuid") or f"{path}:{n}")
             model = str(m.get("model") or "")
-            calls[(str(path), mid)] = Call(
-                at=at,
+            first = calls.get(mid)
+            calls[mid] = Call(  # a later line of a message carries its final usage
+                at=min(first.at, at) if first else at,  # a copy cannot move it later
                 model=model if MODEL.match(model) else "",
-                subagent=sub,
+                subagent=first.subagent if first else sub,
                 tokens={k: _int(u.get(v)) for k, v in USAGE.items()},
             )
     return sorted(calls.values(), key=lambda c: c.at)
@@ -174,20 +179,35 @@ def tokens(calls: Iterable[Call], start: dt.datetime, end: dt.datetime) -> dict[
     return {"tokens": {**tot, "calls": n, "subagent_calls": subs}, "models": models}
 
 
-def attempt_wait_s(root: Path, run_id: str, step: str, attempt: int, now: str) -> int:
-    """The engineer's wait on IDE questions of this step attempt, in seconds (B2)."""
+def attempt_wait_s(
+    root: Path, run_id: str, step: str, attempt: int, now: str, start: str | None = None
+) -> int:
+    """The engineer's wait on IDE questions of this step attempt, in seconds (B2): the time
+    at least one of its questions was open, inside the attempt (start to now). Two questions
+    open at once (parallel agents) are one wait, not two."""
     from tsl.approvals import ide_questions
 
-    t_now = _ts(now)
-    total = 0
+    lo, hi = _ts(start), _ts(now)
+    spans: list[tuple[dt.datetime, dt.datetime]] = []
     for a in ide_questions.load(root, run_id)["asks"]:
         if (a.get("step"), a.get("attempt")) != (step, attempt):
             continue
         t0 = _ts(a.get("asked_at"))
-        t1 = _ts(a.get("answered_at") or a.get("closed_at")) or t_now
-        if t0 is not None and t1 is not None:
-            total += max(0, int((t1 - t0).total_seconds()))
-    return total
+        t1 = _ts(a.get("answered_at") or a.get("closed_at")) or hi
+        if t0 is None or t1 is None:
+            continue
+        t0, t1 = max(t0, lo) if lo else t0, min(t1, hi) if hi else t1
+        if t1 > t0:
+            spans.append((t0, t1))
+    total = 0.0
+    end: dt.datetime | None = None
+    for t0, t1 in sorted(spans):
+        if end is not None and t0 < end:
+            t0 = end  # overlaps the wait counted already
+        if t1 > t0:
+            total += (t1 - t0).total_seconds()
+            end = t1
+    return int(total)
 
 
 def for_attempt(
@@ -203,7 +223,9 @@ def for_attempt(
 ) -> dict[str, Any]:
     """The metrics object (run-state.v1 attempts[].metrics, step.decided metrics)."""
     t0, t1 = _ts(attempt.get("started_at")), _ts(decided_at)
-    wait = attempt_wait_s(comp.root, run_id, step, int(attempt["n"]), decided_at)
+    wait = attempt_wait_s(
+        comp.root, run_id, step, int(attempt["n"]), decided_at, attempt.get("started_at")
+    )
     span_ms = int((t1 - t0).total_seconds() * 1000) if t0 and t1 and t1 > t0 else 0
     out: dict[str, Any] = {
         "tokens": None,

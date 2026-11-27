@@ -16,6 +16,8 @@ from tsl.core.clock import iso
 from tsl.core.paths import Home
 from tsl.state import metrics
 
+RUN = "run_01JA0B3C4D5E6F7G8H9JKMNPQR"
+
 T0 = dt.datetime(2026, 11, 25, 10, 0, tzinfo=dt.UTC)
 
 
@@ -61,11 +63,11 @@ def test_calls_are_counted_once_and_only_from_usage(tmp_path: Path) -> None:
         json.dumps({"type": "user", "message": {"content": "usage"}}),
         _line(t + dt.timedelta(minutes=1), "msg_2", out=7, model="bad model!"),
     ]
-    p = _transcript(tmp_path, "s1", main, [_line(t, "msg_1", out=40)])
+    p = _transcript(tmp_path, "s1", main, [_line(t, "rev_1", out=40)])
     calls = metrics.read_calls(metrics.files(p))
     assert [(c.tokens["output"], c.subagent, c.model) for c in calls] == [
         (100, False, "claude-opus-5-5"),
-        (40, True, "claude-opus-5-5"),  # the same id in another file is another call
+        (40, True, "claude-opus-5-5"),
         (7, False, ""),
     ]
     got = metrics.tokens(calls, T0, T0 + dt.timedelta(minutes=2))
@@ -218,3 +220,48 @@ def test_state_show_metrics_reports_attempts_steps_and_the_run(
     assert any(x.startswith("req ") for x in text.splitlines()) and "run loop" in text
     code, env, _, _ = world.cli(["state", "show", "--metrics", "--json"])
     assert code != 0 and env is not None and env["code"] == "E-USE-01"
+
+
+def test_a_message_copied_into_another_transcript_is_one_call(tmp_path: Path) -> None:
+    # Review of #71 (Gaurav): a resumed or forked session copies earlier messages into its own
+    # file. Message ids are unique, so the copy is the same call, at its first time.
+    t = T0 + dt.timedelta(minutes=1)
+    p = _transcript(tmp_path, "s1", [_line(t, "msg_1", out=100)], [_line(t, "rev_1", out=40)])
+    resumed = tmp_path / "projects" / "-home-x-companion" / "s2.jsonl"
+    resumed.write_text(
+        "\n".join([_line(t + dt.timedelta(hours=1), "msg_1", out=100), _line(t, "rev_1", out=40)])
+        + "\n",
+        encoding="utf-8",
+    )
+    calls = metrics.read_calls([*metrics.files(p), (resumed, False)])
+    assert [(c.tokens["output"], c.subagent, c.at) for c in calls] == [
+        (100, False, t),
+        (40, True, t),  # still the reviewer's call, as where it was first seen
+    ]
+    assert metrics.tokens(calls, T0, T0 + dt.timedelta(minutes=2))["tokens"]["calls"] == 2
+
+
+def test_the_wait_is_the_time_a_question_was_open_inside_the_attempt(tmp_path: Path) -> None:
+    # Review of #71 (Gaurav): two questions open at once are one wait, and a wait is clipped
+    # to the attempt, or active_ms comes out low.
+    def at(m: int) -> str:
+        return iso(T0 + dt.timedelta(minutes=m))
+
+    for tid, agent, t0, t1 in (("t1", None, 2, 6), ("t2", "ag1", 4, 8), ("t3", None, -3, 1)):
+        ask = ide_questions.raised(
+            tmp_path,
+            RUN,
+            "req",
+            1,
+            [{"id": "Q-01", "text": "Q-01: x?"}],
+            source="hook",
+            at=at(t0),
+            tool_use_id=tid,
+            agent_id=agent,
+        )
+        ide_questions.closed(tmp_path, RUN, ask, reason="skipped", at=at(t1))
+    # Asked before the attempt started (t3): only the minute inside counts. t1 and t2 overlap
+    # from 4 to 6: 2 to 8 is one 6-minute wait. The attempt runs 0 to 10.
+    assert metrics.attempt_wait_s(tmp_path, RUN, "req", 1, at(10), at(0)) == (1 + 6) * 60
+    assert metrics.attempt_wait_s(tmp_path, RUN, "req", 1, at(5), at(0)) == (1 + 3) * 60
+    assert metrics.attempt_wait_s(tmp_path, RUN, "req", 2, at(10), at(0)) == 0
