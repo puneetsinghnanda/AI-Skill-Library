@@ -298,12 +298,12 @@ OTel carries no `run_id`. The join is `session.id` → `run_sessions` → run (�
 
 | GitHub event | Columns updated |
 | --- | --- |
-| `pull_request` opened / reopened / ready_for_review / synchronize | `state='open'`, `draft`, `opened_at`, `head_sha` (synchronize moves it to the pushed head), `run_id` |
+| `pull_request` opened / reopened / ready_for_review / synchronize | `state='open'` (only `reopened` reopens a merged or closed PR), `draft`, `opened_at`, `head_sha` (moved only by an event whose `updated_at` is not older than the last one, stored in `head_updated_at`), `run_id` |
 | `pull_request` closed | `state='merged'` + `merged_at` if `merged=true`, else `state='closed'` + `closed_at` |
 | `pull_request_review` submitted | `review_count+1`, `first_review_at` if null, `changes_requested=true` when state is `changes_requested` |
 | `pull_request_review_comment` created | `review_comments+1` (no text) |
 | `check_run` completed, name `tsl-ci-verify` | `ci_checks` row for (repo, head_sha): `result` from `conclusion`; join to PR by `head_sha` |
-| `check_run` created / completed, name matching `CI_CHECK_NAMES` (comma-separated, case-sensitive globs, empty by default; the product repo's own CI, e.g. `build`) | `product_ci_checks` row per (repo, head_sha, check name) for every system repo with that GitHub name, whether or not the PR row exists yet: `pending` on `created`, `pass`/`fail` on `completed`; a newer event replaces an older one only; `skipped`, `neutral`, `cancelled`, `stale` and `action_required` record nothing and clear a pending row. Not a harness verification: `mv_ci_daily` does not read it. A PR's CI status, by its current `head_sha` (moved by `synchronize`): any failure (harness or product) fails it, a pending product check keeps it pending, else a harness or product pass passes it. Rows go after `RETENTION_RUNS_MONTHS` |
+| `check_run` created / completed, name matching `CI_CHECK_NAMES` (comma-separated, case-sensitive globs, empty by default; the product repo's own CI, e.g. `build`) | `product_ci_checks` row per (repo, head_sha, check name, check suite) for every system repo with that GitHub name, whether or not the PR row exists yet: `pending` on `created`, `pass`/`fail` on `completed`, `none` for `skipped`, `neutral`, `cancelled`, `stale` and `action_required`; a `created` already `completed` is read as completed. A newer event replaces an older one; at the same second a finished result is never replaced by `pending`. Not a harness verification: `mv_ci_daily` does not read it. A PR's CI status, by its current `head_sha`: any failure (harness or product) fails it, a pending product check keeps it pending, else a harness or product pass passes it. Rows go after `RETENTION_RUNS_MONTHS` |
 
 The webhook is installed on product repos only with client consent (E-CONS-01). GitHub must reach this endpoint from the internet, which conflicts with an intranet-only host; see Open items.
 
@@ -813,9 +813,10 @@ CREATE TABLE ci_checks (
 
 CREATE TABLE product_ci_checks (                           -- the product repo's own CI (CI_CHECK_NAMES)
   repo_id uuid NOT NULL REFERENCES system_repos, head_sha text NOT NULL,
-  check_name text NOT NULL, number int,
-  result text NOT NULL CHECK (result IN ('pass','fail')), checked_at timestamptz NOT NULL,
-  PRIMARY KEY (repo_id, head_sha, check_name));
+  check_name text NOT NULL, suite_id bigint NOT NULL DEFAULT 0, number int,   -- one row per check suite
+  result text NOT NULL CHECK (result IN ('pass','fail','pending','none')), checked_at timestamptz NOT NULL,
+  PRIMARY KEY (repo_id, head_sha, check_name, suite_id));
+-- pull_requests.head_updated_at timestamptz: pull_request.updated_at of the event that last moved head_sha
 
 CREATE TABLE run_usage (                                   -- from OTel, attributed per §7.2
   run_id text PRIMARY KEY REFERENCES runs,

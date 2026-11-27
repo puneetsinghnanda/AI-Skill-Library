@@ -251,7 +251,13 @@ def _open_pr(client: TestClient, head: str) -> int:
 
 
 def _check(
-    name: str, head: str, conclusion: str | None, at: str | None = None, action: str = "completed"
+    name: str,
+    head: str,
+    conclusion: str | None,
+    at: str | None = None,
+    action: str = "completed",
+    suite: int = 1,
+    status: str | None = None,
 ) -> dict[str, Any]:
     return {
         "action": action,
@@ -259,12 +265,20 @@ def _check(
         "check_run": {
             "name": name,
             "head_sha": head,
+            "status": status or ("in_progress" if action == "created" else "completed"),
             "conclusion": conclusion,
             "started_at": at or now_iso(),
             "completed_at": None if action == "created" else (at or now_iso()),
+            "check_suite": {"id": suite},
             "pull_requests": [],
         },
     }
+
+
+def _pr_event(action: str, n: int, head: str, updated: str, merged: bool = False) -> Any:
+    p = pr_payload(action, n, "<!-- tracked -->", merged=merged, head=head)
+    p["pull_request"]["updated_at"] = updated
+    return p
 
 
 def _ci(owner_db: Engine, n: int, head: str) -> tuple[str | None, int, int]:
@@ -321,7 +335,7 @@ def test_a_running_check_keeps_ci_pending(client: TestClient, hook: int, owner_d
     assert _ci(owner_db, n, head) == ("pass", 2, 0)
 
 
-def test_no_result_conclusions_record_nothing_and_clear_pending(
+def test_no_result_conclusions_give_no_result_and_clear_pending(
     client: TestClient, hook: int, owner_db: Engine
 ) -> None:
     head = _sha()
@@ -331,7 +345,7 @@ def test_no_result_conclusions_record_nothing_and_clear_pending(
         assert send(client, "check_run", _check("build", head, conclusion)).status_code == 200
     send(client, "check_run", _check("lint", head, "failure"))  # not in CI_CHECK_NAMES
     send(client, "check_run", _check("Build", head, "failure"))  # names are case-sensitive
-    assert _ci(owner_db, n, head) == (None, 0, 0)
+    assert _ci(owner_db, n, head) == (None, 1, 0)  # one `none` marker row: no pass, fail or pending
 
 
 def test_check_that_finishes_before_the_pr_opens_counts(
@@ -370,6 +384,84 @@ def test_any_failure_wins_between_harness_and_product_checks(
     send(client, "check_run", _check("tsl-ci-verify", other, "success"))
     send(client, "check_run", _check("build", other, "failure"))
     assert _ci(owner_db, m, other) == ("fail", 1, 1)  # a harness pass does not hide it
+
+
+def test_late_synchronize_never_reopens_a_merged_pr(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    head, later = _sha(), _sha()
+    n = _open_pr(client, head)
+    send(client, "pull_request", _pr_event("closed", n, later, now_iso(-10), merged=True))
+    send(client, "pull_request", _pr_event("synchronize", n, later, now_iso(-60)))  # late push
+    with owner_db.connect() as c:
+        state = c.execute(
+            text("SELECT state FROM pull_requests WHERE number = :n"), {"n": n}
+        ).scalar_one()
+    assert state == "merged"
+
+
+def test_out_of_order_pushes_never_move_the_head_back(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    first, second, third = _sha(), _sha(), _sha()
+    n = _open_pr(client, first)
+    send(client, "pull_request", _pr_event("synchronize", n, third, now_iso(-10)))
+    send(client, "pull_request", _pr_event("synchronize", n, second, now_iso(-60)))  # older
+    with owner_db.connect() as c:
+        got = c.execute(
+            text("SELECT head_sha FROM pull_requests WHERE number = :n"), {"n": n}
+        ).scalar_one()
+    assert got == third
+
+
+def test_a_late_created_after_a_skip_never_leaves_it_pending(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    head = _sha()
+    n = _open_pr(client, head)
+    send(client, "check_run", _check("build", head, "skipped", now_iso(-10)))
+    send(client, "check_run", _check("build", head, None, now_iso(-20), action="created"))
+    assert _ci(owner_db, n, head)[0] is None  # nothing reported: no "fail", and no stuck pending
+    with owner_db.connect() as c:
+        res = c.execute(
+            text("SELECT result FROM product_ci_checks WHERE head_sha = :h"), {"h": head}
+        ).scalar_one()
+    assert res == "none"
+
+
+def test_pending_never_replaces_a_result_from_the_same_second(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    head = _sha()
+    n = _open_pr(client, head)
+    at = now_iso(-30)
+    send(client, "check_run", _check("build", head, "failure", at))  # startup failure
+    send(client, "check_run", _check("build", head, None, at, action="created"))  # same second
+    assert _ci(owner_db, n, head)[0] == "fail"
+
+
+def test_created_that_already_completed_is_read_as_completed(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    head = _sha()
+    n = _open_pr(client, head)
+    send(
+        client,
+        "check_run",
+        _check("build", head, "failure", action="created", status="completed"),
+    )
+    assert _ci(owner_db, n, head)[0] == "fail"
+
+
+def test_two_runs_of_one_job_on_a_commit_both_count(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    """`build` from a push run and from a pull_request run: a later pass doesn't hide a fail."""
+    head = _sha()
+    n = _open_pr(client, head)
+    send(client, "check_run", _check("build", head, "failure", now_iso(-60), suite=11))
+    send(client, "check_run", _check("build", head, "success", now_iso(-10), suite=12))
+    assert _ci(owner_db, n, head) == ("fail", 2, 0)
 
 
 def test_ignored_and_unknown_repo(client: TestClient, hook: int) -> None:
