@@ -4,9 +4,12 @@ Design A1 (tsl-advance) §5. Each call works out the phase of the open step from
 runs every check, record and decision that needs no model, and returns one next-action.v2
 instruction: run_step, fix, run_reviewer, ask, pause_approval, done or stopped.
 
-Idempotent: a second call with nothing changed on disk returns the same instruction. Per attempt
-the loop keeps a small state file next to the instruction (seeded, fix, verified and prepared
-artifact hashes), so it never repeats a check or hands out a new fix round for the same content.
+A second call with nothing changed on disk returns the same instruction, except a fix: each fix
+handout is a round, changed file or not, so a fix the step cannot make by editing the artifact
+(an H7 tool-log item) ends in the full checks after FIX_ROUNDS. Per attempt the loop keeps a small
+state file next to the instruction (seeded, fix, verified and prepared keys), so it never repeats
+a check. For a code step the key is the artifact hash plus the product repo diff, so a retry that
+only changes product code counts as progress.
 """
 
 from __future__ import annotations
@@ -23,7 +26,7 @@ from tsl.core.repo import Companion
 from tsl.core.runtime import Runtime
 from tsl.harness import plain
 from tsl.orchestrator.extensions import ask_raised, phase
-from tsl.orchestrator.next import _action_for_attempt, next_action
+from tsl.orchestrator.next import _action_for_attempt, next_action, pinned_and_heartbeat
 from tsl.orchestrator.run import RunCtx
 from tsl.state.store import latest
 
@@ -58,6 +61,16 @@ class _Loop:
 
         p = self.comp.path(rel)
         return sha256_file(p) if p.is_file() else None
+
+    def _key(self, ctx: RunCtx, step: str, rel: str) -> str | None:
+        """What counts as the step's work: the artifact, plus the product diff for a code step."""
+        sha = self._sha(rel)
+        if sha is None or not ctx.skill_for(step).is_code:
+            return sha
+        from tsl.harness.verify import product_changes
+
+        diffs = [f"{c['repo']}:{c['diff_sha256']}" for c in product_changes(ctx) or []]
+        return "|".join([sha, *diffs])
 
     def _ls(self, step: str, n: int) -> dict[str, Any]:
         p = self.comp.path(_loop_path(self.run_id, step, n))
@@ -123,6 +136,15 @@ class _Loop:
         }
 
     def _run_level(self, action: str, say: str, **extra: Any) -> dict[str, Any]:
+        """ask, pause_approval, done, stopped: no step is being worked on, so clear
+        current_action (else a paused or finished run looks stuck)."""
+        ctx = RunCtx(self.rt, self.comp, self.run_id)
+        if ctx.state.get("current_action") is not None:
+
+            def clear(st: dict[str, Any]) -> None:
+                st["current_action"] = None
+
+            ctx.store.update(clear)
         out = {"schema": SCHEMA, "action": action, "run_id": self.run_id, "say": self._say(say)}
         out.update(extra)
         return out
@@ -155,6 +177,10 @@ class _Loop:
             cur = st.get("cursor")
             a = latest(ctx.step(str(cur["step"]))) if cur else None
             if st["status"] == "RUNNING" and cur and a is not None and a.get("outcome") is None:
+                with ctx.store.local_lock():  # the same checks next_action makes (E-RUN-10/11)
+                    ctx.assert_lock_held()
+                    ctx.assert_session()
+                    pinned_and_heartbeat(self.rt, self.comp, ctx)
                 out = self._in_step(ctx, str(cur["step"]), a)
                 if out is not None:
                     return out
@@ -164,11 +190,15 @@ class _Loop:
             except TslError as exc:
                 act = (exc.data or {}).get("action")
                 if act == "pause_input":
-                    if self._open_blocking(ctx):
-                        return self._ask(ctx)
-                    from tsl.state.service import resume  # answered: carry on
+                    from tsl.state.service import resume
 
-                    resume(self.rt, self.comp, self.run_id)
+                    try:  # resume's own rule decides what is answered (answered_by too)
+                        _, w = resume(self.rt, self.comp, self.run_id)
+                    except TslError as e:
+                        if e.code != "E-RUN-03":
+                            raise
+                        return self._ask(ctx, list((e.data or {}).get("unanswered") or []))
+                    self.warnings += w
                     continue
                 if act == "pause_approval":
                     return self._run_level("pause_approval", exc.message)
@@ -190,46 +220,45 @@ class _Loop:
         rel = str(a["artifact"])
         ls = self._ls(step, n)
         self._seed(ctx, step, a, rel, ls)
-        sha = self._sha(rel)
-        if sha is None or sha == ls.get("seeded_sha"):
+        key = self._key(ctx, step, rel)
+        if key is None or key == ls.get("seeded_key"):
             return self._instruction(ctx, step, "run_step", self._step_say(ctx, step, a))
         if self.comp.path(sibling(rel, ".review.json")).is_file():
             return self._decide(rel)
-        if ls.get("prepared_sha") == sha:
+        if ls.get("prepared_key") == key:
             return self._after_review(ctx, step, n, rel, ls)
-        if ls.get("verified_sha") != sha:
-            if ls.get("fix_sha") == sha:  # the fix handed out was not done yet
-                return self._fix(ctx, step, ls["fix"])
-            if int(ls.get("fix_rounds", 0)) < FIX_ROUNDS:
+        if ls.get("verified_key") != key:
+            rounds = int(ls.get("fix_rounds", 0))
+            if rounds < FIX_ROUNDS:
                 from tsl.harness.verify import self_check
 
                 fix = self_check(self.rt, self.comp, rel)["fix"]
-                if fix:
-                    ls.update(fix_rounds=int(ls.get("fix_rounds", 0)) + 1, fix_sha=sha, fix=fix)
+                if fix:  # every handout is a round, so an unfixable item cannot loop forever
+                    ls.update(fix_rounds=rounds + 1, fix_key=key, fix=fix)
                     self._save_ls(step, n, ls)
                     return self._fix(ctx, step, fix)
             if not self._full_checks(rel):
                 return self._decide(rel)  # a hard gate failed: decide skips the review
-            sha = str(self._sha(rel))  # the full checks stamp the envelope into the file
-            ls["verified_sha"] = sha
+            key = str(self._key(ctx, step, rel))  # the full checks stamp the envelope
+            ls["verified_key"] = key
             self._save_ls(step, n, ls)
-        return self._prepare(ctx, step, n, ls, sha)
+        return self._prepare(ctx, step, n, ls, key)
 
     def _seed(
         self, ctx: RunCtx, step: str, a: dict[str, Any], rel: str, ls: dict[str, Any]
     ) -> None:
         """A retry starts from the last attempt: copy it to artifact_path once (design §6 #6)."""
         n = int(a["n"])
-        if n == 1 or a.get("cause") not in SEEDED_CAUSES or "seeded_sha" in ls:
+        if n == 1 or a.get("cause") not in SEEDED_CAUSES or "seeded_key" in ls:
             return
         prev = self.comp.path(f"{history_dir(ctx.ticket, self.run_id, step, n - 1)}/{step}.md")
         dest = self.comp.path(rel)
         if prev.is_file() and not dest.exists():
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(prev, dest)
-            ls["seeded_sha"] = self._sha(rel)
+            ls["seeded_key"] = self._key(ctx, step, rel)
         else:
-            ls["seeded_sha"] = None
+            ls["seeded_key"] = None
         self._save_ls(step, n, ls)
 
     def _step_say(self, ctx: RunCtx, step: str, a: dict[str, Any]) -> str:
@@ -270,13 +299,13 @@ class _Loop:
         return True
 
     def _prepare(
-        self, ctx: RunCtx, step: str, n: int, ls: dict[str, Any], sha: str
+        self, ctx: RunCtx, step: str, n: int, ls: dict[str, Any], key: str
     ) -> dict[str, Any]:
         from tsl.review.service import prepare
 
         pkg = prepare(self.rt, self.comp, str(latest(ctx.step(step))["artifact"]))  # type: ignore[index]
         ls.update(
-            prepared_sha=sha,
+            prepared_key=key,
             package_path=pkg["package_path"],
             write_to=pkg["review_input_path"],
         )
@@ -299,24 +328,31 @@ class _Loop:
         if not inp.is_file():
             return self._reviewer(ctx, step, ls)
         try:
-            record(self.rt, self.comp, rel, inp.read_text(encoding="utf-8"), None)
+            _, w = record(self.rt, self.comp, rel, inp.read_text(encoding="utf-8"), None)
         except TslError as exc:
             if exc.code not in ("E-REV-02", "E-REV-05"):
                 raise
-            rounds = int(ls.get("review_rounds", 0)) + 1
-            if exc.code == "E-REV-02" and rounds >= ctx.retry_limits(step)["review"]:
-                record(self.rt, self.comp, rel, None, "reviewer output still invalid (E-REV-02)")
+            # E-REV-02 has its own budget (retry.review); E-REV-05 rounds are counted and
+            # capped by record itself (retry.record), so they never use up the E-REV-02 one.
+            invalid = int(ls.get("invalid_rounds", 0)) + (exc.code == "E-REV-02")
+            if exc.code == "E-REV-02" and invalid >= ctx.retry_limits(step)["review"]:
+                _, w = record(
+                    self.rt, self.comp, rel, None, "reviewer output still invalid (E-REV-02)"
+                )
+                self.warnings += w
                 return self._decide(rel)
-            ls["review_rounds"] = rounds
-            ls.pop("prepared_sha", None)  # prepare again: the package carries the error (#62)
+            ls.update(review_rounds=int(ls.get("review_rounds", 0)) + 1, invalid_rounds=invalid)
+            ls.pop("prepared_key", None)  # prepare again: the package carries the error (#62)
             self._save_ls(step, n, ls)
-            return self._prepare(ctx, step, n, ls, str(self._sha(rel)))
+            return self._prepare(ctx, step, n, ls, str(self._key(ctx, step, rel)))
+        self.warnings += w
         return self._decide(rel)
 
     def _decide(self, rel: str) -> dict[str, Any] | None:
         from tsl.harness.decide_service import decide
 
-        _, d, _ = decide(self.rt, self.comp, rel)
+        _, d, w = decide(self.rt, self.comp, rel)
+        self.warnings += w
         step = rel.rsplit("/", 1)[-1].removesuffix(".md")
         if d.outcome in ("PASS", "PASS-WITH-FINDINGS"):
             self.notes.append(f"{step} passed ({d.outcome}, {d.band})")
@@ -334,19 +370,47 @@ class _Loop:
                 return str(s["id"]), int(a["n"])
         return None, None
 
-    def _open_blocking(self, ctx: RunCtx) -> int:
-        qs = questions_md.unanswered(ctx.comp.path(ctx.questions_rel()), self.run_id)
-        return sum(1 for q in qs if q.get("blocking"))
-
-    def _ask(self, ctx: RunCtx) -> dict[str, Any]:
-        qs = questions_md.unanswered(ctx.comp.path(ctx.questions_rel()), self.run_id)
+    def _ask(self, ctx: RunCtx, missing: list[str]) -> dict[str, Any]:
+        """The blocking questions resume still finds without a valid answer (E-RUN-03): no
+        answer, or an answer without a valid answered_by. Every open question when the error
+        does not list them."""
+        path = ctx.comp.path(ctx.questions_rel())
+        open_qs = {q["id"]: q for q in questions_md.unanswered(path, self.run_id)}
+        eff: dict[str, Any] = {}
+        if missing and path.is_file():
+            try:
+                eff = questions_md.effective(questions_md.load(path).get("questions", []))
+            except TslError:
+                eff = {}
+        qs: list[dict[str, Any]] = []
+        for qid in missing or list(open_qs):
+            qs.append(
+                open_qs.get(qid)
+                or {
+                    "id": qid,
+                    "question": str((eff.get(qid) or {}).get("question") or "")[:300],
+                    "blocking": True,
+                    "cite": f"runs/{self.run_id}/open-questions.md#{qid.lower()}",
+                }
+            )
         blocking = sum(1 for q in qs if q.get("blocking"))
         msg, _ = plain.paused_input(blocking, self.run_id, ctx.questions_rel())
         questions = [{k: q.get(k) for k in ("id", "question", "blocking", "cite")} for q in qs]
         step, n = self._asking_step(ctx)
-        phase(self.rt, self.comp, ctx.state, step, n, "ask")
-        self.warnings += ask_raised(self.rt, self.comp, self.run_id, step, n, qs)
+        if not self._asked(step, n, [str(q["id"]) for q in qs]):  # a repeat records nothing
+            phase(self.rt, self.comp, ctx.state, step, n, "ask")
+            self.warnings += ask_raised(self.rt, self.comp, self.run_id, step, n, qs)
         return self._run_level("ask", msg, ask={"questions": questions, "answers_to": None})
+
+    def _asked(self, step: str | None, n: int | None, ids: list[str]) -> bool:
+        """True when this call hands out the same questions as the last ask; else remember."""
+        p = self.comp.path(f"{instructions_dir(self.run_id)}/ask.json")
+        now = {"step": step, "attempt": n, "ids": ids}
+        if p.is_file() and dict(read_json(p)) == now:
+            return True
+        p.parent.mkdir(parents=True, exist_ok=True)
+        write_json(p, now)
+        return False
 
 
 def code_next(

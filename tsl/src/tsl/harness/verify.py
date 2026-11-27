@@ -264,7 +264,7 @@ def build_input(
     art = artmod.load(comp.root, rel)
     step = str(art.step)
     skill = ctx.skill_for(step)
-    if art.doc is not None and _open_attempt_artifact(rel, attempt):
+    if art.doc is not None and _tsl_owns_envelope(ctx, rel, attempt):
         # Checks see the envelope tsl owns, whether or not it is on disk yet (A1 §6 #4).
         art.doc.front.update(envelope_for(ctx, step, attempt, changes))
     cfg = comp.config
@@ -705,7 +705,11 @@ def envelope_for(
     return envelope
 
 
-def _open_attempt_artifact(rel: str, attempt: dict[str, Any]) -> bool:
+def _tsl_owns_envelope(ctx: RunCtx, rel: str, attempt: dict[str, Any]) -> bool:
+    """Code mode only: there tsl writes the envelope; in model mode the skill does, and H1/H6
+    check what it wrote."""
+    if ctx.state.get("run_loop") != "code":
+        return False
     return attempt.get("artifact") == rel and attempt.get("outcome") is None
 
 
@@ -720,7 +724,7 @@ def stamp(
     from tsl.core.frontmatter import FrontMatterError, split
     from tsl.core.jsonio import atomic_write, dump_yaml
 
-    if not _open_attempt_artifact(rel, attempt):
+    if not _tsl_owns_envelope(ctx, rel, attempt):
         return False
     p = ctx.comp.path(rel)
     text = p.read_text(encoding="utf-8")

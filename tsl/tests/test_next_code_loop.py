@@ -160,7 +160,6 @@ def test_self_check_failure_gives_fix_then_full_checks_after_rounds(world: World
     _write_req(world, run_id, art, long_summary=True)
     f1 = _nxt(world, run_id)
     assert f1["action"] == "fix" and f1["fix"], f1
-    assert _nxt(world, run_id)["fix"] == f1["fix"]  # unchanged: same fix, no new round
     p = world.companion / art
     for i in range(FIX_ROUNDS - 1):  # still failing after an edit: one more round each
         p.write_text(p.read_text(encoding="utf-8") + f"\nedit {i}\n", encoding="utf-8")
@@ -168,6 +167,40 @@ def test_self_check_failure_gives_fix_then_full_checks_after_rounds(world: World
     p.write_text(p.read_text(encoding="utf-8") + "\nlast edit\n", encoding="utf-8")
     after = _nxt(world, run_id)  # rounds used up: full checks run anyway
     assert after["action"] == "run_reviewer", after
+
+
+def test_a_fix_the_step_cannot_make_does_not_loop(world: World) -> None:
+    """Every fix handout is a round, file changed or not (an H7 item cannot be fixed by
+    editing the artifact), so calls with nothing changed end in the full checks."""
+    run_id = _start(world)
+    art = _nxt(world, run_id)["artifact_path"]
+    _write_req(world, run_id, art, long_summary=True)
+    for _ in range(FIX_ROUNDS):
+        assert _nxt(world, run_id)["action"] == "fix"
+    assert _nxt(world, run_id)["action"] == "run_reviewer"
+
+
+def test_another_session_cannot_take_an_open_step(world: World) -> None:
+    run_id = _start(world)
+    _nxt(world, run_id)  # the step is open now
+    code, env, _, _ = world.cli(["next", run_id, "--json"], session="sess-other")
+    assert code != 0 and env is not None and env["code"] == "E-RUN-11", env
+    assert _state(world, run_id)["current_action"]["session_id"] == SESSION
+
+
+def test_citation_rounds_do_not_use_the_invalid_review_budget(world: World) -> None:
+    """E-REV-05 is capped by record (retry.record); only E-REV-02 counts against retry.review."""
+    run_id = _start(world)
+    r = _to_reviewer(world, run_id)
+    ref = "context/intent-baseline.md#data-retention"
+    bad = {**MAJOR, "cites": [{"ref": ref, "quote": "not in the file"}]}
+    _review(world, r, findings=[bad])
+    r = _nxt(world, run_id)
+    assert r["action"] == "run_reviewer", r  # E-REV-05: the reviewer runs again
+    for _ in range(int(ORG_DEFAULTS["retry"]["review"]) - 1):
+        (world.companion / r["review"]["write_to"]).write_text("not json", encoding="utf-8")
+        r = _nxt(world, run_id)
+        assert r["action"] == "run_reviewer", r  # E-REV-02 still within its own budget
 
 
 # 5: review, decide, then what the workflow has next (brownfield-change: a gate after req)
@@ -251,6 +284,23 @@ def test_model_mode_still_returns_v1(world: World) -> None:
     d = _nxt(world, run_id)
     assert d["action"] == "run_skill" and d.get("schema") != "next-action.v2"
     assert "instruction_path" not in d
+
+
+def test_model_mode_verify_never_writes_the_envelope(world: World) -> None:
+    """In model mode the skill writes the envelope and H1/H6 check it: tsl never stamps it."""
+    from tsl.core.frontmatter import split
+    from tsl.core.jsonio import dump_yaml
+
+    run_id = _start(world, "model")
+    art = _nxt(world, run_id)["artifact_path"]
+    _write_req(world, run_id, art)
+    p = world.companion / art
+    doc = split(p.read_text(encoding="utf-8"))
+    front = {k: v for k, v in doc.front.items() if k != "inputs"}
+    text = "---\n" + dump_yaml(front) + "---\n" + doc.body
+    p.write_text(text, encoding="utf-8")
+    world.cli(["verify", art, "--json"], session=SESSION)
+    assert p.read_text(encoding="utf-8") == text
 
 
 # 11: the skill writes content only; tsl fills in the envelope (design A1 §6 #4)

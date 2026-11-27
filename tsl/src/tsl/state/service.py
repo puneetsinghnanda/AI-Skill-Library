@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import re
 import shutil
-from pathlib import Path
 from typing import Any
 
 from tsl.approvals import approvals_md, questions_md
@@ -48,18 +47,6 @@ def _require_git() -> None:
 
 def _major(v: str) -> str:
     return v.split(".", 1)[0]
-
-
-def mod_marker(rt: Runtime, session_id: str) -> Path:
-    """The mod writes this file when it loads in a session; tsl state start reads it (A1 §8a)."""
-    return rt.home.root / "sessions" / f"{session_id}.mod"
-
-
-def _driver(rt: Runtime, run_loop: str) -> str:
-    sid = rt.session_id()
-    if run_loop == "code" and sid and mod_marker(rt, sid).is_file():
-        return "mod"
-    return "skill"
 
 
 def start(
@@ -158,7 +145,9 @@ def start(
         "status": "RUNNING",
         "end_reason": None,
         "run_loop": run_loop,
-        "driver": _driver(rt, run_loop),
+        # The run skill drives every run for now. The mod driver is chosen when the mod
+        # exists (A1 §8a), not from a marker file a crashed session could leave behind.
+        "driver": "skill",
         "pinned": {
             "plugin": plugin_version,
             "tsl": rt.tsl_version,
@@ -356,6 +345,7 @@ def resume(
         "next_step": nxt,
         "answered": answered,
         "approvals": approvals,
+        "loop": str(ctx.state.get("run_loop") or "model"),
     }, warnings
 
 

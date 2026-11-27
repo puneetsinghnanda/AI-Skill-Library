@@ -327,6 +327,15 @@ def _waiting_gate(ctx: RunCtx) -> str | None:
     return None
 
 
+def pinned_and_heartbeat(rt: Runtime, comp: Companion, ctx: RunCtx) -> None:
+    """The installed skills still match the run's pins (E-RUN-10); renew the run lock."""
+    for name, ver in ctx.state["pinned"]["skills"].items():
+        sk = ctx.installed.get(name)
+        if sk is None or sk.version != ver:
+            raise TslError("E-RUN-10", detail=f"{name}@{ver}", run_id=ctx.run_id)
+    lockmod.heartbeat(rt, comp, ctx.state)
+
+
 def next_action(rt: Runtime, comp: Companion, run_id: str) -> tuple[dict[str, Any], str]:
     """Return (next-action.v1 data, literal instruction for the run skill)."""
     ctx = RunCtx(rt, comp, run_id)
@@ -365,11 +374,7 @@ def next_action(rt: Runtime, comp: Companion, run_id: str) -> tuple[dict[str, An
                 next=nxt,
                 data={"schema": "next-action.v1", "action": "pause_approval", "run_id": run_id},
             )
-        for name, ver in st["pinned"]["skills"].items():
-            sk = ctx.installed.get(name)
-            if sk is None or sk.version != ver:
-                raise TslError("E-RUN-10", detail=f"{name}@{ver}", run_id=run_id)
-        lockmod.heartbeat(rt, comp, st)
+        pinned_and_heartbeat(rt, comp, ctx)
         if st.get("cursor"):
             sid = str(st["cursor"]["step"])
             rel = ctx.artifact_rel(sid)
