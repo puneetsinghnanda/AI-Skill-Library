@@ -5,8 +5,10 @@
   tools and learned them from pre-tool refusals (E-POL-06), even for a read-only `grep`.
   tsl verify --inputs now lists them in data.allowed_tools, and the preamble says to use
   only those.
-- MINOR: changed instruction, same tools, inputs and output schema. Needs a signed eval
-  result for this version before any status change (SKL-V13).
+- AskUserQuestion is now in allowed_tools: the skill asks the user before it writes, and
+  "use only data.allowed_tools" must not forbid that (review of #65).
+- MINOR: changed instruction and one added tool; same inputs and output schema. Needs a
+  signed eval result for this version before any status change (SKL-V13).
 
 ## 1.4.0
 - Run HMS-21: the hook refused 24 Edit calls (requirement-review 15, design 6,
