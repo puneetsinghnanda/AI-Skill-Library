@@ -54,6 +54,7 @@ RETURNS text LANGUAGE sql STABLE SET search_path = public, pg_temp AS $$
     SELECT DISTINCT ON (r.app_id, r.suite_id, r.check_name) r.conclusion
     FROM runs r
     WHERE r.status = 'completed' AND r.conclusion IS NOT NULL
+      -- the same list as NO_RESULT in app/api/v1/webhooks_github.py
       AND r.conclusion NOT IN ('skipped', 'neutral', 'cancelled', 'stale', 'action_required')
       AND NOT EXISTS (SELECT 1 FROM pending p WHERE p.app_id = r.app_id
                       AND p.suite_id = r.suite_id AND p.check_name = r.check_name)

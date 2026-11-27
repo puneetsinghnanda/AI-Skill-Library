@@ -710,6 +710,93 @@ def test_a_close_and_a_push_in_one_second_keep_the_pr_closed(
     _pr_in_every_order(client, owner_db, make, ("closed", 1))
 
 
+def _draft(owner_db: Engine, n: int) -> bool:
+    with owner_db.connect() as c:
+        return bool(
+            c.execute(
+                text("SELECT draft FROM pull_requests WHERE number = :n"), {"n": n}
+            ).scalar_one()
+        )
+
+
+def test_ready_for_review_in_a_tie_stays_ready_in_any_order(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    """Payloads snapshotted before ready_for_review in the same second don't set draft again."""
+    at = now_iso(-60)
+
+    def ev(
+        action: str, n: int, h: list[str], m: str, draft: bool, before: str | None = None
+    ) -> Any:
+        p = _pr(action, n, h[1] if action == "synchronize" else h[0], at, m, before=before)
+        p["pull_request"]["draft"] = draft
+        return p
+
+    make = [
+        lambda n, h, m: ev("opened", n, h, m, True),
+        lambda n, h, m: ev("synchronize", n, h, m, True, before=h[0]),
+        lambda n, h, m: ev("ready_for_review", n, h, m, False),
+    ]
+    for order in itertools.permutations(range(len(make))):
+        n, marker, heads = next(_NUMS), _marker(), [_sha() for _ in range(2)]
+        for i in order:
+            assert send(client, "pull_request", make[i](n, heads, marker)).status_code == 200
+        assert not _draft(owner_db, n), order
+
+
+def test_a_tied_event_keeps_the_reopen_marker(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    """Close, reopen and a push in one second: the PR ends open in any order."""
+    at = now_iso(-60)
+    make = [
+        lambda n, h, m: _pr("opened", n, h[0], now_iso(-400), m),
+        lambda n, h, m: _pr("closed", n, h[0], at, m),
+        lambda n, h, m: _pr("reopened", n, h[0], at, m),
+        lambda n, h, m: _pr("synchronize", n, h[1], at, m, before=h[0]),
+    ]
+    for order in itertools.permutations(range(len(make))):
+        n, marker, heads = next(_NUMS), _marker(), [_sha() for _ in range(2)]
+        for i in order:
+            assert send(client, "pull_request", make[i](n, heads, marker)).status_code == 200
+        assert _pr_row(owner_db, n)[0] == "open", order
+
+
+def test_completed_fills_the_suite_a_created_lacked(
+    client: TestClient, hook: int, owner_db: Engine
+) -> None:
+    head, rid = _sha(), next(_RUN_IDS)
+    _open_pr(client, head)
+    created = _run("created", rid, head)
+    del created["check_run"]["check_suite"], created["check_run"]["app"]
+    send(client, "check_run", created)
+    send(client, "check_run", _run("completed", rid, head, "success", suite=7))
+    with owner_db.connect() as c:
+        row = c.execute(
+            text("SELECT suite_id, app_id FROM product_ci_runs WHERE check_run_id = :i LIMIT 1"),
+            {"i": rid},
+        ).one()
+    assert (row.suite_id, row.app_id) == (7, 15368)
+
+
+def test_no_result_lists_match() -> None:
+    """The SQL function and the webhook handler skip the same conclusions."""
+    import importlib.util
+    import re as _re
+    from pathlib import Path
+
+    from app.api.v1.webhooks_github import NO_RESULT
+
+    path = Path(__file__).parents[1] / "alembic/versions/0008_product_ci_checks.py"
+    spec = importlib.util.spec_from_file_location("m0008", path)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    sql = _re.search(r"conclusion NOT IN \(([^)]*)\)", mod.RESULT_FN)
+    assert sql is not None
+    assert tuple(_re.findall(r"'([a-z_]+)'", sql.group(1))) == NO_RESULT
+
+
 def test_ignored_and_unknown_repo(client: TestClient, hook: int) -> None:
     assert (
         send(

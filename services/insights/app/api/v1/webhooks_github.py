@@ -60,9 +60,11 @@ def _pr_applies(cur: Any, action: str, state: str, u: Any, before: str | None) -
     newer `pull_request.updated_at` wins. GitHub stamps whole seconds, so on a tie: a push
     applies only when it continues the stored head (`before` is the stored head; one that comes
     before its predecessor is kept in pr_tie_pushes and followed once that one applies, so pushes
-    in one second end on the last); a reopen applies to a closed PR; a close applies unless
+    in one second end on the last); a reopen applies (on a PR already open it only records that a
+    reopen happened in that second); a close applies unless
     the stored state came from a reopen in that second (GitHub only reopens a closed PR, so that
-    close came first); any other event applies but keeps the stored head.
+    close came first); a tied `opened` came late and does not apply; any other event applies but
+    keeps the stored head, the stored reopen marker and a cleared draft flag.
     """
     if cur.state == "merged":
         return False
@@ -73,10 +75,10 @@ def _pr_applies(cur: Any, action: str, state: str, u: Any, before: str | None) -
     if action == "synchronize":
         return before is not None and before == cur.head_sha
     if action == "reopened":
-        return bool(cur.state == "closed")
+        return True  # the close it follows came first; on an open PR it only sets the marker
     if action == "closed":
         return bool(cur.pr_last_action != "reopened")
-    return True
+    return action != "opened"  # opened is always the first event: a tie means it came late
 
 
 def _pull_request(
@@ -168,9 +170,13 @@ def _pull_request(
             conn.execute(
                 text(
                     "UPDATE pull_requests SET run_id = coalesce(run_id, :r), state = :st, "
-                    "draft = :d, head_sha = :h, "
+                    # On a tie, draft only clears (ready_for_review); a payload snapshotted
+                    # before it in that second must not set it again.
+                    "draft = CASE WHEN :tie THEN draft AND :d ELSE :d END, head_sha = :h, "
                     "pr_updated_at = greatest(pr_updated_at, CAST(:u AS timestamptz)), "
-                    "pr_last_action = :a, pr_tie_pushes = CAST(:tp AS jsonb) "
+                    # On a tie only a state change replaces the marker the close rule reads.
+                    "pr_last_action = CASE WHEN :keep_la THEN pr_last_action ELSE :a END, "
+                    "pr_tie_pushes = CAST(:tp AS jsonb) "
                     "WHERE repo_id = CAST(:p AS uuid) AND number = :n"
                 ),
                 {
@@ -178,6 +184,8 @@ def _pull_request(
                     "st": new_state,
                     "h": new_head,
                     "a": action,
+                    "tie": tie,
+                    "keep_la": tie and action not in ("closed", "reopened"),
                     "tp": json.dumps(pushes),
                 },
             )
@@ -235,7 +243,8 @@ def ci_check_patterns(s: Settings) -> list[str]:
 
 
 # Conclusions that are not a result: the run was skipped, cancelled or never ran. A completed
-# run without a conclusion is treated the same way.
+# run without a conclusion is treated the same way. insights_pr_ci_result() (migration 0008)
+# repeats this list for product checks; test_no_result_lists_match keeps them equal.
 NO_RESULT = ("skipped", "neutral", "cancelled", "stale", "action_required")
 
 
@@ -301,7 +310,9 @@ def _product_check(
             "FROM unnest(CAST(:ids AS uuid[])) AS r "
             "ON CONFLICT (repo_id, check_run_id) DO UPDATE SET status = 'completed', "
             "conclusion = EXCLUDED.conclusion, completed_at = EXCLUDED.completed_at, "
-            "started_at = coalesce(product_ci_runs.started_at, EXCLUDED.started_at)"
+            "started_at = coalesce(product_ci_runs.started_at, EXCLUDED.started_at), "
+            "suite_id = greatest(product_ci_runs.suite_id, EXCLUDED.suite_id), "
+            "app_id = greatest(product_ci_runs.app_id, EXCLUDED.app_id)"
         ),
         {
             **params,
