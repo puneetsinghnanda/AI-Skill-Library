@@ -176,8 +176,10 @@ def test_no_folder_command_when_the_run_lives_inside_the_clone(home: Path, tmp_p
     inner = open_run(clone / "examples" / "sample-system" / "companion-example")
     denied(run_hook(f"{cd(clone)} git pull", inner, home, root))
     denied(run_hook(f"{cd(clone)} {INSTALL}", inner, home, root))
-    update = "claude plugin update truminds@truminds-skill-library"
-    assert run_hook(update, inner, home, root) == ""
+    # The plugin update copies the clone's plugins/truminds (hooks included): refused too.
+    denied(run_hook("claude plugin update truminds@truminds-skill-library", inner, home, root))
+    denied(run_hook("claude plugin marketplace update truminds-skill-library", inner, home, root))
+    assert run_hook("tsl --version", inner, home, root) == ""
 
 
 def test_no_folder_command_when_a_product_repo_lives_inside_the_clone(
@@ -323,3 +325,69 @@ def test_windows_paths(companion: Path, home: Path, tmp_path: Path) -> None:
     assert run_hook(f'cd "{clone}" && git pull', companion, home, root) == ""  # backslashes
     # Any other /... is under Git Bash's own root, not the drive root Python would read.
     denied(run_hook(f"cd /tmp{clone.as_posix()[2:]} && git pull", companion, home, root))
+
+
+def test_a_stale_session_index_does_not_hide_the_open_run(home: Path, tmp_path: Path) -> None:
+    """The index still names an old companion outside the clone, but the open run (found by the
+    tsl.yaml walk) lives inside it: both are checked."""
+    root = make_plugin(tmp_path)
+    clone = root.parent.parent
+    old = tmp_path / "old-companion"
+    old.mkdir()
+    (home / "sessions").mkdir()
+    (home / "sessions" / "s-1.json").write_text(
+        json.dumps({"companion": str(old), "lock": "runs/active/GONE.lock"}), encoding="utf-8"
+    )
+    inner = open_run(clone / "examples" / "sample-system" / "companion-example")
+    denied(run_hook(f"{cd(clone)} {INSTALL}", inner, home, root))
+
+
+def test_a_product_repo_that_contains_the_clone(
+    companion: Path, home: Path, tmp_path: Path
+) -> None:
+    """A parent folder or monorepo as a product repo: the agent may write into the clone."""
+    root = make_plugin(tmp_path)
+    clone = root.parent.parent
+    (companion / ".tsl").mkdir()
+    (companion / ".tsl" / "local.yaml").write_text(
+        f"schema: tsl-local.v1\nproduct_repos:\n  ws: {tmp_path.resolve().as_posix()}\n",
+        encoding="utf-8",
+    )
+    denied(run_hook(f"{cd(clone)} git pull", companion, home, root))
+    denied(run_hook("claude plugin update truminds@truminds-skill-library", companion, home, root))
+
+
+@pytest.mark.parametrize(
+    "local",
+    [
+        "product_repos: {app: ../AI-Skill-Library/x}\n",  # flow style
+        'product_repos:\n  app: "../AI-Skill-Library/C#/x"\n',  # a # inside a quoted path
+        "product_repos:\n  app: ../AI-Skill-Library/a\n    b\n",  # a wrapped plain path
+        "product_repos: [not, a, map\n",  # unreadable: refuse
+    ],
+)
+def test_local_yaml_is_read_as_yaml(
+    companion: Path, home: Path, tmp_path: Path, local: str
+) -> None:
+    root = make_plugin(tmp_path)
+    clone = root.parent.parent
+    (companion / ".tsl").mkdir()
+    (companion / ".tsl" / "local.yaml").write_text(
+        "schema: tsl-local.v1\n" + local, encoding="utf-8"
+    )
+    denied(run_hook(f"{cd(clone)} git pull", companion, home, root))
+
+
+def test_only_this_marketplaces_truminds_plugin_in_the_cache(tmp_path: Path) -> None:
+    clone = make_plugin(tmp_path).parent.parent
+    conf = tmp_path / "claude"
+    (conf / "plugins").mkdir(parents=True)
+    known = {"truminds-skill-library": {"source": {"source": "directory", "path": str(clone)}}}
+    (conf / "plugins" / "known_marketplaces.json").write_text(json.dumps(known), encoding="utf-8")
+    env = {"CLAUDE_CONFIG_DIR": str(conf)}
+    cache = conf / "plugins" / "cache"
+    assert entry.plugin_clone(str(cache / "truminds-skill-library" / "truminds" / "9.9.9"), env)
+    assert entry.plugin_clone(str(cache / "a-fork" / "truminds" / "9.9.9"), env) is None
+    assert (
+        entry.plugin_clone(str(cache / "truminds-skill-library" / "other" / "9.9.9"), env) is None
+    )

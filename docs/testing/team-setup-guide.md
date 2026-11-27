@@ -243,7 +243,7 @@ claude plugin marketplace update truminds-skill-library
 claude plugin update truminds@truminds-skill-library
 ```
 
-Then run `/reload-plugins` or restart Claude Code, and resume the run. The progress panel refreshes by itself once the update command has finished. The `TSL_ORG_FILE` path must be absolute (the build reads a relative one from `./tsl`). The clone commands are refused when the run's companion or product repos are inside the clone, as with §7's `examples/sample-system/companion-example`: then update `tsl` from a terminal outside Claude Code. The same applies to a plugin added from GitHub instead of your clone, and to a `tsl` older than this rule.
+Then run `/reload-plugins` or restart Claude Code, and resume the run. The progress panel refreshes by itself once the update command has finished. The `TSL_ORG_FILE` path must be absolute (the build reads a relative one from `./tsl`). These are refused when the run's companion or a product repo is inside the clone (as with §7's `examples/sample-system/companion-example`) or contains it: then update from a terminal outside Claude Code. The same applies to a plugin added from GitHub instead of your clone, and to a `tsl` older than this rule.
 
 If `claude plugin marketplace list` shows `truminds-skill-library` coming from GitHub instead of your clone folder, remove it (`claude plugin marketplace remove truminds-skill-library`) and repeat the plugin install in §7. Otherwise the plugin and `tsl` can come from different commits.
 

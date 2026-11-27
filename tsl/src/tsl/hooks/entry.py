@@ -105,10 +105,13 @@ def run_active(data: Mapping[str, object], home: str) -> bool:
 # denies every tool in a run, which used to include the commands that end the mismatch, so the
 # update needed a terminal outside Claude Code. These Bash commands, and only these, still run,
 # each as the whole command with nothing chained:
-# - anywhere: the two `claude plugin ... update` lines, `tsl --version`, `tsl doctor`;
+# - anywhere: `tsl --version`, `tsl doctor`; and the two `claude plugin ... update` lines, which
+#   copy the plugin from the clone when it comes from one, so then only when the clone is trusted;
 # - in the AI-Skill-Library clone the plugin comes from, and only as `cd <absolute clone path> &&
 #   <command>`: `git pull`, `git checkout main` and the reinstall of tsl. Never judged by the
 #   hook's cwd field alone, which may not be where the Bash tool runs.
+# The clone is trusted only when no folder the run's agent may write to (companions, product
+# repos) is inside it or contains it.
 # A path is plain characters only, so no shell expansion can turn it into more arguments: no
 # braces ({a,--index-url=...} would add one), globs, quotes inside, $ or `. In double quotes it may
 # also hold spaces and a backslash before a plain character (a Windows path), never a backslash
@@ -118,10 +121,10 @@ _PLAIN = r"(?:[A-Za-z0-9._/:+@%=-]|(?<=[A-Za-z0-9])~[0-9])+"
 _QUOTED = r'"(?:[A-Za-z0-9._/:+@%=~ -]|\\(?=[A-Za-z0-9._~ -]))+"'
 _PATH = rf"(?:{_QUOTED}|{_PLAIN})"
 _CD = re.compile(rf"cd (?P<dir>{_PATH}) && (?P<rest>.+)")
-_UPDATE_ANYWHERE = (
+_TSL_INFO = re.compile(r"tsl(?:\.exe)? (?:--version|doctor(?: --json)?)")
+_PLUGIN_UPDATE = (
     re.compile(r"claude plugin marketplace update truminds-skill-library"),
     re.compile(r"claude plugin update truminds@truminds-skill-library"),
-    re.compile(r"tsl(?:\.exe)? (?:--version|doctor(?: --json)?)"),
 )
 # The install takes no other option; --no-config so no uv.toml or pyproject setting in the folder
 # changes it; TSL_ORG_FILE (sign-in and service settings built into tsl) only as the absolute path
@@ -192,13 +195,14 @@ def plugin_clone(root: str | None, env: Mapping[str, str] | None = None) -> str 
     if _is_clone(up) and _same(os.path.join(up, "plugins", "truminds"), os.path.realpath(root)):
         return up
     parts = os.path.realpath(root).replace("\\", "/").split("/")
-    if len(parts) < 5 or parts[-5:-3] != ["plugins", "cache"]:
+    # Only the truminds plugin of this marketplace: the hint names both in its update commands.
+    if len(parts) < 5 or parts[-5:-1] != ["plugins", "cache", MARKETPLACE, "truminds"]:
         return None
     env = os.environ if env is None else env
     conf = env.get("CLAUDE_CONFIG_DIR") or os.path.join(os.path.expanduser("~"), ".claude")
     try:
         with open(os.path.join(conf, "plugins", "known_marketplaces.json"), encoding="utf-8") as fh:
-            src = json.load(fh)[parts[-3]]["source"]
+            src = json.load(fh)[MARKETPLACE]["source"]
     except (OSError, ValueError, KeyError, TypeError):
         return None
     path = src.get("path") if isinstance(src, dict) and src.get("source") == "directory" else None
@@ -209,41 +213,55 @@ def plugin_clone(root: str | None, env: Mapping[str, str] | None = None) -> str 
 
 
 def _run_folders(data: Mapping[str, object], home: str) -> list[str] | None:
-    """The open run's companion and product repos, or None when the companion can't be found."""
-    comp = None
+    """Every folder the open run's agent may write to: the companion named by the session index
+    and the one found by the tsl.yaml walk from cwd (both, as either may be the open run's), and
+    their product repos. None when no companion is found or a local.yaml can't be read."""
+    comps: list[str] = []
     sid = data.get("session_id")
     if isinstance(sid, str) and sid and not (set(sid) - _SID_CHARS):
         try:
             with open(os.path.join(home, "sessions", sid + ".json"), encoding="utf-8") as fh:
                 c = json.load(fh).get("companion")
-            comp = c if isinstance(c, str) and c else None
+            if isinstance(c, str) and c:
+                comps.append(os.path.realpath(c))
         except (OSError, ValueError, AttributeError):
-            comp = None
-    if comp is None:
-        cwd = data.get("cwd")
-        d = os.path.realpath(cwd if isinstance(cwd, str) and cwd else os.getcwd())
-        while not os.path.isfile(os.path.join(d, "tsl.yaml")):
-            if os.path.dirname(d) == d:
-                return None
-            d = os.path.dirname(d)
-        comp = d
-    folders = [os.path.realpath(comp)]
-    try:  # .tsl/local.yaml: product_repos: {name: path}, paths relative to the companion
-        with open(os.path.join(comp, ".tsl", "local.yaml"), encoding="utf-8") as fh:
-            lines = fh.read().splitlines()
-    except OSError:
-        lines = []
-    inside = False
-    for line in lines:
-        if not line.strip() or line.lstrip().startswith("#"):
+            pass
+    cwd = data.get("cwd")
+    d = os.path.realpath(cwd if isinstance(cwd, str) and cwd else os.getcwd())
+    while not os.path.isfile(os.path.join(d, "tsl.yaml")) and os.path.dirname(d) != d:
+        d = os.path.dirname(d)
+    if os.path.isfile(os.path.join(d, "tsl.yaml")):
+        comps.append(d)
+    if not comps:
+        return None
+    folders = list(comps)
+    for comp in comps:
+        local = os.path.join(comp, ".tsl", "local.yaml")
+        if not os.path.isfile(local):
             continue
-        if not line.startswith((" ", "\t")):
-            inside = line.split(":", 1)[0].strip() == "product_repos"
-            continue
-        m = re.match(r"\s+[^:#]+:\s*(\S[^#]*)", line)
-        if inside and m:
-            folders.append(os.path.realpath(os.path.join(comp, m.group(1).strip().strip("'\""))))
+        # As Companion.local_paths reads it (yaml.safe_load: flow style, quotes, wrapped lines,
+        # a # inside a path); yaml is imported only here, on a version mismatch in a run.
+        try:
+            from pathlib import Path
+
+            from tsl.core.jsonio import read_yaml
+
+            repos = read_yaml(Path(local))["product_repos"]
+            paths = [str(p) for p in repos.values()] if isinstance(repos, dict) else None
+        except Exception:
+            return None
+        if paths is None:
+            return None
+        for p in paths:
+            folders.append(os.path.realpath(p if os.path.isabs(p) else os.path.join(comp, p)))
     return folders
+
+
+def _clone_trusted(data: Mapping[str, object], clone: str, home: str) -> bool:
+    """False when the open run's agent may have written to the clone: a run folder is inside it,
+    or it is inside a run folder (a parent folder or monorepo as a product repo)."""
+    folders = _run_folders(data, home)
+    return folders is not None and not any(_inside(f, clone) or _inside(clone, f) for f in folders)
 
 
 def update_hint(clone: str | None) -> str:
@@ -287,12 +305,15 @@ def update_command_allowed(data: Mapping[str, object], clone: str | None, home: 
         if not _absolute(m.group("dir")):
             return False
         where, command = _local_path(m.group("dir")), m.group("rest")
-    if any(p.fullmatch(command) for p in _UPDATE_ANYWHERE):
+    if _TSL_INFO.fullmatch(command):
         return True
+    if any(p.fullmatch(command) for p in _PLUGIN_UPDATE):
+        # From a clone they copy its plugins/truminds (hooks included) into the plugin cache:
+        # the same trust as git pull and the reinstall. From GitHub (no clone) they don't.
+        return clone is None or _clone_trusted(data, clone, home)
     if where is None or clone is None or not _same(where, clone):
         return False
-    folders = _run_folders(data, home)
-    if folders is None or any(_inside(f, clone) for f in folders):
+    if not _clone_trusted(data, clone, home):
         return False  # the agent could have written to the clone it would now build from
     if any(p.fullmatch(command) for p in _UPDATE_IN_CLONE):
         return True
