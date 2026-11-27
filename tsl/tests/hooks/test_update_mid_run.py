@@ -2,9 +2,10 @@
 
 While tsl and the plugin differ (E-VER-01) the pre-tool hook denies every tool inside a run. It
 used to deny the update commands too, so ending the mismatch needed a terminal outside Claude
-Code. Now exactly the update commands still run, and the ones that act on their folder (git pull,
-uv tool install ./tsl) only in the AI-Skill-Library clone the plugin is loaded from: anywhere else,
-./tsl could be a package the agent wrote, installed as the policy hook.
+Code. Now exactly the update commands still run. The ones that act on a folder (git pull, the
+reinstall of tsl) only as `cd <absolute clone path> && <command>`, in the AI-Skill-Library clone
+the plugin comes from, and never when the run's companion or product repos are inside that clone:
+anywhere else ./tsl could be code the agent wrote, installed as the policy hook.
 """
 
 from __future__ import annotations
@@ -12,12 +13,14 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from tsl.hooks import entry
 
 INSTALL = "uv tool install --python 3.12 --reinstall --no-cache --no-config ./tsl"
+ORG = "deploy/render/tsl-org.github.toml"
 
 
 @pytest.fixture
@@ -27,18 +30,21 @@ def home(tmp_path: Path) -> Path:
     return h
 
 
-@pytest.fixture
-def companion(tmp_path: Path) -> Path:
-    """A companion repo with an open run."""
-    root = tmp_path / "companion"
+def open_run(root: Path) -> Path:
     (root / "runs" / "active").mkdir(parents=True)
     (root / "tsl.yaml").write_text("schema: tsl-config.v1\n", encoding="utf-8")
     (root / "runs" / "active" / "ABC-1__wf.lock").write_text("{}", encoding="utf-8")
     return root
 
 
+@pytest.fixture
+def companion(tmp_path: Path) -> Path:
+    """A companion repo with an open run, next to (not inside) the clone."""
+    return open_run(tmp_path / "companion")
+
+
 def make_plugin(base: Path, version: str = "9.9.9", *, in_clone: bool = True) -> Path:
-    """The plugin at <clone>/plugins/truminds (or an installed copy when in_clone is False)."""
+    """The plugin at <base>/AI-Skill-Library/plugins/truminds (a clone, unless in_clone=False)."""
     clone = base / "AI-Skill-Library"
     root = clone / "plugins" / "truminds"
     (root / ".claude-plugin").mkdir(parents=True)
@@ -51,11 +57,10 @@ def make_plugin(base: Path, version: str = "9.9.9", *, in_clone: bool = True) ->
     return root
 
 
-def hook(
-    command: str, cwd: Path, home: Path, root: Path, tool: str = "Bash"
-) -> tuple[str, list[int]]:
+def run_hook(
+    command: str, cwd: Path, home: Path, root: Path, tool: str = "Bash", **env: str
+) -> str:
     out: list[str] = []
-    exits: list[int] = []
     data = {
         "session_id": "s-1",
         "cwd": str(cwd),
@@ -66,12 +71,13 @@ def hook(
     entry.guarded(
         "pre-tool",
         json.dumps(data),
-        env={"TSL_PLUGIN_ROOT": str(root), "CLAUDE_CONFIG_DIR": str(root / "no-claude-config")},
+        # An empty Claude config folder: the tests never read the machine's marketplaces.
+        env={"TSL_PLUGIN_ROOT": str(root), "CLAUDE_CONFIG_DIR": str(cwd / "no-claude"), **env},
         home=home,
         emit=out.append,
-        hard_exit=exits.append,
+        hard_exit=lambda c: None,
     )
-    return "".join(out), exits
+    return "".join(out)
 
 
 def denied(out: str) -> str:
@@ -82,113 +88,210 @@ def denied(out: str) -> str:
     return reason
 
 
+def cd(path: Path) -> str:
+    return f'cd "{path.resolve().as_posix()}" &&'
+
+
 def test_update_commands_run_while_versions_differ(
     companion: Path, home: Path, tmp_path: Path
 ) -> None:
     root = make_plugin(tmp_path)
     clone = root.parent.parent
-    for command in (
+    c = clone.resolve().as_posix()
+    commands = (
         "claude plugin marketplace update truminds-skill-library",
         "claude plugin update truminds@truminds-skill-library",
         "tsl --version",
         "tsl doctor",
-        f"cd {clone.as_posix()} && git pull",
-        f"cd {clone.as_posix()} && git pull --ff-only",
-        f"cd {clone.as_posix()} && git checkout main",
-        f"cd {clone.as_posix()} && {INSTALL}",
-        f'cd "{clone.as_posix()}" && TSL_ORG_FILE=deploy/render/tsl-org.github.toml {INSTALL}',
-        f"cd {clone.as_posix()} && TSL_ORG_FILE={clone.as_posix()}/deploy/render/tsl-org.github.toml"
-        f" {INSTALL}",
-    ):
-        out, exits = hook(command, companion, home, root)
-        assert out == "", (command, out)
-        assert exits == [], command
+        f"{cd(clone)} git pull",
+        f"{cd(clone)} git pull --ff-only",
+        f"{cd(clone)} git checkout main",
+        f"{cd(clone)} {INSTALL}",
+        f'{cd(clone)} TSL_ORG_FILE="{c}/{ORG}" {INSTALL}',
+    )
+    for command in commands:
+        assert run_hook(command, companion, home, root) == "", command
     log = (home / "logs" / "hook.log").read_text(encoding="utf-8")
-    assert log.count("decision=allow code=E-VER-01") == 10
-
-
-def test_folder_commands_run_from_the_clone_itself(home: Path, tmp_path: Path) -> None:
-    root = make_plugin(tmp_path)
-    clone = root.parent.parent
-    (clone / "runs" / "active").mkdir(parents=True)  # a run open here too: deny-all otherwise
-    (clone / "tsl.yaml").write_text("schema: tsl-config.v1\n", encoding="utf-8")
-    (clone / "runs" / "active" / "X-1__wf.lock").write_text("{}", encoding="utf-8")
-    for command in ("git pull", INSTALL):
-        out, _ = hook(command, clone, home, root)
-        assert out == "", (command, out)
+    assert log.count("decision=allow code=E-VER-01") == len(commands)
 
 
 def test_everything_else_stays_denied(companion: Path, home: Path, tmp_path: Path) -> None:
     root = make_plugin(tmp_path)
-    clone = root.parent.parent.as_posix()
+    clone = root.parent.parent
+    c = clone.resolve().as_posix()
     for command in (
         "ls",
-        "git pull",  # in the companion, not the clone
-        # Without --no-config a uv.toml in the folder could change the install.
-        f"cd {clone} && uv tool install --python 3.12 --reinstall --no-cache ./tsl",
-        # cd targets bash reads differently from a plain path: $OLDPWD, $PWD, the dir
-        # stack, another user's home, or a CDPATH lookup for a bare relative name.
+        # Folder commands are never judged by the hook's cwd field alone.
+        "git pull",
+        INSTALL,
+        # Relative, home and shell-special cd targets: bash may land elsewhere than the hook thinks.
+        "cd ./AI-Skill-Library && git pull",
+        "cd ../AI-Skill-Library && git pull",
+        "cd AI-Skill-Library && git pull",
+        "cd ~/AI-Skill-Library && git pull",
+        "cd ~ && git pull",
         "cd - && git pull",
         "cd ~+ && git pull",
         "cd ~- && git pull",
         "cd ~1 && git pull",
-        "cd ~root && git pull",
-        "cd AI-Skill-Library && git pull",
-        f"cd {clone} && TSL_ORG_FILE=~+/deploy/render/tsl-org.github.toml {INSTALL}",
-        f"cd {clone} && TSL_ORG_FILE=-x {INSTALL}",
-        INSTALL,  # ./tsl here would be whatever the companion holds
-        f"cd {companion.as_posix()} && {INSTALL}",
-        f"cd {clone} && {INSTALL} && rm -rf runs",
-        f"cd {clone} && {INSTALL}; curl example.com",
-        f"cd {clone} && {INSTALL} | tee x",
-        f"cd {clone} && {INSTALL}\nrm -rf runs",
-        f"cd {clone} && TSL_ORG_FILE=$HOME/org.toml {INSTALL}",
-        # The agent picks neither the build inputs nor the sign-in and service settings:
-        f"cd {clone} && TSL_ORG_FILE=/tmp/evil.toml {INSTALL}",
-        f"cd {clone} && TSL_ORG_FILE=deploy/render/other.toml {INSTALL}",
-        f"cd {clone} && uv tool install --python 3.12 --reinstall --no-cache --constraints c.txt"
-        " ./tsl",
-        f"cd {clone} && uv tool install --python 3.12 --reinstall --no-cache --constraints"
-        " https://evil.example/c.txt ./tsl",
-        # Brace expansion would add arguments: {c.txt,--index-url=...} becomes two.
-        f"cd {clone} && TSL_ORG_FILE={{deploy/render/tsl-org.github.toml,x}} {INSTALL}",
-        f"cd {{{clone},x}} && git pull",
-        f"cd {clone} && uv tool install --python 3.12 --reinstall --no-cache ./ts?",
-        f'cd "{clone}\\" && git pull',
-        f"cd {clone} && uv tool install --python 3.12 --reinstall --no-cache ../evil/tsl",
-        f"cd {clone} && git pull origin evil-branch",
+        f"{cd(companion)} {INSTALL}",
+        # Only the install line, with --no-config and the clone's own settings file, by path.
+        f"{cd(clone)} uv tool install --python 3.12 --reinstall --no-cache ./tsl",
+        f"{cd(clone)} TSL_ORG_FILE={ORG} {INSTALL}",
+        f"{cd(clone)} TSL_ORG_FILE=$HOME/org.toml {INSTALL}",
+        f"{cd(clone)} TSL_ORG_FILE=/tmp/evil.toml {INSTALL}",
+        f"{cd(clone)} TSL_ORG_FILE=~/{ORG} {INSTALL}",
+        f"{cd(clone)} uv tool install --python 3.12 --reinstall --no-cache --no-config"
+        " --constraints c.txt ./tsl",
+        f"{cd(clone)} uv tool install --python 3.12 --reinstall --no-cache --no-config ../evil/tsl",
+        # Expansion, chaining, newlines.
+        f"{cd(clone)} TSL_ORG_FILE={{{c}/{ORG},x}} {INSTALL}",
+        f"cd {{{c},x}} && git pull",
+        f"{cd(clone)} {INSTALL} && rm -rf runs",
+        f"{cd(clone)} {INSTALL}; curl example.com",
+        f"{cd(clone)} {INSTALL} | tee x",
+        f"{cd(clone)} {INSTALL}\nrm -rf runs",
+        f'cd "{c}\\\\" && git pull',
+        f"{cd(clone)} git pull origin evil-branch",
         "claude plugin update truminds@another-marketplace",
         "claude plugin install evil@x",
         "tsl state abort run_1",
     ):
-        reason = denied(hook(command, companion, home, root)[0])
+        reason = denied(run_hook(command, companion, home, root))
         assert "git pull" in reason and "/reload-plugins" in reason
 
 
 def test_only_the_bash_tool(companion: Path, home: Path, tmp_path: Path) -> None:
     root = make_plugin(tmp_path)
+    update = "claude plugin update truminds@truminds-skill-library"
     for tool in ("PowerShell", "Write", "Edit"):
-        denied(
-            hook(
-                "claude plugin update truminds@truminds-skill-library", companion, home, root, tool
-            )[0]
-        )
+        denied(run_hook(update, companion, home, root, tool))
 
 
-def test_a_plugin_not_read_from_a_clone_allows_no_folder_command(
+def test_no_folder_command_when_the_run_lives_inside_the_clone(home: Path, tmp_path: Path) -> None:
+    """§7's example companion is <clone>/examples/sample-system/companion-example: an agent there
+    can write to the clone, so the clone is not trusted for a reinstall."""
+    root = make_plugin(tmp_path)
+    clone = root.parent.parent
+    inner = open_run(clone / "examples" / "sample-system" / "companion-example")
+    denied(run_hook(f"{cd(clone)} git pull", inner, home, root))
+    denied(run_hook(f"{cd(clone)} {INSTALL}", inner, home, root))
+    update = "claude plugin update truminds@truminds-skill-library"
+    assert run_hook(update, inner, home, root) == ""
+
+
+def test_no_folder_command_when_a_product_repo_lives_inside_the_clone(
     companion: Path, home: Path, tmp_path: Path
 ) -> None:
+    root = make_plugin(tmp_path)
+    clone = root.parent.parent
+    (companion / ".tsl").mkdir()
+    local = companion / ".tsl" / "local.yaml"
+    local.write_text(
+        "schema: tsl-local.v1\nproduct_repos:\n  app: ../AI-Skill-Library/examples/app\n",
+        encoding="utf-8",
+    )
+    denied(run_hook(f"{cd(clone)} git pull", companion, home, root))
+    local.write_text(
+        "schema: tsl-local.v1\nproduct_repos:\n  app: ../sample-app # outside\n", encoding="utf-8"
+    )
+    assert run_hook(f"{cd(clone)} git pull", companion, home, root) == ""
+
+
+def test_the_session_index_names_the_companion(home: Path, tmp_path: Path) -> None:
+    """After `cd <clone> && ...` the Bash tool's folder is the clone; the run's companion comes
+    from the session index, not from walking up from there."""
+    root = make_plugin(tmp_path)
+    clone = root.parent.parent
+    comp = open_run(tmp_path / "companion")
+    (home / "sessions").mkdir()
+    index = home / "sessions" / "s-1.json"
+    lock = "runs/active/ABC-1__wf.lock"
+    index.write_text(json.dumps({"companion": str(comp), "lock": lock}), encoding="utf-8")
+    assert run_hook(f"{cd(clone)} git pull", clone, home, root) == ""
+    inner = open_run(clone / "examples" / "c")
+    index.write_text(json.dumps({"companion": str(inner), "lock": lock}), encoding="utf-8")
+    denied(run_hook(f"{cd(clone)} git pull", clone, home, root))
+
+
+def test_an_error_while_deciding_never_allows(
+    companion: Path, home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The answer is built before the hook commits to it, so an error in the checks ends in the
+    version deny, never in an empty (allow) answer."""
+    root = make_plugin(tmp_path)
+
+    def broken(*args: Any, **kwargs: Any) -> Any:
+        raise OSError("disk gone")
+
+    monkeypatch.setattr(entry, "plugin_clone", broken)
+    update = "claude plugin update truminds@truminds-skill-library"
+    reason = denied(run_hook(update, companion, home, root))
+    assert "terminal outside Claude Code" in reason
+
+
+def test_a_plugin_not_from_a_clone_gets_no_folder_command(
+    companion: Path, home: Path, tmp_path: Path
+) -> None:
+    """--plugin-dir or another folder: no clone, even when a folder marketplace is known."""
     root = make_plugin(tmp_path, in_clone=False)
-    clone = root.parent.parent.as_posix()
-    denied(hook(f"cd {clone} && {INSTALL}", companion, home, root)[0])
-    out, _ = hook("claude plugin update truminds@truminds-skill-library", companion, home, root)
-    assert out == ""
+    real = make_plugin(tmp_path / "real").parent.parent
+    conf = tmp_path / "claude"
+    (conf / "plugins").mkdir(parents=True)
+    known = {"truminds-skill-library": {"source": {"source": "directory", "path": str(real)}}}
+    (conf / "plugins" / "known_marketplaces.json").write_text(json.dumps(known), encoding="utf-8")
+    assert entry.plugin_clone(str(root), {"CLAUDE_CONFIG_DIR": str(conf)}) is None
+    out = run_hook(f"{cd(real)} git pull", companion, home, root, CLAUDE_CONFIG_DIR=str(conf))
+    assert "terminal outside Claude Code" in denied(out)
+    update = "claude plugin update truminds@truminds-skill-library"
+    assert run_hook(update, companion, home, root) == ""
+
+
+def test_a_plugin_installed_from_a_folder_marketplace_finds_its_clone(
+    companion: Path, home: Path, tmp_path: Path
+) -> None:
+    """Claude Code runs an installed copy from its cache; the clone is the marketplace folder
+    that known_marketplaces.json records."""
+    clone = make_plugin(tmp_path).parent.parent
+    conf = tmp_path / "claude"
+    root = conf / "plugins" / "cache" / "truminds-skill-library" / "truminds" / "9.9.9"
+    (root / ".claude-plugin").mkdir(parents=True)
+    (root / ".claude-plugin" / "plugin.json").write_text('{"version": "9.9.9"}', encoding="utf-8")
+    known = {"truminds-skill-library": {"source": {"source": "directory", "path": str(clone)}}}
+    marketplaces = conf / "plugins" / "known_marketplaces.json"
+    marketplaces.write_text(json.dumps(known), encoding="utf-8")
+    env = {"CLAUDE_CONFIG_DIR": str(conf)}
+    assert entry.plugin_clone(str(root), env) == str(clone.resolve())
+    assert run_hook(f"{cd(clone)} {INSTALL}", companion, home, root, **env) == ""
+    known["truminds-skill-library"]["source"] = {"source": "github", "repo": "x/y"}
+    marketplaces.write_text(json.dumps(known), encoding="utf-8")
+    assert entry.plugin_clone(str(root), env) is None
+
+
+def test_the_hint_gives_commands_that_pass(tmp_path: Path) -> None:
+    clone = make_plugin(tmp_path / "My Clones").parent.parent.resolve()
+    c = clone.as_posix()
+    hint = entry.update_hint(str(clone))
+    assert f'cd "{c}" && git pull' in hint
+    # The settings file by absolute path: the build resolves a relative one from ./tsl.
+    assert f'cd "{c}" && TSL_ORG_FILE="{c}/{ORG}" {INSTALL}' in hint
+    assert "checkout" not in hint
+    odd = make_plugin(tmp_path / "Clones (old)").parent.parent.resolve()  # ( is refused in paths
+    assert "terminal outside Claude Code" in entry.update_hint(str(odd))
+
+
+def test_a_quoted_clone_path_keeps_its_spaces(companion: Path, home: Path, tmp_path: Path) -> None:
+    root = make_plugin(tmp_path / "My  Clones")
+    clone = root.parent.parent
+    assert run_hook(f"{cd(clone)} git pull", companion, home, root) == ""
+    other = tmp_path / "My Clones" / "AI-Skill-Library"  # one space: another folder
+    denied(run_hook(f'cd "{other.as_posix()}" && git pull', companion, home, root))
 
 
 def test_matching_versions_never_reach_the_allow_list(
     companion: Path, home: Path, tmp_path: Path
 ) -> None:
-    """With equal versions the normal policy decides (here a runner that denies)."""
+    """With equal versions the normal policy decides (here a runner that answers)."""
     from tsl import __version__
 
     root = make_plugin(tmp_path, version=__version__)
@@ -202,7 +305,7 @@ def test_matching_versions_never_reach_the_allow_list(
     entry.guarded(
         "pre-tool",
         json.dumps(data),
-        env={"TSL_PLUGIN_ROOT": str(root), "CLAUDE_CONFIG_DIR": str(root / "no-claude-config")},
+        env={"TSL_PLUGIN_ROOT": str(root)},
         home=home,
         runner=lambda e, s: ('{"decision": "from-policy"}', 0),
         emit=out.append,
@@ -211,91 +314,12 @@ def test_matching_versions_never_reach_the_allow_list(
     assert "from-policy" in "".join(out)
 
 
-@pytest.mark.skipif(os.name != "nt", reason="Git Bash drive paths exist on Windows only")
-def test_git_bash_drive_paths_name_the_clone(companion: Path, home: Path, tmp_path: Path) -> None:
+@pytest.mark.skipif(os.name != "nt", reason="Windows paths")
+def test_windows_paths(companion: Path, home: Path, tmp_path: Path) -> None:
     root = make_plugin(tmp_path)
     clone = root.parent.parent.resolve()
-    bash = "/" + clone.drive[0].lower() + clone.as_posix()[2:]
-    out, _ = hook(f"cd {bash} && git pull", companion, home, root)
-    assert out == "", bash
-
-
-def test_the_hint_without_a_clone_says_to_use_a_terminal(
-    companion: Path, home: Path, tmp_path: Path
-) -> None:
-    root = make_plugin(tmp_path, in_clone=False)
-    reason = denied(hook("ls", companion, home, root)[0])
-    assert "terminal outside Claude Code" in reason and "claude plugin update" in reason
-
-
-def test_a_quoted_clone_path_keeps_its_spaces(companion: Path, home: Path, tmp_path: Path) -> None:
-    root = make_plugin(tmp_path / "My  Clones")
-    clone = root.parent.parent.as_posix()
-    assert hook(f'cd "{clone}" && git pull', companion, home, root)[0] == ""
-    other = tmp_path / "My Clones" / "AI-Skill-Library"  # one space: another folder
-    denied(hook(f'cd "{other.as_posix()}" && git pull', companion, home, root)[0])
-
-
-def test_a_home_relative_clone_path(
-    companion: Path, home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    root = make_plugin(tmp_path)
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setenv("USERPROFILE", str(tmp_path))
-    assert hook("cd ~/AI-Skill-Library && git pull", companion, home, root)[0] == ""
-
-
-@pytest.mark.skipif(os.name != "nt", reason="Windows paths")
-def test_a_quoted_windows_path(companion: Path, home: Path, tmp_path: Path) -> None:
-    root = make_plugin(tmp_path)
-    clone = str(root.parent.parent.resolve())
-    assert "\\" in clone
-    assert hook(f'cd "{clone}" && git pull', companion, home, root)[0] == ""
-
-
-def test_a_relative_clone_path_needs_dot_slash(home: Path, tmp_path: Path) -> None:
-    """A bare name can be found through CDPATH; ./name and ../name cannot."""
-    work = tmp_path / "work"
-    (work / "runs" / "active").mkdir(parents=True)
-    (work / "tsl.yaml").write_text("schema: tsl-config.v1\n", encoding="utf-8")
-    (work / "runs" / "active" / "A-1__wf.lock").write_text("{}", encoding="utf-8")
-    root = make_plugin(work)
-    assert hook("cd ./AI-Skill-Library && git pull", work, home, root)[0] == ""
-    denied(hook("cd AI-Skill-Library && git pull", work, home, root)[0])
-
-
-def test_a_plugin_installed_from_a_folder_marketplace_finds_its_clone(
-    companion: Path, home: Path, tmp_path: Path
-) -> None:
-    """Claude Code runs an installed copy from its cache; the clone is the marketplace folder
-    that known_marketplaces.json records."""
-    clone = make_plugin(tmp_path).parent.parent
-    cached = tmp_path / "claude" / "plugins" / "cache" / "truminds-skill-library" / "truminds"
-    root = cached / "9.9.9"
-    (root / ".claude-plugin").mkdir(parents=True)
-    (root / ".claude-plugin" / "plugin.json").write_text('{"version": "9.9.9"}', encoding="utf-8")
-    known = {"truminds-skill-library": {"source": {"source": "directory", "path": str(clone)}}}
-    (tmp_path / "claude" / "plugins" / "known_marketplaces.json").write_text(
-        json.dumps(known), encoding="utf-8"
-    )
-    env = {"CLAUDE_CONFIG_DIR": str(tmp_path / "claude")}
-    assert entry.plugin_clone(str(root), env) == str(clone.resolve())
-    data = {
-        "session_id": "s-1",
-        "cwd": str(companion),
-        "tool_name": "Bash",
-        "tool_input": {"command": f"cd {clone.as_posix()} && {INSTALL}"},
-    }
-    assert entry.update_command_allowed(data, entry.plugin_clone(str(root), env))
-    known["truminds-skill-library"]["source"] = {"source": "github", "repo": "x/y"}
-    (tmp_path / "claude" / "plugins" / "known_marketplaces.json").write_text(
-        json.dumps(known), encoding="utf-8"
-    )
-    assert entry.plugin_clone(str(root), env) is None
-
-
-def test_the_hint_quotes_the_clone_and_does_not_switch_branches(tmp_path: Path) -> None:
-    clone = make_plugin(tmp_path / "My Clones").parent.parent
-    hint = entry.update_hint(str(clone.resolve()))
-    assert f'cd "{clone.resolve().as_posix()}"' in hint
-    assert "checkout" not in hint and "--no-config" in hint
+    git_bash = "/" + clone.drive[0].lower() + clone.as_posix()[2:]
+    assert run_hook(f"cd {git_bash} && git pull", companion, home, root) == ""
+    assert run_hook(f'cd "{clone}" && git pull', companion, home, root) == ""  # backslashes
+    # Any other /... is under Git Bash's own root, not the drive root Python would read.
+    denied(run_hook(f"cd /tmp{clone.as_posix()[2:]} && git pull", companion, home, root))

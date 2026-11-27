@@ -56,8 +56,10 @@ function isTslCommand(command: unknown): boolean {
 function isUpdateCommand(command: unknown): boolean {
   return (
     typeof command === 'string' &&
-    (/(^|[\s;&|(])uv\s+tool\s+install\b[^;&|]*[\s/\\]tsl(\s|$)/.test(command) ||
-      /(^|[\s;&|(])claude\s+plugin\s+(marketplace\s+update\s+truminds-skill-library|update\s+truminds@)/.test(command))
+    // Each must start a command (the line's start, or after ; && || or a pipe) and end at a word
+    // boundary, so `echo uv tool install ./tsl` or another plugin's update does not count.
+    (/(^|[;&|(]\s*)(TSL_ORG_FILE=("[^"]*"|\S+)\s+)?uv\s+tool\s+install\b[^;&|]*[\s/\\]tsl(\s|$|[;&|])/.test(command) ||
+      /(^|[;&|(]\s*)claude\s+plugin\s+(marketplace\s+update\s+truminds-skill-library|update\s+truminds@truminds-skill-library)(\s|$|[;&|])/.test(command))
   )
 }
 

@@ -40,11 +40,13 @@ for (const c of [
   'cd /c/x/AI-Skill-Library && uv tool install --reinstall ./tsl',
   'claude plugin update truminds@truminds-skill-library',
   'claude plugin marketplace update truminds-skill-library',
+  'cd "C:/My Clones/AI-Skill-Library" && TSL_ORG_FILE="C:/My Clones/AI-Skill-Library/deploy/render/tsl-org.github.toml" uv tool install --python 3.12 --reinstall --no-cache --no-config ./tsl',
 ])
   assert.equal(isUpdateCommand(c), true, c)
 for (const c of [
   'uv tool install ruff', 'uv tool list', 'claude plugin list', 'echo uv tool install ./tsl-x',
-  'claude plugin update other@x', 'claude plugin marketplace update other-market',
+  'echo uv tool install ./tsl', 'claude plugin update other@x', 'claude plugin update truminds@x',
+  'claude plugin marketplace update other-market', 'claude plugin marketplace update truminds-skill-library-x',
   'uv tool install ruff; ls ./tsl', 'uv tool upgrade truminds-tsl', undefined,
 ])
   assert.equal(isUpdateCommand(c), false, String(c))

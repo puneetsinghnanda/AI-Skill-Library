@@ -234,7 +234,16 @@ There is **no GitHub release yet**. A new version means the version on `main` (s
 4. Restart the Claude Code app.
 5. Check: `tsl --version` and `claude plugin list` both show the new version, and `tsl doctor` has no ✖ line.
 
-**Updating while a run is open.** You can do steps 1 to 3 from inside Claude Code, even mid-run: while `tsl` and the plugin differ, the policy hook blocks every other tool (E-VER-01) but still lets these commands through, each run on its own with the Bash tool: `git pull`, `git checkout main` and the `uv tool install ... ./tsl` line, run in your AI-Skill-Library clone (for example `cd C:/dev/AI-Skill-Library && git pull`, and `TSL_ORG_FILE=deploy/render/tsl-org.github.toml uv tool install --python 3.12 --reinstall --no-cache --no-config ./tsl` with no other option); and the two `claude plugin ... update` lines anywhere. Then run `/reload-plugins` or restart Claude Code, and resume the run. The progress panel refreshes by itself once the update command has finished. This works from the `tsl` version that adds it onward; with an older `tsl`, use a terminal outside Claude Code.
+**Updating while a run is open.** While `tsl` and the plugin differ, the policy hook blocks every tool in a run (E-VER-01) except the update commands, so you can finish the update from inside Claude Code. Run each with the Bash tool as its own command, exactly as the hook's message shows them, with your clone's absolute path (for example `C:/dev/AI-Skill-Library`):
+
+```bash
+cd "C:/dev/AI-Skill-Library" && git pull
+cd "C:/dev/AI-Skill-Library" && TSL_ORG_FILE="C:/dev/AI-Skill-Library/deploy/render/tsl-org.github.toml" uv tool install --python 3.12 --reinstall --no-cache --no-config ./tsl
+claude plugin marketplace update truminds-skill-library
+claude plugin update truminds@truminds-skill-library
+```
+
+Then run `/reload-plugins` or restart Claude Code, and resume the run. The progress panel refreshes by itself once the update command has finished. The `TSL_ORG_FILE` path must be absolute (the build reads a relative one from `./tsl`). The clone commands are refused when the run's companion or product repos are inside the clone, as with §7's `examples/sample-system/companion-example`: then update `tsl` from a terminal outside Claude Code. The same applies to a plugin added from GitHub instead of your clone, and to a `tsl` older than this rule.
 
 If `claude plugin marketplace list` shows `truminds-skill-library` coming from GitHub instead of your clone folder, remove it (`claude plugin marketplace remove truminds-skill-library`) and repeat the plugin install in §7. Otherwise the plugin and `tsl` can come from different commits.
 
