@@ -5,6 +5,7 @@ import {
   duration,
   humanize,
   initials,
+  minutes,
   monthLabel,
   percent,
   relativeTime,
@@ -47,5 +48,15 @@ describe('format', () => {
   it('builds user-chip initials from the own name, else the pseudonym', () => {
     expect(initials('Avery Example', 'eng-4f2a')).toBe('AE');
     expect(initials(null, 'eng-4f2a')).toBe('EN');
+  });
+
+  it('prints AI time and waits in minutes, rounding once (D1)', () => {
+    expect(minutes(216_000)).toBe('3.6 min');
+    expect(minutes(0)).toBe('0.0 min');
+    expect(minutes(597_000)).toBe('10 min'); // 9.95 min: not "10.0 min"
+    expect(minutes(3_590_000)).toBe('1 h 0 min'); // 59.8 min: not "60 min"
+    expect(minutes(7_170_000)).toBe('2 h 0 min'); // 119.5 min: not "1 h 60 min"
+    expect(minutes(4_320_000)).toBe('1 h 12 min');
+    expect(minutes(null)).toBeNull();
   });
 });

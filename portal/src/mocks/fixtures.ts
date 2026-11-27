@@ -18,10 +18,12 @@ import type {
   ReleaseItem,
   RunDetail,
   RunItem,
+  RunStep,
   SkillCard,
   SkillDetail,
   SkillStatus,
   StatusData,
+  StepMetricsTotals,
 } from '../api/types';
 
 export const ILLUSTRATIVE = 'Illustrative data';
@@ -1283,7 +1285,20 @@ export function runDetail(r: RunRow, me: string, revealNames: boolean): RunDetai
       attempt: a,
       started_at: ago(r.updatedMin + 300 - seq * 10 - a),
       decided_at: ago(r.updatedMin + 290 - seq * 10 - a),
-      duration_ms: 41000,
+      duration_ms: 216000,
+      metrics: {
+        source: 'transcript' as const,
+        wait_s: seq === 2 && a === 1 ? 378 : 0,
+        models: ['claude-opus-5-5'],
+        tokens: {
+          input: 48,
+          output: 18890,
+          cache_read: 1693514,
+          cache_write: 72951,
+          calls: 23,
+          subagent_calls: 5,
+        },
+      },
       record: record(retried && a === 1 ? 'RETRY' : outcome, retried && a === 1 ? 0.71 : 0.91),
     }));
     return {
@@ -1355,7 +1370,39 @@ export function runDetail(r: RunRow, me: string, revealNames: boolean): RunDetai
           },
         ]
       : [],
+    step_metrics: stepMetrics(steps),
     usage: { tokens_in: 812000, tokens_out: 96000, cost_usd: 4.21 },
+  };
+}
+
+/** The run's D1 totals, summed from the mock attempts as the service does. */
+function stepMetrics(steps: RunStep[]): StepMetricsTotals | null {
+  const atts = steps.flatMap((s) => s.attempts.filter((a) => a.decided_at !== null));
+  const measured = atts.filter((a) => a.metrics);
+  if (!measured.length) return null;
+  const counted = measured.filter((a) => a.metrics?.tokens);
+  const sum = (
+    rows: RunStep['attempts'],
+    f: (a: RunStep['attempts'][number]) => number | null | undefined,
+  ) => rows.reduce((n, a) => n + (f(a) ?? 0), 0);
+  const decidedPerStep = steps.map((s) => s.attempts.filter((a) => a.decided_at !== null).length);
+  return {
+    attempts: atts.length,
+    retries: decidedPerStep.reduce((n, k) => n + Math.max(0, k - 1), 0),
+    measured_attempts: measured.length,
+    token_attempts: counted.length,
+    ai_ms: sum(measured, (a) => a.duration_ms),
+    wait_s: sum(measured, (a) => a.metrics?.wait_s),
+    calls: counted.length ? sum(counted, (a) => a.metrics?.tokens?.calls) : null,
+    subagent_calls: counted.length ? sum(counted, (a) => a.metrics?.tokens?.subagent_calls) : null,
+    tokens: counted.length
+      ? {
+          input: sum(counted, (a) => a.metrics?.tokens?.input),
+          output: sum(counted, (a) => a.metrics?.tokens?.output),
+          cache_read: sum(counted, (a) => a.metrics?.tokens?.cache_read),
+          cache_write: sum(counted, (a) => a.metrics?.tokens?.cache_write),
+        }
+      : null,
   };
 }
 
