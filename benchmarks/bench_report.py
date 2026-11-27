@@ -50,7 +50,7 @@ PASS = ("PASS", "PASS-WITH-FINDINGS")
 # Why a retry happened, in table order, with the one-letter code used in the matrix.
 REASONS = {"review": "R", "build": "B", "lint": "L", "test": "T", "checks": "C", "verifier": "V"}
 CAUSE_REASON = {"retry_review": "review", "retry_verifier": "verifier", "retry_checks": "checks"}
-SLIP = re.compile(r"^\s*(build|lint|test) exit\b")
+SLIP = re.compile(r"^\s*(build|lint|test) (exit|timed out)\b")
 TOKEN_KEYS = ("input", "output", "cache_read", "cache_write", "calls")
 
 
@@ -68,7 +68,7 @@ class Source:
         if self.ref is None:
             p = self.root / rel
             try:
-                return p.read_text(encoding="utf-8") if p.is_file() else None
+                return p.read_text(encoding="utf-8", errors="replace") if p.is_file() else None
             except OSError:
                 return None
         r = subprocess.run(
@@ -103,22 +103,30 @@ def _ms(a: Any, b: Any) -> int | None:
     return int((t1 - t0).total_seconds() * 1000) if t0 and t1 and t1 >= t0 else None
 
 
+# Where an absolute path starts, per OS. Windows first: `C:\`, `C:/`, and a drive mounted by
+# Git Bash (`/c/Users/...`) or WSL (`/mnt/c/Users/...`), which also contain `/Users/`.
+OS_PATHS = (
+    ("Windows", re.compile(r"^(?:[A-Za-z]:[\\/]|/(?:mnt/)?[A-Za-z]/)")),
+    ("macOS", re.compile(r"^/Users/")),
+    ("Linux", re.compile(r"^/home/")),
+)
+
+
 def infer_os(tool_log: str | None) -> str:
-    """Windows, Linux or macOS, from the absolute paths in the run's tool log."""
-    votes = {"Windows": 0, "Linux": 0, "macOS": 0}
+    """Windows, Linux or macOS, from the absolute paths in the run's tool log (one vote a line)."""
+    counts = {name: 0 for name, _ in OS_PATHS}
     for line in (tool_log or "").splitlines():
         try:
             target = str(json.loads(line).get("target") or "")
         except (ValueError, AttributeError):
             continue
-        if re.search(r"(^|[\s\"'])[A-Za-z]:[\\/]", target):
-            votes["Windows"] += 1
-        elif "/Users/" in target:
-            votes["macOS"] += 1
-        elif "/home/" in target:
-            votes["Linux"] += 1
-    best = max(votes, key=lambda k: votes[k])
-    return best if votes[best] else "unknown"
+        # A Bash target is a command line: look at where each word starts.
+        words = [w for w in re.split(r"[\s\"'=(),;]+", target) if w]
+        hit = next((n for n, rx in OS_PATHS for w in words if rx.match(w)), None)
+        if hit:
+            counts[hit] += 1
+    best = max(counts, key=lambda k: counts[k])
+    return best if counts[best] else "unknown"
 
 
 def retry_reason(feedback: Any, cause: str | None) -> str:
@@ -162,10 +170,17 @@ def questions_per_step(md: str | None) -> dict[str, int]:
     return out
 
 
+def _int(v: Any) -> int:
+    try:
+        return max(0, int(v or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
 def _tokens(t: Any) -> dict[str, int] | None:
     if not isinstance(t, dict):
         return None
-    return {k: int(t.get(k) or 0) for k in TOKEN_KEYS}
+    return {k: _int(t.get(k)) for k in TOKEN_KEYS}
 
 
 def load_run(src: Source, entry: dict[str, Any], metrics_dir: Path | None = None) -> dict[str, Any]:
@@ -183,15 +198,22 @@ def load_run(src: Source, entry: dict[str, Any], metrics_dir: Path | None = None
     # recorded", for runs before B2, so the wait and AI time still come from the run record.
     export: dict[tuple[str, int], dict[str, int] | None] = {}
     export_total: dict[str, int] | None = None
-    if metrics_dir is not None and (metrics_dir / f"{run_id}.json").is_file():
-        doc = json.loads((metrics_dir / f"{run_id}.json").read_text(encoding="utf-8"))
-        if isinstance(doc.get("data"), dict):  # the tsl --json envelope: {"data": {"metrics": …}}
-            doc = doc["data"].get("metrics") or doc["data"]
+    doc = Source(metrics_dir).json(f"{run_id}.json") if metrics_dir is not None else None
+    if isinstance(doc, dict) and isinstance(doc.get("data"), dict):  # the tsl --json envelope
+        doc = doc["data"].get("metrics") or doc["data"]
+    if isinstance(doc, dict):
         for row in doc.get("attempts") or []:
-            export[(str(row.get("step")), int(row.get("attempt") or 0))] = _tokens(
-                row.get("tokens")
-            )
+            if isinstance(row, dict):
+                key = (str(row.get("step")), _int(row.get("attempt")))
+                export[key] = _tokens(row.get("tokens"))
         export_total = _tokens((doc.get("total") or {}).get("tokens"))
+    elif metrics_dir is not None and (metrics_dir / f"{run_id}.json").is_file():
+        print(f"bench: ignoring unreadable export {metrics_dir / run_id}.json", file=sys.stderr)
+    # 2: the run loop's tokens (between attempts) are known only from an export's run total.
+    loop = None
+    if export_total is not None and export and all(t is not None for t in export.values()):
+        att = _sum_tokens(export.values())
+        loop = {k: max(0, export_total[k] - att[k]) for k in TOKEN_KEYS}
 
     steps: list[dict[str, Any]] = []
     for s in state.get("steps") or []:
@@ -203,13 +225,14 @@ def load_run(src: Source, entry: dict[str, Any], metrics_dir: Path | None = None
             n = int(a["n"])
             m = a.get("metrics")
             span = _ms(a.get("started_at"), a.get("decided_at"))
+            ai_ms: int | None
             if m:
-                wait_s: int | None = int(m.get("wait_s") or 0)
-                ai_ms = int(m.get("active_ms") or 0)
+                wait_s: int | None = _int(m.get("wait_s"))
+                ai_ms = _int(m.get("active_ms")) if m.get("active_ms") is not None else None
                 tok = _tokens(m.get("tokens"))
             else:
                 wait_s = None if waits is None else waits.get((s["id"], n), 0)
-                ai_ms = max(0, (span or 0) - (wait_s or 0) * 1000)
+                ai_ms = None if span is None else max(0, span - (wait_s or 0) * 1000)
                 tok = export.get((s["id"], n))
             cause = a.get("cause")
             reason = None
@@ -247,12 +270,11 @@ def load_run(src: Source, entry: dict[str, Any], metrics_dir: Path | None = None
         "tsl": (state.get("pinned") or {}).get("tsl"),
         "bench": bool(entry.get("bench")),
         "os": entry.get("os") or infer_os(log),
-        "engineer": state.get("owner_pseudonym"),
         "workflow": str(state.get("workflow") or "").split("@")[0],
         "status": state.get("status"),
         "end_reason": state.get("end_reason"),
         "wall_ms": _ms(state.get("created_at"), state.get("updated_at")),
-        "run_tokens": export_total,
+        "loop_tokens": loop,
         "steps": steps,
     }
 
@@ -275,11 +297,16 @@ def step_summary(step: dict[str, Any]) -> dict[str, Any]:
         "reruns": sum(1 for a in att[1:] if not a["retry_reason"]),
         "reasons": reasons,
         "first_pass": bool(att) and att[0]["outcome"] in PASS,
-        "ai_ms": sum(a["ai_ms"] for a in att),
-        "wait_s": None if any(w is None for w in waits) else sum(waits),
+        "ai_ms": _sum_known([a["ai_ms"] for a in att]),
+        "wait_s": _sum_known(waits),
         "tokens": None if not toks or any(t is None for t in toks) else _sum_tokens(toks),
         "questions": step["questions"],
     }
+
+
+def _sum_known(xs: list[int | None]) -> int | None:
+    """The sum, or None when any part was not recorded."""
+    return None if any(x is None for x in xs) else sum(x for x in xs if x is not None)
 
 
 def _sum_tokens(toks: Iterable[dict[str, int] | None]) -> dict[str, int]:
@@ -305,10 +332,11 @@ def run_summary(run: dict[str, Any]) -> dict[str, Any]:
         "reasons": reasons,
         "first_pass": sum(v["first_pass"] for v in per.values()),
         "scored_steps": len(per),
-        "ai_ms": sum(v["ai_ms"] for v in per.values()),
-        "wait_s": None if any(w is None for w in waits) else sum(waits),
-        "tokens": run["run_tokens"]
-        or (None if not toks or any(t is None for t in toks) else _sum_tokens(toks)),
+        "ai_ms": _sum_known([v["ai_ms"] for v in per.values()]),
+        "wait_s": _sum_known(waits),
+        # Attempts only, the same for every run; the run loop is `loop_tokens`, where known.
+        "tokens": None if not toks or any(t is None for t in toks) else _sum_tokens(toks),
+        "loop_tokens": run["loop_tokens"],
         "questions": sum(v["questions"] for v in per.values()),
     }
 
@@ -344,7 +372,10 @@ def group_steps(
                 "runs_with_retry": sum(1 for g in got if g["retries"]),
                 "retries": sum(g["retries"] for g in got),
                 "reasons": reasons,
-                "ai_min_median": _median([g["ai_ms"] / 60000 for g in got]),
+                "ai_runs": sum(1 for g in got if g["ai_ms"] is not None),
+                "ai_min_median": _median(
+                    [g["ai_ms"] / 60000 for g in got if g["ai_ms"] is not None]
+                ),
                 "wait_min_total": sum(waits) / 60 if len(waits) == len(got) and got else None,
                 "tokens_runs": len(outs),
                 "tokens_out_median": _median(outs),
@@ -375,10 +406,18 @@ def _min(ms: float | None) -> str:
 def _k(n: float | None) -> str:
     if n is None:
         return NR
-    for div, unit in ((1e6, "M"), (1e3, "k")):
-        if n >= div:
-            return f"{n / div:.1f}{unit}"
-    return str(int(n))
+    if n >= 1e6 or round(n / 1e3, 1) >= 1000:  # 999,950 is 1.0M, not 1000.0k
+        return f"{n / 1e6:.1f}M"
+    return f"{n / 1e3:.1f}k" if n >= 1e3 else str(int(n))
+
+
+def release_key(r: str) -> tuple[tuple[int, int | str], ...]:
+    """Sorts 0.1.7 before 0.1.10; a part that is not a number sorts after the numbers."""
+    return tuple((0, int(p)) if p.isdigit() else (1, p) for p in re.split(r"[.\-]", r))
+
+
+def releases(runs: list[dict[str, Any]]) -> list[str]:
+    return sorted({str(r["release"]) for r in runs}, key=release_key)
 
 
 def _reasons(r: dict[str, int]) -> str:
@@ -397,7 +436,7 @@ def render_md(
 ) -> str:
     steps = step_order(runs)
     lines = [f"# {title}", ""]
-    rel = sorted({str(r["release"]) for r in runs})
+    rel = releases(runs)
     lines.append(
         f"{len(runs)} runs ({sum(r['bench'] for r in runs)} in the fixed benchmark set, marked *), "
         f"release {', '.join(rel)}, workflow {', '.join(sorted({r['workflow'] for r in runs}))}. "
@@ -413,8 +452,9 @@ def render_md(
         f"{slips} from a verifier build, lint or test slip (R1 target: 0 from build or lint)."
     )
     lines += ["", "## Runs", ""]
-    head = ["Ticket", "OS", "tsl", "Engineer", "Status", "Why retried", "1st-attempt pass"]
-    head += ["Retries", "AI min", "Wait min", "Questions", "Tokens out", "Tokens in", "Wall min"]
+    head = ["Ticket", "OS", "tsl", "Status", "Why retried", "1st-attempt pass"]
+    head += ["Retries", "AI min", "Wait min", "Questions", "Tokens out", "Tokens in"]
+    head += ["Run loop out", "Wall min"]
     rows = []
     for r in runs:
         s = sums[r["run_id"]]
@@ -424,7 +464,6 @@ def render_md(
                 f"{r['ticket']}{' *' if r['bench'] else ''}",
                 r["os"],
                 str(r["tsl"]),
-                str(r["engineer"] or "-"),
                 str(r["status"]),
                 _reasons(s["reasons"]),
                 f"{s['first_pass']}/{s['scored_steps']}",
@@ -434,10 +473,11 @@ def render_md(
                 str(s["questions"]),
                 _k(None if t is None else t["output"]),
                 _k(None if t is None else _input(t)),
+                _k(None if s["loop_tokens"] is None else s["loop_tokens"]["output"]),
                 _min(r["wall_ms"]),
             ]
         )
-    lines += _table(head, rows, right=6)
+    lines += _table(head, rows, right=5)
 
     lines += ["", "## Attempts per step", ""]
     lines.append(
@@ -487,9 +527,11 @@ def render_md(
         "questions included, so `req` and `design` read high."
     )
     lines.append(
-        "- Tokens: from D1 metrics in the run record, or a `tsl state show --metrics --json` "
-        "export in `benchmarks/metrics/` (tokens only). Tokens in = input + cache read + cache "
-        "write. A step median over fewer runs than the group says how many. `n/r`: not recorded."
+        "- Tokens: the step attempts' tokens, from D1 metrics in the run record or a "
+        "`tsl state show --metrics --json` export in `benchmarks/metrics/` (tokens only). The "
+        "run loop's own tokens (between attempts) are not in them: they are in Run loop out, "
+        "known only from an export. Tokens in = input + cache read + cache write. A step median "
+        "over fewer runs than the group says how many. `n/r`: not recorded."
     )
     lines.append(
         "- A retry is an attempt with cause `retry_*` (it uses retry budget). Reruns for other "
@@ -518,7 +560,10 @@ def _step_table(rows: list[dict[str, Any]]) -> list[str]:
                 f"{g['first_pass']}/{g['runs']}",
                 f"{g['runs_with_retry']}/{g['runs']}",
                 str(g["retries"]),
-                "-" if g["ai_min_median"] is None else f"{g['ai_min_median']:.1f}",
+                NR
+                if g["ai_min_median"] is None
+                else f"{g['ai_min_median']:.1f}"
+                + ("" if g["ai_runs"] == g["runs"] else f" ({g['ai_runs']}/{g['runs']} runs)"),
                 NR if g["wait_min_total"] is None else f"{g['wait_min_total']:.1f}",
                 str(g["questions"]),
                 _k(g["tokens_out_median"]) + part,
@@ -540,14 +585,22 @@ def build(
     return runs, {r["run_id"]: run_summary(r) for r in runs}
 
 
-def select(doc: dict[str, Any], release: str | None, bench_only: bool) -> list[dict[str, Any]]:
-    out = []
-    for e in doc.get("runs") or []:
-        if release and str(e.get("release")) != release:
-            continue
-        if bench_only and not e.get("bench"):
-            continue
-        out.append(e)
+def select(doc: dict[str, Any], bench_only: bool) -> list[dict[str, Any]]:
+    """The set's runs; `--release` is applied after loading, on the release each run reports
+    (the set's `release`, else the tsl the run pinned), as the tables label it."""
+    return [e for e in doc.get("runs") or [] if e.get("bench") or not bench_only]
+
+
+def per_step_json(
+    runs: list[dict[str, Any]], sums: dict[str, dict[str, Any]]
+) -> dict[str, dict[str, Any]]:
+    """Per step, by release, then for all OSes and each OS (as the Markdown tables)."""
+    out: dict[str, dict[str, Any]] = {}
+    for rel in releases(runs):
+        grp = [r for r in runs if str(r["release"]) == rel]
+        out[rel] = {"all": group_steps(grp, sums)}
+        for o in sorted({r["os"] for r in grp}):
+            out[rel][o] = group_steps([r for r in grp if r["os"] == o], sums)
     return out
 
 
@@ -583,17 +636,18 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
 
     doc = json.loads(a.set.read_text(encoding="utf-8"))
-    entries = select(doc, a.release, a.bench_only)
-    if not entries:
+    runs, sums = build(Source(a.companion, a.ref), select(doc, a.bench_only), a.metrics_dir)
+    if a.release:
+        runs = [r for r in runs if str(r["release"]) == a.release]
+    if not runs:
         print("bench: no runs match", file=sys.stderr)
         return 1
-    runs, sums = build(Source(a.companion, a.ref), entries, a.metrics_dir)
     if a.format == "json":
         text = json.dumps(
             {
                 "schema": "bench-report.v1",
                 "runs": [{**r, "summary": sums[r["run_id"]]} for r in runs],
-                "per_step": group_steps(runs, sums),
+                "per_step": per_step_json(runs, sums),
             },
             indent=2,
             sort_keys=True,

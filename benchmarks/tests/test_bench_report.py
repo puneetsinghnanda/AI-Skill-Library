@@ -184,6 +184,7 @@ def test_retry_reasons_os_and_not_recorded(companion: Path) -> None:
     # 0.1.7: no ide-questions.json and no metrics, so wait and tokens are not recorded
     assert s["wait_s"] is None and s["tokens"] is None
     assert s["ai_ms"] == (15 + 25) * 60000  # wall time of the attempts
+    assert "engineer" not in run  # the report never reads who ran it
 
 
 def test_d1_metrics_and_linux(companion: Path) -> None:
@@ -243,7 +244,9 @@ def test_metrics_export_gives_tokens_only(companion: Path, tmp_path: Path) -> No
     )
     run = br.load_run(br.Source(companion), {"run_id": RUN}, exp)
     s = br.run_summary(run)
-    assert s["tokens"]["output"] == 99  # the run total, run loop included
+    # attempts only, as for a D1 run; the run loop is the export's total less the attempts
+    assert s["tokens"]["output"] == 35
+    assert s["loop_tokens"]["output"] == 99 - 35
     assert s["steps"]["split"]["tokens"]["output"] == 14
     assert s["wait_s"] is None  # an export's 0 wait is not taken as recorded
     assert s["ai_ms"] == (15 + 25) * 60000
@@ -277,6 +280,76 @@ def test_markdown_and_json_report(companion: Path, tmp_path: Path, capsys: Any) 
     assert br.main([*argv, "--release", "0.1.8", "--format", "json", "--out", str(out)]) == 0
     doc = json.loads(out.read_text(encoding="utf-8"))
     assert [r["run_id"] for r in doc["runs"]] == [RUN2]
-    assert doc["per_step"][0]["tokens_out_median"] == 5000
+    assert doc["per_step"]["0.1.8"]["all"][0]["tokens_out_median"] == 5000
+    assert doc["per_step"]["0.1.8"]["Linux"][0]["runs"] == 1
 
     assert br.main([*argv, "--release", "9.9"]) == 1
+
+
+@pytest.mark.parametrize(
+    ("target", "os_name"),
+    [
+        ("C:/dev/companion/runs/x/state.json", "Windows"),
+        ("C:\\dev\\companion\\x.md", "Windows"),
+        ("/c/Users/eng/dev/companion/x.md", "Windows"),  # Git Bash
+        ("/mnt/c/Users/eng/dev/companion/x.md", "Windows"),  # WSL on the Windows drive
+        ("cd /c/Users/eng/dev && tsl verify x", "Windows"),  # a Bash command line
+        ("/Users/eng/dev/companion/x.md", "macOS"),
+        ("tsl verify '/Users/eng/dev/x.md'", "macOS"),
+        ("/home/eng/companion/x.md", "Linux"),
+        ("tsl next run_x --json", "unknown"),
+    ],
+)
+def test_infer_os(target: str, os_name: str) -> None:
+    assert br.infer_os(json.dumps({"target": target}) + "\n") == os_name
+
+
+def test_timeouts_are_slips() -> None:
+    fb = {"kind": "verifier", "gate_failures": [{"id": "H3", "detail": "lint timed out"}]}
+    assert br.retry_reason(fb, "retry_verifier") == "lint"
+    fb = {"kind": "verifier", "gate_failures": [{"id": "H3", "detail": "docker info failed"}]}
+    assert br.retry_reason(fb, "retry_verifier") == "verifier"
+
+
+def test_release_order_and_units() -> None:
+    assert sorted(["0.1.10", "0.1.8", "0.1.7", "0.2.0"], key=br.release_key) == [
+        "0.1.7",
+        "0.1.8",
+        "0.1.10",
+        "0.2.0",
+    ]
+    assert br._k(999950) == "1.0M"
+    assert br._k(999) == "999"
+    assert br._k(1500) == "1.5k"
+
+
+def test_no_start_time_is_not_recorded(companion: Path) -> None:
+    p = companion / f"runs/{RUN}/state.json"
+    st = json.loads(p.read_text(encoding="utf-8"))
+    del st["steps"][0]["attempts"][0]["started_at"]
+    p.write_text(json.dumps(st), encoding="utf-8")
+    s = br.run_summary(br.load_run(br.Source(companion), {"run_id": RUN}))
+    assert s["steps"]["split"]["ai_ms"] is None and s["ai_ms"] is None
+    assert s["steps"]["ut"]["ai_ms"] == 25 * 60000
+    run = br.load_run(br.Source(companion), {"run_id": RUN})
+    row = br.group_steps([run], {RUN: s})[0]
+    assert row["ai_min_median"] is None and row["ai_runs"] == 0
+
+
+def test_release_filter_uses_pinned_tsl(companion: Path, tmp_path: Path, capsys: Any) -> None:
+    st = tmp_path / "set.json"
+    st.write_text(json.dumps({"runs": [{"run_id": RUN}, {"run_id": RUN2}]}), encoding="utf-8")
+    argv = ["--companion", str(companion), "--set", str(st), "--metrics-dir", str(tmp_path / "x")]
+    assert br.main([*argv, "--release", "0.1.7", "--format", "json"]) == 0
+    doc = json.loads(capsys.readouterr().out)
+    assert [r["run_id"] for r in doc["runs"]] == [RUN]
+
+
+def test_bad_export_and_bad_bytes_do_not_crash(companion: Path, tmp_path: Path) -> None:
+    exp = tmp_path / "metrics"
+    _write(exp, f"{RUN}.json", "{not json")
+    (companion / f"runs/{RUN}/tool-log.jsonl").write_bytes(b"\xff\xfe C:/dev \n")
+    run = br.load_run(br.Source(companion), {"run_id": RUN}, exp)
+    s = br.run_summary(run)
+    assert s["tokens"] is None and s["loop_tokens"] is None
+    assert run["os"] == "unknown"

@@ -47,8 +47,9 @@ python3 benchmarks/bench_report.py --companion ... --format json                
 | AI min | D1 `metrics.active_ms`; before D1, the attempt's wall time less the B2 wait, or with questions included when there is no B2 record |
 | Wait min | D1 `metrics.wait_s`, else `ide-questions.json` (B2); `n/r` before B2 |
 | Questions | `## A-nn` entries in `ide-answers.md` |
-| Tokens | D1 `metrics.tokens`, else an export in `metrics/`; `n/r` otherwise |
-| OS | The set's `os`, else the absolute paths in `tool-log.jsonl` |
+| Tokens | The step attempts only, the same for every run: D1 `metrics.tokens`, else an export in `metrics/`; `n/r` otherwise |
+| Run loop out | The run loop's tokens between attempts (`tsl next`, decide): an export's run total less its attempts; `n/r` without an export |
+| OS | The set's `os`, else where the absolute paths in `tool-log.jsonl` start (`C:/`, Git Bash `/c/`, WSL `/mnt/c/` are Windows) |
 
 The 0.1.7 runs were made before B2 and D1, so wait is `n/r` for all of them, and tokens are known
 only where the run's owner still has the Claude Code transcripts. The owner can add them from
