@@ -7,7 +7,11 @@ requires-python = ">=3.12,<3.13"
 license = { text = "UNLICENSED" }
 dependencies = [
     "typer>=0.27,<0.30",
-    "pydantic>=2.7",
+    # Exact pins: `uv tool install` ignores uv.lock, so a range pulls the newest release, and Windows App
+    # Control can block a new pydantic-core DLL (tsl then fails on every command). Keep both equal to
+    # uv.lock and change them together (tests/test_pinned_deps.py).
+    "pydantic==2.14.1",
+    "pydantic-core==2.50.1",
     "jsonschema>=4.23",
     "rfc3339-validator>=0.1.4",
     "cryptography>=43",
@@ -28,6 +32,7 @@ dev = [
     "ruff>=0.6",
     "types-PyYAML>=6.0",
     "pytest-xdist>=3.8",
+    "packaging>=24",  # tests/test_pinned_deps.py reads requirements with it
 ]
 
 [build-system]

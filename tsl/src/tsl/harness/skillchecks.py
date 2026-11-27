@@ -212,23 +212,31 @@ def c_questions_linked(env: CheckEnv, w: dict[str, Any]) -> str | None:
             return f"{q['id']} lacks ask, why or evidence"
         if q.get("blocking") and q.get("default") is not None:
             return f"{q['id']} is blocking but has a default"
-        sourced = any(_default_source(c, env) for c in q.get("evidence") or [])
-        if w.get("default_sourced") and q.get("default") is not None and not sourced:
+        if (
+            w.get("default_sourced")
+            and q.get("default") is not None
+            and not any(_default_source(c, env) for c in q.get("evidence") or [])
+        ):
             return (
                 f"{q['id']} has a proposed default but no evidence in the product code, "
-                "PRD, context pack or an answer to back it"
+                "PRD, context pack, a declared input other than the ticket or an answer "
+                "to back it"
             )
     return None
 
 
 def _default_source(c: Any, env: CheckEnv) -> bool:
     """Evidence a default can rest on: product code or the PRD (`<repo>:<path>`), a context
-    section, or an answer already given in this run. The ticket alone is not a source, and
-    H5 still checks that each cite resolves."""
+    section, a declared input other than the ticket (the baseline and glossary, which an eval
+    run places under inputs/), or an answer already given in this run. The ticket alone is
+    not a source, and H5 still checks that each cite resolves."""
+    from tsl.harness.citations import IDE_ANSWERS
+
     if _product_cite(c, env.repos):
         return True
     p = _cite_path(c)
-    return p.startswith("context/") or p.endswith("/ide-answers.md")
+    others = {path for name, path in env.named_inputs.items() if name != "ticket"}
+    return p.startswith("context/") or p in others or bool(IDE_ANSWERS.match(p))
 
 
 def c_answers_logged(env: CheckEnv, w: dict[str, Any]) -> str | None:
