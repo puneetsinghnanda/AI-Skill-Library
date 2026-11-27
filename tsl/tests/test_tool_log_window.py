@@ -108,9 +108,13 @@ def test_verify_inputs_tells_the_step_its_tools(world: World) -> None:
         ["verify", res["artifact"], "--inputs", "--json"], session=SESSION
     )
     assert code == 0 and env is not None, err
-    tools = env["data"]["allowed_tools"]
-    assert tools[-1] == "Bash(tsl verify *)"
-    assert {"Read", "Grep", "Glob", "Write"} <= set(tools)
+    import yaml
+
+    from tsl.harness.commands import STEP_BASH
+
+    name = str(env["data"]["skill"]).split("@")[0]
+    meta = yaml.safe_load((world.plugin / "skills" / name / "skill.yaml").read_text())
+    assert env["data"]["allowed_tools"] == [*meta["allowed_tools"], STEP_BASH]
 
 
 def test_subagent_calls_are_logged_with_their_agent_type(world: World) -> None:
