@@ -64,7 +64,14 @@ def test_tsl_with_a_safe_prefix_matches_the_skill_pattern() -> None:
     assert not _tool_allowed({"tool": "Bash", "target": "PATH=/x tsl verify a"}, allowed)
 
 
-def _append(w: World, run_id: str, target: str, read_only: bool | None) -> None:
+def _append(
+    w: World,
+    run_id: str,
+    target: str,
+    read_only: bool | None,
+    decision: str = "allow",
+    code: str | None = None,
+) -> None:
     import json
 
     line = {
@@ -74,14 +81,26 @@ def _append(w: World, run_id: str, target: str, read_only: bool | None) -> None:
         "attempt": 1,
         "tool": "Bash",
         "target": target,
-        "decision": "allow",
-        "code": None,
+        "decision": decision,
+        "code": code,
     }
     if read_only is not None:
         line["read_only"] = read_only
     p = w.companion / "runs" / run_id / "tool-log.jsonl"
     with p.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(line, sort_keys=True) + "\n")
+
+
+def test_refused_before_it_ran_is_logged_but_not_held_against_the_step(world: World) -> None:
+    run_id = start_run(world)
+    res = do_req_step(world, run_id, until="written")
+    _append(world, run_id, "docker info", read_only=None, decision="deny", code="E-POL-06")
+    h7 = _h7(world, res["artifact"])
+    assert h7["status"] == "pass", h7
+    # A deny the hook did not refuse up front (here a write outside scope) still fails H7.
+    _append(world, run_id, "rm -rf api", read_only=None, decision="deny", code="E-POL-01")
+    h7 = _h7(world, res["artifact"])
+    assert h7["status"] == "fail" and h7["codes"] == ["E-POL-01"], h7
 
 
 def test_read_only_slip_retries_instead_of_aborting(world: World) -> None:

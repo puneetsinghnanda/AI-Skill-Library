@@ -31,18 +31,27 @@ PREAMBLE = "Step context from tsl (do not edit):\n!`tsl verify $0 --inputs --jso
 HEADER = "# Step brief"
 
 
-def runner_for(env: Any, step: str) -> dict[str, str] | None:
-    """The runner TSL_STEP_RUNNER picks for a step, or None for the main session.
+def runners_from_env(env: Any, steps: list[str]) -> dict[str, dict[str, str]]:
+    """The steps TSL_STEP_RUNNER hands to a forked subagent, read once at tsl state start.
 
     TSL_STEP_RUNNER is a comma-separated list of <step>=<context>, for example "ut=full" or
-    "ut=artifacts,split=full". Unknown contexts are ignored: the step stays in the main session.
+    "ut=artifacts,split=full". Steps not in the workflow and unknown contexts are ignored: those
+    steps stay in the main session. The result is pinned in state.json (step_runners), so the
+    choice is visible in the run record and an environment that changes mid-run cannot move a
+    step (in one HMS-34 baseline a plain `tsl next` still saw the variable).
     """
-    raw = str(env.get("TSL_STEP_RUNNER") or "")
-    for part in raw.split(","):
-        sid, _, context = part.strip().partition("=")
-        if sid.strip() == step and context.strip() in CONTEXTS:
-            return {"mode": "fork", "context": context.strip()}
-    return None
+    out: dict[str, dict[str, str]] = {}
+    for part in str(env.get("TSL_STEP_RUNNER") or "").split(","):
+        sid, _, context = (x.strip() for x in part.partition("="))
+        if sid in steps and context in CONTEXTS:
+            out[sid] = {"mode": "fork", "context": context}
+    return out
+
+
+def runner_for(state: dict[str, Any], step: str) -> dict[str, str] | None:
+    """The runner the run pinned for a step at start, or None for the main session."""
+    r = (state.get("step_runners") or {}).get(step)
+    return dict(r) if r else None
 
 
 def build(rt: Runtime, comp: Companion, artifact: str, context: str) -> dict[str, Any]:

@@ -601,6 +601,8 @@ def h7(ci: CheckInput) -> GateResult:
             g.fail("E-POL-05", "tool log line does not parse", "GEN-TOOLS-01")
             return g
     for e in (e for e in entries if _in_attempt(e, ci)):
+        if e["decision"] == "deny" and e.get("code") == "E-POL-06":
+            continue  # refused before it ran (pre-tool): logged to count refusals, not a breach
         if e["decision"] == "deny":
             g.fail(str(e["code"]), f"denied {e['tool']} recorded in the tool log", "GEN-TOOLS-01")
         elif not _tool_allowed(e, ci.skill.allowed_tools):

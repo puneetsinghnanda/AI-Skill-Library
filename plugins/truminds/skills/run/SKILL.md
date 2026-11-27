@@ -11,6 +11,8 @@ Run state from tsl (do not edit):
 If "ok" is false, show "message" and "next" to the user and stop.
 If "data.ticket_snapshot" is null, tell the user the run has no ticket text (they can pass a
 Markdown file as the third argument next time), then carry on.
+If "data.step_runners" is not empty, tell the user which steps this run hands to a forked
+subagent, and with which context. They are fixed for the whole run.
 
 Loop:
 1. Run `tsl next <run_id> --json` and read "data.action".

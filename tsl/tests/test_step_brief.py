@@ -8,7 +8,7 @@ from typing import Any
 
 from e2e_steps import SESSION, next_action, start_run
 from helpers import World, ticket_snapshot
-from tsl.harness.brief import runner_for
+from tsl.harness.brief import runner_for, runners_from_env
 from tsl.schemas.registry import errors
 from tsl.state.store import find_step, latest
 
@@ -32,21 +32,49 @@ def _state(w: World, run_id: str) -> dict[str, Any]:
     return dict(json.loads((w.companion / "runs" / run_id / "state.json").read_text()))
 
 
-def test_runner_for_reads_step_and_context() -> None:
-    assert runner_for({}, "ut") is None
-    assert runner_for({"TSL_STEP_RUNNER": "ut=full"}, "ut") == {"mode": "fork", "context": "full"}
+def test_runners_from_env_reads_steps_and_contexts() -> None:
+    steps = ["req", "split", "ut"]
+    assert runners_from_env({}, steps) == {}
+    full = {"mode": "fork", "context": "full"}
+    assert runners_from_env({"TSL_STEP_RUNNER": "ut=full"}, steps) == {"ut": full}
     env = {"TSL_STEP_RUNNER": " split=artifacts , ut=full"}
-    assert runner_for(env, "split") == {"mode": "fork", "context": "artifacts"}
-    assert runner_for({"TSL_STEP_RUNNER": "ut=everything"}, "ut") is None
-    assert runner_for({"TSL_STEP_RUNNER": "ut=full"}, "split") is None
+    assert runners_from_env(env, steps) == {
+        "split": {"mode": "fork", "context": "artifacts"},
+        "ut": full,
+    }
+    assert runners_from_env({"TSL_STEP_RUNNER": "ut=everything"}, steps) == {}
+    assert runners_from_env({"TSL_STEP_RUNNER": "nope=full"}, steps) == {}
+    assert runner_for({"step_runners": {"ut": full}}, "ut") == full
+    assert runner_for({"step_runners": {"ut": full}}, "split") is None
+    assert runner_for({}, "ut") is None
 
 
-def test_next_names_the_runner_only_for_the_chosen_step(world: World) -> None:
+def test_runner_is_pinned_at_start_and_next_ignores_the_env(world: World) -> None:
+    # Started without the variable: setting it later moves no step (the HMS-34 baseline).
     run_id = start_run(world)
     _c, env = next_action(world, run_id)
+    first = str(env["data"]["step"])
     assert "runner" not in env["data"]
-    _runner_env(world, f"{env['data']['step']}=full")
+    _runner_env(world, f"{first}=full")
     _c, env = next_action(world, run_id)
+    assert "runner" not in env["data"]
+    assert "step_runners" not in _state(world, run_id)
+
+
+def test_next_names_the_pinned_runner_only_for_the_chosen_step(world: World) -> None:
+    _runner_env(world, "req=full")
+    code, out, _t, err = world.cli(
+        ["state", "start", "brownfield-change", "ABC-142", "--json"], session=SESSION
+    )
+    assert code == 0 and out is not None, err
+    run_id = str(out["data"]["run_id"])
+    assert out["data"]["step_runners"] == {"req": {"mode": "fork", "context": "full"}}
+    st = _state(world, run_id)
+    assert st["step_runners"] == {"req": {"mode": "fork", "context": "full"}}
+    assert errors("run-state.v1", st) == []
+    _runner_env(world, "")  # the env no longer matters once the run started
+    _c, env = next_action(world, run_id)
+    assert env["data"]["step"] == "req"
     assert env["data"]["runner"] == {"mode": "fork", "context": "full"}
     assert errors("next-action.v1", env["data"]) == []
 

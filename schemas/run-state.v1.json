@@ -164,6 +164,32 @@
       },
       "description": "Pack status at start: SDD-02 §5.3 fields plus SDD-06 §7.4 fields."
     },
+    "step_runners": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/step_id"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "mode",
+          "context"
+        ],
+        "properties": {
+          "mode": {
+            "const": "fork"
+          },
+          "context": {
+            "enum": [
+              "artifacts",
+              "full"
+            ]
+          }
+        }
+      },
+      "description": "Steps this run hands to a forked subagent (roadmap B1), fixed at tsl state start from TSL_STEP_RUNNER. tsl next reads only this, never the environment. Absent: every step runs in the main session."
+    },
     "branch": {
       "type": "object",
       "propertyNames": {

@@ -55,7 +55,7 @@ def _action_for_attempt(ctx: RunCtx, sid: str, action: str) -> dict[str, Any]:
     if action == "run_skill":
         from tsl.harness.brief import runner_for
 
-        runner = runner_for(ctx.rt.env, sid)
+        runner = runner_for(ctx.state, sid)  # pinned at tsl state start, never the env
         if runner is not None:
             extra["runner"] = runner  # run the step in a forked subagent (B1)
     return {

@@ -19,7 +19,8 @@
 
 **Change 2: a step can run in a forked subagent (`feat/ut-subagent`)**
 - You switch it on with the environment variable `TSL_STEP_RUNNER`, for example `ut=full` or `ut=artifacts`. When it is not set, nothing changes.
-- When it is set, `tsl next` adds `data.runner` to the step's `run_skill` action. The `run` skill then invokes the internal `step` skill instead of `truminds:unit-test`.
+- `tsl state start` reads the variable once and keeps the choice in `state.json` as `step_runners`. It is then fixed for the whole run.
+- For a step listed there, `tsl next` adds `data.runner` to the step's `run_skill` action. The `run` skill then invokes the internal `step` skill instead of `truminds:unit-test`.
 - The `step` skill has `context: fork` and runs as the `truminds:step-runner` agent. That agent has only Read, Grep, Glob, Write, Edit and Bash, and the hook still limits Bash to `tsl verify`.
 - Its preamble runs `tsl step brief <artifact> --context <c>`, which does four things:
   - It gives the subagent the same SKILL.md text as the main session. The `--inputs` preamble is replaced by its JSON data.
@@ -88,9 +89,10 @@ In each session:
 /truminds:run brownfield-small HMS-34 ../tickets/HMS-34.md
 ```
 
-Before run 3, check the variable is really gone. In my Windows baseline, a plain `tsl next` still returned `data.runner` at `ut`, and I couldn't find out where the variable came from. So:
-- Ask the session to run `env | grep TSL_STEP_RUNNER` first. It must print nothing.
-- At `ut`, if `tsl next` shows `runner`, stop and tell me. Don't just pick the main session.
+The runner is read once, when the run starts, and kept in `state.json` (`step_runners`). After that, `tsl next` ignores the variable. So:
+- At the start of each run, the session tells you which steps run in a subagent, from `data.step_runners`. Runs 1 and 2 must show `ut` with the context you chose. Run 3 must show none.
+- If the start doesn't show what you expect, cancel that run and start again in a new session.
+- Putting the variable in front of `tsl next` does nothing. It has to be set before Claude Code starts.
 
 While a run goes:
 - At `ut` in runs 1 and 2, the transcript should show the `step` skill starting a subagent, not `truminds:unit-test`.
@@ -109,7 +111,7 @@ Do this in a **new session after all runs** (a session that holds a run cannot r
 | Runner recorded | `runs/<id>/state.json`, step `ut`, each attempt | `"runner": {"mode": "fork", "context": "full"}` (or `"artifacts"`). Run 3: no `runner` |
 | Calls ran in the subagent | `runs/<id>/tool-log.jsonl`, lines in the `ut` window | `"agent_type": "truminds:step-runner"`. Run 3: no `agent_type` |
 | H7 (tool window) passed | the `ut` checks record next to the ut artifact | H7 pass on every attempt |
-| No refusals | `~/.truminds/logs/hook.log` in the run's time window | no E-POL-06 inside `ut`; list any E-POL-04/05/06 with the call refused |
+| No refusals | `runs/<id>/tool-log.jsonl`: lines with `"decision": "deny"` in the `ut` window (also in `~/.truminds/logs/hook.log`) | no E-POL-06 inside `ut`; list any E-POL-04/05/06 with the call refused |
 | Artifact written | `artifacts/HMS-34/<id>/ut...` | exists, and the run got past `ut` |
 
 **Comparison: one column per run.**

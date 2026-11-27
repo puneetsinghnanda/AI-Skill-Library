@@ -83,10 +83,12 @@ def test_bound_run_reads_only_its_own_runs_files(world: World) -> None:
     assert _decide(world, "Grep", {"pattern": "x", "glob": "context/**/*.md"}) == "allow"
     assert _decide(world, "Glob", {"pattern": f"artifacts/T-1/{run_id}/*.md"}) == "allow"
     assert _decide(world, "Grep", {"pattern": "x", "path": str(c / "runs" / run_id)}) == "allow"
-    # Refusals are not logged, so H7 has nothing to fail.
+    # Each refusal is logged as an E-POL-06 deny, so the run record counts them (H7 skips them).
     log = c / "runs" / run_id / "tool-log.jsonl"
     entries = [json.loads(x) for x in log.read_text().splitlines()] if log.is_file() else []
-    assert not [e for e in entries if e.get("decision") == "deny"], entries
+    denies = [e for e in entries if e.get("decision") == "deny"]
+    assert len(denies) == 9 and {e["code"] for e in denies} == {"E-POL-06"}, denies
+    assert str(other_tkt) in [e["target"] for e in denies]
 
 
 def test_outside_a_run_reads_are_not_limited(world: World) -> None:

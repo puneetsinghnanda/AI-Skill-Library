@@ -170,6 +170,11 @@ def start(
     }
     if pod:
         state["pod"] = pod
+    from tsl.harness.brief import runners_from_env
+
+    runners = runners_from_env(rt.env, [str(s["id"]) for s in steps])
+    if runners:
+        state["step_runners"] = runners
     from tsl.schemas.registry import errors
 
     errs = errors("run-state.v1", state)
@@ -217,6 +222,7 @@ def start(
         "pack": {"fresh": pk["state"] == "fresh", "signed_at": pk["state_block"].get("signed_at")},
         "first_step": first,
         "ticket_snapshot": ticket_rel,
+        "step_runners": runners,
     }, warnings
 
 

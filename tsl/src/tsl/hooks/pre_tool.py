@@ -7,6 +7,7 @@ step for it afterwards. The run loop's own tools (tsl commands, the review skill
 
 from __future__ import annotations
 
+import contextlib
 import fnmatch
 import json
 import os
@@ -263,6 +264,34 @@ def _sensitive(tok: str, base: str, glob: str) -> bool:
     return fnmatch.fnmatch(base, glob)
 
 
+def _refuse(ctx: Ctx, idx: dict[str, Any] | None, message: str) -> tuple[str, int]:
+    """Refuse a call before it runs (E-POL-06) and record it in the run's tool log.
+
+    The line is decision "deny", code E-POL-06, so a run's refusals can be counted per step
+    from the run record (R1), not only from this laptop's hook.log. H7 does not hold these
+    lines against the step: the call never ran.
+    """
+    if idx is not None:
+        with contextlib.suppress(Exception):  # never let logging turn a refusal into an allow
+            log_tool(idx, ctx, _target(ctx), "deny", "E-POL-06")
+    return deny(ctx, "E-POL-06", message)
+
+
+def _target(ctx: Ctx) -> str:
+    """What the call aimed at, as the tool log's target: the command, path or pattern."""
+    from tsl.harness.commands import strip_cd
+
+    ti = ctx.data.get("tool_input") or {}
+    if ti.get("command"):  # Bash, PowerShell
+        return strip_cd(str(ti["command"]))[:80]
+    if ctx.tool in ("Read", "Write", "Edit", "NotebookEdit"):
+        return str(ti.get("file_path") or ti.get("notebook_path") or ctx.tool)
+    if ctx.tool in ("Grep", "Glob"):
+        parts = [str(ti.get(k) or "") for k in ("path", "pattern", "glob")]
+        return " ".join(p for p in [parts[0] or ".", *parts[1:]] if p)
+    return ctx.tool
+
+
 def handle(ctx: Ctx) -> tuple[str, int]:
     if ctx.tool.startswith("mcp__"):
         return allow(ctx)  # pre-mcp decides MCP tools
@@ -276,9 +305,8 @@ def handle(ctx: Ctx) -> tuple[str, int]:
     if _is_reviewer(ctx) and ctx.tool in WRITE_TOOLS:
         why = _reviewer_write_refused(ctx, idx)
         if why is not None:
-            # Refused before it runs and not written to the tool log, so H7 has nothing to
-            # fail: the reviewer then hands its JSON back instead (SDD-05 §4.3).
-            return deny(ctx, "E-POL-06", f"Refused: {why}")
+            # The reviewer then hands its JSON back instead (SDD-05 §4.3).
+            return _refuse(ctx, idx, f"Refused: {why}")
     if idx is None:
         return allow(ctx)  # outside a run: static rules come from managed settings
     try:
@@ -293,19 +321,17 @@ def handle(ctx: Ctx) -> tuple[str, int]:
         if open_step is not None:
             why = _off_step(ctx, str(ti.get("command") or ""), open_step)
             if why is not None:
-                # Refused before it runs and not written to the tool log: nothing happened,
-                # so H7 has nothing to fail. hook.log still records the refusal.
-                return deny(ctx, "E-POL-06", f"Refused: {why}. Carry on with the step's tools")
+                return _refuse(ctx, idx, f"Refused: {why}. Carry on with the step's tools")
         if ctx.tool in READ_TOOLS:
             # While this session holds a run, in a step or between steps (HMS-5: the run loop
             # read the earlier run "as a starting point" before each step).
             why = _other_run_read(ctx, idx, ti)
             if why is not None:
-                return deny(ctx, "E-POL-06", f"Refused: {why}")
+                return _refuse(ctx, idx, f"Refused: {why}")
         if ctx.tool == "Bash":
             why = _other_run_bash(str(ti.get("command") or ""), str(idx["run_id"]))
             if why is not None:
-                return deny(ctx, "E-POL-06", f"Refused: {why}")
+                return _refuse(ctx, idx, f"Refused: {why}")
         if ctx.tool not in LOGGED:
             return allow(ctx)
         if ctx.tool in ("Write", "Edit", "NotebookEdit"):
