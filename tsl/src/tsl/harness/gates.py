@@ -574,7 +574,10 @@ def _tool_allowed(entry: dict[str, Any], allowed: list[str]) -> bool:
     if tool == "Bash":
         from tsl.harness.commands import bash_allowed
 
-        return bash_allowed(str(entry.get("target", "")), allowed)
+        # The step runner's line carries its agent_type: only its tsl commands pass (B1).
+        return bash_allowed(
+            str(entry.get("target", "")), allowed, str(entry.get("agent_type") or "")
+        )
     if tool == "NotebookEdit":
         return "Edit" in allowed
     return tool in allowed
@@ -602,6 +605,10 @@ def h7(ci: CheckInput) -> GateResult:
             g.fail("E-POL-05", "tool log line does not parse", "GEN-TOOLS-01")
             return g
     for e in (e for e in entries if _in_attempt(e, ci)):
+        if e["decision"] == "deny" and e.get("code") == "E-POL-06":
+            # Refused before it ran (pre-tool _refuse, its only writer): logged to count
+            # refusals, not a breach.
+            continue
         if e["decision"] == "deny":
             g.fail(str(e["code"]), f"denied {e['tool']} recorded in the tool log", "GEN-TOOLS-01")
         elif not _tool_allowed(e, ci.skill.allowed_tools):

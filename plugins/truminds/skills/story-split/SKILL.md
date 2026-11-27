@@ -11,6 +11,8 @@ Step context from tsl (do not edit):
 
 If the JSON above has "ok": false, show its "message" and "next" to the user and stop. Write nothing.
 
+Use only the tools in data.allowed_tools.
+
 ## Job
 Turn the reviewed requirements of one ticket into small, independent user stories, each with
 acceptance criteria a tester can check. Write one file: the stories.v1 artifact at

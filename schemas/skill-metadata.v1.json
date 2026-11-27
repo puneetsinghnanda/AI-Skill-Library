@@ -217,7 +217,7 @@
       "type": "array",
       "items": {
         "type": "string",
-        "pattern": "^(Read|Grep|Glob|Write|Edit|Bash\\([^()]+\\))$"
+        "pattern": "^(Read|Grep|Glob|Write|Edit|AskUserQuestion|Bash\\([^()]+\\))$"
       },
       "uniqueItems": true
     },

@@ -11,6 +11,8 @@ Step context from tsl (do not edit):
 
 If the JSON above has "ok": false, show its "message" and "next" to the user and stop. Write nothing.
 
+Use only the tools in data.allowed_tools.
+
 ## Job
 Change the product code so it does exactly what the approved design (or the triage) says, inside
 the change limits, then write the change.v1 artifact at data.artifact_path. You do not change

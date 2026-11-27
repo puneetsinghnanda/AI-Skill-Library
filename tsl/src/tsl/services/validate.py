@@ -13,6 +13,7 @@ from tsl.core.hashing import sha256_text
 from tsl.core.jsonio import read_any, read_yaml, write_json
 from tsl.core.runtime import Runtime
 from tsl.harness import detectors
+from tsl.harness.commands import STEP_BASH
 from tsl.harness.skillchecks import validate_declared
 from tsl.orchestrator import skills as skillmod
 from tsl.orchestrator import workflow as wfmod
@@ -165,10 +166,10 @@ def validate_skill(d: Path) -> dict[str, Any]:
     else:
         e("SKL-V08", "checks.yaml missing")
     tools = str(doc.front.get("allowed-tools", ""))
-    want = {*meta.get("allowed_tools", []), "Bash(tsl verify *)"}
+    want = {*meta.get("allowed_tools", []), STEP_BASH}
     have = {t.strip() for t in tools.split(",") if t.strip()}
     if have != want:
-        e("SKL-V09", "SKILL.md allowed-tools must equal allowed_tools + Bash(tsl verify *)")
+        e("SKL-V09", f"SKILL.md allowed-tools must equal allowed_tools + {STEP_BASH}")
     cases = sorted((d / "evals" / "cases").glob("*/case.yaml"))
     kinds: dict[str, int] = {}
     for c in cases:

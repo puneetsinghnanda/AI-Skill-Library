@@ -51,7 +51,15 @@ def _action_for_attempt(ctx: RunCtx, sid: str, action: str) -> dict[str, Any]:
         answers = ctx.questions_rel()
     elif a["cause"] == "gate_changes":
         answers = approvals_path(ctx.run_id)
+    extra: dict[str, Any] = {}
+    if action == "run_skill":
+        from tsl.harness.brief import runner_for
+
+        runner = runner_for(ctx.state, sid)  # pinned at tsl state start, never the env
+        if runner is not None:
+            extra["runner"] = runner  # run the step in a forked subagent (B1)
     return {
+        **extra,
         "schema": "next-action.v1",
         "action": action,
         "run_id": ctx.run_id,

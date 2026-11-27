@@ -164,6 +164,32 @@
       },
       "description": "Pack status at start: SDD-02 §5.3 fields plus SDD-06 §7.4 fields."
     },
+    "step_runners": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/step_id"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "mode",
+          "context"
+        ],
+        "properties": {
+          "mode": {
+            "const": "fork"
+          },
+          "context": {
+            "enum": [
+              "artifacts",
+              "full"
+            ]
+          }
+        }
+      },
+      "description": "Steps this run hands to a forked subagent (roadmap B1), fixed at tsl state start from TSL_STEP_RUNNER. tsl next reads only this, never the environment. Absent: every step runs in the main session."
+    },
     "branch": {
       "type": "object",
       "propertyNames": {
@@ -451,6 +477,26 @@
                   "type": "integer",
                   "minimum": 0,
                   "description": "Review records of this attempt rejected for citations that do not verify (E-REV-05); counted against retry.record, not retry.review. Optional (additive)."
+                },
+                "runner": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "mode",
+                    "context"
+                  ],
+                  "properties": {
+                    "mode": {
+                      "const": "fork"
+                    },
+                    "context": {
+                      "enum": [
+                        "artifacts",
+                        "full"
+                      ]
+                    }
+                  },
+                  "description": "Set by tsl step brief: the attempt ran in a forked subagent with this context (roadmap B1). Absent: the main session ran it."
                 },
                 "metrics": {
                   "description": "Run metrics of one step attempt (roadmap D1): the model tokens read from the Claude Code session transcript (counts only, never text), the engineer's wait on IDE questions (ide-questions.json) and the AI time (decided_at - started_at - wait).",

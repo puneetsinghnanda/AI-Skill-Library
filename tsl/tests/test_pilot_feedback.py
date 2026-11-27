@@ -62,9 +62,13 @@ def test_open_step_refuses_off_skill_tools_before_they_run(world: World) -> None
     assert _pre(world, "Bash", {"command": cmd}) is None
     assert _pre(world, "Read", {"file_path": str(world.companion / art)}) is None
     assert _pre(world, "Skill", {"skill": "truminds:review"}) is None
-    targets = [e["target"] for e in _log(world, run_id)]
-    assert not any("manifest" in t or "docker" in t for t in targets)
-    assert f"tsl verify {art} --json"[:80] in targets  # logged without the cd prefix
+    log = _log(world, run_id)
+    refused = {e["target"]: e for e in log if e["decision"] == "deny"}
+    # Refusals are in the run record as E-POL-06, with what they aimed at.
+    assert {e["code"] for e in refused.values()} == {"E-POL-06"}
+    assert {"WebFetch", "tsl next x", "cat context/manifest.json", "docker info"} <= set(refused)
+    allowed = [e["target"] for e in log if e["decision"] == "allow"]
+    assert f"tsl verify {art} --json"[:80] in allowed  # logged without the cd prefix
 
 
 def test_tools_are_not_step_limited_before_the_skill_launches(world: World) -> None:

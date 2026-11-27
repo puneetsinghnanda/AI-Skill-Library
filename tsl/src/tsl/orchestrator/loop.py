@@ -111,6 +111,10 @@ class _Loop:
             "budget": v1["budget"],
             "progress": v1["progress"],
         }
+        if action == "run_step" and "runner" in v1:
+            # B1: v1's runner, pinned at tsl state start from TSL_STEP_RUNNER (never for a step
+            # whose skill asks the user). Absent: the step runs in the main session.
+            out["runner"] = v1["runner"]
         out.update(extra)
         p = self.comp.path(out["instruction_path"])
         if not self.notes and p.is_file():

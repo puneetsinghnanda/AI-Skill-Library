@@ -11,6 +11,8 @@ Step context from tsl (do not edit):
 
 If the JSON above has "ok": false, show its "message" and "next" to the user and stop. Write nothing.
 
+Use only the tools in data.allowed_tools.
+
 ## Job
 Give each story a relative size with evidence, so a delivery manager can plan. Write one file: the
 estimate.v1 artifact at data.artifact_path. Sizes are relative (XS, S, M, L, XL); you never give hours,

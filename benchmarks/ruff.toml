@@ -1,0 +1,7 @@
+# The tsl lint rules, but for Python 3.10: bench_report.py runs on any engineer's python3 with no
+# install (standard library only), like scripts/.
+extend = "../tsl/pyproject.toml"
+target-version = "py310"
+
+[lint.per-file-ignores]
+"tests/**" = ["S101", "S108", "E501"]

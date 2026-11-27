@@ -3,13 +3,15 @@ name: requirement-review
 description: Reviews one ticket against the system's intent baseline and glossary and writes a numbered requirements artifact (intent.v1) with Known, Assumed and Unknown items and open questions. Use only as a step of a Truminds workflow run, when tsl names requirement-review as the next step.
 argument-hint: <artifact path from tsl next>
 user-invocable: false
-allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write, Edit
+allowed-tools: Bash(tsl verify *), Read, Grep, Glob, Write, Edit, AskUserQuestion
 ---
 
 Step context from tsl (do not edit):
 !`tsl verify $0 --inputs --json`
 
 If the JSON above has "ok": false, show its "message" and "next" to the user and stop. Write nothing.
+
+Use only the tools in data.allowed_tools.
 
 ## Job
 Turn one ticket into a numbered list of clear, testable requirements, and say honestly
