@@ -92,3 +92,49 @@ def test_run_ids_in_paths_are_not_secrets() -> None:
 def test_path_words_are_not_the_keyword_for_a_cite() -> None:
     """The keyword search skips the whole token, so `add_api_key` in a cite is not `key`."""
     assert not _ent("see sample-system:db/migrations/add_api_key/x9Kq_20261016T090000.sql#L1\n")
+
+
+# --- round 5 (approved review of cd98a65) ------------------------------------------------------
+
+
+def test_a_secret_split_across_a_cite_path_is_flagged() -> None:
+    """Short random pieces joined: the whole secret, not each piece, is what is checked."""
+    for cite in (
+        "sample-system:Zx9Qw7Lm3K/p8Rt2Vb6Nc/4Hd1Fg5Js0T.json#L1",
+        "sample-system:Zx9Qw7Lm3K_p8Rt2Vb6Nc/docs/4Hd1Fg5Js0T.md#L1",
+        "sample-system:a/Zx9Qw7Lm3K-p8Rt2Vb6Nc-4Hd1Fg5Js0T/b.py#L1",
+    ):
+        assert _ent(f"secret key {cite}\n"), cite
+
+
+def test_the_reported_span_hash_clears_a_cite_finding() -> None:
+    """--show-allow-hashes hashes text[start:end]; that hash must clear the finding, ids or not."""
+    import hashlib
+
+    ulid = "evt_01M6FXTGC048AXKA8X69ASS5QB"
+    text = f"secret key sample-system:db/{ulid}_{TOK}.json#L1\n"
+    hits = _ent(text)
+    assert hits
+    allow = frozenset(hashlib.sha256(text[h.start : h.end].encode()).hexdigest() for h in hits)
+    assert not [
+        h for h in detectors.scan(text, allow, cite_repos=REPOS) if h.rule_id == "SEC-ENT-01"
+    ]
+
+
+def test_cites_in_markdown_emphasis_tables_and_angle_brackets() -> None:
+    for wrap in ("**{}**", "| {} |", "|{}|", "<{}>", "*{}*"):
+        assert not _ent("primary key " + wrap.format(MIG) + "\n"), wrap
+
+
+def test_more_source_extensions_and_extensionless_files() -> None:
+    for cite in (
+        "sample-system:web/src/components/20261016T090000__orders_panel.vue#L4",
+        "sample-system:native/src/20261016T090000__crc_table.c#L4",
+        "sample-system:ios/App/20261016T090000__session_store.swift#L4",
+        "sample-system:infra/images/20261016T090000__api_worker/Dockerfile#L4",
+    ):
+        assert not _ent(f"primary key {cite}\n"), cite
+
+
+def test_an_extensionless_name_must_be_a_known_one() -> None:
+    assert _ent(f"secret key sample-system:infra/{TOK}#L4\n")

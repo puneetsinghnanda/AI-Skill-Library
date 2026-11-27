@@ -20,6 +20,8 @@ from tsl.core.runtime import Runtime
 from tsl.gitops.git import GitError
 
 MAX_FILE_BYTES = 5 * 1024 * 1024
+# `NAME=value`: an `=` with something after it (base64 padding only ends a token).
+NAME_VALUE = re.compile(r"=[^=]")
 # SDD-12 §6.4 names "the archive threshold (§8)" without a value; this is the proposal used
 # until the owner fixes one (reported as a gap).
 MAX_REPO_BYTES = 1024 * 1024 * 1024
@@ -221,7 +223,7 @@ def _check_content(
 
     # Known false positives: SHA-256 of the matched text in tsl.yaml h4_allow (SEC-01 §7.2),
     # the same list H4 honours during a run.
-    allow = frozenset(comp.config.h4_allow)  # normalised in TslConfig
+    allow = frozenset(comp.config.h4_allow)  # lower-case hex, enforced by the tsl.yaml schema
     repos = frozenset(r.name for r in comp.config.product_repos)  # code cites of these
     total = 0
     for rel in files:
@@ -248,11 +250,12 @@ def _check_content(
                 # file and line only: the matched value is never echoed (SDD-11 §7.3)
                 detail = f"{h.kind} rule {h.rule_id}"
                 value = text[h.start : h.end]
-                if show_hashes and h.rule_id == "SEC-ENT-01" and "=" not in value:
+                if show_hashes and h.rule_id == "SEC-ENT-01" and not NAME_VALUE.search(value):
                     # The SHA-256 a tech lead commits to tsl.yaml h4_allow for a reviewed false
                     # positive, so anyone with the companion repo can read it. Only on request
-                    # (--show-allow-hashes, run locally, never in CI logs), only for entropy hits,
-                    # and never for a `NAME=value` match, whose value a dictionary could recover.
+                    # (--show-allow-hashes, run locally, refused in CI), only for entropy hits,
+                    # and never for a `NAME=value` match, whose value a dictionary could recover
+                    # (base64 `=` padding at the end is fine).
                     digest = hashlib.sha256(value.encode()).hexdigest()
                     detail += f", h4_allow sha256 {digest}"
                 out.append(Finding("E-COMP-04", rel, h.line, detail))

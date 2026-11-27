@@ -48,20 +48,46 @@ RUN_ID_IN_PATH = re.compile(r"run_[0-9A-HJKMNP-TV-Z]{26}")
 # A code citation `<repo>:<relative path>.<ext>#<anchor>` of a product repo the caller names
 # (`sample-system:db/migrations/20261016T090000__create_reference_lists.sql#L16`) is a file
 # reference. Such a token is not checked as a whole, because a long path to a dated file looks
-# random; instead each directory and the file name are checked on their own, and the file name
-# also piece by piece (split at `_` and `-`, run ids kept out), so a secret placed in a cite is
-# still found. The shape is
-# exact: a repo name the caller passes (never `https`), right before `:`, a path with `/`, no
-# leading `/` and no `+` or `=`, then a lower-case source extension, `#` and an anchor.
+# random. Instead these are checked: each directory, the file name, each piece of the file name
+# (split at `_` and `-`), and every piece of the whole path that is not a plain word, number or
+# date, joined (so a secret split across `/` is still found). Known ids (`run_`, `evt_`, ...)
+# are kept out. The shape is exact: a repo name the caller passes (never `https`), right before
+# `:`, a path with `/`, no leading `/` and no `+` or `=`, then a lower-case source extension or
+# a known extension-less file name (`Dockerfile`), then `#` and an anchor.
 CITE_EXTS = (
-    "sql|md|mdx|txt|json|jsonl|yaml|yml|toml|ini|cfg|conf|properties|xml|html|css|scss|"
-    "js|jsx|mjs|cjs|ts|tsx|py|pyi|rb|go|rs|java|kt|kts|scala|cs|php|sh|bash|ps1|bat|tf|hcl|"
-    "proto|graphql|gql|csv|tsv|dockerfile"
+    "sql|md|mdx|rst|adoc|txt|json|jsonc|jsonl|yaml|yml|toml|ini|cfg|conf|env|properties|xml|"
+    "html|htm|css|scss|sass|less|vue|svelte|astro|js|jsx|mjs|cjs|ts|tsx|mts|cts|py|pyi|ipynb|"
+    "rb|go|rs|java|kt|kts|scala|groovy|gradle|cs|fs|vb|php|swift|m|mm|c|h|cc|cpp|cxx|hpp|hh|"
+    "dart|lua|pl|pm|r|ex|exs|erl|hrl|clj|cljs|elm|hs|ml|zig|nim|sh|bash|zsh|fish|ps1|psm1|bat|"
+    "cmd|tf|tfvars|hcl|nix|proto|graphql|gql|prisma|csv|tsv|lock|mk|cmake|dockerfile|tmpl|j2"
 )
 # Up to two short parts before the extension (`.spec.ts`, `.d.ts`, `.test.py`).
 CITE_AFTER = re.compile(r"(?:\.[a-z0-9]{1,10}){0,2}\.(?:" + CITE_EXTS + r")#[A-Za-z0-9]")
-CITE_DELIMS = " \t\n\"'`([,{"
+CITE_ANCHOR = re.compile(r"#[A-Za-z0-9]")
+NOEXT_NAMES = frozenset(
+    {
+        "Dockerfile",
+        "Containerfile",
+        "Makefile",
+        "GNUmakefile",
+        "Procfile",
+        "Jenkinsfile",
+        "Gemfile",
+        "Rakefile",
+        "Vagrantfile",
+        "Brewfile",
+        "Justfile",
+        "Earthfile",
+        "Tiltfile",
+        "CODEOWNERS",
+        "LICENSE",
+    }
+)
+CITE_DELIMS = " \t\n\"'`([,{*|<>"
 ID_IN_NAME = re.compile(r"(?:run|evt|key|dev|imp|flg)_[0-9A-HJKMNP-TV-Z]{26}")
+# Path pieces that are words, numbers or dates, never secrets: `migrations`, `Doctor`,
+# `DoctorDetailPage`, `API`, `0008`, `v2`, `20261016T090000`.
+PLAIN_PIECE = re.compile(r"[a-z]+|[A-Z]+|(?:[A-Z][a-z]+)+|[0-9]+|v[0-9]+|[0-9]{8}T[0-9]{4,6}")
 
 
 def _cite_pieces(
@@ -71,20 +97,30 @@ def _cite_pieces(
     tok = text[start:end]
     if not repos or "/" not in tok or tok.startswith("/") or "+" in tok or "=" in tok:
         return None
-    if start < 2 or text[start - 1] != ":" or not CITE_AFTER.match(text, end):
+    if start < 2 or text[start - 1] != ":":
+        return None
+    *dirs, name = tok.split("/")
+    if not (CITE_AFTER.match(text, end) or (name in NOEXT_NAMES and CITE_ANCHOR.match(text, end))):
         return None
     i = start - 1
     while i > 0 and (text[i - 1].isalnum() or text[i - 1] in "._-"):
         i -= 1
     if text[i : start - 1] not in repos or (i > 0 and text[i - 1] not in CITE_DELIMS):
         return None
-    *dirs, name = tok.split("/")
-    pieces: list[tuple[str, int, int]] = []
+    masked_tok = ID_IN_NAME.sub(lambda m: "_" * len(m.group(0)), tok)  # ids are not secrets
+    # Every piece of the path that is not a plain word, number or date, joined: catches a
+    # secret split into short parts across `/`, `_` or `-`. Reported on the whole token.
+    odd = "".join(
+        p.group(0)
+        for p in re.finditer(r"[^/_\-]+", masked_tok)
+        if not PLAIN_PIECE.fullmatch(p.group(0))
+    )
+    pieces: list[tuple[str, int, int]] = [(odd, start, end)]
     pos = start
     for d in dirs:  # a directory is checked whole
         pieces.append((d, pos, pos + len(d)))
         pos += len(d) + 1
-    masked = ID_IN_NAME.sub(lambda m: "_" * len(m.group(0)), name)  # ids are not secrets
+    masked = masked_tok[pos - start :]
     pieces.append((masked, pos, pos + len(name)))  # the whole file name, and each piece of it
     for p in re.finditer(r"[^_\-]+", masked):
         pieces.append((p.group(0), pos + p.start(), pos + p.end()))
@@ -235,7 +271,9 @@ def scan(
                 parts = [(whole, m.start(), m.end())]  # anything else: one token, as always
             around = text[max(0, m.start() - window) : m.end() + window].replace(whole, "")
             for tok, start, end in parts:
-                if len(tok) < minlen or SAFE_TOKEN.match(tok) or allowed(tok):
+                if len(tok) < minlen or SAFE_TOKEN.match(tok):
+                    continue
+                if allowed(tok) or allowed(text[start:end]):  # the span the finding reports
                     continue
                 if not (re.search(r"[A-Za-z]", tok) and re.search(r"[0-9]", tok)):
                     continue

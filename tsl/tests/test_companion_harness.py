@@ -120,11 +120,21 @@ def test_known_false_positive_is_allowed_by_h4_allow(world: World) -> None:
     assert code == 0, env
 
 
-def test_entropy_finding_shows_the_hash_that_clears_it(world: World) -> None:
-    """Locally, E-COMP-04 for SEC-ENT-01 names the sha256 for h4_allow; adding it clears it."""
+@pytest.fixture
+def local(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Not in CI: --show-allow-hashes is refused when CI or GITHUB_ACTIONS is set."""
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+
+@pytest.mark.parametrize(
+    "tok", ["Zx9Qw7Lm3Kp8Rt2Vb6Nc4Hd1Fg5Js0Ty", "Zx9Qw7Lm3Kp8Rt2Vb6Nc4Hd1Fg5Js0Ty=="]
+)
+def test_entropy_finding_shows_the_hash_that_clears_it(world: World, local: None, tok: str) -> None:
+    """Locally, E-COMP-04 for SEC-ENT-01 names the sha256 for h4_allow; adding it clears it.
+    Base64 `=` padding still gets a hash; only a `NAME=value` match does not."""
     import re as _re
 
-    tok = "Zx9Qw7Lm3Kp8Rt2Vb6Nc4Hd1Fg5Js0Ty"
     (world.companion / "notes.md").write_text(f"# Notes\n\nthe api key is {tok} here\n")
     _commit(world, "notes")
     code, env = _check(world)
@@ -142,6 +152,30 @@ def test_entropy_finding_shows_the_hash_that_clears_it(world: World) -> None:
     cfg_path.write_text(yaml.safe_dump(cfg, sort_keys=False))
     _commit(world, "allow a reviewed false positive")
     code, env = _check(world)
+    assert code == 0, env
+
+
+def test_no_hash_for_a_name_value_match(world: World, local: None) -> None:
+    (world.companion / "notes.md").write_text(
+        "# Notes\n\nthe token DB_TOKEN=Zx9Qw7Lm3Kp8Rt2Vb6Nc4Hd1Fg5Js0Ty\n"
+    )
+    _commit(world, "notes")
+    code, env = _check(world, "--show-allow-hashes")
+    assert (code, env["code"]) == (2, "E-COMP-04")
+    assert "h4_allow sha256" not in json.dumps(env)
+
+
+@pytest.mark.parametrize("var", ["CI", "GITHUB_ACTIONS"])
+def test_show_allow_hashes_is_refused_in_ci(
+    world: World, monkeypatch: pytest.MonkeyPatch, var: str
+) -> None:
+    monkeypatch.delenv("CI", raising=False)
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+    monkeypatch.setenv(var, "true")
+    code, env = _check(world, "--show-allow-hashes")
+    assert (code, env["code"]) == (1, "E-USE-01")
+    monkeypatch.setenv(var, "false")
+    code, env = _check(world, "--show-allow-hashes")
     assert code == 0, env
 
 

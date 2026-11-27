@@ -1058,6 +1058,13 @@ def companion_check(
 
     if event not in (None, "push", "pull_request"):
         raise TslError("E-USE-01", detail="--event is push or pull_request", cmd="companion check")
+    if show_allow_hashes and any(
+        os.environ.get(v, "").lower() not in ("", "0", "false") for v in ("CI", "GITHUB_ACTIONS")
+    ):
+        # The hashes would land in a CI log anyone with the repo can read.
+        raise TslError(
+            "E-USE-01", detail="--show-allow-hashes is local only, not in CI", cmd="companion check"
+        )
     data = check(rt(), comp(), base, event, deny_hashes, show_allow_hashes)
     if data["codes"]:
         raise first_error(data)
