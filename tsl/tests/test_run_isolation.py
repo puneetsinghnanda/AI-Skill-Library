@@ -16,6 +16,7 @@ from e2e_steps import hook, next_action, start_run
 from helpers import World
 from tsl.harness.gates import other_run_refs
 from tsl.hooks.pre_tool import _other_run_bash
+from tsl.schemas.registry import errors
 
 RUN = "run_01JA0B3C4D5E6F7G8H9JKMNPQR"
 OLD = "run_01J90B3C4D5E6F7G8H9JKMNPQR"
@@ -83,10 +84,15 @@ def test_bound_run_reads_only_its_own_runs_files(world: World) -> None:
     assert _decide(world, "Grep", {"pattern": "x", "glob": "context/**/*.md"}) == "allow"
     assert _decide(world, "Glob", {"pattern": f"artifacts/T-1/{run_id}/*.md"}) == "allow"
     assert _decide(world, "Grep", {"pattern": "x", "path": str(c / "runs" / run_id)}) == "allow"
-    # Refusals are not logged, so H7 has nothing to fail.
+    # Each refusal is logged as an E-POL-06 deny, so the run record counts them (H7 skips them).
     log = c / "runs" / run_id / "tool-log.jsonl"
     entries = [json.loads(x) for x in log.read_text().splitlines()] if log.is_file() else []
-    assert not [e for e in entries if e.get("decision") == "deny"], entries
+    denies = [e for e in entries if e.get("decision") == "deny"]
+    assert len(denies) == 9 and {e["code"] for e in denies} == {"E-POL-06"}, denies
+    # Logged relative to the companion repo: the target never leaves it (tool-log.v1).
+    assert other_tkt.relative_to(c).as_posix() in [e["target"] for e in denies]
+    assert all(str(c) not in e["target"] for e in denies)
+    assert all(errors("tool-log.v1", e) == [] for e in denies)
 
 
 def test_outside_a_run_reads_are_not_limited(world: World) -> None:

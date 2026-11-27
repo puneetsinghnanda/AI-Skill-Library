@@ -12,6 +12,8 @@ If "ok" is false, show "message" and "next" to the user and stop.
 If "data.ticket_snapshot" is null, tell the user the run has no ticket text (they can pass a
 Markdown file as the third argument next time), then carry on.
 If "data.driver" is "mod", the Truminds mod runs this run: tell the user it started and stop.
+If "data.step_runners" is not empty, tell the user which steps this run hands to a forked
+subagent, and with which context. They are fixed for the whole run.
 
 ## Code loop (when "data.loop" is "code")
 Run `tsl next <run_id> --json` and show "data.say" to the user unchanged. Then by
@@ -36,6 +38,10 @@ Never decide pass or fail yourself. Never edit state.json, records or approvals.
    raise them again; to refer to one it cites the question's "cite"
    (runs/<run_id>/open-questions.md#q-05), never the question id in prose alone.
    If the post-write hook blocks the write, fix what it says and write again.
+   If "data.runner" is set, do not invoke "data.skill". Invoke the `step` skill instead, with
+   `<data.artifact_path> --context <data.runner.context>`: it runs the step in a forked
+   subagent that gets the same inputs, feedback, answers and open questions from tsl, and
+   writes the artifact. It answers with the path; then go on to step 3.
 3. Run `tsl verify <artifact_path> --json`. It runs every check, including the verifier
    container (H3) for steps that change code; the post-write hook ran only the fast checks.
    If "ok" is false with any failing gate (E-CHK-*, E-SEC-*, E-POL-*), skip the review and

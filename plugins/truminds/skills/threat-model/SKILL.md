@@ -11,6 +11,8 @@ Step context from tsl (do not edit):
 
 If the JSON above has "ok": false, show its "message" and "next" to the user and stop. Write nothing.
 
+Use only the tools in data.allowed_tools.
+
 ## Job
 Find what could go wrong for security in each component the design touches, using STRIDE, and say
 how each threat is mitigated. Write one file: the threat-model.v1 artifact at data.artifact_path.
