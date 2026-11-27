@@ -228,3 +228,28 @@ def test_no_transcript_means_unknown_not_zero(
         30,
     )
     assert t["calls"] is None and t["subagent_calls"] is None and t["tokens"] is None
+
+
+def test_only_retry_causes_count_as_retries(
+    client: TestClient,
+    token: TokenFactory,
+    people: dict[str, Person],
+    world: Any,
+    keys_of: dict[str, str],
+    migrated: Any,
+) -> None:
+    """A re-run after an answer or a gate decision is not a retry (as insights counts them)."""
+    run_id = new_run()
+    m = {"tokens": None, "wait_s": 0, "active_ms": 60_000, "source": "none"}
+    key = keys_of["eng"]
+    evs = [event("run.started", run_started(world.system), run_id, now_iso(-600))]
+    for i, cause in enumerate(["first", "retry_review", "input_answered", "gate_changes"]):
+        b = {**_decided(i + 1, "PASS", key, m), "cause": cause}
+        evs.append(event("step.decided", b, run_id, now_iso(-500 + i)))
+    post(client, token(people["eng"].oid, people["eng"].roles), evs, strict=True)
+    project(migrated)
+    d = client.get(
+        f"/v1/runs/{run_id}",
+        headers=bearer(token(people["eng"].oid, people["eng"].roles, client="portal")),
+    ).json()["data"]
+    assert (d["step_metrics"]["attempts"], d["step_metrics"]["retries"]) == (4, 1)

@@ -266,9 +266,12 @@ def step_metrics(attempts: Sequence[Any]) -> dict[str, Any] | None:
     measured = [a for a in decided if a.metrics_source is not None]
     if not measured:
         return None
-    per_step: dict[str, int] = {}
-    for a in decided:
-        per_step[a.step_id] = per_step.get(a.step_id, 0) + 1
+
+    def retry(a: Any) -> bool:
+        """A retry after failed checks, review or verifier, as insights counts retries; re-runs
+        after an answer, a gate decision or a stale input are not. Older events have no cause."""
+        cause = str(a.attempt_cause or "")
+        return cause.startswith("retry_") if cause else int(a.attempt) > 1
 
     counted = [a for a in measured if a.calls is not None]  # token counts stored
 
@@ -277,7 +280,7 @@ def step_metrics(attempts: Sequence[Any]) -> dict[str, Any] | None:
 
     return {
         "attempts": len(decided),
-        "retries": sum(n - 1 for n in per_step.values()),
+        "retries": sum(1 for a in decided if retry(a)),
         "measured_attempts": len(measured),
         "token_attempts": len(counted),
         "ai_ms": total("duration_ms", measured),

@@ -39,7 +39,7 @@ export function compactTokens(v: number | null | undefined): string | null {
   return String(v);
 }
 
-/** AI time or a wait in minutes, e.g. "3.6 min", "43 min", "1 h 12 min"; "0 min" for none. */
+/** AI time or a wait in minutes, e.g. "3.6 min", "43 min", "1 h 12 min"; "0.0 min" for none. */
 export function minutes(ms: number | null | undefined): string | null {
   if (ms === null || ms === undefined || ms < 0) return null;
   const m = ms / 60_000;

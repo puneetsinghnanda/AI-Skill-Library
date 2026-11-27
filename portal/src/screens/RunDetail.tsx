@@ -33,13 +33,16 @@ function signalText(code: string, v: SignalValue | undefined): string {
 
 /** One step's metrics over its attempts (D1); null when no attempt carries any. */
 function stepTotals(step: RunStep) {
-  const measured = step.attempts.filter((a) => a.metrics !== null);
+  // `!= null`: an attempt from a service older than the portal has no `metrics` key at all.
+  const measured = step.attempts.filter((a) => a.metrics !== null && a.metrics !== undefined);
   if (!measured.length) return null;
   const sum = (f: (a: RunStep['attempts'][number]) => number | null | undefined) =>
     measured.reduce((n, a) => n + (f(a) ?? 0), 0);
-  const tok = measured.some((a) => a.metrics?.tokens);
+  const counted = measured.filter((a) => a.metrics?.tokens).length;
+  const tok = counted > 0;
   return {
     measured: measured.length,
+    counted,
     aiMs: sum((a) => a.duration_ms),
     waitMs: sum((a) => a.metrics?.wait_s) * 1000,
     tokens: tok
@@ -143,7 +146,7 @@ function StepMetricsPanel({ step }: { step: RunStep }) {
             <dd>
               {m.tokens.calls} ({m.tokens.subagent} by subagents)
             </dd>
-            <dt>Tokens in · out</dt>
+            <dt>Uncached input · out</dt>
             <dd>
               {compactTokens(m.tokens.input)} · {compactTokens(m.tokens.output)}
             </dd>
@@ -155,6 +158,11 @@ function StepMetricsPanel({ step }: { step: RunStep }) {
       {m.tokens ? null : (
         <p className="m-0 xsmall text-2">No token counts: no Claude Code transcript was found.</p>
       )}
+      {m.tokens && m.counted < m.measured ? (
+        <p className="m-0 xsmall text-2">
+          Tokens counted on {m.counted} of {m.measured} attempts (no transcript on the others).
+        </p>
+      ) : null}
     </>
   );
 }
@@ -368,7 +376,7 @@ function RunBody({ d }: { d: Run }) {
                     </dd>
                     {d.step_metrics.tokens ? (
                       <>
-                        <dt>Tokens in</dt>
+                        <dt>Uncached input</dt>
                         <dd>{compactTokens(d.step_metrics.tokens.input)}</dd>
                         <dt>Tokens out</dt>
                         <dd>{compactTokens(d.step_metrics.tokens.output)}</dd>
