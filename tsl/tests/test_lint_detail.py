@@ -16,7 +16,7 @@ import pytest
 from e2e_steps import SESSION
 from helpers import World
 from test_e2e_code import _code_run
-from tsl.harness.verifier import DockerVerifier, StepResult
+from tsl.harness.verifier import DockerVerifier, StepResult, sarif_errors
 from tsl.harness.verify import LINT_DETAIL_MAX, _with_log
 
 REL = "runs/r/verifier/impl/a1"
@@ -177,3 +177,30 @@ def test_h3_lint_failure_names_the_error_in_the_changed_file(world: World) -> No
     assert "1 error(s) in the files this step changed (1 more in other files)" in h3["detail"]
     assert "api/src/routes/orders.js:12:3 no-var: Unexpected var." in h3["detail"]
     assert "app.js" not in h3["detail"].split("lint.sarif", 1)[1]
+
+
+@pytest.mark.parametrize(
+    ("uri", "base"),
+    [
+        ("api/src/routes/x.ts", None),  # relative: "/src/" inside it is part of the path
+        ("./api/src/routes/x.ts", None),
+        ("api/src/routes/x.ts", "file:///cache/w/"),  # relative to a uriBaseId
+        ("file:///cache/w/api/src/routes/x.ts", None),
+        ("/src/api/src/routes/x.ts", None),  # Semgrep's mount: only the leading /src/ goes
+    ],
+)
+def test_sarif_paths_keep_a_src_folder_inside_the_repo(
+    tmp_path: Path, uri: str, base: str | None
+) -> None:
+    """Review on #72: "/src/" was cut wherever it appeared, so api/src/routes/x.ts became
+    routes/x.ts and an error in a changed file showed as outside the change."""
+    art: dict[str, Any] = {"uri": uri, **({"uriBaseId": "W"} if base else {})}
+    loc = {"physicalLocation": {"artifactLocation": art, "region": {"startLine": 1}}}
+    res = {"ruleId": "no-var", "level": "error", "message": {"text": "m"}, "locations": [loc]}
+    run: dict[str, Any] = {"tool": {"driver": {"name": "ESLint"}}, "results": [res]}
+    if base:
+        run["originalUriBaseIds"] = {"W": {"uri": base}}
+    (tmp_path / "lint.sarif").write_text(json.dumps({"runs": [run]}), encoding="utf-8")
+    lines, mine, total = sarif_errors(tmp_path / "lint.sarif", ["api/src/routes/x.ts"])
+    assert (mine, total) == (1, 1)
+    assert lines == ["api/src/routes/x.ts:1:? no-var: m"]

@@ -683,8 +683,9 @@ def _sarif_path(loc: dict[str, Any], bases: dict[str, Any], root: str = "") -> s
     if local and path.lower().startswith(local.lower()):
         return path[len(local) :]
     for base_dir in ("/cache/w/", "/src/"):
-        if base_dir in path:
-            return path.split(base_dir, 1)[1]
+        # Only at the start: a relative "api/src/x.ts" is already repo-relative.
+        if path.startswith(base_dir):
+            return path[len(base_dir) :]
     while path.startswith("./"):
         path = path[2:]
     return path
