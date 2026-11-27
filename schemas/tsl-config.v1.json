@@ -288,6 +288,13 @@
           "minimum": 1,
           "maximum": 24,
           "default": 24
+        },
+        "stuck_after_min": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 240,
+          "default": 30,
+          "description": "D2: a RUNNING step with no activity for this many minutes is shown as stuck (the reviewer half of it, between steps a third)."
         }
       }
     },

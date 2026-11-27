@@ -218,6 +218,10 @@
             },
             "since": {
               "$ref": "#/$defs/timestamp"
+            },
+            "ended_at": {
+              "$ref": "#/$defs/timestamp",
+              "description": "D2: set by the session-end hook when this session closed; another session may take the run over without --take-over."
             }
           }
         },

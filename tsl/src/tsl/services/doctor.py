@@ -21,6 +21,73 @@ def _chk(cid: str, status: str, detail: str = "", fix: str = "") -> dict[str, st
     return {"id": cid, "status": status, "detail": detail, "fix": fix}
 
 
+def _recovery_checks(rt: Runtime, comp: Any, git: Any) -> list[dict[str, str]]:
+    """D2: a companion sync a killed command left half-finished, and this user's stuck runs."""
+    from tsl.gitops.git import STALE_GIT_LOCK_S, GitError
+    from tsl.identity.me import cached_me
+    from tsl.state.stuck import stuck
+
+    out: list[dict[str, str]] = []
+    mine = [st for st in _open_states(comp) if st.get("owner_pseudonym")]
+    who = (cached_me(rt) or {}).get("pseudonym")
+    mine = [st for st in mine if who and st["owner_pseudonym"] == who]
+    fix = (
+        f"/truminds:resume {mine[0]['run_id']} repairs it"
+        if mine
+        else "tsl state resume <run_id> repairs it"
+    )
+    try:
+        left = git.leftovers()
+    except GitError as exc:
+        left = {"rebase": None, "index_lock_age_s": None}
+        out.append(_chk("companion-sync", "fail", exc.detail, "Check the companion clone"))
+    age = left["index_lock_age_s"]
+    if left["rebase"]:
+        out.append(
+            _chk(
+                "companion-sync",
+                "fail",
+                f"a companion sync (git rebase of {left['rebase']}) did not finish",
+                fix,
+            )
+        )
+    elif isinstance(age, float) and age > STALE_GIT_LOCK_S:
+        out.append(_chk("companion-sync", "fail", f"a git lock left {int(age)} s ago", fix))
+    else:
+        out.append(_chk("companion-sync", "pass"))
+    now = rt.clock()
+    for st in mine:
+        try:
+            got = stuck(comp.root, st["run_id"], st, now, comp.config.gates.stuck_after_min)
+        except (OSError, ValueError):
+            got = None
+        if got:
+            out.append(
+                _chk(
+                    f"run-progress-{st['run_id']}",
+                    "warn",
+                    f"{st['ticket']}: no progress since {got['since']} ({got['minutes']} min, "
+                    f"{got['phase']})",
+                    f"If its session is gone: {got['command']}; to stop it: {got['cancel']}",
+                )
+            )
+    return out
+
+
+def _open_states(comp: Any) -> list[dict[str, Any]]:
+    import json
+
+    out: list[dict[str, Any]] = []
+    for p in sorted(comp.path("runs").glob("run_*/state.json")):
+        try:
+            st = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(st, dict) and st.get("status") not in ("COMPLETED", None):
+            out.append(st)
+    return out
+
+
 def _run_checks(rt: Runtime, cwd: Path) -> list[dict[str, str]]:
     """Run-readiness checks (tsl doctor --run): everything that has stopped real runs part-way.
     Live: the service must accept this laptop's sign-in and key, clones must match GitHub."""
@@ -136,6 +203,7 @@ def _run_checks(rt: Runtime, cwd: Path) -> list[dict[str, str]]:
             "Inspect with git stash show -p; drop it with git stash drop when it is not needed",
         )
     )
+    checks += _recovery_checks(rt, comp, git)
     branches = {r.name: r.default_branch for r in comp.config.product_repos}
     for name, path in comp.local_paths().items():
         cid = f"product-{name}"

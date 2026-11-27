@@ -180,6 +180,16 @@ def _wait(rt: Runtime, comp: Companion, rid: str, st: dict[str, Any]) -> dict[st
         return {"total_s": 0, "steps": {}}
 
 
+def _stuck(rt: Runtime, comp: Companion, rid: str, st: dict[str, Any]) -> dict[str, Any] | None:
+    """No activity for longer than the open phase allows (D2), else None. A view."""
+    from tsl.state.stuck import stuck
+
+    try:
+        return stuck(comp.root, rid, st, rt.clock(), comp.config.gates.stuck_after_min)
+    except Exception:  # a view
+        return None
+
+
 def _questions(comp: Companion, rid: str, st: dict[str, Any]) -> dict[str, Any]:
     """open-questions.md's open questions (open_blocking, open_non_blocking) and, first in
     items, the ones asked in the IDE now (open_ide, ask "ide", since = asked_at)."""
@@ -270,4 +280,5 @@ def progress(
         if st["status"] != "COMPLETED"
         else {"open_blocking": 0, "open_non_blocking": 0, "open_ide": 0, "items": []},
         "wait": _wait(rt, comp, rid, st),
+        "stuck": _stuck(rt, comp, rid, st),
     }

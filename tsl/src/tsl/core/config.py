@@ -40,7 +40,7 @@ ORG_DEFAULTS: dict[str, Any] = {
     # step retries on a major finding.
     "retry": {"checks": 2, "review": 2, "verifier": 3, "write": 4, "record": 2},
     "max_rework": 2,
-    "gates": {"self_approval": False, "lock_timeout_hours": 24},
+    "gates": {"self_approval": False, "lock_timeout_hours": 24, "stuck_after_min": 30},
     "pr": {"branch_prefix": "tsl/", "labels": []},
     "bands": {
         "high": {"S1_min": 0.90, "S2_min": 1.00, "S3_min": 4.0, "S6_max_ratio": 1.0},
@@ -71,6 +71,7 @@ class Gates(BaseModel):
     model_config = ConfigDict(extra="forbid")
     self_approval: bool = False
     lock_timeout_hours: int = 24
+    stuck_after_min: int = 30  # D2: a step with no activity this long is stuck
 
 
 class TslConfig(BaseModel):

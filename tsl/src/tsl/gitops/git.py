@@ -2,13 +2,30 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 from tsl.core import proc
 from tsl.core.errors import TslError
+
+# A git lock file older than this was left by a git command that died (D2).
+STALE_GIT_LOCK_S = 120
+# Left over from a sync that did not finish: not a network problem (D2).
+REPAIR_HINT = (
+    "A companion sync did not finish. /truminds:resume <run_id> (tsl state resume <run_id>) "
+    "repairs it; tsl doctor --run shows what is left"
+)
+_LEFTOVER = ("index.lock", "rebase-merge", "rebase-apply", "rebase in progress", "middle of")
+
+
+def _hint(text: str) -> str | None:
+    """A cause-specific next step: None keeps E-GIT-01's network hint (fetch, push)."""
+    low = text.lower()
+    return REPAIR_HINT if any(k in low for k in _LEFTOVER) else None
 
 
 class GitError(Exception):
@@ -53,8 +70,9 @@ class Git:
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise GitError(args[0], type(exc).__name__) from exc
         if check and p.returncode != 0:
-            lines = (p.stderr or p.stdout).strip().splitlines()
-            raise GitError(args[0], lines[-1] if lines else f"exit {p.returncode}")
+            text = (p.stderr or p.stdout).strip()
+            lines = text.splitlines()
+            raise GitError(args[0], lines[-1] if lines else f"exit {p.returncode}", _hint(text))
         return p
 
     def out(self, *args: str) -> str:
@@ -154,6 +172,10 @@ class Git:
             shutil.move(str(self.cwd / src), str(self.cwd / dst))
 
     def commit(self, message: str, paths: list[str], trailer: str | None = None) -> str | None:
+        if self.leftovers()["rebase"]:
+            # A commit now would land on the half-finished rebase, and repairing it (rebase
+            # --abort) would drop it. The files stay on disk; the repair commits them later.
+            raise GitError("commit", "a companion sync did not finish", REPAIR_HINT)
         existing = [p for p in paths if (self.cwd / p).exists() or self.is_tracked(p)]
         if existing:
             self.run("add", "-A", "--", *existing)
@@ -188,7 +210,99 @@ class Git:
             raise conflict_error(left)
         if p.returncode != 0:
             self.run("rebase", "--abort", check=False)
-            raise GitError("rebase", (p.stderr or "conflict").strip()[:120])
+            text = (p.stderr or "conflict").strip()
+            # A rebase is local: whatever stopped it, the network is not the cause.
+            raise GitError("rebase", text[:120], _hint(text) or REPAIR_HINT)
+
+    # ---- repair (D2)
+    def git_dir(self) -> Path:
+        return Path(self.out("rev-parse", "--absolute-git-dir"))
+
+    def leftovers(self) -> dict[str, str | float | None]:
+        """What a git command that died left in the repo: a rebase still in progress (its
+        branch), and the age in seconds of the index lock. Reads files only."""
+        gd = self.git_dir()
+        head: str | None = None
+        for name in ("rebase-merge", "rebase-apply"):
+            d = gd / name
+            if d.is_dir():
+                hp = d / "head-name"
+                head = hp.read_text(encoding="utf-8").strip() if hp.is_file() else "?"
+                break
+        lock = gd / "index.lock"
+        age = time.time() - lock.stat().st_mtime if lock.is_file() else None
+        return {"rebase": head, "index_lock_age_s": age}
+
+    def repair(self, branch: str) -> list[dict[str, str]]:
+        """Undo what a killed sync left: a stale index lock, and tsl's own half-finished rebase
+        of `branch` (git rebase --abort: the branch goes back to before the sync, local commits
+        kept, the autostash put back). Returns what it repaired. A rebase of another branch is
+        someone's own work: GitError, never touched."""
+        done: list[dict[str, str]] = []
+        left = self.leftovers()
+        age = left["index_lock_age_s"]
+        if isinstance(age, float) and age > STALE_GIT_LOCK_S:
+            with contextlib.suppress(OSError):
+                (self.git_dir() / "index.lock").unlink()
+                done.append(
+                    {
+                        "what": "git-lock",
+                        "detail": f"removed a git lock left {int(age)} s ago by a git "
+                        "command that did not finish",
+                    }
+                )
+        head = left["rebase"]
+        if head:
+            if head != f"refs/heads/{branch}":
+                raise GitError(
+                    "rebase",
+                    f"a rebase of {head} is in progress in the companion repo",
+                    "Finish it with git rebase --continue or stop it with git rebase --abort, "
+                    "then repeat",
+                )
+            # rebase --abort resets the working tree: files tsl wrote after the sync died (a
+            # state.json) would be lost. Keep them aside and put them back after. The run's own
+            # .local.lock is never moved: the process that holds it may be this one.
+            saved = bool(self.run("status", "--porcelain", check=False).stdout.strip()) and (
+                self.run(
+                    "stash",
+                    "push",
+                    "-q",
+                    "--include-untracked",
+                    "-m",
+                    "tsl: files written during a half-finished sync",
+                    "--",
+                    ".",
+                    ":(exclude,glob)**/.local.lock",
+                    check=False,
+                ).returncode
+                == 0
+            )
+            p = self.run("rebase", "--abort", check=False)
+            if p.returncode != 0:
+                lines = (p.stderr or p.stdout).strip().splitlines()
+                raise GitError(
+                    "rebase",
+                    "could not stop a half-finished sync: " + (lines[-1] if lines else "?"),
+                    f"git -C {self.cwd} rebase --abort, then repeat",
+                )
+            done.append(
+                {
+                    "what": "rebase",
+                    "detail": "stopped a companion sync (git rebase) that did not finish; "
+                    "local commits and files are kept",
+                }
+            )
+            if saved and self.run("stash", "pop", "-q", check=False).returncode != 0:
+                self.run("reset", "-q", "--merge", check=False)  # no half-applied files
+                done.append(
+                    {
+                        "what": "stash",
+                        "detail": "files written during the half-finished sync did not fit "
+                        "back; they are kept in git stash (tsl doctor --run shows it)",
+                    }
+                )
+        return done
 
     def push(self, branch: str, remote_branch: str | None = None) -> bool:
         p = self.run(
@@ -201,7 +315,12 @@ class Git:
         self.run("reset", "-q")
 
     def sync_push(self, branch: str, retries: int = 3) -> bool:
-        """Fetch, rebase, push; up to `retries` tries (SDD-12 §3.4). False when it still fails."""
+        """Fetch, rebase, push; up to `retries` tries (SDD-12 §3.4). False when it still fails.
+        A sync that a killed command left half-finished is repaired first (D2)."""
+        try:
+            self.repair(branch)
+        except GitError:
+            return False
         for _ in range(retries):
             try:
                 self.fetch()

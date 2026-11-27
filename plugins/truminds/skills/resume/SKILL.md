@@ -3,12 +3,22 @@ name: resume
 description: Resume a paused or interrupted Truminds run after questions are answered or a gate is approved. Only when the user types /truminds:resume.
 argument-hint: <run_id>
 disable-model-invocation: true
-allowed-tools: Bash(tsl *), Read, Grep, Glob, Write, Edit
+allowed-tools: Bash(tsl *), Read, Grep, Glob, Write, Edit, AskUserQuestion
 ---
 Run state from tsl (do not edit):
 !`tsl state resume $0 --json`
 
-If "ok" is false, show "message" and "next" to the user and stop.
+If "data.repaired" lists anything, tell the user in one line each what tsl repaired (a companion
+sync that did not finish, a stale git lock) before going on.
+
+If "ok" is false with code E-RUN-11, another Claude Code session holds this run. Ask the user
+with AskUserQuestion, one question: "This run was last active at <data.holder.last_activity_at,
+as local time> in another Claude Code session. Is that session closed?", with the options
+"Yes, take the run over" and "No, stop here". On "Yes", run `tsl state resume $0 --take-over --json`
+and continue below with its output; on "No", stop. Never pass --take-over without asking: two
+sessions on one run write over each other's step.
+
+If "ok" is false otherwise, show "message" and "next" to the user and stop.
 (E-RUN-03 means a blocking question still has no valid answer; E-RUN-07 means a frozen answer was edited.
 Show the question ids from "data" and stop. Never fill in answers yourself.)
 

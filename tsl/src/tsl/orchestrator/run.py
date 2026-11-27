@@ -121,13 +121,33 @@ class RunCtx:
             raise TslError("E-LOCK-02", run_id=self.run_id)
 
     def assert_session(self) -> None:
+        """Another session holds the run. It may take it over when that session closed (the
+        session-end hook set ended_at) or did nothing for SESSION_WINDOW_S; else E-RUN-11
+        with when it was last active, so the engineer can say whether it is gone (D2)."""
         sid = self.rt.session_id()
         act = self.state.get("active_session")
-        if not sid or not act or act.get("session_id") == sid:
+        if not sid or not act or act.get("session_id") == sid or act.get("ended_at"):
             return
-        beat = self.state.get("heartbeat_at") or act.get("since")
-        if beat and (self.rt.clock() - parse_iso(str(beat))).total_seconds() < SESSION_WINDOW_S:
-            raise TslError("E-RUN-11", run_id=self.run_id)
+        from tsl.core.clock import iso
+        from tsl.state.stuck import last_activity
+
+        stamps = [self.state.get("heartbeat_at"), act.get("since")]
+        known = [parse_iso(str(s)) for s in stamps if s]
+        if (seen := last_activity(self.comp.root, self.run_id, self.state)) is not None:
+            known.append(seen)
+        last = max(known) if known else None
+        if last and (self.rt.clock() - last).total_seconds() < SESSION_WINDOW_S:
+            raise TslError(
+                "E-RUN-11",
+                run_id=self.run_id,
+                data={
+                    "holder": {
+                        "session_id": str(act.get("session_id"))[:12],
+                        "last_activity_at": iso(last),
+                        "since": act.get("since"),
+                    }
+                },
+            )
 
     # ---- inputs (SDD-02 §3.3)
     def resolve_inputs(self, sid: str) -> list[dict[str, Any]]:
@@ -251,8 +271,11 @@ class RunCtx:
                 ],
                 trailer=f"Tsl-Run: {self.run_id}",
             )
-        except GitError:
-            warnings.append({"code": "E-GIT-01", "message": "commit failed; files kept locally"})
+        except GitError as exc:
+            hint = f". {exc.next}" if exc.next else ""
+            warnings.append(
+                {"code": "E-GIT-01", "message": f"commit failed; files kept locally{hint}"}
+            )
             return
         if not self.comp.git.sync_push(self.comp.config.companion_branch):
             warnings.append(

@@ -220,14 +220,17 @@ def start(
     }, warnings
 
 
-def _pull(comp: Companion) -> None:
+def _pull(comp: Companion) -> list[dict[str, str]]:
+    """Sync the companion repo; first repair what a killed sync left (D2). Returns the repairs."""
     g = comp.git
     try:
+        repaired = g.repair(comp.config.companion_branch)
         g.fetch()
         if g.resolve(f"origin/{comp.config.companion_branch}"):
             g.rebase(f"origin/{comp.config.companion_branch}")
     except GitError as exc:
         raise exc.tsl() from None
+    return repaired
 
 
 def _owner_check(rt: Runtime, ctx: RunCtx) -> dict[str, Any]:
@@ -245,7 +248,7 @@ def resume(
     rt: Runtime, comp: Companion, run_id: str, take_over: bool = False
 ) -> tuple[dict[str, Any], list[dict[str, str]]]:
     warnings: list[dict[str, str]] = []
-    _pull(comp)
+    repaired = _pull(comp)
     ctx = RunCtx(rt, comp, run_id)
     with ctx.store.local_lock():
         if ctx.state["status"] == "COMPLETED":
@@ -333,6 +336,7 @@ def resume(
         "next_step": nxt,
         "answered": answered,
         "approvals": approvals,
+        "repaired": repaired,  # what a killed sync left, undone first (D2)
     }, warnings
 
 
@@ -647,6 +651,10 @@ def unlock(rt: Runtime, comp: Companion, ticket: str, workflow: str, reason: str
 
 
 def cancel(rt: Runtime, comp: Companion, run_id: str, reason: str) -> dict[str, Any]:
+    try:  # a killed sync would keep the release from reaching GitHub (D2)
+        repaired = comp.git.repair(comp.config.companion_branch)
+    except GitError as exc:
+        raise exc.tsl() from None
     ctx = RunCtx(rt, comp, run_id)
     if ctx.state["status"] == "COMPLETED":
         raise TslError(
@@ -673,7 +681,12 @@ def cancel(rt: Runtime, comp: Companion, run_id: str, reason: str) -> dict[str, 
     unbind_run(rt, run_id)
     if not pushed:
         raise TslError("E-GIT-01", op="push", detail="cancel recorded locally, not pushed")
-    return {"run_id": run_id, "status": "COMPLETED", "end_reason": "cancelled"}
+    return {
+        "run_id": run_id,
+        "status": "COMPLETED",
+        "end_reason": "cancelled",
+        "repaired": repaired,
+    }
 
 
 def repin(rt: Runtime, comp: Companion, run_id: str) -> dict[str, Any]:
