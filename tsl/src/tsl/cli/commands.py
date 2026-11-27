@@ -553,11 +553,37 @@ def state_show(
     session: Annotated[
         str | None, typer.Option("--session", help="Claude session id (default: TSL_SESSION_ID)")
     ] = None,
+    metrics: Annotated[
+        bool,
+        typer.Option("--metrics", help="One run's tokens, retries, AI time and wait per attempt"),
+    ] = False,
 ) -> int:
     """Show runs in this companion repo.
 
     --progress shows one run for the Mods progress panel: the given run, else the run bound to
-    this Claude session, else none. Read only and local (no network, no lock)."""
+    this Claude session, else none. Read only and local (no network, no lock).
+
+    --metrics shows one run's metrics per attempt and in total (D1): tokens from this laptop's
+    Claude Code transcripts, retries, AI time and the engineer's wait. Read only and local."""
+    if metrics:
+        from tsl.core.errors import TslError
+        from tsl.state import metrics as run_metrics
+        from tsl.state.store import read_state_raw
+
+        if not run_id:
+            raise TslError("E-USE-01", detail="--metrics needs a run id", cmd="state show")
+        r, c = rt(), comp()
+        st = read_state_raw(c, run_id)
+        if st is None:
+            raise TslError("E-RUN-04", run_id=run_id)
+        rep = run_metrics.report(r.home, c, run_id, st, env=r.env)
+        if not OPTS.json:  # a table: longer than an envelope message
+            sys.stdout.write(run_metrics.render(rep) + "\n")
+            return 0
+        t = rep["total"]
+        return emit_ok(
+            f"{rep['ticket']}: {t['attempts']} attempts, {t['retries']} retries", {"metrics": rep}
+        )
     if progress:
         from tsl.state.progress import progress as prog
 
