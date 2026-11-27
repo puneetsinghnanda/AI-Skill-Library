@@ -1,4 +1,4 @@
-import { parseProgress, isTslCommand, panelRows, register } from './reg.ts'
+import { parseProgress, isTslCommand, isUpdateCommand, panelRows, register } from './reg.ts'
 import assert from 'node:assert/strict'
 
 const run = (over: any = {}): any => ({
@@ -32,6 +32,18 @@ for (const c of ['tsl next run_1 --json', 'cd x && tsl decide r s', 'tsl.exe ver
   assert.equal(isTslCommand(c), true, c)
 for (const c of ['ls tsl/', 'pytsl run', 'echo tsl-hook', 'cat tsl.yaml', undefined, 42])
   assert.equal(isTslCommand(c), false, String(c))
+
+// isUpdateCommand (D4): the commands that replace tsl or the plugin.
+for (const c of [
+  'uv tool install --python 3.12 --reinstall --no-cache ./tsl',
+  'TSL_ORG_FILE=a.toml uv tool install --python 3.12 --reinstall --no-cache .\\tsl',
+  'cd /c/x/AI-Skill-Library && uv tool install --reinstall ./tsl',
+  'claude plugin update truminds@truminds-skill-library',
+  'claude plugin marketplace update truminds-skill-library',
+])
+  assert.equal(isUpdateCommand(c), true, c)
+for (const c of ['uv tool install ruff', 'uv tool list', 'claude plugin list', 'echo uv tool install ./tsl-x', undefined])
+  assert.equal(isUpdateCommand(c), false, String(c))
 
 // panelRows: no run.
 assert.match(texts({ progress: null, at: null, stale: false })[0]!, /No run in this session/)
@@ -213,6 +225,19 @@ assert.equal(calls.length, 1, 'a tsl call through PowerShell refreshes and wakes
 await turn($, {}, async () => ({}))
 await settle()
 assert.equal(calls.length, 2)
+// An update (D4): a refresh during `uv tool install` found no tsl and the panel went quiet; once
+// the update command has finished, tsl is back and the panel refreshes again.
+answer = async () => { throw new Error('spawn tsl ENOENT') }
+await turn($, {}, async () => ({}))
+await settle()
+calls.length = 0
+answer = async () => ({ stdout: env({ progress: run() }), stderr: '', exitCode: 0 })
+await bash($, { command: 'uv tool install --python 3.12 --reinstall --no-cache ./tsl' }, async () => ({}))
+await settle()
+assert.equal(calls.length, 1, 'the end of an update command wakes the panel')
+await turn($, {}, async () => ({}))
+await settle()
+assert.equal(calls.length, 2, 'and later turns refresh it again')
 answer = async () => ({ stdout: JSON.stringify({ ok: false, code: 'E-REPO-01', data: {} }) + '\n', stderr: '', exitCode: 2 })
 await turn($, {}, async () => ({}))
 await settle()

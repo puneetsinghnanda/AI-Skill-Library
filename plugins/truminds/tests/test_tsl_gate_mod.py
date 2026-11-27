@@ -44,7 +44,7 @@ IMPORTS = (
     "import type { Panel, Progress } from '../types'\n",
 )
 
-EXPORTS = ("parseArgs", "render", "parseProgress", "isTslCommand", "panelRows")
+EXPORTS = ("parseArgs", "render", "parseProgress", "isTslCommand", "isUpdateCommand", "panelRows")
 
 
 def _node_runs_typescript(tmp: Path) -> bool:

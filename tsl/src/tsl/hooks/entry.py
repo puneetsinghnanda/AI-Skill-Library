@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -38,13 +39,6 @@ BUDGET_S = {
     "pre-mcp": 8,
     "post-write": 85,
 }
-INSTALL_HINT = (
-    "update tsl and the plugin from your AI-Skill-Library clone: git pull; "
-    "uv tool install --python 3.12 --reinstall --no-cache ./tsl (TSL_ORG_FILE set, see "
-    "docs/testing/team-setup-guide.md section 7a); "
-    "claude plugin marketplace update truminds-skill-library; "
-    "claude plugin update truminds@truminds-skill-library"
-)
 _SID_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-")
 
 
@@ -105,6 +99,82 @@ def run_active(data: Mapping[str, object], home: str) -> bool:
         if parent == d:
             return False
         d = parent
+
+
+# Updating while a run is open (roadmap D4). While tsl and the plugin differ (E-VER-01) the hook
+# denies every tool in a run, which used to include the commands that end the mismatch, so the
+# update needed a terminal outside Claude Code. These Bash commands, and only these, still run:
+# each must be the whole command (optionally after `cd <dir> &&`), with nothing chained.
+_PATH = r"""(?:"[^"$`\\]+"|[^\s;&|`$()<>'"\\]+)"""
+_CD = re.compile(rf"cd (?P<dir>{_PATH}) && (?P<rest>.+)")
+_UPDATE_ANYWHERE = (
+    re.compile(r"claude plugin marketplace update truminds-skill-library"),
+    re.compile(r"claude plugin update truminds@truminds-skill-library"),
+    re.compile(r"tsl(?:\.exe)? (?:--version|doctor(?: --json)?)"),
+)
+# These act on the folder they run in: `uv tool install ./tsl` installs whatever ./tsl is there,
+# so they run only in the AI-Skill-Library clone the plugin itself is loaded from.
+_UPDATE_IN_CLONE = (
+    re.compile(
+        rf"(?:TSL_ORG_FILE={_PATH} )?uv tool install --python 3\.12 --reinstall --no-cache"
+        rf"(?: --constraints {_PATH})? \./tsl"
+    ),
+    re.compile(r"git pull(?: --ff-only)?"),
+    re.compile(r"git checkout main"),
+)
+
+
+def _local_path(p: str, base: str) -> str:
+    """A cd target as this OS names it: Git Bash /c/Users/... is C:/Users/... on Windows."""
+    p = p.strip('"')
+    m = re.fullmatch(r"/([A-Za-z])(/.*)?", p)
+    if os.name == "nt" and m:
+        p = f"{m.group(1)}:{m.group(2) or '/'}"
+    return os.path.realpath(os.path.join(base, p))
+
+
+def plugin_clone(root: str | None) -> str | None:
+    """The AI-Skill-Library clone a plugin is read from (<clone>/plugins/truminds), or None when
+    the plugin is not read from a clone (for example an installed copy)."""
+    if not root:
+        return None
+    clone = os.path.realpath(os.path.join(root, os.pardir, os.pardir))
+    same = os.path.realpath(os.path.join(clone, "plugins", "truminds")) == os.path.realpath(root)
+    ok = same and os.path.isfile(os.path.join(clone, "tsl", "pyproject.toml"))
+    return clone if ok else None
+
+
+def update_hint(clone: str | None) -> str:
+    """What to run, from Claude Code, to end the mismatch: exactly the commands allowed above."""
+    where = f"in {clone.replace(os.sep, '/')}" if clone else "in your AI-Skill-Library clone"
+    return (
+        "Update from here with the Bash tool (only these commands run until the versions match): "
+        f"{where}: git pull; then TSL_ORG_FILE=<your tsl-org file, no $> uv tool install "
+        "--python 3.12 --reinstall --no-cache ./tsl (each as its own command, optionally after "
+        "cd <clone> &&); then claude plugin marketplace update truminds-skill-library and "
+        "claude plugin update truminds@truminds-skill-library; then /reload-plugins or restart "
+        "Claude Code. See docs/testing/team-setup-guide.md section 7a."
+    )
+
+
+def update_command_allowed(data: Mapping[str, object], clone: str | None) -> bool:
+    """True when this pre-tool call is one of the update commands above, run where it may run."""
+    if data.get("tool_name") != "Bash":
+        return False
+    ti = data.get("tool_input")
+    command = ti.get("command") if isinstance(ti, dict) else None
+    if not isinstance(command, str) or "\n" in command or "\r" in command:
+        return False
+    command = " ".join(command.split())
+    cwd = data.get("cwd")
+    where = os.path.realpath(cwd) if isinstance(cwd, str) and cwd else os.getcwd()
+    m = _CD.fullmatch(command)
+    if m:
+        where, command = _local_path(m.group("dir"), where), m.group("rest")
+    if any(p.fullmatch(command) for p in _UPDATE_ANYWHERE):
+        return True
+    in_clone = clone is not None and os.path.normcase(where) == os.path.normcase(clone)
+    return in_clone and any(p.fullmatch(command) for p in _UPDATE_IN_CLONE)
 
 
 def _log(home: str, event: str, decision: str, code: str, detail: str) -> None:
@@ -242,11 +312,24 @@ def guarded(
                 if state["done"]:
                     return 0
                 state["done"] = True
+                data = parse()
+                clone = plugin_clone(
+                    plugin_root or env.get("TSL_PLUGIN_ROOT") or env.get("CLAUDE_PLUGIN_ROOT")
+                )
+                if event == "pre-tool" and update_command_allowed(data, clone):
+                    _log(
+                        home,
+                        event,
+                        "allow",
+                        "E-VER-01",
+                        f"update command: tsl {__version__}, plugin {pv}",
+                    )
+                    return 0
                 detail = (
                     f"tsl {__version__} does not match plugin {pv} (E-VER-01). "
-                    f"Install tsl {pv}: {INSTALL_HINT}"
+                    f"Install tsl {pv}. {update_hint(clone)}"
                 )
-                finish(failure_output(event, "version", detail, parse(), home))
+                finish(failure_output(event, "version", detail, data, home))
                 return 0
         out, code = runner(event, box["stdin"])
     except BaseException as e:

@@ -51,6 +51,15 @@ const SHELLS = ['Bash', 'PowerShell']
 function isTslCommand(command: unknown): boolean {
   return typeof command === 'string' && /(^|[\s;&|(])tsl(\.exe)?(\s|$)/.test(command)
 }
+// An update (roadmap D4): while `uv tool install` replaces tsl, a refresh can find no tsl and the
+// panel goes quiet. Once the update command has finished, tsl is back, so try again.
+function isUpdateCommand(command: unknown): boolean {
+  return (
+    typeof command === 'string' &&
+    (/(^|[\s;&|(])uv\s+tool\s+install\b.*[\s/\\]tsl(\s|$)/.test(command) ||
+      /(^|[\s;&|(])claude\s+plugin\s+(marketplace\s+)?update\b/.test(command))
+  )
+}
 
 const DONE = ['DONE', 'ACCEPTED', 'APPROVED']
 const BAND_COLOR: Record<string, string> = { High: 'success', Medium: 'warning', Low: 'error' }
@@ -360,7 +369,7 @@ export const register: Register = (on) => {
   for (const tool of SHELLS) {
     on('tool.call', { tool } as any, async ($: any, e: any, next: any) => {
       const r = await next(e)
-      if (isTslCommand(e.command)) void wake($).catch(() => undefined)
+      if (isTslCommand(e.command) || isUpdateCommand(e.command)) void wake($).catch(() => undefined)
       return r
     })
   }

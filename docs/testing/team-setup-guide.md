@@ -234,6 +234,8 @@ There is **no GitHub release yet**. A new version means the version on `main` (s
 4. Restart the Claude Code app.
 5. Check: `tsl --version` and `claude plugin list` both show the new version, and `tsl doctor` has no ✖ line.
 
+**Updating while a run is open.** You can do steps 1 to 3 from inside Claude Code, even mid-run: while `tsl` and the plugin differ, the policy hook blocks every other tool (E-VER-01) but still lets these commands through, each run on its own with the Bash tool: `git pull`, `git checkout main` and the `uv tool install ... ./tsl` line, run in your AI-Skill-Library clone (for example `cd C:/dev/AI-Skill-Library && git pull`; write `TSL_ORG_FILE=` with the file's path, not `$PWD`); and the two `claude plugin ... update` lines anywhere. Then run `/reload-plugins` or restart Claude Code, and resume the run. The progress panel refreshes by itself once the update command has finished. This works from the `tsl` version that adds it onward; with an older `tsl`, use a terminal outside Claude Code.
+
 If `claude plugin marketplace list` shows `truminds-skill-library` coming from GitHub instead of your clone folder, remove it (`claude plugin marketplace remove truminds-skill-library`) and repeat the plugin install in §7. Otherwise the plugin and `tsl` can come from different commits.
 
 A run you started before the update can usually be resumed after it (same major version). If resume stops with E-RUN-10, a skill changed in the update; ask a tech lead to run `tsl state repin <run_id>`.
@@ -268,7 +270,7 @@ A run you started before the update can usually be resumed after it (same major 
 | Portal or `tsl` hangs up to a minute, then works | The shared service was asleep. Open the portal first, then retry |
 | `tsl doctor` shows provider `entra` or service `insights.example.invalid`, or `tsl login` fails with E-AUTH-01 "no identity configuration" | `tsl` was installed without the settings file. Repeat §5 exactly |
 | Updating, Claude or a doc says release `vX.Y.Z` or its wheel isn't found | There are no releases yet. Update from your clone (§7a) |
-| E-VER-01 "tsl … does not match plugin …" at session start | `tsl` and the plugin are different versions. Do every step of §7a |
+| E-VER-01 "tsl … does not match plugin …" at session start, or every tool blocked in a run | `tsl` and the plugin are different versions. Do every step of §7a; the update commands still run from inside Claude Code (§7a, "Updating while a run is open") |
 | `tsl login` says device flow is disabled, or GitHub says "redirect_uri is not associated" | Tell Puneet (OAuth App setting) |
 | Still "No Truminds role yet" / E-AUTH-08 | Send your pseudonym to Puneet (§6.4); after the grants, run `tsl login` again |
 | `E-AUTH-03` or `E-AUTH-04` when starting a run or approving | Missing `engineer` / `tech_lead` on `SYS-SMP` (§6a); `admin` is not enough |

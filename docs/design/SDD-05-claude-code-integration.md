@@ -324,9 +324,11 @@ The version check (E-VER-01), the time budget and the crash / timeout rules of Â
 
 | Situation | pre-tool / pre-mcp | post-write | session-start / end, subagent-stop |
 | --- | --- | --- | --- |
-| `tsl` not installed or wrong version | Inside a run: deny (E-HOOK-01, "install tsl X.Y.Z"). Outside a run: allow | Allow, warn with `systemMessage` | Warn with `systemMessage` |
+| `tsl` not installed or wrong version | Inside a run: deny (E-HOOK-01, "install tsl X.Y.Z"). Outside a run: allow. Wrong version only (E-VER-01): the update commands still run inside a run, so an update needs no terminal outside Claude Code (below) | Allow, warn with `systemMessage` | Warn with `systemMessage` |
 | `tsl` crashes or times out | Inside a run: deny (fail closed) | Allow, warn (fail open; never lose the engineer's work) | Ignore, log locally |
 | Telemetry service unreachable | Not affected | Not affected | Events stay in the outbox (Doc 5 R-04) |
+
+**Updating during a run (roadmap D4).** While `tsl` and the plugin differ, pre-tool still allows these Bash commands, each as the whole command (optionally after `cd <dir> &&`, nothing chained): `claude plugin marketplace update truminds-skill-library`, `claude plugin update truminds@truminds-skill-library`, `tsl --version`, `tsl doctor`; and, only in the AI-Skill-Library clone the plugin is loaded from (`<clone>/plugins/truminds`), `git pull [--ff-only]`, `git checkout main` and `[TSL_ORG_FILE=<path>] uv tool install --python 3.12 --reinstall --no-cache [--constraints <path>] ./tsl`. Folder commands run nowhere else because `./tsl` elsewhere could be a package the agent wrote. The deny reason lists the commands. The Mods panel refreshes again after an update command, since a refresh during the reinstall finds no `tsl`. Implemented in `tsl/hooks/entry.py` (`update_command_allowed`); a `tsl` older than this rule still denies them.
 
 Every hook appends one line to `~/.truminds/hook.log` and, except subagent-stop, one `hook.decision` event to the outbox (metadata only).
 
