@@ -26,20 +26,9 @@ from app.timeutil import iso, utcnow
 
 router = APIRouter(tags=["read"])
 RUN_ID = r"^run_[0-9A-HJKMNP-TV-Z]{26}$"
-# A PR's CI status (`pr` aliases pull_requests), read by the PR's current head: any failure wins,
-# from the harness verification (`ci.verified` event before the tsl-ci-verify webhook) or any
-# product check; else NULL (portal: "CI pending") while a product check is still running; else
-# pass when the harness or a product check passed; NULL while nothing has reported.
-CI_RESULT_SQL = (
-    "(SELECT CASE WHEN x.h = 'fail' OR x.pf > 0 THEN 'fail' WHEN x.pp > 0 THEN NULL "
-    "WHEN x.h = 'pass' OR x.ps > 0 THEN 'pass' END FROM (SELECT "
-    "(SELECT c.result FROM ci_checks c WHERE c.repo_id = pr.repo_id AND c.head_sha = pr.head_sha"
-    " ORDER BY (c.source = 'event') DESC, c.checked_at DESC LIMIT 1) AS h, "
-    "count(*) FILTER (WHERE p.result = 'fail') AS pf, "
-    "count(*) FILTER (WHERE p.result = 'pending') AS pp, "
-    "count(*) FILTER (WHERE p.result = 'pass') AS ps "
-    "FROM product_ci_checks p WHERE p.repo_id = pr.repo_id AND p.head_sha = pr.head_sha) x)"
-)
+# A PR's CI status (`pr` aliases pull_requests) at its current head: insights_pr_ci_result()
+# (migration 0008) combines the harness verification with the product repo's own CI runs.
+CI_RESULT_SQL = "insights_pr_ci_result(pr.repo_id, pr.head_sha)"
 STATUS_FILTERS = {
     "open": "r.status <> 'COMPLETED'",
     "RUNNING": "r.status = 'RUNNING'",

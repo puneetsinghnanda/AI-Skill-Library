@@ -61,9 +61,8 @@ def _pull_request(
     run_id = m.group(1) if m else None
     existing = conn.execute(
         text(
-            "SELECT id::text AS id, repo_id::text AS repo_id FROM pull_requests WHERE repo_id = "
-            "ANY(CAST(:ids AS uuid[])) "
-            "AND number = :n"
+            "SELECT id::text AS id, repo_id::text AS repo_id "
+            "FROM pull_requests WHERE repo_id = ANY(CAST(:ids AS uuid[])) AND number = :n"
         ),
         {"ids": [r.id for r in repos], "n": number},
     ).first()
@@ -98,25 +97,29 @@ def _pull_request(
             "opened_at = coalesce(pull_requests.opened_at, :t)",
             _ts(pr.get("created_at")),
         )
-    # GitHub does not order deliveries: only `reopened` (or `closed`) changes a merged or closed
-    # PR's state, and the head moves only for an event at least as new as the last one that
-    # moved it (pull_request.updated_at), so a late `synchronize` never reopens a merged PR or
-    # moves the head back to an older commit.
-    conn.execute(
+    # GitHub does not order deliveries, and two may be processed at once, so the order rule is
+    # part of the upsert (the row is locked while it is checked). A merge is final: a merge event
+    # always applies and nothing changes a merged PR. Any other event applies only when its
+    # pull_request.updated_at is newer than the newest applied; on a tie only a close does, and
+    # the head stays as stored. An event with no updated_at (older payloads) always applies.
+    applied = conn.execute(
         text(
             "INSERT INTO pull_requests (repo_id, number, run_id, state, draft, head_sha, "
-            "head_updated_at) "
+            "pr_updated_at) "
             "VALUES (CAST(:p AS uuid), :n, :r, :st, :d, :h, :u) ON CONFLICT (repo_id, number) DO "
             "UPDATE SET "
             "run_id = coalesce(pull_requests.run_id, EXCLUDED.run_id), "
-            "state = CASE WHEN EXCLUDED.state = 'open' AND pull_requests.state IN "
-            "('merged', 'closed') AND NOT :reopen THEN pull_requests.state "
-            "ELSE EXCLUDED.state END, "
+            "state = CASE WHEN EXCLUDED.state = 'open' AND pull_requests.state = 'closed' "
+            "AND NOT :reopen THEN pull_requests.state ELSE EXCLUDED.state END, "
             "draft = EXCLUDED.draft, "
-            "head_sha = CASE WHEN EXCLUDED.head_sha IS NOT NULL AND (pull_requests.head_updated_at "
-            "IS NULL OR EXCLUDED.head_updated_at IS NULL OR pull_requests.head_updated_at <= "
-            "EXCLUDED.head_updated_at) THEN EXCLUDED.head_sha ELSE pull_requests.head_sha END, "
-            "head_updated_at = greatest(pull_requests.head_updated_at, EXCLUDED.head_updated_at)"
+            "head_sha = coalesce(EXCLUDED.head_sha, pull_requests.head_sha), "
+            "pr_updated_at = greatest(pull_requests.pr_updated_at, EXCLUDED.pr_updated_at) "
+            "WHERE pull_requests.state <> 'merged' AND (EXCLUDED.state = 'merged' "
+            "OR EXCLUDED.pr_updated_at IS NULL OR pull_requests.pr_updated_at IS NULL "
+            "OR EXCLUDED.pr_updated_at > pull_requests.pr_updated_at "
+            "OR (EXCLUDED.pr_updated_at = pull_requests.pr_updated_at "
+            "AND EXCLUDED.state <> 'open')) "
+            "RETURNING 1"
         ),
         {
             "p": repo_id,
@@ -128,11 +131,15 @@ def _pull_request(
             "u": _ts(pr["updated_at"]) if pr.get("updated_at") else None,
             "reopen": action == "reopened",
         },
-    )
-    conn.execute(
-        text(f"UPDATE pull_requests SET {cols} WHERE repo_id = CAST(:p AS uuid) AND number = :n"),
-        {"p": repo_id, "n": number, "t": t},
-    )
+    ).first()
+    if applied is not None or state == "open":
+        # A superseded close is not recorded; opened_at (coalesce, from created_at) always is.
+        conn.execute(
+            text(
+                f"UPDATE pull_requests SET {cols} WHERE repo_id = CAST(:p AS uuid) AND number = :n"
+            ),
+            {"p": repo_id, "n": number, "t": t},
+        )
     return "stored"
 
 
@@ -162,61 +169,63 @@ def _review(conn: Connection, event: str, payload: dict[str, Any], repos: Sequen
     return "stored" if n else "ignored"
 
 
-# A product check that ended like this says nothing about the change (skipped by `if:` or a
-# path filter, superseded, cancelled, waiting for approval): recorded as `none`, not a result.
-NO_RESULT = {"skipped", "neutral", "cancelled", "stale", "action_required"}
-
-
 def ci_check_patterns(s: Settings) -> list[str]:
     return [n.strip() for n in s.ci_check_names.split(",") if n.strip()]
+
+
+def wanted_check_run(payload: dict[str, Any], patterns: list[str]) -> bool:
+    """A check run this service reads: the harness check, or a product check in CI_CHECK_NAMES."""
+    name = str((payload.get("check_run") or {}).get("name") or "")
+    return name == "tsl-ci-verify" or any(fnmatch.fnmatchcase(name, p) for p in patterns)
 
 
 def _product_check(
     conn: Connection, action: str, cr: dict[str, Any], name: str, repos: Sequence[Any]
 ) -> str:
-    """The product repo's own CI job: one product_ci_checks row per (repo, head, check name,
-    check suite), so runs from different workflows or triggers on one commit never overwrite
-    each other.
+    """One product_ci_runs row per GitHub check run, under every system repo with that name.
 
-    Stored by repo and head whether or not the PR row exists yet (CI on `push` can finish before
-    the PR's `opened` webhook), under every system repo with that GitHub name. `created` marks
-    the check pending; `completed` gives pass or fail, or `none` for a conclusion that says
-    nothing about the change. A newer event replaces an older one, and at the same second a
-    finished result is never replaced by `pending` (deliveries arrive in any order).
+    A check run only moves forward: `created` adds it as pending and never overwrites; a
+    `completed` sets the conclusion, whatever arrived first. A re-run is a new check run, so
+    delivery order never matters; insights_pr_ci_result() reads the newest run per name.
     """
-    head = str(cr.get("head_sha") or "")
-    if not head:
+    run_id, head = cr.get("id"), str(cr.get("head_sha") or "")
+    if not run_id or not head:
         return "ignored"
     if action == "created" and cr.get("status") == "completed":
-        action = "completed"  # created already finished (a fast failure): read it as completed
+        action = "completed"  # already finished when created (a fast failure)
+    params = {
+        "ids": [r.id for r in repos],
+        "id": int(run_id),
+        "h": head,
+        "c": name[:200],
+        "s": _ts(cr["started_at"]) if cr.get("started_at") else None,
+    }
     if action == "created":
-        res, t = "pending", _ts(cr.get("started_at"))
-    elif cr.get("conclusion") in NO_RESULT:
-        res, t = "none", _ts(cr.get("completed_at"))
-    else:
-        res = "pass" if cr.get("conclusion") == "success" else "fail"
-        t = _ts(cr.get("completed_at"))
-    prs = cr.get("pull_requests") or []
+        if params["s"] is None:
+            return "ignored"  # no start time: it could not be ordered or aged out
+        conn.execute(
+            text(
+                "INSERT INTO product_ci_runs (repo_id, check_run_id, head_sha, check_name, status, "
+                "started_at) SELECT r, :id, :h, :c, 'pending', :s "
+                "FROM unnest(CAST(:ids AS uuid[])) AS r ON CONFLICT DO NOTHING"
+            ),
+            params,
+        )
+        return "stored"
     conn.execute(
         text(
-            "INSERT INTO product_ci_checks (repo_id, head_sha, check_name, suite_id, number, "
-            "result, checked_at) "
-            "SELECT r, :h, :c, :suite, :n, :res, :t FROM unnest(CAST(:ids AS uuid[])) AS r "
-            "ON CONFLICT (repo_id, head_sha, check_name, suite_id) DO UPDATE SET "
-            "number = coalesce(EXCLUDED.number, product_ci_checks.number), "
-            "result = EXCLUDED.result, checked_at = EXCLUDED.checked_at "
-            "WHERE product_ci_checks.checked_at < EXCLUDED.checked_at "
-            "OR (product_ci_checks.checked_at = EXCLUDED.checked_at "
-            "AND product_ci_checks.result = 'pending')"
+            "INSERT INTO product_ci_runs (repo_id, check_run_id, head_sha, check_name, status, "
+            "conclusion, started_at, completed_at) "
+            "SELECT r, :id, :h, :c, 'completed', :con, :s, :t "
+            "FROM unnest(CAST(:ids AS uuid[])) AS r "
+            "ON CONFLICT (repo_id, check_run_id) DO UPDATE SET status = 'completed', "
+            "conclusion = EXCLUDED.conclusion, completed_at = EXCLUDED.completed_at, "
+            "started_at = coalesce(product_ci_runs.started_at, EXCLUDED.started_at)"
         ),
         {
-            "ids": [r.id for r in repos],
-            "h": head,
-            "c": name[:200],
-            "suite": int((cr.get("check_suite") or {}).get("id") or 0),
-            "n": int(prs[0]["number"]) if prs and prs[0].get("number") else None,
-            "res": res,
-            "t": t,
+            **params,
+            "con": str(cr.get("conclusion") or "")[:40],
+            "t": _ts(cr.get("completed_at")),
         },
     )
     return "stored"
@@ -229,10 +238,11 @@ def _check_run(
     name = str(cr.get("name") or "")
     action = str(payload.get("action") or "")
     if name != "tsl-ci-verify":
-        if patterns and any(fnmatch.fnmatchcase(name, p) for p in patterns):
+        if any(fnmatch.fnmatchcase(name, p) for p in patterns):
             return _product_check(conn, action, cr, name, repos)
         return "ignored"
-    if action != "completed":  # the harness check is read on completion only, as before
+    # The harness check is read once finished, also when `created` already reports that.
+    if action != "completed" and cr.get("status") != "completed":
         return "ignored"
     head = str(cr.get("head_sha") or "")
     prs = cr.get("pull_requests") or []
@@ -307,6 +317,8 @@ def handle(
             return 200, "duplicate"
         if action not in KEEP.get(event, set()):
             result, status = "ignored", 204
+        elif event == "check_run" and not wanted_check_run(payload, ci_check_patterns(s)):
+            result, status = "ignored", 204  # filtered by name before any repo lookup
         elif event == "release":
             ok = bool(s.marketplace_repo) and full_name == s.marketplace_repo
             result, status = ("release_pending", 200) if ok else ("ignored", 204)

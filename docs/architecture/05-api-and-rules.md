@@ -390,7 +390,7 @@ Managed settings turn on Claude Code's OTel export to the Truminds collector. Th
 | `pull_request_review` | submitted (approved, changes\_requested) | review count, first review time | repo + PR number |
 | `pull_request_review_comment` | created | count only (no text) | repo + PR number |
 | `check_run` | completed (name `tsl-ci-verify`) | ci result | repo + head SHA |
-| `check_run` | created, completed (name matching `CI_CHECK_NAMES`, the product repo's own CI; skipped, neutral, cancelled, stale and action_required record nothing) | product CI result per check name (`pending` until completed); any failing check fails the PR's CI, a running one keeps it pending; never a harness verification | repo + head SHA |
+| `check_run` | created, completed (name matching `CI_CHECK_NAMES`, the product repo's own CI) | one row per check run (`check_run.id`); per check name the newest run decides, and skipped, neutral, cancelled, stale and action_required runs give no result; any failing check fails the PR's CI, a newer run still running keeps it pending; never a harness verification | repo + head SHA |
 
 Rules: verify `X-Hub-Signature-256` with the shared secret; reject otherwise (401). Idempotency by `X-GitHub-Delivery` id. PRs without a `tsl:run_id` marker are counted only as "PR without run" (feeds E-CI-01 adoption metric), no other data stored. Installed on product repos only with client consent (E-CONS-01).
 

@@ -111,7 +111,7 @@ class Settings(BaseSettings):
     # (tsl-ci-verify) result: any failure from either fails it. Comma-separated, case-sensitive
     # glob patterns matched against the whole check_run name, e.g. "build" for the job `build`,
     # "ci / build*" for a reusable or matrix job. Empty: none. Never counted as harness
-    # verifications (product_ci_checks).
+    # verifications (product_ci_runs).
     ci_check_names: str = ""
 
     # --- Retention (SDD-08 §8.2; OQ-08, RD-4) ---
