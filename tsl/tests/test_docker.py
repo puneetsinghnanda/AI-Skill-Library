@@ -8,7 +8,16 @@ from pathlib import Path
 
 import pytest
 
-from tsl.harness.verifier import DockerVerifier, VerifierUnavailable
+from tsl.harness.verifier import (
+    DockerVerifier,
+    VerifierUnavailable,
+    _sarif_path,
+    error_lines,
+    error_lines_of,
+    log_tail,
+    sarif_errors,
+    sarif_errors_of,
+)
 
 
 def _docker_up() -> bool:
@@ -284,3 +293,112 @@ def test_low_memory_warns_but_does_not_block(
     res = v.run(_prep_profile(), tmp_path, tmp_path / "a1", False)
     err = capsys.readouterr().err
     assert res.passed and v.warnings and "Low memory" in err and "chrome 2.9 GB" in err
+
+
+# --------------------------------------- error lines and lint errors (A3, C4)
+def test_error_lines_skip_npm_trailer_and_find_the_error(tmp_path: Path) -> None:
+    """HMS-24 impl a1: the last 8 lines were npm's trailer; the TS2741 line was the error."""
+    log = tmp_path / "build.log"
+    log.write_text(
+        "> tsc -p tsconfig.build.json\n\n"
+        "src/repositories/patientRepo.ts(159,5): error TS2741: Property 'visitSummary' is missing.\n"
+        "vite v5.4.21 building for production...\n✓ built in 1.04s\n"
+        + "".join(f"npm error line {i}\n" for i in range(8))
+    )
+    assert "line 0" in log_tail(log, 480) and "TS2741" not in log_tail(log, 480)
+    assert error_lines(log) == (
+        "src/repositories/patientRepo.ts(159,5): error TS2741: Property 'visitSummary' is missing."
+    )
+    vitest = tmp_path / "test.log"
+    vitest.write_text(
+        " ✓ src/a.test.ts (3 tests)\n"
+        " FAIL  src/__tests__/X.test.tsx > list > shows the 21st row\n"
+        "AssertionError: expected 5 to be 21 // Object.is equality\n"
+        " ❯ src/__tests__/X.test.tsx:112:44\n"
+        " Test Files  1 failed | 21 passed (22)\n"
+        "npm error code 1\n"
+    )
+    out = error_lines(vitest).splitlines()
+    assert out[0].startswith("FAIL") and "AssertionError: expected 5 to be 21" in out[1]
+    assert any("X.test.tsx:112:44" in x for x in out) and not any("npm" in x for x in out)
+    plain = tmp_path / "plain.log"
+    plain.write_text("step one\nstep two\n")
+    assert error_lines(plain) == "step one | step two"  # no error line: the tail
+    assert error_lines(tmp_path / "missing.log") == ""
+
+
+def test_sarif_errors_levels_suppressions_and_paths(tmp_path: Path) -> None:
+    import json
+
+    def res(uri: str, level: str | None = "error", **kw: object) -> dict[str, object]:
+        r: dict[str, object] = {
+            "message": {"text": f"bad  {uri}"},
+            "ruleId": "r1",
+            "locations": [
+                {
+                    "physicalLocation": {
+                        "artifactLocation": {"uri": uri, **kw},
+                        "region": {"startLine": 2, "startColumn": 5},
+                    }
+                }
+            ],
+        }
+        if level:
+            r["level"] = level
+        return r
+
+    p = tmp_path / "lint.sarif"
+    p.write_text(
+        json.dumps(
+            {
+                "runs": [
+                    {
+                        "originalUriBaseIds": {"SRC": {"uri": "file:///cache/w/"}},
+                        "results": [
+                            res("file:///cache/w/web/src/A%20B.tsx"),
+                            res("api/x.py", uriBaseId="SRC"),
+                            res("file:///cache/w/web/c.ts", "warning"),
+                            res("file:///cache/w/web/d.ts", None),  # SARIF default: warning
+                            {**res("file:///cache/w/web/e.ts"), "suppressions": [{"kind": "x"}]},
+                        ],
+                    }
+                ]
+            }
+        )
+    )
+    lines, mine, total = sarif_errors(p)
+    assert (mine, total) == (0, 2)
+    assert lines == [
+        "web/src/A B.tsx:2:5 r1: bad file:///cache/w/web/src/A%20B.tsx",
+        "api/x.py:2:5 r1: bad api/x.py",
+    ]
+    lines, mine, total = sarif_errors(p, {"api/x.py"})
+    assert (mine, total) == (1, 2) and lines == ["api/x.py:2:5 r1: bad api/x.py"]
+    lines, mine, _ = sarif_errors(p, {"other.ts"})
+    assert mine == 0 and len(lines) == 2  # none in the change: show every error
+    (tmp_path / "bad.sarif").write_text("{not json")
+    assert sarif_errors(tmp_path / "bad.sarif") == ([], 0, 0)
+
+
+def test_sarif_paths_strip_prefixes_not_characters() -> None:
+    """`.github/x.ts` keeps its dot: a leading ./ is a prefix, not a set of characters."""
+
+    def loc(uri: str) -> dict[str, object]:
+        return {"physicalLocation": {"artifactLocation": {"uri": uri}}}
+
+    assert _sarif_path(loc(".github/x.ts"), {}) == ".github/x.ts"
+    assert _sarif_path(loc("./.github/x.ts"), {}) == ".github/x.ts"
+    assert _sarif_path(loc("file:///cache/w/.eslintrc.js"), {}) == ".eslintrc.js"
+    assert _sarif_path(loc("file:///home/u/repo/app/y.py"), {}, "/home/u/repo") == "app/y.py"
+    assert (
+        _sarif_path(loc("file:///C:/Users/u/repo/app/y.py"), {}, "C:\\Users\\u\\repo") == "app/y.py"
+    )
+
+
+def test_error_lines_of_text_and_sarif_of_text() -> None:
+    assert error_lines_of("all good\n") == ""
+    assert error_lines_of("x\nsrc/a.ts(1,2): error TS2322: no\nnpm error code 2\n") == (
+        "src/a.ts(1,2): error TS2322: no"
+    )
+    assert sarif_errors_of("not json") == ([], 0, 0)
+    assert sarif_errors_of("[1, 2]") == ([], 0, 0)

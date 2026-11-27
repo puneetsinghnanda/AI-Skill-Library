@@ -21,7 +21,8 @@ export type Waiting = {
   file: string | null
 }
 
-export type Question = { id: string; blocking: boolean; ask: string | null; text: string }
+// ask 'ide': asked in an AskUserQuestion dialog that is open now, since its asked_at (UTC).
+export type Question = { id: string; blocking: boolean; ask: string | null; text: string; since?: string | null }
 
 export type Progress = {
   run_id: string
@@ -35,7 +36,11 @@ export type Progress = {
   position: { n: number; of: number } | null
   steps: Step[]
   waiting: Waiting | null
-  questions: { open_blocking: number; open_non_blocking: number; items: Question[] }
+  // open_blocking / open_non_blocking count open-questions.md; open_ide the open IDE questions,
+  // which come first in items. Older tsl versions send no open_ide.
+  questions: { open_blocking: number; open_non_blocking: number; open_ide?: number; items: Question[] }
+  // The engineer's wait on IDE questions, in seconds (tsl 0.1.8+).
+  wait?: { total_s: number; steps: Record<string, number> }
 }
 
 // progress: null is "no run in this session". at: local time of the last good answer.
