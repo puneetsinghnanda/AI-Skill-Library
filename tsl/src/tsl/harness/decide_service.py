@@ -183,6 +183,10 @@ def decide(
         )
     if d.outcome == "RETRY" and d.budget_kind is None and d.rerun_step:
         warnings.append({"code": "E-IN-02", "message": f"upstream step {d.rerun_step} is stale"})
+    from tsl.orchestrator.extensions import phase
+
+    out = d.outcome if d.outcome != "RETRY" else f"RETRY:{d.budget_kind or 'rework'}"
+    phase(rt, comp, ctx.state, step, int(attempt["n"]), "decide", outcome=f"{out} {d.band}")
     return data, d, warnings
 
 
