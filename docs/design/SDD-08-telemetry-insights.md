@@ -468,7 +468,7 @@ Retention for events is OQ-08. The values below are the Doc 3 NFR-11 proposal (1
 | `events_raw`, `event_ids` | 13 months (`RETENTION_EVENTS_MONTHS`) | Monthly partition dropped |
 | `otel_events` | 90 days | Partition dropped; totals already in `run_usage` |
 | `webhook_deliveries` | 30 days | Deleted |
-| `runs`, `steps`, `check_records`, `questions`, `approvals`, `pull_requests`, `ci_checks`, `run_sessions`, `run_usage` | 13 months after `runs.updated_at` (`ci_checks` and `product_ci_runs`: 13 months after `checked_at` / `seen_at`) | `rollup` job writes `agg_monthly` (`ci_verified` for `ci_checks`) and `agg_user_month` first, then deletes |
+| `runs`, `steps`, `check_records`, `questions`, `approvals`, `pull_requests`, `ci_checks`, `run_sessions`, `run_usage` | 13 months after `runs.updated_at` (`ci_checks` and `product_ci_runs`: 13 months after `checked_at` / `seen_at`) | `rollup` job writes `agg_monthly` (`ci_verified`, `ci_e_ci_01`..`03` for `ci_checks`, as `mv_ci_daily` counts them) and `agg_user_month` first, then deletes |
 | `agg_monthly`, `agg_user_month`, counter tables | Life of the service | No user identity apart from the pseudonymous `user_id` |
 | `audit_log` | 24 months | Deleted |
 | `users` | While active; erased on request | §8.1 |

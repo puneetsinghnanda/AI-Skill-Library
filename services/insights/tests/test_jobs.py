@@ -236,10 +236,18 @@ def test_retention_rolls_up_and_purges_old_ci_checks(
         c.execute(
             text(
                 "INSERT INTO ci_checks (repo_id, head_sha, result, codes, source, checked_at) "
-                "VALUES (:r, :h, 'pass', '{}', 'webhook', now() - interval '15 months')"
+                "VALUES (:r, :h, 'pass', '{}', 'webhook', now() - interval '15 months'), "
+                "(:r, :h2, 'fail', '{E-CI-01}', 'webhook', now() - interval '15 months')"
             ),
-            {"r": repo, "h": head},
+            {"r": repo, "h": head, "h2": head[::-1]},
         )
+        e_before = c.execute(
+            text(
+                "SELECT coalesce(sum(value), 0) FROM agg_monthly WHERE metric = 'ci_e_ci_01' "
+                "AND system_id = CAST(:s AS uuid)"
+            ),
+            {"s": world.system_id},
+        ).scalar_one()
     out = retention.run(migrated)
     assert out["ci_checks"] >= 1
     with owner_db.connect() as c:
@@ -254,3 +262,12 @@ def test_retention_rolls_up_and_purges_old_ci_checks(
             {"s": world.system_id},
         ).scalar_one()
     assert after == before + 1
+    with owner_db.connect() as c:
+        e_after = c.execute(
+            text(
+                "SELECT coalesce(sum(value), 0) FROM agg_monthly WHERE metric = 'ci_e_ci_01' "
+                "AND system_id = CAST(:s AS uuid)"
+            ),
+            {"s": world.system_id},
+        ).scalar_one()
+    assert e_after == e_before + 1
