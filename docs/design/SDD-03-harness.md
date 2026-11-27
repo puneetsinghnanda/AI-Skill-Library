@@ -248,7 +248,7 @@ for the same build, test and lint in Docker.
 | --- | --- | --- |
 | build | exit 0 | E-H3-01 |
 | test | exit 0 and JUnit failures + errors = 0 | E-H3-02 |
-| lint | SARIF results at level `error` = 0 (warnings feed soft check GEN-LINT-W) | E-H3-03 |
+| lint | SARIF results at level `error` = 0 (warnings feed soft check GEN-LINT-W). The failure detail lists the errors from the SARIF report in the files the step changed (or, when none is there, the others, marked as outside the change); ESLint and ruff leave the log empty | E-H3-03 |
 | sast | SARIF results at severity ≥ `high` = 0 in changed lines | E-H3-04 |
 | secrets | 0 findings in changed lines | Reported as E-SEC-01 under H4 (ABORT wins) |
 | coverage (unit-test skill only) | line coverage of changed files ≥ base coverage − 0.5 points | E-H3-05 |

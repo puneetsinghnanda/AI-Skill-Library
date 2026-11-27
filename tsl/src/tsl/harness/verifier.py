@@ -6,6 +6,7 @@ Tests use a fake runner, and Docker-dependent tests skip when Docker is absent.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -400,6 +401,12 @@ class DockerVerifier:
                 continue
             spec = steps[name]
             cmd = docker_command(profile, name, worktree, out_dir)
+            report = spec.get("report")
+            if report:
+                # H3 reruns reuse the a<n> folder: a report left by an earlier run would be
+                # hashed and read as this run's when the tool writes none (an ESLint crash).
+                with contextlib.suppress(OSError):
+                    (out_dir / report).unlink(missing_ok=True)
             t0 = time.monotonic()
             try:
                 p = subprocess.run(
@@ -413,7 +420,6 @@ class DockerVerifier:
                 outs = (exc.stdout, exc.stderr)
             ms = int((time.monotonic() - t0) * 1000)
             log = _write_log(out_dir, name, *outs, attempt=_attempt_of(out_dir))
-            report = spec.get("report")
             if report and spec.get("parse") == "sarif" and (out_dir / report).exists():
                 compact_sarif(out_dir / report)  # before the hash: the stored file is the one cited
             rsha = sha256_file(out_dir / report) if report and (out_dir / report).exists() else None
@@ -677,8 +683,9 @@ def _sarif_path(loc: dict[str, Any], bases: dict[str, Any], root: str = "") -> s
     if local and path.lower().startswith(local.lower()):
         return path[len(local) :]
     for base_dir in ("/cache/w/", "/src/"):
-        if base_dir in path:
-            return path.split(base_dir, 1)[1]
+        # Only at the start: a relative "api/src/x.ts" is already repo-relative.
+        if path.startswith(base_dir):
+            return path[len(base_dir) :]
     while path.startswith("./"):
         path = path[2:]
     return path
