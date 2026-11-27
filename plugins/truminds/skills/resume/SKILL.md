@@ -34,14 +34,18 @@ Loop:
    Only if the reviewer answered with the JSON itself (its write was refused), first save
    that JSON, unchanged, with the Write tool to that path.
    (A file, not stdin: long JSON on a shell command line breaks some shell wrappers.)
-   On E-REV-02 the JSON did not match review.v1: run the `review` skill again, passing it
-   the error "message", and record again. Stay within the review budget (retry.review,
+   On E-REV-02 or E-REV-05, run the `review` skill again with only the same <artifact_path>
+   you recorded (the error output has no path of its own), and record again. tsl puts the
+   error (and for E-REV-05 each failing citation and why) and the refused review in the new
+   reviewer's package. Never pass the error as skill arguments (its quotes and braces make
+   the skill's shell command fail) and never message the reviewer.
+   On E-REV-02 the JSON did not match review.v1: stay within the review budget (retry.review,
    2 by default). If it still fails, run
-   `tsl review record <artifact_path> --unavailable "<the error message>" --json`.
-   On E-REV-05 some citations do not verify: run the `review` skill again, passing it the
-   error "message" and the "data.citations" list (each failing citation and why), and record
-   again. tsl counts these rounds itself (retry.record) and records the review once they are
-   used, so keep going until it is recorded; never use --unavailable for E-REV-05.
+   `tsl review record <artifact_path> --unavailable "reviewer output still invalid (E-REV-02)" --json`,
+   with exactly that reason: never put the error message itself on the command line.
+   On E-REV-05 some citations do not verify: tsl counts these rounds itself (retry.record) and
+   records the review once they are used, so keep going until it is recorded; never use
+   --unavailable for E-REV-05.
    E-REV-06 is a warning only: tsl moved a citation to the one place its quote is.
    Never edit the review JSON yourself.
 5. Run `tsl decide <artifact_path> --json`. Show its status line to the user.

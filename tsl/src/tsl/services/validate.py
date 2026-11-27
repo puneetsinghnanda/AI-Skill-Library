@@ -208,7 +208,7 @@ def validate_plugin(d: Path, rt: Runtime) -> list[dict[str, Any]]:
     hooks = d / "hooks" / "hooks.json"
     if hooks.is_file():
         h = json.loads(hooks.read_text(encoding="utf-8")).get("hooks", {})
-        if set(h) != {"SessionStart", "PreToolUse", "PostToolUse", "SessionEnd"}:
+        if set(h) != {"SessionStart", "PreToolUse", "PostToolUse", "SessionEnd", "SubagentStop"}:
             perrs.append(
                 ("E-CFG-01", "/hooks", "hooks.json must list exactly the SDD-05 §5.2 events")
             )

@@ -1,12 +1,19 @@
 # Changelog: test-automation
 
-## 1.3.0
+## 1.4.0
 - Roadmap 25-27 Nov, B (each step knows its tools): the step was never told its allowed
   tools and learned them from pre-tool refusals (E-POL-06), even for a read-only `grep`.
   tsl verify --inputs now lists them in data.allowed_tools, and the preamble says to use
   only those.
 - MINOR: changed instruction, same tools, inputs and output schema. Needs a signed eval
   result for this version before any status change (SKL-V13).
+
+## 1.3.0
+- Roadmap A3 (local checks), as implement 1.4.0 and unit-test 1.4.0: new Method 3 runs
+  `tsl verify --self-check --local` (type check and lint of the changed files on this machine; no
+  attempt used) and fixes what it lists before the artifact is written.
+- MINOR: changed instruction, same tools, inputs and output schema. Needs a signed eval result
+  for this version before any status change (SKL-V13).
 
 ## 1.2.0
 - #6: `test-automation.results-linked` (H2) could never fail: it compared each result's covers with

@@ -1,12 +1,24 @@
 # Changelog: implement
 
-## 1.4.0
+## 1.5.0
 - Roadmap 25-27 Nov, B (each step knows its tools): the step was never told its allowed
   tools and learned them from pre-tool refusals (E-POL-06), even for a read-only `grep`.
   tsl verify --inputs now lists them in data.allowed_tools, and the preamble says to use
   only those.
 - MINOR: changed instruction, same tools, inputs and output schema. Needs a signed eval
   result for this version before any status change (SKL-V13).
+
+## 1.4.0
+- Roadmap A3 (local checks): HMS-24 impl used a verifier retry on a TS2741 type error in code it
+  had just written.
+- New Method 5 runs `tsl verify --self-check --local` before code[] is copied: a type check and
+  lint of the files it changed, on this machine, as a developer does before pushing (no attempt
+  used; packages install only when they do not match the lock file). The verifier (H3) stays the
+  independent check.
+- Hand-over: a self-check fix that changes product code reruns the local checks once and copies
+  code[] again.
+- MINOR: changed instruction, same tools, inputs and output schema. Needs a signed eval result
+  for this version before any status change (SKL-V13).
 
 ## 1.3.0
 - Runs are independent (HMS-5 rerun: the skill read the earlier run's artifacts and feedback

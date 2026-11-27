@@ -211,7 +211,7 @@ Doc 4 §5.2 is the catalogue. This document keeps every existing code and adds t
 | E-RUN-05 | 3 | Run is `<status>`; `<command>` needs `<status>` | Shown per case | `approve`, `pr`, `next` |
 | E-RUN-06 | 3 | Run `<run_id>` belongs to `<pseudonym>` | Ask the owner, or a tech lead to unlock | `state resume` |
 | E-REV-02 | 2 | Reviewer output is not valid review.v1: `<pointer>` (meaning owned by SDD-03 §14; E-REV-01 is "cannot prepare review") | Re-run the review skill | `review record` |
-| E-REV-05 | 2 | `<n>` reviewer citation(s) do not verify: `<detail>` (SDD-03 §7.4 step 5; a warning with exit 0 once `retry.record` is used) | Run the review skill again with this message, then record again | `review record` |
+| E-REV-05 | 2 | `<n>` reviewer citation(s) do not verify: `<detail>` (SDD-03 §7.4 step 5; a warning with exit 0 once `retry.record` is used) | Run the review skill again on the artifact (its package carries this error), then record again | `review record` |
 | E-REV-06 | 0 | `<n>` reviewer citation(s) moved to the lines that hold the quote: `<detail>` (SDD-03 §7.4 step 5; a warning) | None | `review record` |
 | E-REV-07 | 0 | Reviewer citations were not checked at record: `<error>` (warning; `tsl decide` still checks them) | None; report it with `~/.truminds/logs/tsl.log` | `review record` |
 | E-EVAL-01 | 2 | Eval pass rate `<r>` below `<min>` or fewer than `<n>` cases | Fix the skill or add cases | `eval run` |
@@ -275,9 +275,9 @@ leaves one cancelled run in the companion history.
 | `docker` | `docker info` succeeds within 3 s |
 | `version` | `tsl` version equals `--plugin-version`, or the version in `$CLAUDE_PLUGIN_ROOT/.claude-plugin/plugin.json` |
 | `keychain` | An allowed keyring backend (SDD-07 §4.3) |
-| `login` | Silent token acquisition succeeds |
-| `key` | This device's key is registered and active; warns 14 days before max age |
 | `service` | `GET /v1/health` returns 200 within 3 s |
+| `login` | Silent token acquisition succeeds and `GET /v1/me` accepts it; on 401 the token is force-refreshed once (for GitHub this deletes a token GitHub rejects). Fails on 401 after the refresh (expired or revoked sign-in) or 403 (no role); warns when the service or provider cannot be reached to confirm it |
+| `key` | This device's key is registered and active; warns 14 days before max age |
 | `outbox` | No pending events older than 24 h; no dead events |
 | `repo` | If inside a companion repo: `tsl.yaml` valid; pack present and fresh |
 
@@ -318,7 +318,8 @@ Detects the schema from the file's `schema:` field, or from the folder (a skill 
 | Form | Purpose |
 | --- | --- |
 | `tsl verify <artifact>` | Code checks H1–H7 and soft checks (SDD-03) on one artifact; writes `<artifact>.checks.json` |
-| `tsl verify <artifact> --self-check` | What the skill can still fix before the review, run once from the skill's Hand-over (SDD-01 §3): the fast checks (no verifier), then `data.fix` lists failing gates, failing soft checks with their reason (S2) and claims that will not verify (S1). Product cites resolve as at decide (this step's working tree for code skills). Exits 0 whenever it can check the artifact, with every problem as an item; with no artifact path it is a usage error (E-USE-01). `data.ok` is true when the list is empty |
+| `tsl verify <artifact> --self-check` | What the skill can still fix before the review, run once from the skill's Hand-over (SDD-01 §3): the fast checks (no verifier), then `data.fix` lists failing gates, failing soft checks with their reason (S2) and claims that will not verify (S1); the skill's own `checks.yaml` checks come back here like any gate (SDD-03 §3.3). Product cites resolve as at decide (this step's working tree for code skills). Exits 0 whenever it can check the artifact, with every problem as an item; with no artifact path it is a usage error (E-USE-01). `data.ok` is true when the list is empty. `data.hints` lists failing hint checks (kind `hint`: skill checks that match text and can be wrong, SDD-03 §3.3) apart from `data.fix`; they never make `data.ok` false |
+| `tsl verify <artifact> --self-check --local` | The same, plus a type check and lint, on this machine, of the files a code step changed (SDD-03 §3.3). Each failing check is a `data.fix` item of kind `local`. `data.local` holds `status` (`pass`, `fail`, `skip`, `error`), `checks` (repo, name, status, errors), `installed` (when it had to install packages, and why) and `not_run` (repos it did not check, and why). Runs before the artifact exists (then only the local checks). Uses no attempt and changes no run state. An internal error is an `error` item, never a failed command. `--local` without `--self-check` is E-USE-01 |
 | `tsl verify --inputs [--run <run_id>] [--step <step_id>]` | Pre-step input check, called from each skill via `` !`tsl verify --inputs` `` (SDD-05 §5.1). Defaults: the run bound to `TSL_SESSION_ID` and its current step |
 
 Network: none (the verifier containers run in local Docker).
@@ -463,7 +464,7 @@ GitHub authentication uses the engineer's existing git credential (`git credenti
 
 ### 6.14 `tsl hook <event>`
 
-`<event>` ∈ `session-start`, `pre-tool`, `pre-mcp`, `post-write`, `session-end`. Called only by `bin/tsl-hook` (SDD-05 §5.2).
+`<event>` ∈ `session-start`, `pre-tool`, `pre-mcp`, `post-write`, `session-end`, `subagent-stop`. Called only by `bin/tsl-hook` (SDD-05 §5.2).
 
 **I/O differs from every other command:** it reads Claude Code hook JSON on stdin and writes Claude Code hook JSON on stdout (SDD-05 §5.3, Doc 5 §4.2). It never prints the tsl envelope, and it ignores `--json`.
 
@@ -474,6 +475,7 @@ GitHub authentication uses the engineer's existing git credential (`git credenti
 | `pre-mcp` | Tool name in `read_tools` and no run → exit 0 | `deny` + E-POL-03 unless a signed approval exists for the action | 0 |
 | `post-write` | Path not under `artifacts/**/*.md` → exit 0 | `{"decision": "block", "reason": "E-CHK-01 ..."}` on failure | 0 |
 | `session-end` | — | none | 0 always |
+| `subagent-stop` | No `agent_id`, or no run for `session_id` → exit 0 | none | 0 always |
 
 **Session index** (`~/.truminds/sessions/<session_id>.json`):
 

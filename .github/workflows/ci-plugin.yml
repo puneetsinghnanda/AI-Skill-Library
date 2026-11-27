@@ -37,13 +37,14 @@ concurrency:
 jobs:
   plugin:
     # Windows is the main target (C-17). Its runner has Git Bash, which the hook tests run the launcher with.
+    # macOS too: testers run the plugin on macOS, and tsl already tests all three (roadmap D3).
     name: plugin (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
     defaults:
       run:
         shell: bash

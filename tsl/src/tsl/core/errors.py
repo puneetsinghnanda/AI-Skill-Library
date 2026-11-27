@@ -453,7 +453,8 @@ CATALOGUE: dict[str, ErrorDef] = {
             "E-REV-05",
             CHECK,
             "{n} reviewer citation(s) do not verify: {detail}",
-            "Run the review skill again with this message, then record again",
+            "Run the review skill again on the artifact (its package carries this error), "
+            "then record again",
         ),
         _d(
             "E-REV-06",

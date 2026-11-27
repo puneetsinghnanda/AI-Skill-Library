@@ -246,7 +246,9 @@ def test_no_temp_files_are_left_behind(env: dict[str, str], companion: Path, tmp
 
 # ------------------------------------------------------------------------------------- pass-through (exec)
 @pytest.mark.parametrize("shell", SHELL_PARAMS)
-@pytest.mark.parametrize("event", ["session-start", "pre-tool", "pre-mcp", "post-write", "session-end"])
+@pytest.mark.parametrize(
+    "event", ["session-start", "pre-tool", "pre-mcp", "post-write", "session-end", "subagent-stop"]
+)
 def test_healthy_tsl_gets_stdin_and_its_output_passes_through(
     env: dict[str, str], companion: Path, tmp_path: Path, event: str, shell: str
 ) -> None:

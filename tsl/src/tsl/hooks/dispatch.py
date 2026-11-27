@@ -4,7 +4,7 @@ Never prints the tsl envelope. Failure rules (SDD-05 §5.4):
 - pre-tool / pre-mcp: inside a run, any failure denies with E-HOOK-01 (fail closed);
   outside a run, allow.
 - post-write: any failure allows and warns with systemMessage (fail open).
-- session-start / session-end: never block; errors are logged.
+- session-start / session-end / subagent-stop: never block; errors are logged.
 The no-run fast paths use the standard library only (NFR-02).
 """
 
@@ -22,7 +22,9 @@ from tsl import __version__
 # Outbox lock wait for the per-call hook.decision event (the outbox default is 2 s).
 HOOK_LOCK_WAIT_S = 1.0
 
-EVENTS = ("session-start", "pre-tool", "pre-mcp", "post-write", "session-end")
+EVENTS = ("session-start", "pre-tool", "pre-mcp", "post-write", "session-end", "subagent-stop")
+# hook.decision's hook enum (schemas/events/hook.decision.v1.json): the service rejects any other.
+DECISION_EVENTS = EVENTS[:5]
 HOOK_NAME = {"pre-tool": "PreToolUse", "pre-mcp": "PreToolUse", "session-start": "SessionStart"}
 TOOL_KIND = {"Write": "write", "Edit": "edit", "NotebookEdit": "edit", "Bash": "bash"}
 
@@ -100,6 +102,8 @@ def _finish(ctx: Ctx, out: dict[str, Any] | None) -> tuple[str, int]:
             fh.write(json.dumps(line, sort_keys=True) + "\n")
     except OSError:
         pass
+    if ctx.event not in DECISION_EVENTS:
+        return (json.dumps(out) if out else ""), 0
     try:
         from tsl.core.clock import system_clock
         from tsl.core.ids import IdFactory
@@ -184,6 +188,10 @@ def run(
         from tsl.hooks import session
 
         return session.start(ctx)
+    if event == "subagent-stop":
+        from tsl.hooks import subagent_stop
+
+        return subagent_stop.handle(ctx)
     from tsl.hooks import session
 
     return session.end(ctx)

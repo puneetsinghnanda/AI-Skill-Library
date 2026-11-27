@@ -20,6 +20,7 @@ from tsl.identity.entra import MsalIdentity
 from tsl.identity.github import GRANT, GitHubIdentity, github_cache
 from tsl.identity.keystore import MemoryKeyStore
 from tsl.identity.org import OrgConfig
+from tsl.insights.client import HttpResult
 
 ROOT = Path(__file__).resolve().parents[2]
 OAUTH = "https://github.example"
@@ -249,6 +250,41 @@ def test_login_whoami_doctor_logout_with_github(world: World) -> None:
     assert env is not None
     login_check = next(c for c in env["data"]["checks"] if c["id"] == "login")
     assert login_check["status"] == "fail" and login_check["fix"] == "tsl login"
+
+
+def test_doctor_fails_and_drops_a_token_revoked_on_github(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Roadmap item 12: the token is revoked on GitHub after login. doctor asks GitHub once
+    (the refresh), fails with 'tsl login' and deletes the token; a new login passes again."""
+    gh = FakeGitHub([{"access_token": "tok:eng2"}], "tok:eng2")
+    _github_runtime(world, "eng2", gh)
+    world.login("eng2")
+    rt = world.rt("eng2")
+    assert rt.home.github_token.exists()
+
+    gh.valid_tokens.clear()  # revoked on GitHub
+    real_get_me = world.insights.get_me
+    # The service validates against GitHub too, so it now refuses the token.
+    monkeypatch.setattr(world.insights, "get_me", lambda token: HttpResult(401, None))
+    before = len(gh.requests)
+    code, env, _, _ = world.cli(["doctor", "--json"], user="eng2")
+    assert env is not None
+    login_check = next(c for c in env["data"]["checks"] if c["id"] == "login")
+    assert login_check["status"] == "fail" and login_check["fix"] == "tsl login"
+    assert "expired or was revoked" in login_check["detail"]
+    assert code == 3 and env["code"] == "E-ENV-01"
+    assert [r.url.path for r in gh.requests[before:]] == ["/user"]  # asked GitHub once
+    assert not rt.home.github_token.exists()  # the rejected token is gone
+
+    monkeypatch.setattr(world.insights, "get_me", real_get_me)
+    gh.valid_tokens.add("tok:eng2")
+    gh.polls.append({"access_token": "tok:eng2"})
+    world.login("eng2")
+    code, env, _, _ = world.cli(["doctor", "--json"], user="eng2")
+    assert env is not None
+    login_check = next(c for c in env["data"]["checks"] if c["id"] == "login")
+    assert login_check["status"] == "pass"
 
 
 def test_login_replaces_a_stored_token_the_service_rejects(world: World) -> None:

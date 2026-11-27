@@ -154,7 +154,7 @@ If the JSON above has "ok": false, show its "message" and "next" to the user and
 | Method | Numbered steps the model follows |
 | Output | Exact envelope and body format, with a filled skeleton |
 | If this is a retry | How to use `data.retry.failures` and `data.retry.findings` |
-| Hand-over | "Write the file to `$0`, run `tsl verify $0 --self-check --json` once and fix every item in `data.fix` with targeted edits to only the parts each item names (no full rewrite, no re-run of the step). Do not run the review or decide; the run loop does that." The self-check runs the fast checks only (no verifier); it lists failing gates, failing soft checks (S2) and claims that will not verify (S1), so hosts without hooks get the same feedback as the post-write hook |
+| Hand-over | "Write the file to `$0`, run `tsl verify $0 --self-check --json` once and fix every item in `data.fix` with targeted edits to only the parts each item names (no full rewrite, no re-run of the step). Do not run the review or decide; the run loop does that." The self-check runs the fast checks only (no verifier); it lists failing gates, failing soft checks (S2) and claims that will not verify (S1), so hosts without hooks get the same feedback as the post-write hook. A skill's own `checks.yaml` checks come back here too (story-split and unit-test content checks, SDD-03 §3.3); hint checks (text matches that can be wrong) come back in `data.hints`, which the skill acts on only for a real gap and otherwise answers under Unknown. A code skill (implement, unit-test, test-automation) first runs `tsl verify $0 --self-check --local --json` after its edits: a type check and lint of the files it changed on this machine, fixed and rerun before it copies code[] and writes the artifact, so a type or lint slip costs no retry |
 
 ### 3.3 The input-check preamble
 
@@ -402,7 +402,7 @@ H4 secrets/PII, H6 staleness and H7 permitted tools run for every skill without 
 | Form | Keys | Id | Gate | Used by |
 | --- | --- | --- | --- | --- |
 | Library form (this section) | `uses`, `with`, and exactly one of `gate` (H1–H7) or `soft: true` | `<SKILLCODE>-C<nn>` | Any hard gate, or soft | `requirement-review` |
-| Kind form (SDD-03 §5.2, §5.3) | `kind`, `select`, `in`, `against`, `key`, `unless`, `each`, `covered_by`, `link`, `min`, … | `<skill-id>.<check-name>` | `H2`, `H5` or `soft` (default `soft`) | The other Release-1 skills |
+| Kind form (SDD-03 §5.2, §5.3) | `kind`, `select`, `in`, `against`, `key`, `unless`, `each`, `covered_by`, `link`, `min`, … | `<skill-id>.<check-name>` | `H2`, `H5`, `soft` (default) or `hint` (self-check only, not S2) | The other Release-1 skills |
 
 Neither form replaces the other; a skill may mix them. A new library check or a new kind is a `tsl` change reviewed by the harness owners.
 

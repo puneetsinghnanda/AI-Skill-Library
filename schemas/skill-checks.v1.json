@@ -102,14 +102,18 @@
                   "regex",
                   "cites-required",
                   "container",
-                  "diff-limit"
+                  "diff-limit",
+                  "named-in",
+                  "values-named",
+                  "values-in-code"
                 ]
               },
               "gate": {
                 "enum": [
                   "H2",
                   "H5",
-                  "soft"
+                  "soft",
+                  "hint"
                 ],
                 "default": "soft"
               },
@@ -284,6 +288,97 @@
                   "secrets",
                   "coverage"
                 ]
+              },
+              "optional_input": {
+                "type": "boolean",
+                "description": "coverage, named-in, values-in-code: skip when the step has none of the `each_input` inputs (a defect run's unit-test has no stories) instead of failing."
+              },
+              "or_named_in": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": "coverage: an item named as a word in one of these level-2 body sections (e.g. Unknown, with its reason) counts as accounted for."
+              },
+              "sections": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": "named-in: level-2 body sections in which every item `each` (with `each_key`) selects must be named. A keyed item S-1/AC2 is named when AC2 follows S-1 in the same bullet (S-1 AC2, S-1: ... (AC2), S-1 AC1-AC3)."
+              },
+              "values": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "file",
+                  "after"
+                ],
+                "properties": {
+                  "file": {
+                    "$ref": "#/$defs/rel_path"
+                  },
+                  "after": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "description": "values-named: the value lists of `file` that follow the word `after` (\"Status is A, B, C or D\"; three values or more)."
+              },
+              "text": {
+                "type": "string",
+                "pattern": "^\\$",
+                "description": "values-named: path, inside each `each` object, of the text that must name the values."
+              },
+              "when": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "input",
+                  "each"
+                ],
+                "properties": {
+                  "input": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$"
+                  },
+                  "each": {
+                    "type": "string",
+                    "pattern": "^\\$"
+                  },
+                  "link": {
+                    "type": "string",
+                    "default": "trace"
+                  },
+                  "text": {
+                    "type": "string",
+                    "default": "statement"
+                  }
+                },
+                "description": "values-named: only `each` objects whose `link` ids name an item of input `input` whose `text` names the word or a value count (stories whose REQ is about statuses)."
+              },
+              "items": {
+                "type": "string",
+                "pattern": "^\\$",
+                "description": "values-in-code: path, inside each `each` object, of the items (with id and text) whose values the code must hold."
+              },
+              "named_in": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "description": "values-in-code: only items the artifact names in these level-2 body sections (default Tests)."
+              },
+              "files": {
+                "type": "string",
+                "format": "regex",
+                "description": "values-in-code: regex over repo-relative paths of the files whose added lines are read (the step's tests)."
               }
             },
             "description": "SDD-03 §5.3 form: a check declared by kind."

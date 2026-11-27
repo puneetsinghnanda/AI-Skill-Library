@@ -16,6 +16,7 @@ from tsl.core.repo import Companion
 from tsl.core.runtime import Runtime
 
 LOCAL_WAIT_S = 5.0
+OPEN = ("RUNNING", "PAUSED_INPUT", "PAUSED_APPROVAL")
 
 
 class RevConflict(Exception):
@@ -66,6 +67,7 @@ class RunStore:
     def save(self, state: dict[str, Any], expected_rev: int) -> dict[str, Any]:
         from tsl.schemas.registry import errors
 
+        current: dict[str, Any] = {}
         if self.path.is_file():
             current = read_json(self.path)
             if int(current.get("rev", 0)) != expected_rev:
@@ -82,7 +84,19 @@ class RunStore:
                 log_id="state",
             )
         write_json(self.path, state)
+        if current.get("status") in OPEN and state.get("status") not in OPEN:
+            self._close_asks(now)
         return state
+
+    def _close_asks(self, now: str) -> None:
+        """The run ended: an IDE question still open (a subagent's dismissed dialog) ends now,
+        so its wait has a real end that a later save (tsl state repair) cannot move. B2."""
+        from tsl.approvals import ide_questions
+
+        with contextlib.suppress(Exception):  # best effort, like every ask record
+            ide_questions.close_open(
+                self.comp.root, self.run_id, reason="run-ended", at=now, every_agent=True
+            )
 
     def update(self, fn: Callable[[dict[str, Any]], Any]) -> dict[str, Any]:
         """Re-read rev, apply, write rev+1; re-apply once on conflict, then E-RUN-11."""

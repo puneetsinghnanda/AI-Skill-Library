@@ -1,12 +1,32 @@
 # Changelog: unit-test
 
-## 1.4.0
+## 1.5.0
 - Roadmap 25-27 Nov, B (each step knows its tools): the step was never told its allowed
   tools and learned them from pre-tool refusals (E-POL-06), even for a read-only `grep`.
   tsl verify --inputs now lists them in data.allowed_tools, and the preamble says to use
   only those.
 - MINOR: changed instruction, same tools, inputs and output schema. Needs a signed eval
   result for this version before any status change (SKL-V13).
+
+## 1.4.0
+- Roadmap A3 (content self-check and local checks): on 0.1.7 `ut` retried in 6 of 7 team runs
+  on reviewer findings it could have found itself (HMS-24, 26, 28, 30, 31, 33), and HMS-33 used
+  both verifier retries on a type error and a lint slip in its own tests.
+- checks.yaml: `unit-test.acs-named` (H5, kind named-in): every AC of the stories is named on a
+  Tests line as `S-n ACm`, or under Unknown. `unit-test.reqs-traced` (H5, coverage with
+  or_named_in): every REQ the stories trace is in trace, or under Unknown. Both skip without a
+  stories input (defect runs). `unit-test.ac-values-in-tests` (hint, kind values-in-code): an AC
+  named as covered has one of its values in the lines the step added to its tests. A hint because
+  it matches text and can be wrong: the self-check shows it in data.hints; it does not lower S2.
+- Method: before writing a test, check its data can tell right from wrong (each status the AC
+  names, two candidates for an order rule, data of the count or size the AC needs, a test that
+  guards each answer the user gave). New Method 4 runs the local checks
+  (`tsl verify --self-check --local`: type check and lint of the changed files on this machine;
+  no attempt used) and fixes what they list before code[] is copied.
+- Output: each Tests line names its REQ and every AC it covers as `S-n ACm` (S-n alone does not
+  count).
+- MINOR: changed instruction and new checks, same tools, inputs and output schema. Needs a signed
+  eval result for this version before any status change (SKL-V13).
 
 ## 1.3.0
 - Runs are independent (HMS-5 rerun: the skill read the earlier run's artifacts and feedback

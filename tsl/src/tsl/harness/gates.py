@@ -7,6 +7,7 @@ import fnmatch
 import hashlib
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -683,6 +684,58 @@ def injection_check(ci: CheckInput) -> tuple[dict[str, Any] | None, list[injecti
     return entry, hits
 
 
+def added_lines(diff: str) -> dict[str, str]:
+    """{path: the lines a unified diff adds to it} for a diff made with a/ and b/ prefixes."""
+    out: dict[str, list[str]] = {}
+    cur: str | None = None
+    for line in diff.splitlines():
+        if line.startswith("+++ "):
+            name = line[4:].strip()
+            cur = name[2:] if name.startswith("b/") else None  # /dev/null: a deleted file
+            if cur is not None:
+                out.setdefault(cur, [])
+        elif cur is not None and line.startswith("+"):
+            out[cur].append(line[1:])
+        elif line.startswith("diff --git "):
+            cur = None
+    return {k: "\n".join(v) for k, v in out.items()}
+
+
+def code_added(ci: CheckInput) -> Callable[[], dict[str, str]] | None:
+    """Lines the code step added, by repo-relative path, read once on first use (skill checks
+    of kind values-in-code); None without a product change or clones (eval, CI)."""
+    changes = ci.product_changes or []
+    if not changes or not ci.clones:
+        return None
+    memo: dict[str, str] = {}
+    done: list[bool] = []
+
+    def get() -> dict[str, str]:
+        if done:
+            return memo
+        from tsl.gitops.git import Git
+
+        for c in changes:
+            clone = ci.clones.get(str(c.get("repo")))
+            if clone is None:
+                continue
+            # Explicit prefixes: a user's diff.noprefix must not hide the file names.
+            raw = Git(Path(clone)).raw(
+                "diff",
+                "--no-color",
+                "--no-ext-diff",
+                "--src-prefix=a/",
+                "--dst-prefix=b/",
+                str(c["base_sha"]),
+                str(c["tree_sha"]),
+            )
+            memo.update(added_lines((raw or b"").decode("utf-8", "replace")))
+        done.append(True)
+        return memo
+
+    return get
+
+
 def run_all(ci: CheckInput, h3_result: GateResult | None) -> CheckRun:
     env = CheckEnv(
         ci.art.front,
@@ -696,6 +749,8 @@ def run_all(ci: CheckInput, h3_result: GateResult | None) -> CheckRun:
             if i.get("name") and i.get("path")
         },
         frozenset(((ci.state or {}).get("questions") or {}).get("answered_sha256", {}) or {}),
+        code_added=code_added(ci),
+        repos=frozenset(ci.repos),
     )
     skill_checks = run_declared(env, ci.skill.checks if ci.skill and ci.art.doc else None)
     g: dict[str, GateResult] = {}
