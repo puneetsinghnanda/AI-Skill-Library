@@ -1,107 +1,94 @@
-"""Regression: file names in cited paths are not secrets (C1, HMS-11 companion check)."""
+"""C1: only a code citation of a known product repo is exempt from SEC-ENT-01 as a whole.
+
+`<repo>:<path>.<ext>#<anchor>` with a repo the caller names: directories are checked whole and
+the file name piece by piece; every other token is checked exactly as before. Cases include
+every example from the #63 reviews.
+"""
 
 from tsl.harness import detectors
 
-# The secrev feedback line that failed tsl-companion-check on every push to main: the quote
-# above it says "PRIMARY KEY", and the migration name is long, mixed and high-entropy.
-HMS11 = (
-    "        {\n"
-    '          "quote": "serial PRIMARY KEY",\n'
-    '          "ref": "sample-system:db/migrations/20261016T090000__create_reference_lists.sql#L16"\n'
-    "        },\n"
-)
-
-
-def _ent(text: str) -> list[detectors.Hit]:
-    return [h for h in detectors.scan(text) if h.rule_id == "SEC-ENT-01"]
-
-
-def test_cited_migration_path_near_primary_key_is_not_a_secret() -> None:
-    assert not _ent(HMS11)
-
-
-def test_bare_file_name_near_key_is_not_a_secret() -> None:
-    assert not _ent("key column defined in 20261016T090000__create_reference_lists.sql\n")
-
-
-def test_token_near_key_is_still_flagged() -> None:
-    assert _ent("api key: Zx9Qw7Lm3Kp8Rt2Vb6Nc4Hd1Fg5Js0Ty\n")
-
-
-def test_token_ending_a_sentence_is_still_flagged() -> None:
-    assert _ent("the token is Zx9Qw7Lm3Kp8Rt2Vb6Nc4Hd1Fg5Js0Ty.\n")
-
-
-def test_jwt_like_token_near_key_is_still_flagged() -> None:
-    # Joined at run time so the repo's own gitleaks scan does not flag this fake.
-    jwt = ".".join(
-        ["ey" + "JhbGciOiJIUzI1NiJ9x7Q", "ey" + "JzdWIiOiIxMjM0NTY3ODkwIn0Zq9", "Kp8Rt2Vb6"]
-    )
-    assert _ent(f"signing key {jwt}\n")
-
-
-# --- review of #63 (Gaurav): only real file names are skipped ------------------------------
-
+REPOS = frozenset({"sample-system"})
 TOK = "Zx9Qw7Lm3Kp8Rt2Vb6Nc4Hd1Fg5Js0Ty"
+MIG = "sample-system:db/migrations/20261016T090000__create_reference_lists.sql#L16"
 
 
-def test_token_followed_by_a_method_call_is_still_flagged() -> None:
-    assert _ent(f"api key: {TOK}.trim()\n")
+def _ent(text: str, repos: frozenset[str] = REPOS) -> list[detectors.Hit]:
+    return [h for h in detectors.scan(text, cite_repos=repos) if h.rule_id == "SEC-ENT-01"]
 
 
-def test_token_as_a_host_name_is_still_flagged() -> None:
-    assert _ent(f"secret at https://{TOK}.ngrok.io/x\n")
+# --- the false positive this fixes -------------------------------------------------------------
 
 
-def test_token_before_a_new_sentence_is_still_flagged() -> None:
-    assert _ent(f"the token is {TOK}.Use it once.\n")
+def test_cited_migration_near_primary_key_is_not_a_secret() -> None:
+    """The HMS-11 secrev line that failed tsl-companion-check on every push to main."""
+    assert not _ent(f'"quote": "serial PRIMARY KEY",\n"ref": "{MIG}"\n')
 
 
-def test_token_with_an_extension_but_no_path_shape_is_still_flagged() -> None:
-    assert _ent(f"api key {TOK}.json\n")  # no `/` or `_`: not a file name
+def test_other_cite_shapes_of_a_known_repo_are_not_secrets() -> None:
+    for cite in (
+        "sample-system:web/x9Kq/20261016T090000__orders_api.spec.ts#L4",
+        "sample-system:src/types/20261016T090000__api.d.ts#L4",
+        "sample-system:config/app_20261016T090000x9Kq.properties#L3",
+        "sample-system:db/migrations/20261016T090100__create_doctors.sql#L1-L9",
+    ):
+        assert not _ent(f'primary key, "ref": "{cite}"\n'), cite
 
 
-def test_long_extensions_in_cited_paths_are_not_secrets() -> None:
-    for ext in ("properties", "sqlite3"):
-        cite = f"sample-system:config/app_20261016T090000x9Kq.{ext}#L3"
-        assert not _ent(f'"quote": "primary key", "ref": "{cite}"\n'), ext
+def test_without_repo_names_the_scanner_is_unchanged() -> None:
+    """Callers that pass no repo names (validate, context build, tickets) see no exemption."""
+    assert _ent(f'"quote": "serial PRIMARY KEY", "ref": "{MIG}"\n', frozenset())
 
 
-# --- third review of #63 (Gaurav): pieces of a path are checked; prose is not an extension ----
-
-MIG = "db/migrations/20261016T090000__create_reference_lists"
+# --- secrets are still found -------------------------------------------------------------------
 
 
-def test_secret_segment_of_a_url_ending_in_a_file_is_flagged() -> None:
-    assert _ent(f"webhook key: https://hooks.example.com/services/{TOK}/payload.json\n")
-
-
-def test_secret_before_a_file_name_suffix_is_flagged() -> None:
-    assert _ent(f"api key in s3://bucket/{TOK}_dump.sql\n")
-
-
-def test_prose_after_a_token_is_not_an_extension() -> None:
-    assert _ent(f"the api key is ab_{TOK}.Go to settings\n")
-    assert _ent(f"the api key is ab_{TOK}.Log in first\n")
-
-
-def test_base64_secret_with_slashes_is_still_checked_whole() -> None:
-    assert _ent("secret: Zx9Qw7Lm3/Kp8Rt2Vb6Nc4/Hd1Fg5Js0Ty9q\n")
-
-
-def test_cited_file_names_in_more_shapes_are_not_secrets() -> None:
-    for tail in (".sql.", ".sql;", ".sql>", ".sql}", ".sql?", ".sql|", ".sql.gz "):
-        assert not _ent(f"primary key, created in {MIG}{tail}\n"), tail
-    for name in ("x9Kq/20261016T090000__orders_api.spec.ts", "src/types/20261016T090000__api.d.ts"):
-        assert not _ent(f'primary key "ref": "sample-system:{name}#L4"\n'), name
-    assert not _ent("key in config/20261016T090000__settings.env.local\n")
-
-
-def test_run_ids_inside_cited_paths_are_not_secrets() -> None:
-    """Real companion lines (HMS-14, HMS-7): a run id stays whole when a path is split."""
-    lines = (
-        '      cites: ["runs/run_01M7HH0DM88V7JHMVZPSYX5BWE/ide-answers.md#a-07"]\n',
-        '    cites: ["artifacts/HMS-7/run_01M6FXTGC048AXKA8X69ASS5QB/design.md#overview"]\n',
+def test_secrets_outside_cites_are_flagged_as_before() -> None:
+    cases = (
+        f"api key: {TOK}.trim()",
+        f"secret at https://{TOK}.ngrok.io/x",
+        f"the token is {TOK}.Use it once.",
+        f"webhook key: https://hooks.example.com/services/{TOK}/payload.json",
+        f"the api key is ab_{TOK}.Go to settings",
+        f"api key in s3://bucket/{TOK}_dump.sql",
+        "secret …/s/Zx9Qw7Lm3Kp8Rt2V_b6Nc4Hd1Fg5Js0Ty/payload.json",
+        "token /d/Zx9Qw7Lm3Kp8Rt2V-b6Nc4Hd1Fg5Js0Ty.json",
+        "api key https://Zx9Qw7Lm3Kp8Rt2V-b6Nc4Hd1Fg5Js0Ty.example.sh",
+        "secret: Zx9Qw7Lm3/Kp8Rt2Vb6Nc4/Hd1Fg5Js0Ty9q",
     )
-    for line in lines:
-        assert not _ent("signing key\n" + line), line
+    for text in cases:
+        assert _ent(text + "\n"), text
+
+
+def test_a_secret_shaped_as_a_cite_is_still_flagged() -> None:
+    cases = (
+        f"api key sample-system:{TOK}/x.json#L1",  # secret as a directory of a known repo
+        f"api key sample-system:a/{TOK}.ts#L1",  # secret as the file name
+        f"api key sample-system:a/{TOK}_x.ts#L1",  # secret as a piece of the file name
+        "api key sample-system:a/Zx9Qw7Lm3Kp8Rt2V_b6Nc4Hd1Fg5Js0Ty.ts#L1",  # name with `_`
+        f"api key https:{TOK}/x.sql#L1",  # not a product repo
+        f"api key other-repo:a/{TOK}.ts#L1",  # not a product repo
+        f"api key https://{TOK}/x.sql#L1",  # a URL, not a cite
+        f"api key sample-system:a/{TOK}+x.ts#L2",  # base64 characters
+        f"api key sample-system:a/{TOK}.ts",  # no anchor: not a cite
+        f"api key sample-system:a/{TOK}.TS#L1",  # upper-case extension: not a cite
+        f"api key xsample-system:a/{TOK}.ts#L1",  # repo name must start the word
+    )
+    for text in cases:
+        assert _ent(text + "\n"), text
+
+
+# --- no new false positives --------------------------------------------------------------------
+
+
+def test_run_ids_in_paths_are_not_secrets() -> None:
+    for line in (
+        'cites: ["runs/run_01M7HH0DM88V7JHMVZPSYX5BWE/ide-answers.md#a-07"] key',
+        'cites: ["artifacts/HMS-7/run_01M6FXTGC048AXKA8X69ASS5QB/design.md#overview"] key',
+        "key sample-system:runs/HMS-7_run_01M6FXTGC048AXKA8X69ASS5QB.json#L1",
+    ):
+        assert not _ent(line + "\n"), line
+
+
+def test_path_words_are_not_the_keyword_for_a_cite() -> None:
+    """The keyword search skips the whole token, so `add_api_key` in a cite is not `key`."""
+    assert not _ent("see sample-system:db/migrations/add_api_key/x9Kq_20261016T090000.sql#L1\n")

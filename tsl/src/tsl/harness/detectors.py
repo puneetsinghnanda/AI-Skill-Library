@@ -45,43 +45,50 @@ def _line_of(text: str, pos: int) -> int:
 
 
 RUN_ID_IN_PATH = re.compile(r"run_[0-9A-HJKMNP-TV-Z]{26}")
-# A token followed by a file extension is a path to a file, e.g. the migration in a cite
-# `repo:db/migrations/20261016T090000__create_reference_lists.sql#L16`. Such a token is not
-# checked as a whole: it is split at `/`, `_` and `-` and each piece is checked on its own, so
-# a file name of short words and dates passes while a secret segment of a URL or path
-# (`/services/<token>/payload.json`, `<token>_dump.sql`) is still found. Extensions are lower or
-# upper case only (`.Go to` is prose), may be chained (`.spec.ts`, `.d.ts`, `.env.local`,
-# `.sql.gz`) and must end the word: then `#`, `:`, a quote, a bracket, a brace, `,`, `;`, `>`,
-# `?`, `|`, whitespace, a full stop before whitespace, or the end of the text. So
-# `<token>.trim()`, `<token>.ngrok.io` and `<token>.Use it` are still checked whole.
-FILE_EXTS = [
-    "sql", "md", "mdx", "txt", "json", "jsonl", "yaml", "yml", "toml", "ini", "cfg", "conf",
-    "env", "properties", "xml", "html", "htm", "css", "scss", "js", "jsx", "mjs", "cjs", "ts",
-    "tsx", "py", "pyi", "rb", "go", "rs", "java", "kt", "kts", "scala", "cs", "php", "sh",
-    "bash", "ps1", "bat", "dockerfile", "tf", "hcl", "proto", "graphql", "gql", "csv", "tsv",
-    "sqlite", "sqlite3", "gz", "zip",
-]  # fmt: skip
-_EXT = "(?:" + "|".join(FILE_EXTS + [e.upper() for e in FILE_EXTS]) + ")"
-FILE_EXT_AFTER = re.compile(
-    r"(?:\.[a-z0-9]{1,12})*\." + _EXT + r"(?:\.[a-z0-9]{1,12})*"
-    + r"(?=[#:\s\"'`)\]},;>?|]|\.(?:\s|$)|$)"
-)  # fmt: skip
-PATH_SEGMENT = re.compile(r"[^/]+")
-PATH_PIECE = re.compile(r"[^_\-]+")
+# A code citation `<repo>:<relative path>.<ext>#<anchor>` of a product repo the caller names
+# (`sample-system:db/migrations/20261016T090000__create_reference_lists.sql#L16`) is a file
+# reference. Such a token is not checked as a whole, because a long path to a dated file looks
+# random; instead each directory and the file name are checked on their own, and the file name
+# also piece by piece (split at `_` and `-`, run ids kept out), so a secret placed in a cite is
+# still found. The shape is
+# exact: a repo name the caller passes (never `https`), right before `:`, a path with `/`, no
+# leading `/` and no `+` or `=`, then a lower-case source extension, `#` and an anchor.
+CITE_EXTS = (
+    "sql|md|mdx|txt|json|jsonl|yaml|yml|toml|ini|cfg|conf|properties|xml|html|css|scss|"
+    "js|jsx|mjs|cjs|ts|tsx|py|pyi|rb|go|rs|java|kt|kts|scala|cs|php|sh|bash|ps1|bat|tf|hcl|"
+    "proto|graphql|gql|csv|tsv|dockerfile"
+)
+# Up to two short parts before the extension (`.spec.ts`, `.d.ts`, `.test.py`).
+CITE_AFTER = re.compile(r"(?:\.[a-z0-9]{1,10}){0,2}\.(?:" + CITE_EXTS + r")#[A-Za-z0-9]")
+CITE_DELIMS = " \t\n\"'`([,{"
+ID_IN_NAME = re.compile(r"(?:run|evt|key|dev|imp|flg)_[0-9A-HJKMNP-TV-Z]{26}")
 
 
-def _path_pieces(tok: str, offset: int, minlen: int) -> list[tuple[str, int, int]]:
-    """A path's parts to check: `/` segments, kept whole when they are known ids (`run_<ULID>`),
-    else split at `_` and `-`; only parts long enough to be a secret."""
-    out: list[tuple[str, int, int]] = []
-    for seg in PATH_SEGMENT.finditer(tok):
-        if SAFE_TOKEN.match(seg.group(0)):
-            continue  # a run, event or key id inside the path
-        for p in PATH_PIECE.finditer(seg.group(0)):
-            if len(p.group(0)) >= minlen:
-                start = offset + seg.start() + p.start()
-                out.append((p.group(0), start, start + len(p.group(0))))
-    return out
+def _cite_pieces(
+    text: str, start: int, end: int, repos: frozenset[str]
+) -> list[tuple[str, int, int]] | None:
+    """The parts of a code citation to check, or None when text[start:end] is not one."""
+    tok = text[start:end]
+    if not repos or "/" not in tok or tok.startswith("/") or "+" in tok or "=" in tok:
+        return None
+    if start < 2 or text[start - 1] != ":" or not CITE_AFTER.match(text, end):
+        return None
+    i = start - 1
+    while i > 0 and (text[i - 1].isalnum() or text[i - 1] in "._-"):
+        i -= 1
+    if text[i : start - 1] not in repos or (i > 0 and text[i - 1] not in CITE_DELIMS):
+        return None
+    *dirs, name = tok.split("/")
+    pieces: list[tuple[str, int, int]] = []
+    pos = start
+    for d in dirs:  # a directory is checked whole
+        pieces.append((d, pos, pos + len(d)))
+        pos += len(d) + 1
+    masked = ID_IN_NAME.sub(lambda m: "_" * len(m.group(0)), name)  # ids are not secrets
+    pieces.append((masked, pos, pos + len(name)))  # the whole file name, and each piece of it
+    for p in re.finditer(r"[^_\-]+", masked):
+        pieces.append((p.group(0), pos + p.start(), pos + p.end()))
+    return pieces
 
 
 def _entropy(s: str) -> float:
@@ -192,7 +199,10 @@ def scan(
     text: str,
     allow_sha256: frozenset[str] = frozenset(),
     deny_term_hashes: frozenset[str] = frozenset(),
+    cite_repos: frozenset[str] = frozenset(),
 ) -> list[Hit]:
+    """`cite_repos`: product repo names whose code citations get the narrow cite rule above;
+    empty (the default) keeps every token checked whole."""
     sec, pii = rules()
     hits: list[Hit] = []
     placeholders = [p.lower() for p in sec.get("placeholders", [])]
@@ -215,25 +225,28 @@ def scan(
         window = int(ent.get("keyword_window", 40))
         minlen = int(ent.get("min_length", 20))
         for m in re.finditer(r"[A-Za-z0-9+/=_-]{" + str(minlen) + ",}", text):
-            # A path to a file is checked piece by piece; anything else as one token.
-            if FILE_EXT_AFTER.match(text, m.end()):
-                pieces = _path_pieces(m.group(0), m.start(), minlen)
-            else:
-                pieces = [(m.group(0), m.start(), m.end())]
-            for tok, start, end in pieces:
-                if SAFE_TOKEN.match(tok) or allowed(tok):
+            whole = m.group(0)
+            if SAFE_TOKEN.match(whole) or allowed(whole):
+                continue
+            if RUN_ID_IN_PATH.search(whole):
+                continue  # citation paths carry ULID run ids; they are ids, not secrets
+            parts = _cite_pieces(text, m.start(), m.end(), cite_repos)
+            if parts is None:
+                parts = [(whole, m.start(), m.end())]  # anything else: one token, as always
+            around = text[max(0, m.start() - window) : m.end() + window].replace(whole, "")
+            for tok, start, end in parts:
+                if len(tok) < minlen or SAFE_TOKEN.match(tok) or allowed(tok):
                     continue
-                if RUN_ID_IN_PATH.search(tok):
-                    continue  # citation paths carry ULID run ids; they are ids, not secrets
                 if not (re.search(r"[A-Za-z]", tok) and re.search(r"[0-9]", tok)):
                     continue
-                if any(p in tok.lower() for p in placeholders) or re.fullmatch(r"[a-z0-9-]+", tok):
+                low = tok.lower()
+                if any(p in low for p in placeholders) or re.fullmatch(r"[a-z0-9-]+", tok):
                     continue
                 if _entropy(tok) < float(ent.get("min_bits_per_char", 4.0)):
                     continue
-                around = text[max(0, start - window) : end + window]
-                if kw.search(around.replace(tok, "")):
+                if kw.search(around):
                     hits.append(Hit("SEC-ENT-01", "secret", _line_of(text, start), start, end))
+                    break  # one finding per token
     for r in pii["rules"]:
         validator = VALIDATORS[r.get("validator", "none")]
         for m in re.finditer(r["pattern"], text):

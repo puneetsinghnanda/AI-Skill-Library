@@ -222,6 +222,7 @@ def _check_content(
     # Known false positives: SHA-256 of the matched text in tsl.yaml h4_allow (SEC-01 §7.2),
     # the same list H4 honours during a run.
     allow = frozenset(comp.config.h4_allow)  # normalised in TslConfig
+    repos = frozenset(r.name for r in comp.config.product_repos)  # code cites of these
     total = 0
     for rel in files:
         p = comp.path(rel)
@@ -242,16 +243,17 @@ def _check_content(
             text = data.decode("utf-8")
         except UnicodeDecodeError:
             continue
-        for h in detectors.scan(text, allow, deny_term_hashes=deny):
+        for h in detectors.scan(text, allow, deny_term_hashes=deny, cite_repos=repos):
             if h.kind in ("secret", "pii", "term"):
                 # file and line only: the matched value is never echoed (SDD-11 §7.3)
                 detail = f"{h.kind} rule {h.rule_id}"
-                if show_hashes and h.rule_id == "SEC-ENT-01":
-                    # The SHA-256 a tech lead puts in tsl.yaml h4_allow for a reviewed false
-                    # positive. Only when asked for locally (--show-allow-hashes), never in CI
-                    # logs, and only for entropy hits: a hit can be a `NAME=value` pair that a
-                    # dictionary could recover from a published hash.
-                    digest = hashlib.sha256(text[h.start : h.end].encode()).hexdigest()
+                value = text[h.start : h.end]
+                if show_hashes and h.rule_id == "SEC-ENT-01" and "=" not in value:
+                    # The SHA-256 a tech lead commits to tsl.yaml h4_allow for a reviewed false
+                    # positive, so anyone with the companion repo can read it. Only on request
+                    # (--show-allow-hashes, run locally, never in CI logs), only for entropy hits,
+                    # and never for a `NAME=value` match, whose value a dictionary could recover.
+                    digest = hashlib.sha256(value.encode()).hexdigest()
                     detail += f", h4_allow sha256 {digest}"
                 out.append(Finding("E-COMP-04", rel, h.line, detail))
     return total
@@ -307,7 +309,11 @@ def check(
 
 def first_error(data: dict[str, Any]) -> TslError:
     code = data["codes"][0]
-    f = next(x for x in data["findings"] if x["code"] == code)
+    # findings are cut to 200; the first code's finding can be past the cut
+    f = next(
+        (x for x in data["findings"] if x["code"] == code),
+        {"path": ".", "line": 0, "detail": "more findings than listed"},
+    )
     return TslError(
         code,
         path=f["path"],
