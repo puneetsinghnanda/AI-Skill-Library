@@ -18,6 +18,7 @@ It records the runner on the attempt, so run metrics can compare the runners per
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from tsl.core.errors import TslError
@@ -31,19 +32,23 @@ PREAMBLE = "Step context from tsl (do not edit):\n!`tsl verify $0 --inputs --jso
 HEADER = "# Step brief"
 
 
-def runners_from_env(env: Any, steps: list[str]) -> dict[str, dict[str, str]]:
+def runners_from_env(
+    env: Any, steps: list[str], asks: frozenset[str] = frozenset()
+) -> dict[str, dict[str, str]]:
     """The steps TSL_STEP_RUNNER hands to a forked subagent, read once at tsl state start.
 
     TSL_STEP_RUNNER is a comma-separated list of <step>=<context>, for example "ut=full" or
     "ut=artifacts,split=full". Steps not in the workflow and unknown contexts are ignored: those
-    steps stay in the main session. The result is pinned in state.json (step_runners), so the
+    steps stay in the main session. So are steps in `asks`, whose skill asks the user
+    (AskUserQuestion in allowed_tools: req, impact, design): the step runner cannot ask, so
+    those wait on B2. The result is pinned in state.json (step_runners), so the
     choice is visible in the run record and an environment that changes mid-run cannot move a
     step (in one HMS-34 baseline a plain `tsl next` still saw the variable).
     """
     out: dict[str, dict[str, str]] = {}
     for part in str(env.get("TSL_STEP_RUNNER") or "").split(","):
         sid, _, context = (x.strip() for x in part.partition("="))
-        if sid in steps and context in CONTEXTS:
+        if sid in steps and sid not in asks and context in CONTEXTS:
             out[sid] = {"mode": "fork", "context": context}
     return out
 
@@ -64,6 +69,8 @@ def build(rt: Runtime, comp: Companion, artifact: str, context: str) -> dict[str
         raise TslError(
             "E-USE-01", detail=f"--context is one of {', '.join(CONTEXTS)}", cmd="step brief"
         )
+    runner = {"mode": "fork", "context": context}
+    _precheck(rt, comp, artifact, runner)  # what can fail, before verify_inputs marks the launch
     data = verify_inputs(rt, comp, None, None, artifact)  # also marks the skill launch
     run = RunCtx(rt, comp, str(data["run_id"]))
     step, n = str(data["step"]), int(data["attempt"])
@@ -72,8 +79,7 @@ def build(rt: Runtime, comp: Companion, artifact: str, context: str) -> dict[str
     if PREAMBLE not in body:
         raise TslError("E-USE-01", detail=f"skill {sk.id} has no inputs preamble", cmd="step brief")
     envelope = json.dumps({"ok": True, "data": data}, indent=2)
-    body = body.replace(PREAMBLE, f"Step context from tsl:\n```json\n{envelope}\n```\n", 1)
-    runner = {"mode": "fork", "context": context}
+    body = body.replace(PREAMBLE, f"Step context from tsl:\n{_fenced(envelope, 'json')}\n", 1)
 
     def mark(st: dict[str, Any]) -> None:
         a = latest(find_step(st, step))
@@ -135,6 +141,51 @@ def build(rt: Runtime, comp: Companion, artifact: str, context: str) -> dict[str
     }
 
 
+def _precheck(rt: Runtime, comp: Companion, artifact: str, runner: dict[str, str]) -> None:
+    """Refuse the brief before verify_inputs marks the launch, so a refused brief leaves no
+    half-open step behind (the pre-tool hook would hold the main session to its tools).
+
+    - The run must have pinned this runner at start (E-USE-01): attempt.runner is what run
+      metrics compare per step, so it must agree with state.step_runners.
+    - The skill has the inputs preamble, and .tsl/local.yaml reads (the product repos).
+
+    Only for the run's current step: any other path is left to verify_inputs, which names the
+    real error (not an artifact path E-USE-01, not the current step E-RUN-09, lock E-LOCK-*).
+    """
+    from tsl.core.paths import ARTIFACT_RE
+    from tsl.harness.verify import to_rel
+    from tsl.orchestrator.run import RunCtx
+
+    m = ARTIFACT_RE.match(to_rel(comp, artifact))
+    if not m:
+        return
+    run, step = RunCtx(rt, comp, m.group("run_id")), m.group("step")
+    if (run.state.get("cursor") or {}).get("step") != step:
+        return
+    pinned = runner_for(run.state, step)
+    if pinned != runner:
+        want = (
+            f"--context {pinned['context']}" if pinned else "the step's skill in the main session"
+        )
+        raise TslError(
+            "E-USE-01",
+            detail=f"run pinned {want} for step {step} at start (TSL_STEP_RUNNER); "
+            f"--context {runner['context']} does not match",
+            cmd="step brief",
+        )
+    sk = run.skill_for(step)
+    if PREAMBLE not in split((sk.dir / "SKILL.md").read_text(encoding="utf-8")).body:
+        raise TslError("E-USE-01", detail=f"skill {sk.id} has no inputs preamble", cmd="step brief")
+    _product_repos(comp, run.state)
+
+
+def _fenced(text: str, lang: str) -> str:
+    """A code fence longer than any run of backticks in the text, so the text cannot close it."""
+    longest = max((len(r) for r in re.findall(r"`+", text)), default=0)
+    fence = "`" * max(3, longest + 1)
+    return f"{fence}{lang}\n{text}\n{fence}"
+
+
 def _product_repos(comp: Companion, state: dict[str, Any]) -> list[dict[str, Any]]:
     """Each product clone on this laptop, with the run's branch in it when there is one.
 
@@ -171,6 +222,10 @@ def _preloaded(comp: Companion, run_id: str, sk: Any, loaded: list[dict[str, Any
     for sid, rel in want:
         p = comp.path(rel) if rel else None
         if p is None or not p.is_file():
+            if sid != "ide-answers":  # no answers yet is normal
+                loaded.append({"id": sid, "path": rel, "included": False})
+                where = rel or "not in context/manifest.json"
+                out += ["", f"### {sid} ({where}): not found, not preloaded"]
             continue
         text = p.read_text(encoding="utf-8")
         size = len(text.encode("utf-8")) // 4
@@ -180,7 +235,6 @@ def _preloaded(comp: Companion, run_id: str, sk: Any, loaded: list[dict[str, Any
             continue
         used += size
         loaded.append({"id": sid, "path": rel, "included": True})
-        fence = "```json" if str(rel).endswith(".json") else "````markdown"
-        close = "```" if fence == "```json" else "````"
-        out += ["", f"### {rel}", fence, text.rstrip(), close]
+        lang = "json" if str(rel).endswith(".json") else "markdown"
+        out += ["", f"### {rel}", _fenced(text.rstrip(), lang)]
     return out

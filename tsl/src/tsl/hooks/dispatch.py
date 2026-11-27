@@ -232,6 +232,11 @@ def log_tool(
     code: str | None,
     read_only: bool | None = None,
 ) -> None:
+    """Append one line to the run's tool log.
+
+    decision "deny" with code E-POL-06 means "refused before it ran": H7 skips those lines.
+    Only pre_tool._refuse writes that pair; a call that ran must never be logged with it.
+    """
     st = idx["_state"]
     cur = st.get("cursor") or {}
     line = {

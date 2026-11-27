@@ -538,13 +538,19 @@ def verify_inputs(
     if attempt is None:
         raise TslError("E-RUN-09", step=step, run_id=run_id)
     # The skill calls this first, so it marks the launch. H5 and H7 read the tool log from here,
-    # which leaves out calls a session made at this step before the skill ran.
+    # which leaves out calls a session made at this step before the skill ran. A relaunch in the
+    # main session moves it. A forked attempt (attempt.runner, set by the first tsl step brief)
+    # keeps its first mark: a later tsl verify --inputs or brief from the step runner must not
+    # move the window past calls the subagent already made (B1).
     launched, n = iso(rt.clock()), attempt["n"]
 
     def mark(st: dict[str, Any]) -> None:
         a = latest(find_step(st, step))
-        if a is not None and a["n"] == n:
-            a["skill_started_at"] = launched
+        if a is None or a["n"] != n:
+            return
+        if a.get("runner") and a.get("skill_started_at"):
+            return
+        a["skill_started_at"] = launched
 
     with ctx.store.local_lock():
         ctx.state = ctx.store.update(mark)

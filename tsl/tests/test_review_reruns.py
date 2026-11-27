@@ -294,9 +294,9 @@ def test_reviewer_write_is_refused_off_its_file_and_logged_as_refused(world: Wor
     denies = [e for e in entries if e.get("decision") == "deny"]
     assert len(denies) == 2, entries
     assert {(e["code"], e["agent_type"]) for e in denies} == {("E-POL-06", "truminds:reviewer")}
-    assert {e["target"] for e in denies} == {
-        str(base / run_id / "review-input" / "design.review.json"),
-        str(base / "run_OTHER" / "review-input" / "req.review.json"),
+    assert {e["target"] for e in denies} == {  # relative to the companion repo
+        f"runs/{run_id}/review-input/design.review.json",
+        "runs/run_OTHER/review-input/req.review.json",
     }
 
 

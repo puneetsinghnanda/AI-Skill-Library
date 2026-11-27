@@ -123,3 +123,89 @@ def test_writing_command_still_aborts(world: World) -> None:
     _append(world, run_id, "npm install", read_only=False)
     h7 = _h7(world, res["artifact"])
     assert "E-POL-04" in h7["codes"], h7
+
+
+def test_step_runner_bash_is_only_its_own_tsl_commands() -> None:
+    # B1: the forked step runner may not run the run loop (next, review, decide, pr).
+    runner = "truminds:step-runner"
+    allowed = ["Read", "Write", "Bash(tsl verify *)"]
+    for target in (
+        "tsl verify artifacts/x.md --json",
+        "tsl step brief artifacts/x.md --context full",
+    ):
+        assert _tool_allowed({"tool": "Bash", "target": target, "agent_type": runner}, allowed)
+    for target in ("tsl decide artifacts/x.md --json", "tsl next r1 --json", "tsl pr r1"):
+        assert _tool_allowed({"tool": "Bash", "target": target}, allowed)  # main session
+        assert not _tool_allowed({"tool": "Bash", "target": target, "agent_type": runner}, allowed)
+    # One command only: fnmatch's * would match a chained run-loop command after it.
+    for target in (
+        "tsl verify artifacts/x.md --json && tsl decide artifacts/x.md --json",
+        "tsl verify artifacts/x.md; tsl next r1",
+        "tsl verify artifacts/x.md | tsl pr r1",
+        "tsl verify $(tsl decide a.md)",
+    ):
+        assert not _tool_allowed({"tool": "Bash", "target": target, "agent_type": runner}, allowed)
+
+
+def test_a_refused_read_line_does_not_break_h7(world: World) -> None:
+    # B1 review: refusals of any tool (Read, WebFetch ...) are logged; tool-log.v1 must accept
+    # them, or H7 fails the run with E-POL-05 on every later verify.
+    import json
+
+    run_id = start_run(world)
+    res = do_req_step(world, run_id, until="written")
+    line = {
+        "ts": iso(world.clock()),
+        "session_id": "sess-setup",
+        "step": "req",
+        "attempt": 1,
+        "tool": "Read",
+        "target": "runs/run_x/state.json",
+        "decision": "deny",
+        "code": "E-POL-06",
+    }
+    p = world.companion / "runs" / run_id / "tool-log.jsonl"
+    with p.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(line, sort_keys=True) + "\n")
+    h7 = _h7(world, res["artifact"])
+    assert h7["status"] == "pass", h7
+
+
+def test_step_runner_run_loop_command_fails_h7(world: World) -> None:
+    import json
+
+    run_id = start_run(world)
+    res = do_req_step(world, run_id, until="written")
+    p = world.companion / "runs" / run_id / "tool-log.jsonl"
+    line = {
+        "ts": iso(world.clock()),
+        "session_id": "sess-setup",
+        "step": "req",
+        "attempt": 1,
+        "tool": "Bash",
+        "target": f"tsl decide {res['artifact']} --json",
+        "decision": "allow",
+        "code": None,
+        "agent_type": "truminds:step-runner",
+    }
+    with p.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(line, sort_keys=True) + "\n")
+    h7 = _h7(world, res["artifact"])
+    assert h7["status"] == "fail" and h7["codes"] == ["E-POL-04"], h7
+
+
+def test_only_the_pre_tool_refusal_logs_deny_e_pol_06() -> None:
+    # H7 skips deny/E-POL-06 lines as "never ran"; any other writer of that pair would let an
+    # executed call past H7 unseen.
+    import re
+    from pathlib import Path
+
+    import tsl
+
+    src = Path(tsl.__file__).parent
+    pat = re.compile(r"""["']deny["']\s*,\s*["']E-POL-06["']""")
+    hits = [p for p in src.rglob("*.py") if pat.search(p.read_text(encoding="utf-8"))]
+    assert [p.relative_to(src).as_posix() for p in hits] == ["hooks/pre_tool.py"]
+    text = (src / "hooks" / "pre_tool.py").read_text(encoding="utf-8")
+    assert len(pat.findall(text)) == 1
+    assert pat.search(text[text.index("def _refuse(") : text.index("def _target(")])

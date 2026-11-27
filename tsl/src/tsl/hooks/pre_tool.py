@@ -70,23 +70,47 @@ def _open_step(ctx: Ctx, idx: dict[str, Any]) -> tuple[str, list[str]] | None:
 
 def _off_step(ctx: Ctx, cmd: str, open_step: tuple[str, list[str]]) -> str | None:
     """Why this call is outside the open step's tools, or None when it is allowed."""
+    from tsl.harness.commands import is_step_runner
+
     skill, allowed = open_step
     tool = ctx.tool
+    runner = is_step_runner(ctx.agent_type)
     if tool == "Bash":
         from tsl.harness.commands import bash_allowed, is_read_only
 
-        if bash_allowed(cmd, allowed):
+        if bash_allowed(cmd, allowed, ctx.agent_type):
             return None
         if is_read_only(cmd) or cmd.strip().startswith(("sed ", "awk ", "type ")):
             return f"step {skill} reads files with Read, Grep or Glob, not shell commands"
+        if runner:
+            return _RUNNER_BASH
         return f"Bash command is not in step {skill}'s tools; only tsl commands run here"
-    if tool in allowed or tool in RUN_LOOP_TOOLS:
+    if tool in allowed or (tool in RUN_LOOP_TOOLS and not runner):
         return None
     if tool == "NotebookEdit" and "Edit" in allowed:
         return None
     if tool == "PowerShell":
         return f"step {skill} runs tsl through the Bash tool, not PowerShell"
     return f"tool {tool} is not in step {skill}'s tools ({', '.join(allowed)})"
+
+
+_RUNNER_BASH = (
+    "the step runner runs only tsl verify and tsl step brief; the main session runs the "
+    "run loop (tsl next, review, decide, pr)"
+)
+
+
+def _runner_bash_refused(ctx: Ctx, cmd: str) -> str | None:
+    """Why the step runner may not run this Bash command, or None.
+
+    Checked whether or not the step is open, and with no bound run too, so a forked step cannot
+    decide or move its run on after its own step closed or the run paused either. Its skills
+    declare no Bash(...) tool of their own."""
+    from tsl.harness.commands import bash_allowed, is_step_runner
+
+    if ctx.tool != "Bash" or not is_step_runner(ctx.agent_type):
+        return None
+    return None if bash_allowed(cmd, [], ctx.agent_type) else _RUNNER_BASH
 
 
 READ_TOOLS = ("Read", "Grep", "Glob")
@@ -270,26 +294,43 @@ def _refuse(ctx: Ctx, idx: dict[str, Any] | None, message: str) -> tuple[str, in
     The line is decision "deny", code E-POL-06, so a run's refusals can be counted per step
     from the run record (R1), not only from this laptop's hook.log. H7 does not hold these
     lines against the step: the call never ran.
+
+    This is the only writer of deny/E-POL-06 tool-log lines (test_h7_commands checks it).
+    Never log a call that ran with that pair: H7 would let it through unseen.
     """
     if idx is not None:
         with contextlib.suppress(Exception):  # never let logging turn a refusal into an allow
-            log_tool(idx, ctx, _target(ctx), "deny", "E-POL-06")
+            log_tool(idx, ctx, _target(ctx, idx), "deny", "E-POL-06")
     return deny(ctx, "E-POL-06", message)
 
 
-def _target(ctx: Ctx) -> str:
-    """What the call aimed at, as the tool log's target: the command, path or pattern."""
+def _target(ctx: Ctx, idx: dict[str, Any]) -> str:
+    """What the call aimed at, as the tool log's target: the command, path or pattern.
+
+    A path is logged relative to the companion repo; one outside it (a product clone, the
+    home folder) by its file name only, since the target never leaves the companion repo
+    (tool-log.v1)."""
     from tsl.harness.commands import strip_cd
 
     ti = ctx.data.get("tool_input") or {}
     if ti.get("command"):  # Bash, PowerShell
         return strip_cd(str(ti["command"]))[:80]
     if ctx.tool in ("Read", "Write", "Edit", "NotebookEdit"):
-        return str(ti.get("file_path") or ti.get("notebook_path") or ctx.tool)
+        raw = str(ti.get("file_path") or ti.get("notebook_path") or "")
+        return _in_companion(ctx, idx, raw) if raw else ctx.tool
     if ctx.tool in ("Grep", "Glob"):
-        parts = [str(ti.get(k) or "") for k in ("path", "pattern", "glob")]
-        return " ".join(p for p in [parts[0] or ".", *parts[1:]] if p)
+        base = _in_companion(ctx, idx, str(ti.get("path") or ctx.data.get("cwd") or "."))
+        rest = [str(ti.get(k) or "") for k in ("pattern", "glob")]
+        return " ".join(x for x in [base, *rest] if x)
     return ctx.tool
+
+
+def _in_companion(ctx: Ctx, idx: dict[str, Any], path: str) -> str:
+    """The path relative to the companion root ("." for the root), or <outside>/<file name>."""
+    parts = _rel_parts(_abs(ctx, str(idx["companion"])), _abs(ctx, path))
+    if parts is None:
+        return f"<outside>/{Path(path.replace(chr(92), '/')).name}"
+    return "/".join(parts) or "."
 
 
 def handle(ctx: Ctx) -> tuple[str, int]:
@@ -308,6 +349,12 @@ def handle(ctx: Ctx) -> tuple[str, int]:
             # The reviewer then hands its JSON back instead (SDD-05 §4.3).
             return _refuse(ctx, idx, f"Refused: {why}")
     if idx is None:
+        # A forked step never runs the run loop, bound run or not (paused, session lapsed).
+        why = _runner_bash_refused(
+            ctx, str((ctx.data.get("tool_input") or {}).get("command") or "")
+        )
+        if why is not None:
+            return _refuse(ctx, idx, f"Refused: {why}. Hand over to the main session")
         return allow(ctx)  # outside a run: static rules come from managed settings
     try:
         pol = policy_for(ctx, idx)
@@ -322,6 +369,10 @@ def handle(ctx: Ctx) -> tuple[str, int]:
             why = _off_step(ctx, str(ti.get("command") or ""), open_step)
             if why is not None:
                 return _refuse(ctx, idx, f"Refused: {why}. Carry on with the step's tools")
+        else:
+            why = _runner_bash_refused(ctx, str(ti.get("command") or ""))
+            if why is not None:
+                return _refuse(ctx, idx, f"Refused: {why}. Hand over to the main session")
         if ctx.tool in READ_TOOLS:
             # While this session holds a run, in a step or between steps (HMS-5: the run loop
             # read the earlier run "as a starting point" before each step).

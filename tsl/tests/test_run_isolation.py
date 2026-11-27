@@ -16,6 +16,7 @@ from e2e_steps import hook, next_action, start_run
 from helpers import World
 from tsl.harness.gates import other_run_refs
 from tsl.hooks.pre_tool import _other_run_bash
+from tsl.schemas.registry import errors
 
 RUN = "run_01JA0B3C4D5E6F7G8H9JKMNPQR"
 OLD = "run_01J90B3C4D5E6F7G8H9JKMNPQR"
@@ -88,7 +89,10 @@ def test_bound_run_reads_only_its_own_runs_files(world: World) -> None:
     entries = [json.loads(x) for x in log.read_text().splitlines()] if log.is_file() else []
     denies = [e for e in entries if e.get("decision") == "deny"]
     assert len(denies) == 9 and {e["code"] for e in denies} == {"E-POL-06"}, denies
-    assert str(other_tkt) in [e["target"] for e in denies]
+    # Logged relative to the companion repo: the target never leaves it (tool-log.v1).
+    assert other_tkt.relative_to(c).as_posix() in [e["target"] for e in denies]
+    assert all(str(c) not in e["target"] for e in denies)
+    assert all(errors("tool-log.v1", e) == [] for e in denies)
 
 
 def test_outside_a_run_reads_are_not_limited(world: World) -> None:

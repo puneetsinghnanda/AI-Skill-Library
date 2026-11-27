@@ -172,7 +172,24 @@ def start(
         state["pod"] = pod
     from tsl.harness.brief import runners_from_env
 
-    runners = runners_from_env(rt.env, [str(s["id"]) for s in steps])
+    # A step whose skill asks the user stays in the main session: the step runner cannot ask.
+    asks = frozenset(
+        wfmod.step_id(s)
+        for s in snap["steps"]
+        if wfmod.step_kind(s) == "skill"
+        and (sk := installed.get(wfmod.skill_name(s))) is not None
+        and "AskUserQuestion" in sk.allowed_tools
+    )
+    step_ids = [str(s["id"]) for s in steps]
+    runners = runners_from_env(rt.env, step_ids, asks)
+    for sid in sorted(set(runners_from_env(rt.env, step_ids)) - set(runners)):
+        warnings.append(
+            {
+                "code": "E-USE-01",
+                "message": f"TSL_STEP_RUNNER: step {sid} asks the user, so it runs in the main "
+                "session (a forked step cannot ask)",
+            }
+        )
     if runners:
         state["step_runners"] = runners
     from tsl.schemas.registry import errors

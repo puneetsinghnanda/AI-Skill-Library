@@ -123,12 +123,67 @@ def test_subagent_calls_are_logged_with_their_agent_type(world: World) -> None:
     bash = {
         "hook_event_name": "PreToolUse",
         "tool_name": "Bash",
-        "tool_input": {"command": "tsl status --json"},
+        "tool_input": {"command": "tsl verify artifacts/x.md --json"},
     }
     hook(world, "pre-tool", bash)
-    hook(world, "pre-tool", {**bash, "agent_type": "truminds:step-unit-test", "agent_id": "a1"})
+    hook(world, "pre-tool", {**bash, "agent_type": "truminds:step-runner", "agent_id": "a1"})
     main, sub = _log(world, run_id)[-2:]
     assert "agent_type" not in main
-    assert sub["agent_type"] == "truminds:step-unit-test"
+    assert sub["agent_type"] == "truminds:step-runner"
     assert sub["session_id"] == main["session_id"]
     assert errors("tool-log.v1", sub) == []
+
+
+def test_step_runner_may_not_run_the_run_loop(world: World) -> None:
+    # B1 review: the hook, not only the prompt, keeps a forked step off tsl next/decide/pr,
+    # whether its step is open or not. The main session still runs them.
+    run_id = start_run(world)
+    next_action(world, run_id)
+    runner = {"agent_type": "truminds:step-runner", "agent_id": "a1"}
+
+    def bash(cmd: str, **extra: str) -> tuple[str, int]:
+        payload = {"hook_event_name": "PreToolUse", "tool_name": "Bash"}
+        return hook(world, "pre-tool", {**payload, "tool_input": {"command": cmd}, **extra})
+
+    for cmd in ("tsl decide artifacts/x.md --json", "tsl next r1 --json", "tsl pr r1"):
+        out, _code = bash(cmd, **runner)
+        assert "E-POL-06" in out and "step runner" in out, out
+        assert _log(world, run_id)[-1]["decision"] == "deny"
+        assert bash(cmd) == ("", 0)  # main session
+    assert bash("tsl verify artifacts/x.md --json", **runner) == ("", 0)
+    assert bash("tsl step brief artifacts/x.md --context full", **runner) == ("", 0)
+
+
+def test_step_runner_is_held_with_no_bound_run_too(world: World) -> None:
+    # A paused run or a lapsed session leaves no bound run; the runner still may not decide.
+    payload = {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": {"command": "tsl decide artifacts/x.md --json"},
+    }
+    out, _code = hook(world, "pre-tool", {**payload, "agent_type": "truminds:step-runner"})
+    assert "E-POL-06" in out, out
+    assert hook(world, "pre-tool", payload) == ("", 0)
+
+
+def test_refused_paths_outside_the_companion_log_the_file_name_only(world: World) -> None:
+    run_id = start_run(world)
+    next_action(world, run_id)
+    outside = str(world.base / "elsewhere" / "secret-notes.md")
+    other = str(world.companion / "runs" / "run_other" / "state.json")
+    for path in (outside, other):
+        hook(
+            world,
+            "pre-tool",
+            {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Read",
+                "tool_input": {"file_path": path},
+            },
+        )
+    denies = [e for e in _log(world, run_id) if e["decision"] == "deny"]
+    targets = {e["target"] for e in denies}
+    assert "runs/run_other/state.json" in targets
+    assert all(str(world.base) not in t for t in targets)
+    for e in denies:
+        assert errors("tool-log.v1", e) == []

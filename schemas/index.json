@@ -507,7 +507,7 @@
       "kind": "file",
       "owner": "SDD-03 §2.1",
       "title": "runs/<run_id>/tool-log.jsonl line (tool-log.v1)",
-      "description": "One JSON line per Write, Edit, NotebookEdit, Bash or MCP call seen by the pre-tool and pre-mcp hooks. Append-only; H7 checks it. target never leaves the companion repo."
+      "description": "One JSON line per Write, Edit, NotebookEdit, Bash or MCP call seen by the pre-tool and pre-mcp hooks, and per call of any tool the pre-tool hook refused before it ran (decision deny, code E-POL-06). Append-only; H7 checks it. target never leaves the companion repo: a refused path outside it is logged by its file name only."
     },
     {
       "name": "audit",
