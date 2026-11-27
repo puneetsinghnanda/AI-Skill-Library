@@ -1,0 +1,12 @@
+{
+  "schema": "next-action.v2",
+  "action": "ask",
+  "run_id": "run_01JA0B3C4D5E6F7G8H9JKMNPQR",
+  "say": "1 blocking question needs an answer",
+  "ask": {
+    "questions": [
+      {"id": "Q-05", "question": "Which payment provider does the pilot use?", "blocking": true, "cite": "runs/run_01JA0B3C4D5E6F7G8H9JKMNPQR/open-questions.md#q-05"}
+    ],
+    "answers_to": null
+  }
+}

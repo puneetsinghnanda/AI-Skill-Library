@@ -168,6 +168,9 @@ def prepare(rt: Runtime, comp: Companion, artifact: str) -> dict[str, Any]:
 
     require_valid("review-package.v1", pkg, sibling(rel, ".review-package.json"))
     write_json(comp.path(sibling(rel, ".review-package.json")), pkg)
+    from tsl.orchestrator.extensions import phase
+
+    phase(rt, comp, ctx.state, step, int(attempt["n"]) if attempt else None, "run_reviewer")
     # Each round's reviewer writes a new file: the Write tool refuses to overwrite a file its
     # context has not read, and record --file must never read the last round's JSON.
     comp.path(pkg["review_input_path"]).unlink(missing_ok=True)
@@ -754,6 +757,9 @@ def _record(
         k: sum(1 for f in obj["findings"] if f["severity"] == k)
         for k in ("blocker", "major", "minor")
     }
+    from tsl.orchestrator.extensions import phase
+
+    phase(rt, comp, ctx.state, step, int(attempt["n"]), "record", outcome=str(obj["status"]))
     return {
         "review_path": out,
         "findings": counts,

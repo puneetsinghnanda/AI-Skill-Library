@@ -790,6 +790,7 @@ dependencies = [
     { name = "keyring" },
     { name = "msal" },
     { name = "pydantic" },
+    { name = "pydantic-core" },
     { name = "pyyaml" },
     { name = "rfc3339-validator" },
     { name = "rfc8785" },
@@ -799,6 +800,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "mypy" },
+    { name = "packaging" },
     { name = "pytest" },
     { name = "pytest-xdist" },
     { name = "ruff" },
@@ -812,7 +814,8 @@ requires-dist = [
     { name = "jsonschema", specifier = ">=4.23" },
     { name = "keyring", specifier = ">=25" },
     { name = "msal", specifier = ">=1.30" },
-    { name = "pydantic", specifier = ">=2.7" },
+    { name = "pydantic", specifier = "==2.14.1" },
+    { name = "pydantic-core", specifier = "==2.50.1" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "rfc3339-validator", specifier = ">=0.1.4" },
     { name = "rfc8785", specifier = ">=0.1.4" },
@@ -822,6 +825,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "mypy", specifier = ">=1.11" },
+    { name = "packaging", specifier = ">=24" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-xdist", specifier = ">=3.8" },
     { name = "ruff", specifier = ">=0.6" },

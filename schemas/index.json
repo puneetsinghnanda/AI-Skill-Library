@@ -411,6 +411,17 @@
       "description": "The data object of tsl next --json: one action for the run skill loop, with the step, attempt, pinned skill, artifact path, resolved inputs, feedback, answers, budget and progress."
     },
     {
+      "name": "next-action",
+      "version": 2,
+      "id": "next-action.v2",
+      "file": "next-action.v2.json",
+      "$id": "https://schemas.truminds.internal/next-action.v2.json",
+      "kind": "file",
+      "owner": "Design A1 §5",
+      "title": "tsl next instruction payload (next-action.v2)",
+      "description": "The instruction tsl next returns in code mode: one action for the run skill loop (run_step, fix, run_reviewer, ask, pause_approval, done or stopped). Step actions carry the step, attempt, pinned skill, instruction file, artifact path, allowed tools, context, retry, budget and progress; fix carries the self-check items, run_reviewer the review package, ask the questions."
+    },
+    {
       "name": "feedback",
       "version": 1,
       "id": "feedback.v1",

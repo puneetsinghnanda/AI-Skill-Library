@@ -97,3 +97,28 @@ def test_question_without_default_needs_no_source(tmp_path: Path) -> None:
 
 def test_without_the_option_ticket_only_default_passes_as_before(tmp_path: Path) -> None:
     assert _linked(_questions([TICKET]), tmp_path, sourced=False) is None
+
+
+# --- follow-up to #70: eval runs place the baseline and glossary under inputs/ ------------
+
+
+def _linked_with_inputs(evidence: list[str], root: Path) -> str | None:
+    from tsl.harness.skillchecks import c_questions_linked
+
+    named = {"ticket": "inputs/ticket.md", "intent_baseline": "inputs/intent-baseline.md"}
+    env = CheckEnv(_questions(evidence), "", root, list(named.values()), {}, named)
+    return c_questions_linked(env, {"default_sourced": True})
+
+
+def test_default_citing_the_baseline_as_an_eval_input_passes(tmp_path: Path) -> None:
+    assert _linked_with_inputs(["inputs/intent-baseline.md#constraints"], tmp_path) is None
+
+
+def test_default_citing_the_ticket_input_alone_still_fails(tmp_path: Path) -> None:
+    detail = _linked_with_inputs(["inputs/ticket.md#L12"], tmp_path)
+    assert "no evidence" in str(detail)
+
+
+def test_only_a_run_answers_file_counts_as_an_answer(tmp_path: Path) -> None:
+    fake = "docs/notes/ide-answers.md#a-01"  # ends like an answers file but is not one
+    assert "no evidence" in str(_linked(_questions([fake]), tmp_path))
