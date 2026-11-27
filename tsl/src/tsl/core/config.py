@@ -89,7 +89,7 @@ class TslConfig(BaseModel):
     pr: dict[str, Any] = {}
     telemetry: dict[str, Any] = {}
     harness: dict[str, Any] = {}
-    h4_allow: list[str] = []
+    h4_allow: list[str] = []  # SHA-256, lower-case hex: the schema rejects any other form
     ci: dict[str, Any] = {}
 
     def repo(self, name: str) -> ProductRepo | None:

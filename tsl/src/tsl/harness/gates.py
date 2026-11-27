@@ -275,7 +275,7 @@ def _skill_into(g: GateResult, gate: str, outcomes: list[CheckOutcome]) -> None:
 # ------------------------------------------------------------------------------------ H4
 def h4(ci: CheckInput) -> tuple[GateResult, list[detectors.Hit]]:
     g = GateResult("H4")
-    hits = detectors.scan(ci.art.text, ci.h4_allow)
+    hits = detectors.scan(ci.art.text, ci.h4_allow, cite_repos=frozenset(ci.repos))
     for h in hits:
         if h.kind == "secret":
             g.fail("E-SEC-01", f"rule {h.rule_id} line {h.line}", "GEN-SECRET-01")

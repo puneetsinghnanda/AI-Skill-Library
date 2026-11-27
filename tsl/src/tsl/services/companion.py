@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -19,6 +20,8 @@ from tsl.core.runtime import Runtime
 from tsl.gitops.git import GitError
 
 MAX_FILE_BYTES = 5 * 1024 * 1024
+# `NAME=value`: an `=` with something after it (base64 padding only ends a token).
+NAME_VALUE = re.compile(r"=[^=]")
 # SDD-12 §6.4 names "the archive threshold (§8)" without a value; this is the proposal used
 # until the owner fixes one (reported as a gap).
 MAX_REPO_BYTES = 1024 * 1024 * 1024
@@ -209,11 +212,19 @@ def _deny_hashes(path: Path | None) -> frozenset[str]:
 
 
 def _check_content(
-    comp: Companion, files: list[str], deny: frozenset[str], out: list[Finding]
+    comp: Companion,
+    files: list[str],
+    deny: frozenset[str],
+    out: list[Finding],
+    show_hashes: bool = False,
 ) -> int:
     from tsl.context.repoview import excluded
     from tsl.harness import detectors
 
+    # Known false positives: SHA-256 of the matched text in tsl.yaml h4_allow (SEC-01 §7.2),
+    # the same list H4 honours during a run.
+    allow = frozenset(comp.config.h4_allow)  # lower-case hex, enforced by the tsl.yaml schema
+    repos = frozenset(r.name for r in comp.config.product_repos)  # code cites of these
     total = 0
     for rel in files:
         p = comp.path(rel)
@@ -234,10 +245,20 @@ def _check_content(
             text = data.decode("utf-8")
         except UnicodeDecodeError:
             continue
-        for h in detectors.scan(text, deny_term_hashes=deny):
+        for h in detectors.scan(text, allow, deny_term_hashes=deny, cite_repos=repos):
             if h.kind in ("secret", "pii", "term"):
                 # file and line only: the matched value is never echoed (SDD-11 §7.3)
-                out.append(Finding("E-COMP-04", rel, h.line, f"{h.kind} rule {h.rule_id}"))
+                detail = f"{h.kind} rule {h.rule_id}"
+                value = text[h.start : h.end]
+                if show_hashes and h.rule_id == "SEC-ENT-01" and not NAME_VALUE.search(value):
+                    # The SHA-256 a tech lead commits to tsl.yaml h4_allow for a reviewed false
+                    # positive, so anyone with the companion repo can read it. Only on request
+                    # (--show-allow-hashes, run locally, refused in CI), only for entropy hits,
+                    # and never for a `NAME=value` match, whose value a dictionary could recover
+                    # (base64 `=` padding at the end is fine).
+                    digest = hashlib.sha256(value.encode()).hexdigest()
+                    detail += f", h4_allow sha256 {digest}"
+                out.append(Finding("E-COMP-04", rel, h.line, detail))
     return total
 
 
@@ -247,14 +268,18 @@ def check(
     base: str | None = None,
     event: str | None = None,
     deny_hashes: Path | None = None,
+    show_hashes: bool = False,
 ) -> dict[str, Any]:
-    """Run every companion check; returns data with `codes` (empty when it passes)."""
+    """Run every companion check; returns data with `codes` (empty when it passes).
+
+    `show_hashes` (local `--show-allow-hashes` only) adds the h4_allow sha256 to entropy findings.
+    """
     findings: list[Finding] = []
     files = _tracked(comp)
     _check_schemas(comp, files, findings)
     commits = _commits(comp, base)
     _check_history(comp, commits, base, event, findings)
-    total = _check_content(comp, files, _deny_hashes(deny_hashes), findings)
+    total = _check_content(comp, files, _deny_hashes(deny_hashes), findings, show_hashes)
     if total > MAX_REPO_BYTES:
         findings.append(Finding("E-COMP-05", ".", 0, f"repository {total} bytes"))
     codes = sorted({f.code for f in findings}, key=CODE_ORDER.index)
@@ -287,7 +312,11 @@ def check(
 
 def first_error(data: dict[str, Any]) -> TslError:
     code = data["codes"][0]
-    f = next(x for x in data["findings"] if x["code"] == code)
+    # findings are cut to 200; the first code's finding can be past the cut
+    f = next(
+        (x for x in data["findings"] if x["code"] == code),
+        {"path": ".", "line": 0, "detail": "more findings than listed"},
+    )
     return TslError(
         code,
         path=f["path"],

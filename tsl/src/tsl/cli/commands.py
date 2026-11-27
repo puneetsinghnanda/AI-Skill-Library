@@ -15,6 +15,10 @@ import typer
 from tsl.core.envelope import human, make
 from tsl.core.errors import CATALOGUE, TslError, render
 
+# Set by CI runners: GitHub Actions, GitLab, CircleCI, Travis (CI); Jenkins; Azure Pipelines;
+# Buildkite; TeamCity.
+CI_ENV_VARS = ("CI", "GITHUB_ACTIONS", "JENKINS_URL", "TF_BUILD", "BUILDKITE", "TEAMCITY_VERSION")
+
 app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
@@ -1045,13 +1049,27 @@ def companion_check(
     base: Annotated[str | None, typer.Option("--base", help="Check commits after this")] = None,
     event: Annotated[str | None, typer.Option("--event", help="push | pull_request")] = None,
     deny_hashes: Annotated[Path | None, typer.Option("--deny-hashes")] = None,
+    show_allow_hashes: Annotated[
+        bool,
+        typer.Option(
+            "--show-allow-hashes",
+            help="Local only: print the tsl.yaml h4_allow sha256 of each entropy finding",
+        ),
+    ] = False,
 ) -> int:
     """Companion CI: schemas, path ownership, append-only records, content, size."""
     from tsl.services.companion import check, first_error
 
     if event not in (None, "push", "pull_request"):
         raise TslError("E-USE-01", detail="--event is push or pull_request", cmd="companion check")
-    data = check(rt(), comp(), base, event, deny_hashes)
+    if show_allow_hashes and any(
+        os.environ.get(v, "").lower() not in ("", "0", "false") for v in CI_ENV_VARS
+    ):
+        # The hashes would land in a CI log anyone with the repo can read.
+        raise TslError(
+            "E-USE-01", detail="--show-allow-hashes is local only, not in CI", cmd="companion check"
+        )
+    data = check(rt(), comp(), base, event, deny_hashes, show_allow_hashes)
     if data["codes"]:
         raise first_error(data)
     return emit_ok(f"Companion check passed ({data['files_checked']} files)", data)

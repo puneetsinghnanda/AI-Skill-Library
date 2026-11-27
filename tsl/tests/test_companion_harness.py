@@ -101,6 +101,86 @@ def test_forbidden_content_is_reported_without_the_value(world: World) -> None:
     assert ("notes.md", 4) in hits and ("secrets/x.txt", 0) in hits
 
 
+def test_known_false_positive_is_allowed_by_h4_allow(world: World) -> None:
+    """A tech lead marks a reviewed false positive safe by its SHA-256 in tsl.yaml (SEC-01 §7.2)."""
+    import hashlib
+
+    fake = "AKIA" + "Q3VZ7KMB2XW4PLRT"
+    (world.companion / "notes.md").write_text(f"# Notes\n\nkey {fake}\n")
+    _commit(world, "notes")
+    code, env = _check(world)
+    assert (code, env["code"]) == (2, "E-COMP-04")
+    assert "h4_allow" in env["next"]
+    cfg_path = world.companion / "tsl.yaml"
+    cfg = yaml.safe_load(cfg_path.read_text())
+    cfg["h4_allow"] = [hashlib.sha256(fake.encode()).hexdigest()]
+    cfg_path.write_text(yaml.safe_dump(cfg, sort_keys=False))
+    _commit(world, "allow a reviewed false positive")
+    code, env = _check(world)
+    assert code == 0, env
+
+
+@pytest.fixture
+def local(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Not in CI: --show-allow-hashes is refused when a CI runner's variable is set."""
+    from tsl.cli.commands import CI_ENV_VARS
+
+    for v in CI_ENV_VARS:
+        monkeypatch.delenv(v, raising=False)
+
+
+@pytest.mark.parametrize(
+    "tok", ["Zx9Qw7Lm3Kp8Rt2Vb6Nc4Hd1Fg5Js0Ty", "Zx9Qw7Lm3Kp8Rt2Vb6Nc4Hd1Fg5Js0Ty=="]
+)
+def test_entropy_finding_shows_the_hash_that_clears_it(world: World, local: None, tok: str) -> None:
+    """Locally, E-COMP-04 for SEC-ENT-01 names the sha256 for h4_allow; adding it clears it.
+    Base64 `=` padding still gets a hash; only a `NAME=value` match does not."""
+    import re as _re
+
+    (world.companion / "notes.md").write_text(f"# Notes\n\nthe api key is {tok} here\n")
+    _commit(world, "notes")
+    code, env = _check(world)
+    assert (code, env["code"]) == (2, "E-COMP-04")
+    assert "h4_allow sha256" not in json.dumps(env)  # CI never prints a hash
+    assert "--show-allow-hashes" in env["next"]
+    code, env = _check(world, "--show-allow-hashes")  # a tech lead, locally
+    detail = next(f["detail"] for f in env["data"]["findings"] if f["path"] == "notes.md")
+    assert tok not in json.dumps(env)  # the value itself is never echoed
+    digest = _re.search(r"h4_allow sha256 ([0-9a-f]{64})", detail)
+    assert digest is not None, detail
+    cfg_path = world.companion / "tsl.yaml"
+    cfg = yaml.safe_load(cfg_path.read_text())
+    cfg["h4_allow"] = [digest.group(1)]
+    cfg_path.write_text(yaml.safe_dump(cfg, sort_keys=False))
+    _commit(world, "allow a reviewed false positive")
+    code, env = _check(world)
+    assert code == 0, env
+
+
+def test_no_hash_for_a_name_value_match(world: World, local: None) -> None:
+    (world.companion / "notes.md").write_text(
+        "# Notes\n\nthe token DB_TOKEN=Zx9Qw7Lm3Kp8Rt2Vb6Nc4Hd1Fg5Js0Ty\n"
+    )
+    _commit(world, "notes")
+    code, env = _check(world, "--show-allow-hashes")
+    assert (code, env["code"]) == (2, "E-COMP-04")
+    assert "h4_allow sha256" not in json.dumps(env)
+
+
+@pytest.mark.parametrize(
+    "var", ["CI", "GITHUB_ACTIONS", "JENKINS_URL", "TF_BUILD", "BUILDKITE", "TEAMCITY_VERSION"]
+)
+def test_show_allow_hashes_is_refused_in_ci(
+    world: World, monkeypatch: pytest.MonkeyPatch, local: None, var: str
+) -> None:
+    monkeypatch.setenv(var, "true")
+    code, env = _check(world, "--show-allow-hashes")
+    assert (code, env["code"]) == (1, "E-USE-01")
+    monkeypatch.setenv(var, "false")
+    code, env = _check(world, "--show-allow-hashes")
+    assert code == 0, env
+
+
 def test_file_too_large(world: World) -> None:
     (world.companion / "big.txt").write_text("a" * (5 * 1024 * 1024 + 1))
     _commit(world, "big")

@@ -147,8 +147,10 @@ CATALOGUE: dict[str, ErrorDef] = {
             "E-COMP-04",
             CHECK,
             "Companion check failed: forbidden content in {path} line {line}.",
-            "Remove the content in a normal commit and push; the check scans current files only. "
-            "Rewriting history with the admin is optional, only to remove it from old commits",
+            "Remove the content in a normal commit and push (current files are checked; a "
+            "history rewrite by the admin is optional). A reviewed entropy false positive "
+            "(SEC-ENT-01): add the sha256 from `tsl companion check --show-allow-hashes`, run "
+            "locally, to tsl.yaml h4_allow",
         ),
         _d(
             "E-COMP-05",
