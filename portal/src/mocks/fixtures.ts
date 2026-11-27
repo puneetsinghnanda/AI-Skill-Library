@@ -1380,22 +1380,29 @@ function stepMetrics(steps: RunStep[]): StepMetricsTotals | null {
   const atts = steps.flatMap((s) => s.attempts.filter((a) => a.decided_at !== null));
   const measured = atts.filter((a) => a.metrics);
   if (!measured.length) return null;
-  const sum = (f: (a: RunStep['attempts'][number]) => number | null | undefined) =>
-    measured.reduce((n, a) => n + (f(a) ?? 0), 0);
+  const counted = measured.filter((a) => a.metrics?.tokens);
+  const sum = (
+    rows: RunStep['attempts'],
+    f: (a: RunStep['attempts'][number]) => number | null | undefined,
+  ) => rows.reduce((n, a) => n + (f(a) ?? 0), 0);
+  const decidedPerStep = steps.map((s) => s.attempts.filter((a) => a.decided_at !== null).length);
   return {
     attempts: atts.length,
-    retries: steps.reduce((n, s) => n + Math.max(0, s.attempts.length - 1), 0),
+    retries: decidedPerStep.reduce((n, k) => n + Math.max(0, k - 1), 0),
     measured_attempts: measured.length,
-    ai_ms: sum((a) => a.duration_ms),
-    wait_s: sum((a) => a.metrics?.wait_s),
-    calls: sum((a) => a.metrics?.tokens?.calls),
-    subagent_calls: sum((a) => a.metrics?.tokens?.subagent_calls),
-    tokens: {
-      input: sum((a) => a.metrics?.tokens?.input),
-      output: sum((a) => a.metrics?.tokens?.output),
-      cache_read: sum((a) => a.metrics?.tokens?.cache_read),
-      cache_write: sum((a) => a.metrics?.tokens?.cache_write),
-    },
+    token_attempts: counted.length,
+    ai_ms: sum(measured, (a) => a.duration_ms),
+    wait_s: sum(measured, (a) => a.metrics?.wait_s),
+    calls: counted.length ? sum(counted, (a) => a.metrics?.tokens?.calls) : null,
+    subagent_calls: counted.length ? sum(counted, (a) => a.metrics?.tokens?.subagent_calls) : null,
+    tokens: counted.length
+      ? {
+          input: sum(counted, (a) => a.metrics?.tokens?.input),
+          output: sum(counted, (a) => a.metrics?.tokens?.output),
+          cache_read: sum(counted, (a) => a.metrics?.tokens?.cache_read),
+          cache_write: sum(counted, (a) => a.metrics?.tokens?.cache_write),
+        }
+      : null,
   };
 }
 

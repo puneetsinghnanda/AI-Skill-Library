@@ -147,7 +147,12 @@ def test_step_metrics_stored_and_shown(
         "tokens": None,
     }
     t = d["step_metrics"]
-    assert (t["attempts"], t["retries"], t["measured_attempts"]) == (3, 1, 3)
+    assert (t["attempts"], t["retries"], t["measured_attempts"], t["token_attempts"]) == (
+        3,
+        1,
+        3,
+        2,
+    )
     assert (t["ai_ms"], t["wait_s"], t["calls"], t["subagent_calls"]) == (450_000, 378, 36, 10)
     assert t["tokens"] == {
         "input": 96,
@@ -182,3 +187,44 @@ def test_run_from_an_older_tsl_has_no_metrics(
     ).json()["data"]
     req = next(s for s in d["steps"] if s["step_id"] == "req")
     assert req["attempts"][0]["metrics"] is None and d["step_metrics"] is None
+
+
+def test_no_transcript_means_unknown_not_zero(
+    client: TestClient,
+    token: TokenFactory,
+    people: dict[str, Person],
+    world: Any,
+    keys_of: dict[str, str],
+    migrated: Any,
+) -> None:
+    """Every attempt without a transcript: tokens and calls are null, not 0 (Gaurav, #79)."""
+    run_id = new_run()
+    none = {"tokens": None, "wait_s": 30, "active_ms": 60_000, "source": "none"}
+    odd = {"tokens": None, "wait_s": 0, "active_ms": 60_000, "source": "transcript"}  # schema-valid
+    post(
+        client,
+        token(people["eng"].oid, people["eng"].roles),
+        [
+            event("run.started", run_started(world.system), run_id, now_iso(-600)),
+            event(
+                "step.decided", _decided(1, "RETRY", keys_of["eng"], none), run_id, now_iso(-500)
+            ),
+            event("step.decided", _decided(2, "PASS", keys_of["eng"], odd), run_id, now_iso(-400)),
+        ],
+        strict=True,
+    )
+    project(migrated)
+    d = client.get(
+        f"/v1/runs/{run_id}",
+        headers=bearer(token(people["eng"].oid, people["eng"].roles, client="portal")),
+    ).json()["data"]
+    req = next(s for s in d["steps"] if s["step_id"] == "req")
+    assert [a["metrics"]["tokens"] for a in req["attempts"]] == [None, None]
+    t = d["step_metrics"]
+    assert (t["measured_attempts"], t["token_attempts"], t["ai_ms"], t["wait_s"]) == (
+        2,
+        0,
+        120_000,
+        30,
+    )
+    assert t["calls"] is None and t["subagent_calls"] is None and t["tokens"] is None

@@ -39,6 +39,7 @@ function stepTotals(step: RunStep) {
     measured.reduce((n, a) => n + (f(a) ?? 0), 0);
   const tok = measured.some((a) => a.metrics?.tokens);
   return {
+    measured: measured.length,
     aiMs: sum((a) => a.duration_ms),
     waitMs: sum((a) => a.metrics?.wait_s) * 1000,
     tokens: tok
@@ -124,11 +125,12 @@ function RecordPanel({ step }: { step: RunStep | undefined }) {
 function StepMetricsPanel({ step }: { step: RunStep }) {
   const m = stepTotals(step);
   if (!m) return null;
-  const n = step.attempts.length;
+  const all = step.attempts.length;
   return (
     <>
       <h3 className="h3 sm m-0">
-        Metrics · {n} {n === 1 ? 'attempt' : 'attempts'}
+        Metrics · {m.measured === all ? '' : `${m.measured} of `}
+        {all} {all === 1 ? 'attempt' : 'attempts'}
       </h3>
       <dl className="kv m-0">
         <dt>AI time</dt>
@@ -360,21 +362,35 @@ function RunBody({ d }: { d: Run }) {
                     <dd>{minutes(d.step_metrics.wait_s * 1000)}</dd>
                     <dt>Model calls</dt>
                     <dd>
-                      {d.step_metrics.calls} ({d.step_metrics.subagent_calls} by subagents)
+                      {d.step_metrics.calls === null
+                        ? 'Unknown'
+                        : `${d.step_metrics.calls} (${d.step_metrics.subagent_calls ?? 0} by subagents)`}
                     </dd>
-                    <dt>Tokens in</dt>
-                    <dd>{compactTokens(d.step_metrics.tokens.input)}</dd>
-                    <dt>Tokens out</dt>
-                    <dd>{compactTokens(d.step_metrics.tokens.output)}</dd>
-                    <dt>Cache read</dt>
-                    <dd>{compactTokens(d.step_metrics.tokens.cache_read)}</dd>
-                    <dt>Cache write</dt>
-                    <dd>{compactTokens(d.step_metrics.tokens.cache_write)}</dd>
+                    {d.step_metrics.tokens ? (
+                      <>
+                        <dt>Tokens in</dt>
+                        <dd>{compactTokens(d.step_metrics.tokens.input)}</dd>
+                        <dt>Tokens out</dt>
+                        <dd>{compactTokens(d.step_metrics.tokens.output)}</dd>
+                        <dt>Cache read</dt>
+                        <dd>{compactTokens(d.step_metrics.tokens.cache_read)}</dd>
+                        <dt>Cache write</dt>
+                        <dd>{compactTokens(d.step_metrics.tokens.cache_write)}</dd>
+                      </>
+                    ) : (
+                      <>
+                        <dt>Tokens</dt>
+                        <dd>Unknown</dd>
+                      </>
+                    )}
                   </dl>
                   <p className="small text-2 m-0">
                     Steps only; the run loop between attempts is not counted.
                     {d.step_metrics.measured_attempts < d.step_metrics.attempts
-                      ? ` Measured on ${d.step_metrics.measured_attempts} of ${d.step_metrics.attempts} attempts.`
+                      ? ` Times measured on ${d.step_metrics.measured_attempts} of ${d.step_metrics.attempts} attempts.`
+                      : ''}
+                    {d.step_metrics.token_attempts < d.step_metrics.measured_attempts
+                      ? ` Tokens counted on ${d.step_metrics.token_attempts} of ${d.step_metrics.measured_attempts} attempts (no Claude Code transcript on the others).`
                       : ''}
                   </p>
                 </>

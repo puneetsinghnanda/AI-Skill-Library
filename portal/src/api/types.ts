@@ -542,11 +542,13 @@ export interface StepMetricsTotals {
   attempts: number;
   retries: number;
   measured_attempts: number;
+  /** Attempts with token counts; calls and tokens are null (unknown) when 0. */
+  token_attempts: number;
   ai_ms: number;
   wait_s: number;
-  calls: number;
-  subagent_calls: number;
-  tokens: TokenCounts;
+  calls: number | null;
+  subagent_calls: number | null;
+  tokens: TokenCounts | null;
 }
 
 export interface RunDetail {

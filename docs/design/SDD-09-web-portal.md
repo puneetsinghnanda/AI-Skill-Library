@@ -773,6 +773,9 @@ Run outside scope or unknown → `E-API-04`. `is_partial` runs show "Some events
   "steps": [{"seq": 4, "step_id": "design", "kind": "skill", "skill_id": "design", "skill_version": "1.4.0",
      "outcome": "NEEDS-INPUT", "band": null, "attempt_count": 1,
      "attempts": [{"attempt": 1, "started_at": "...", "decided_at": "...", "duration_ms": 41000,
+        "metrics": {"source": "transcript", "wait_s": 378, "models": ["claude-opus-5-5"],
+                    "tokens": {"input": 48, "output": 18890, "cache_read": 1693514, "cache_write": 72951,
+                               "calls": 23, "subagent_calls": 5}},
         "record": {"decided_by": "tsl@1.6.0", "key_id": "key_01J9...", "verification_sha256": "3f9a...",
                    "signals": {"S1": 0.91, "S2": 1.0, "S3": 4.0, "S4": 1, "S5": "fresh", "S6": {"lines": 0, "files": 0, "sensitive": false}},
                    "gate_failures": [], "caps": [], "reasons": [{"code": "S4", "label": "Open blockers"}],
@@ -785,8 +788,13 @@ Run outside scope or unknown → `E-API-04`. `is_partial` runs show "Some events
      "approver": null, "recorded_at": null}],
   "pull_requests": [{"repo": "orders-api", "number": 482, "state": "open", "draft": false,
      "url": "https://github.com/<org>/<repo>/pull/482", "ci_result": "pass?"}],
+  "step_metrics": {"attempts": 5, "retries": 1, "measured_attempts": 5, "token_attempts": 5,
+     "ai_ms": 1080000, "wait_s": 378, "calls": 115, "subagent_calls": 25,
+     "tokens": {"input": 240, "output": 94450, "cache_read": 8467570, "cache_write": 364755}},
   "usage": {"tokens_in": 812000, "tokens_out": 96000, "cost_usd": 4.21}}}
 ```
+
+D1 metrics: `attempts[].metrics` is null for an attempt decided by an older tsl, and `metrics.tokens` is null when no Claude Code transcript was read. `step_metrics` totals the run's decided attempts (steps only, not the run loop between them); `calls`, `subagent_calls` and `tokens` are null, meaning unknown, when no attempt has token counts. `usage` stays the OTel total.
 
 `approver` is a pseudonym (or name under §5.3). The step list is the run's pinned `workflow_steps`, merged with `steps` rows; gates take outcome from `approvals`.
 

@@ -43,10 +43,11 @@ export function compactTokens(v: number | null | undefined): string | null {
 export function minutes(ms: number | null | undefined): string | null {
   if (ms === null || ms === undefined || ms < 0) return null;
   const m = ms / 60_000;
-  if (m < 10) return `${m.toFixed(1)} min`;
-  if (m < 60) return `${Math.round(m)} min`;
-  const h = Math.floor(m / 60);
-  return `${h} h ${Math.round(m - h * 60)} min`;
+  if (m < 9.95) return `${m.toFixed(1)} min`;
+  const whole = Math.round(m); // round once, then split, so it never prints "60 min" in an hour
+  if (whole < 60) return `${whole} min`;
+  const h = Math.floor(whole / 60);
+  return `${h} h ${whole - h * 60} min`;
 }
 
 /** Local date and time, e.g. "13 Oct 2026, 09:30". */

@@ -239,7 +239,7 @@ def attempt_metrics(a: Any) -> dict[str, Any] | None:
     if a.metrics_source is None:
         return None
     tokens = None
-    if a.metrics_source == "transcript":
+    if a.calls is not None:  # counts were stored (a transcript was read)
         tokens = {
             "input": a.tokens_in,
             "output": a.tokens_out,
@@ -270,23 +270,29 @@ def step_metrics(attempts: Sequence[Any]) -> dict[str, Any] | None:
     for a in decided:
         per_step[a.step_id] = per_step.get(a.step_id, 0) + 1
 
-    def total(field: str) -> int:
-        return sum(int(getattr(a, field) or 0) for a in measured)
+    counted = [a for a in measured if a.calls is not None]  # token counts stored
+
+    def total(field: str, rows: Sequence[Any]) -> int:
+        return sum(int(getattr(a, field) or 0) for a in rows)
 
     return {
         "attempts": len(decided),
         "retries": sum(n - 1 for n in per_step.values()),
         "measured_attempts": len(measured),
-        "ai_ms": total("duration_ms"),
-        "wait_s": total("wait_s"),
-        "calls": total("calls"),
-        "subagent_calls": total("subagent_calls"),
+        "token_attempts": len(counted),
+        "ai_ms": total("duration_ms", measured),
+        "wait_s": total("wait_s", measured),
+        # No transcript means unknown, not zero: null when no attempt has token counts.
+        "calls": total("calls", counted) if counted else None,
+        "subagent_calls": total("subagent_calls", counted) if counted else None,
         "tokens": {
-            "input": total("tokens_in"),
-            "output": total("tokens_out"),
-            "cache_read": total("cache_read"),
-            "cache_write": total("cache_write"),
-        },
+            "input": total("tokens_in", counted),
+            "output": total("tokens_out", counted),
+            "cache_read": total("cache_read", counted),
+            "cache_write": total("cache_write", counted),
+        }
+        if counted
+        else None,
     }
 
 
